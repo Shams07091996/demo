@@ -1,0 +1,93 @@
+from datetime import date, timedelta
+
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.core.management.base import BaseCommand, CommandError
+from django.utils.crypto import get_random_string
+
+from sheet.models import ExchangeRate, Profile, Service, Vessel
+
+DEMO_USERS = [
+    ("admin", "admin"),
+    ("viewer", "readonly"),
+    ("alex", "alexandria"),
+    ("portsaid", "portsaid"),
+    ("damietta", "damietta"),
+    ("suez", "suez"),
+]
+
+
+class Command(BaseCommand):
+    help = "Create demo users, an exchange rate and a few vessels (development only)."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--password", help="Use this password for the demo users (default: a random one each).")
+        parser.add_argument("--force", action="store_true", help="Allow running with DJANGO_DEBUG=0.")
+
+    def handle(self, *args, **options):
+        if not settings.DEBUG and not options["force"]:
+            raise CommandError(
+                "Refusing to create demo accounts while DEBUG is off. Use --force if you really mean it."
+            )
+        self._create_users(options["password"])
+        self._create_vessels()
+
+    def _create_users(self, shared_password):
+        for username, role in DEMO_USERS:
+            user, created = User.objects.get_or_create(username=username)
+            if created:
+                password = shared_password or get_random_string(14)
+                user.set_password(password)
+                user.is_staff = user.is_superuser = role == "admin"
+                user.save()
+                self.stdout.write(f"  {username:<9} {role:<10} password: {password}")
+            Profile.objects.update_or_create(user=user, defaults={"role": role})
+
+    def _create_vessels(self):
+        today = date.today()
+        ExchangeRate.objects.get_or_create(month=today.replace(day=1), defaults={"rate": "50.00"})
+        if Vessel.objects.exists():
+            return
+        v1 = Vessel.objects.create(name="MSC AURORA", opr="MSK", poc="ALY", date=today, port="alexandria")
+        Service.objects.create(
+            vessel=v1,
+            service_type="Fresh Water",
+            data={"quantity": 50, "revenue": 900, "revenueCurrency": "USD", "cost": 30000, "costCurrency": "EGP"},
+        )
+        Service.objects.create(
+            vessel=v1,
+            service_type="Cash to Master",
+            data={"amount": 1000, "amountCurrency": "USD", "shareMode": "percent", "percentage": 5},
+        )
+        landing = f"{today:%d} {today:%b}".upper() + " 10:00"  # e.g. "16 NOV 10:00", as the flight parser stores it
+        flight = {"segments": [{"flightNo": "MS123", "arrivalCity": "Alexandria", "arrivalTime": landing}]}
+        Service.objects.create(
+            vessel=v1,
+            service_type="Crew Change",
+            data={
+                "onSigners": [
+                    {"name": "Ahmed Test", "personalStructured": {"rank": "2/E", "nationality": "Egyptian"},
+                     "flightStructured": flight},
+                    {"name": "Ali Sayed", "personalStructured": {"rank": "OS", "nationality": "Egyptian"},
+                     "flightStructured": flight},
+                ],
+                "offSigners": [],
+            },
+        )
+        v2 = Vessel.objects.create(
+            name="ARKAS STAR", opr="ARK", poc="AIT", date=today + timedelta(days=1), port="portsaid"
+        )
+        Service.objects.create(
+            vessel=v2,
+            service_type="Crew Change",
+            data={
+                "onSigners": [
+                    {"name": "Sample Crew", "personalStructured": {"rank": "2/E", "nationality": "Egyptian"}}
+                ],
+                "offSigners": [],
+            },
+        )
+        Vessel.objects.create(
+            name="NORTHERN LIGHT", opr="Other", poc="ACT", date=today - timedelta(days=3), port="suez"
+        )
+        self.stdout.write(self.style.SUCCESS("Demo data created."))

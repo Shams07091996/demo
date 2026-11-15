@@ -1,0 +1,26 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in · Marine Service Sheet</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'sheet/app.css' %}">
+</head>
+<body class="login-body">
+  <form method="post" class="login-card">
+    {% csrf_token %}
+    <div class="login-logo">
+      <span class="anchor">⚓</span>
+      <h1>MARINE <span>SERVICE SHEET</span></h1>
+      <p>Sign in to continue</p>
+    </div>
+    {% if locked_message %}<div class="login-error">{{ locked_message }}</div>{% endif %}
+    {% for error in form.non_field_errors %}<div class="login-error">{{ error }}</div>{% endfor %}
+    <div class="field"><label for="id_username">Username</label>{{ form.username }}</div>
+    <div class="field"><label for="id_password">Password</label>{{ form.password }}</div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn primary wide" type="submit">Sign in</button>
+  </form>
+</body>
+</html>

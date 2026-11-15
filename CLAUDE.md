@@ -1,0 +1,105 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Marine Service Sheet: a Django 5.2 app replacing an Excel sheet of vessels and the services done for them (crew change,
+deliveries, cash to master…), with cost / revenue / profit in EGP. One Django app (`sheet`) plus a vanilla ES-module
+front end with **no build step**. Users have a role: `admin`, `readonly` (sees all ports, edits nothing), or a port
+role (`alexandria`, `portsaid`, `damietta`, `suez`: sees and edits only that port). See `README.md` and `SECURITY.md`.
+
+The folder is **not a git repository** and runs on Windows. Designs and plans live in `docs/superpowers/`.
+
+**Start here:** `docs/STATUS.md` lists what has been built, what is planned next (a calculations page), and the small
+issues the user has not decided on yet. Keep it up to date when you finish a piece of work.
+
+## Commands
+
+Use the project venv (`venv\Scripts\activate`, or call `venv/Scripts/python.exe` directly).
+
+**Debug mode is off unless `DJANGO_DEBUG=1` is set** (fail-closed: without it the app refuses to start because it has
+no secret key). `manage.py runserver` and `manage.py test` set it themselves (`manage.py`); every other command
+(`migrate`, `makemigrations`, `seed_demo`, `createsuperuser`, `check`) needs it in the environment.
+
+```bash
+python manage.py test sheet                                    # all backend tests
+python manage.py test sheet.tests_listing.ListingTests         # one class
+python manage.py test sheet.tests.AccessTests.test_read_only_user_can_read_but_not_write   # one test
+DJANGO_DEBUG=1 python manage.py makemigrations sheet
+cd tools && npm run test:parsing                               # front-end parser unit tests (Node, esbuild)
+```
+
+`ruff` is configured in `pyproject.toml` (line length 120) but is not installed in the venv.
+
+### Browser smoke test (`tools/ui_smoke_test.js`)
+
+Loads the real page in jsdom, signs in over HTTP and clicks through every page; run it for `alex` (port user),
+`admin` and `viewer`. Run it against a **throwaway database**, never the user's `db.sqlite3`:
+
+```bash
+DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py migrate
+DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py seed_demo --password "<long password>"
+DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py runserver 8765 --noreload   # background
+cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # then admin, viewer
+```
+
+- `seed_demo` only sets passwords for users it creates; on a database that already has them, use a new database.
+- A run that fails part-way leaves its test vessels behind and later runs then fail on them: start from a fresh
+  database (or delete the leftovers) before trusting a result.
+- `runserver --noreload` caches templates: restart it after editing `index.html`.
+- Assertions on anything async (search, date inputs, alerts, duplicate checks) must `waitFor`, not read immediately.
+
+## Architecture
+
+**One page, JSON API.** `views.index` renders `templates/sheet/index.html` once; the strict CSP (`middleware.py`,
+`script-src 'self'`) forbids inline scripts, so page context goes to the browser through `json_script` tags and is read
+in `static/sheet/js/config.js`. Everything else is fetched from `/api/...` (routes in `sheet/urls.py`).
+
+**Every API view** is wrapped in `api.json_api` (auth check, `request.profile`, maps `errors.ApiError` subclasses to
+JSON errors, logs 403s) and must get vessels through `access.scoped_vessels(profile, port)`, which pins port users to
+their own port whatever `port` they send. Writes call `access.require_edit` / `require_admin` (exchange rates are
+shared by all ports, so admin-only). Changes are recorded with `api.audit(...)`; values go through `api.log_safe`.
+
+**Input** is cleaned only in `validators.py` (whitelisted keys, length limits, typed numbers). Services store their
+details as JSON in `Service.data`, whose shape per type is defined by `clean_service_data`.
+
+**Money** is computed in Python by `finance.compute` (per service, EGP, USD converted with the service's own rate or
+the vessel's month rate from `ExchangeRate`); it cannot be summed in SQL. `serializers.vessel_to_dict` attaches the
+figures. The front end has a mirror for the live preview (`js/calc.js`), but the server's numbers are the truth.
+
+**Vessel list** (`listing.py`): the database narrows by date range and port; every vessel in that range gets its
+figures computed once; then search (literal, case-insensitive), OPR bucket (ARK / MSK / other / with services), exact
+OPR, sorting (ties by newest id) and paging run in Python. `totals` cover range + port only. The same module serves
+the alerts (today / tomorrow in Cairo time), the Dashboard, the bulk-add duplicate check and the CSV export.
+
+**Hotels and Transport** (`logistics.py`): `HotelStay` (one room, price per room per night) and `Transfer` (one car
+trip between an airport, a hotel and a port, naming which one of each from Master data) each have 1–6 `Guest` rows (one table, a check constraint ties each guest to exactly one
+booking). Guests are copies of crew-change members taken at booking time, so editing a crew change never changes a
+booking. Bookings are scoped through `vessel` like everything else; `booking_to_dict` leaves prices out for read-only
+users. Booking money is for the coming calculations page only and is not part of `finance.compute` or any vessel
+figure. `crew_of(vessel)` feeds the dialog's crew picker (on-signers use their last flight leg, off-signers their
+first). The two pages are one module configured twice (`js/pages/bookings.js`) plus the dialog (`js/modals/booking.js`).
+
+**Front end** (`static/sheet/js/`, entry `main.js`):
+- `state.js` holds one `state.filter` (from, to, q, bucket, port, sort, dir, page, pageSize), the current page of
+  vessels and a cache by id (`getVessel`); `data.js` loads from the server (`setFilter`, `loadVessels`,
+  `refreshAfterChange`, `ensureVessel`), dropping out-of-order responses with a request counter.
+- Every button carries `data-act="name"`; `actions.js` maps names to handlers and `main.js` has one document click
+  listener that dispatches them.
+- Rendering builds HTML strings: every dynamic value must go through `util.esc()`.
+- `bulkParsing.js` (`parseBulk`, `checkRows`) and `crewParsing.js` are pure and unit-tested in `tools/parsing_test.js`.
+
+**Dev server caching:** `sheet/management/commands/runserver.py` overrides `runserver` to send static files with
+`Cache-Control: no-cache`, because the browser otherwise mixes old and new ES modules after an update. It only wins
+because `sheet` is listed before `django.contrib.staticfiles` in `INSTALLED_APPS`.
+
+## Conventions and gotchas
+
+- Files use **LF** line endings. On Windows, Python's `Path.write_text` turns `\n` into CRLF: write with
+  `write_bytes(text.encode("utf-8"))` or `newline=""`.
+- Shell heredocs containing backslash escapes or complex quoting can be mangled; put such scripts in a file instead.
+- Production requires PostgreSQL and `DJANGO_SECRET_KEY` (`config/settings.py`, `config/database.py`); SQLite is
+  development only. The admin URL can be moved with `DJANGO_ADMIN_URL`.
+- Keep `BULK_MAX_ROWS` (`constants.py`) and `MAX_ROWS` (`pages/bulk.js`) in step.
+- `README.md` and `SECURITY.md` both state the backend test count; update them when it changes.

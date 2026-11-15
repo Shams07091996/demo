@@ -1,0 +1,16 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Too many attempts · Marine Service Sheet</title>
+<link rel="stylesheet" href="{% static 'sheet/app.css' %}">
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="login-logo"><span class="anchor">⚓</span><h1>MARINE <span>SERVICE SHEET</span></h1></div>
+    <div class="login-error">Too many failed attempts. Please wait 15 minutes and try again.</div>
+    <a class="btn primary wide" href="{% url 'login' %}" style="text-align:center">Back to sign in</a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Keep LF line endings in the repository and in checkouts (see CLAUDE.md).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.sqlite3 binary

@@ -1,0 +1,205 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marine Service Sheet</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'sheet/app.css' %}">
+</head>
+<body data-pdf-lib="{% static 'sheet/vendor/pdfjs/pdf.min.mjs' %}" data-pdf-worker="{% static 'sheet/vendor/pdfjs/pdf.worker.min.mjs' %}">
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="anchor-icon">⚓</div>
+      <div class="brand-text">MARINE<span>SERVICE SHEET</span></div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Pages">
+      <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico">🚢</span><span>Vessels</span></a>
+      <a class="nav-item" data-page="bulk" href="#bulk" id="nav-bulk"><span class="ico">📥</span><span>Bulk add</span></a>
+      <a class="nav-item" data-page="hotels" href="#hotels"><span class="ico">🏨</span><span>Hotels</span></a>
+      <a class="nav-item" data-page="transport" href="#transport"><span class="ico">🚗</span><span>Transport</span></a>
+      <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico">📊</span><span>Dashboard</span></a>
+      <a class="nav-item" data-page="master" href="#master"><span class="ico">🗂</span><span>Master data</span></a>
+      <a class="nav-item" data-page="rates" href="#rates"><span class="ico">💱</span><span>Exchange rates</span></a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="user-line"><strong>{{ request.user.get_username }}</strong><small id="roleLabel"></small></div>
+      <a class="nav-item" href="{% url 'password_change' %}"><span class="ico">🔑</span><span>Change password</span></a>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+        <button class="nav-item" type="submit"><span class="ico">⎋</span><span>Log out</span></button>
+      </form>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="content">
+    <header class="topbar">
+      <button class="btn ghost menu-btn" id="menuBtn" aria-label="Show or hide the menu" title="Show or hide the menu">☰</button>
+      <h2 id="pageTitle">Vessels</h2>
+      <span class="spacer"></span>
+      <span id="status" class="status"><span class="dot"></span><span id="status-text">Loading…</span></span>
+      <div class="bell-wrap">
+        <button class="btn ghost bell" id="bell" title="Vessels due today and tomorrow">🔔<span class="badge-dot" id="bellBadge" style="display:none">0</span></button>
+        <div class="notif-panel" id="notifPanel"></div>
+      </div>
+    </header>
+    <div id="portBanner" class="port-banner" style="display:none"></div>
+    <div id="notifBanner" class="notif-banner" style="display:none"></div>
+
+    <!-- ===== Vessels ===== -->
+    <main class="page" id="page-vessels">
+      <div class="quick" id="quickAdd">
+        <span class="quick-label">Quick add</span>
+        <input class="input" id="qa-name" placeholder="Vessel name" style="width:200px" maxlength="120">
+        <input class="input" id="qa-date" type="date" style="width:150px">
+        <select class="select" id="qa-opr" title="OPR"></select>
+        <select class="select" id="qa-poc" title="POC"></select>
+        <select class="select" id="qa-agent" title="Agent"></select>
+        <select class="select" id="qa-port" title="Port" style="display:none"></select>
+        <button class="btn primary" id="qa-add">Add</button>
+        <button class="btn ghost" id="qa-edit">+ Add &amp; edit</button>
+        <a class="btn ghost" href="#bulk" id="qa-bulk">📥 Bulk add…</a>
+      </div>
+      <div class="date-range" role="group" aria-label="Date range">
+        <label>From <input class="input" type="date" id="f-from"></label>
+        <label>To <input class="input" type="date" id="f-to"></label>
+        <button class="btn ghost small" id="f-clear" title="Show all dates">✕ All dates</button>
+      </div>
+      <div class="toolbar">
+        <div class="filters" id="filters">
+          <button class="chip active" data-filter="ALL">All</button>
+          <button class="chip ark" data-filter="ARK">ARK</button>
+          <button class="chip msk" data-filter="MSK">MSK</button>
+          <button class="chip oth" data-filter="OTH">Other</button>
+          <button class="chip" data-filter="SERVICES">With services</button>
+        </div>
+        <div class="tools">
+          <select id="portSelect" class="select" style="display:none"></select>
+          <input id="search" class="input search" type="search" placeholder="Search vessel, OPR, POC, agent, service…">
+          <button class="btn primary" id="addVesselBtn">+ Add Vessel</button>
+        </div>
+      </div>
+      <div class="range-notice" id="rangeNotice" role="status" hidden></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-sort="name">Vessel <span class="arrow">↕</span></th>
+              <th data-sort="opr">OPR <span class="arrow">↕</span></th>
+              <th data-sort="poc">POC <span class="arrow">↕</span></th>
+              <th data-sort="agent">Agent <span class="arrow">↕</span></th>
+              <th data-sort="port" class="col-port">Port <span class="arrow">↕</span></th>
+              <th data-sort="date">Date <span class="arrow">↕</span></th>
+              <th>Services</th>
+              <th>Summary</th>
+              <th aria-label="Delete"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="empty" id="empty" style="display:none">No vessels found.</div>
+      </div>
+      <div class="pager" id="pager"></div>
+    </main>
+
+    <!-- ===== Bulk add ===== -->
+    <main class="page" id="page-bulk" hidden>
+      <div class="panel">
+        <h3>Paste vessels from Excel</h3>
+        <div class="row three">
+          <div class="field"><label>Default date</label><input class="input" type="date" id="bk-date"></div>
+          <div class="field"><label>Default OPR</label><select class="select" id="bk-opr"></select></div>
+          <div class="field"><label>Default POC</label><select class="select" id="bk-poc"></select></div>
+        </div>
+        <div class="row three">
+          <div class="field"><label>Default agent</label><select class="select" id="bk-agent"></select></div>
+          <div class="field" id="bk-port-wrap" style="display:none"><label>Port</label><select class="select" id="bk-port"></select></div>
+        </div>
+        <div class="field"><label>Vessels</label>
+          <textarea class="input mono" id="bk-text" rows="9" spellcheck="false"></textarea></div>
+        <div class="actions-row">
+          <button class="btn primary" data-act="bulk-preview">Preview</button>
+          <button class="btn ghost" data-act="bulk-clear">Clear</button>
+        </div>
+        <div id="bk-error" class="error" style="display:none"></div>
+        <div id="bk-preview"></div>
+      </div>
+    </main>
+
+    <!-- ===== Hotels and Transport (lists drawn by js/pages/bookings.js) ===== -->
+    {% for p, page, kind, add_label, empty in booking_pages %}
+    <main class="page" id="page-{{ page }}" hidden>
+      <div class="date-range" role="group" aria-label="Date range">
+        <label>From <input class="input" type="date" id="{{ p }}-from"></label>
+        <label>To <input class="input" type="date" id="{{ p }}-to"></label>
+        <button class="btn ghost small" id="{{ p }}-clear" title="Show all dates">✕ All dates</button>
+      </div>
+      <div class="toolbar">
+        <div class="tools">
+          <select id="{{ p }}-port" class="select" style="display:none" aria-label="Port"></select>
+          <input id="{{ p }}-search" class="input search" type="search" aria-label="Search guest, vessel, hotel or flight">
+        </div>
+        <div class="tools"><button class="btn primary" id="{{ p }}-add" data-act="booking-new" data-kind="{{ kind }}" style="display:none">{{ add_label }}</button></div>
+      </div>
+      <div class="table-wrap">
+        <table><thead id="{{ p }}-head"></thead><tbody id="{{ p }}-tbody"></tbody></table>
+        <div class="empty" id="{{ p }}-empty" style="display:none">{{ empty }}</div>
+      </div>
+      <div class="pager" id="{{ p }}-pager"></div>
+    </main>
+    {% endfor %}
+
+    <!-- ===== Dashboard ===== -->
+    <main class="page" id="page-dashboard" hidden>
+      <div class="toolbar">
+        <div class="filters">
+          <div class="date-range" role="group" aria-label="Date range">
+            <label>From <input class="input" type="date" id="d-from"></label>
+            <label>To <input class="input" type="date" id="d-to"></label>
+            <button class="btn ghost small" id="d-clear" title="Show all dates">✕ All dates</button>
+          </div>
+        </div>
+        <div class="count" style="margin:0"><strong id="dash-count">0</strong> vessels in selection</div>
+      </div>
+      <div class="dash-grid">
+        <section class="panel"><h3>Vessels per OPR</h3><div id="chart-vessels"></div></section>
+        <section class="panel"><h3>Services per OPR</h3><div id="chart-services"></div></section>
+        <section class="panel"><h3>Total cost (LE) per OPR</h3><div id="chart-cost"></div></section>
+        <section class="panel"><h3>Profit (LE) per OPR</h3><div id="chart-profit"></div></section>
+      </div>
+      <h3 class="dash-title">OPR summary</h3>
+      <div class="opr-cards" id="opr-cards"></div>
+    </main>
+
+    <!-- ===== Master data ===== -->
+    <main class="page" id="page-master" hidden>
+      <p class="help">These lists feed the OPR, POC and Agent dropdowns everywhere. Removing a value does not change
+        vessels that already use it.</p>
+      <div class="master-grid" id="master-grid"></div>
+    </main>
+
+    <!-- ===== Exchange rates ===== -->
+    <main class="page" id="page-rates" hidden>
+      <div class="panel">
+        <h3>USD → EGP, per month</h3>
+        <p class="help">USD amounts on a vessel are converted with the rate of the vessel's month, unless a service has its own override.</p>
+        <div id="rates-panel"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+
+{{ me|json_script:"me-data" }}
+{{ ports|json_script:"ports-data" }}
+{{ service_types|json_script:"types-data" }}
+{{ summary_fields|json_script:"summary-fields-data" }}
+{{ option_kinds|json_script:"option-kinds-data" }}
+{{ time_fields|json_script:"time-fields-data" }}
+<script type="module" src="{% static 'sheet/js/main.js' %}"></script>
+</body>
+</html>

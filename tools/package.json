@@ -1,0 +1,10 @@
+{
+  "name": "marine-sheet-frontend-tests",
+  "private": true,
+  "description": "Optional front-end tests. Run: npm install && npm run test:parsing && npm run test:ui",
+  "scripts": {
+    "test:parsing": "node parsing_test.js",
+    "test:ui": "node ui_smoke_test.js"
+  },
+  "devDependencies": { "esbuild": "^0.25.0", "jsdom": "^26.0.0" }
+}
