@@ -5,13 +5,12 @@ Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Git:** `main` = everything up to the Hotels / Transport pages (first commit `d65d696`). The Calculations work is on
-  **`feature/calculations-page` and is NOT merged yet** — ask the user before merging (they were asked last).
-- **The user's own database** (`db.sqlite3`, not in git) is at migration `0005`. It needs
-  `DJANGO_DEBUG=1` + `python manage.py migrate` to get `0006` (hotels / transfers), `0007` (airport / port on
-  transfers) and, once the branch is merged, `0008` (booking cost / revenue). Until then the Hotels, Transport,
-  Calculations and Master data pages fail on that database.
-- **Tests:** `python manage.py test sheet` → 147 OK on the branch; `tools` parser tests and the jsdom smoke test pass
+- **Git:** everything is on `main`, including the Calculations page (`feature/calculations-page` was merged
+  fast-forward on 2026-11-16; the branch still exists and can be deleted).
+- **The user's own database** (`db.sqlite3`, not in git) is at migration `0006`. It still needs
+  `DJANGO_DEBUG=1` + `python manage.py migrate` for `0007` (airport / port on transfers) and `0008` (booking cost /
+  revenue); until then Transport, Calculations and the Master data page fail on that database.
+- **Tests:** `python manage.py test sheet` → 147 OK on `main`; `tools` parser tests and the jsdom smoke test pass
   for `admin`, `alex`, `viewer` (see `CLAUDE.md` for running the smoke test on a throwaway database).
 
 ## Built and tested
@@ -24,7 +23,7 @@ Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-15 | Bulk add: editable preview table (edit cells, live checks, add / remove rows, "Set on all rows", server duplicate check); help text and placeholders removed | `2026-11-15-bulk-add-editable-preview-design.md` |
 | 2026-11-15 | ☰ hides / shows the sidebar on wide screens; alerts banner can shrink to one line; dev `runserver` sends static files with `no-cache` | — |
 | 2026-11-16 | 🏨 Hotels and 🚗 Transport pages: bookings for 1–6 crew guests of a vessel (rooms and cars can be shared), entered on their own pages with the guest picked from the vessel's crew change; transfers name which airport / hotel / port (Master data lists) | `2026-11-16-hotels-and-transport-design.md` |
-| 2026-11-16 (branch) | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
+| 2026-11-16 | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -45,7 +44,7 @@ Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each 
 ## Next
 
 Nothing agreed yet. Ideas raised along the way:
-- Merge `feature/calculations-page` into `main` (waiting for the user).
+
 - Run the test suite on the user's local PostgreSQL 17 (installed at `C:\Program Files\PostgreSQL\17`, not on PATH;
   the user must create the app's database role first — see README "PostgreSQL"). New tests have only run on SQLite.
 - Exports of the Calculations page.
