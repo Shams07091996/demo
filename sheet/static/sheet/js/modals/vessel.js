@@ -20,7 +20,7 @@ function serviceSummary(service) {
       const share = d.shareMode === 'fixed' ? `fixed ${val(d.amountCurrency)} ${fmt(d.fixedRevenue)}` : `${val(d.percentage ?? 0)}%`;
       return `${val(d.amountCurrency)} ${fmt(d.amount)} · our share ${share}`;
     }
-    default:
+    default: {
       if (MULTI.includes(service.type)) {
         const entries = d.entries || [];
         return entries.length
@@ -29,6 +29,7 @@ function serviceSummary(service) {
       }
       const extra = SINGLE_EXTRA[service.type];
       return extra && d[extra.name] ? `${extra.label}: ${esc(d[extra.name])}` : '';
+    }
   }
 }
 

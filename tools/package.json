@@ -4,7 +4,15 @@
   "description": "Optional front-end tests. Run: npm install && npm run test:parsing && npm run test:ui",
   "scripts": {
     "test:parsing": "node parsing_test.js",
-    "test:ui": "node ui_smoke_test.js"
+    "test:ui": "node ui_smoke_test.js",
+    "check": "node check.js",
+    "lint": "cd .. && node tools/node_modules/eslint/bin/eslint.js -c tools/eslint.config.js sheet/static/sheet/js",
+    "test:dom": "node dom_test.js"
   },
-  "devDependencies": { "esbuild": "^0.25.0", "jsdom": "^26.0.0" }
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0",
+    "jsdom": "^26.0.0"
+  }
 }

@@ -8,9 +8,9 @@ from django.test import SimpleTestCase
 from django.utils import timezone
 
 from .errors import BadRequest
+from .logistics import parse_flight_time
 from .models import Guest, HotelStay, Option, Service, Transfer
 from .tests import ApiTestCase
-from .logistics import parse_flight_time
 from .validators import clean_guests, clean_hotel_stay, clean_transfer
 
 G = [{"name": "ahmed test", "rank": "2/E", "nationality": "Egyptian", "group": "on", "flight": "TK689"}]
