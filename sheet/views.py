@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import listing, logistics
+from . import calculations, listing, logistics
 from .access import profile_of, require_admin, require_edit, scoped_vessels
 from .api import audit, json_api, read_json
 from .constants import (
@@ -383,3 +383,13 @@ def vessel_crew(request, pk):
     """The vessel's crew-change guests, for picking hotel / transfer guests."""
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
     return JsonResponse({"crew": logistics.crew_of(vessel)})
+
+
+# ---- calculations (see calculations.py) --------------------------------------------------------
+
+
+@json_api
+@require_http_methods(["GET"])
+def calculations_list(request):
+    """Every money line of the vessels in range / OPR / port, with totals. Every role may read it."""
+    return JsonResponse(calculations.response(request.profile, request.GET))
