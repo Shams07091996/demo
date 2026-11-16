@@ -19,7 +19,7 @@ have it penetration-tested before you rely on it for sensitive data.
 
 | # | Risk | What the app does | What is left to you |
 |---|---|---|---|
-| A01 | Broken access control | Every API call goes through `json_api` → role check → port-scoped queries. Port users get *404* for other ports' vessels/services, can't widen the port filter, and are pinned to their port on create/update/bulk. Read-only users can't write. Exchange rates are shared by every port, so only admins can change them. Hotel stays and transfers are scoped through their vessel (404 across ports) and read-only users never receive their prices. Unknown users start read-only. Tested for every endpoint. | Give each person the least role they need. |
+| A01 | Broken access control | Every API call goes through `json_api` → role check → port-scoped queries. Port users get *404* for other ports' vessels/services, can't widen the port filter, and are pinned to their port on create/update/bulk. Read-only users can't write. Exchange rates are shared by every port, so only admins can change them. Hotel stays and transfers are scoped through their vessel (404 across ports); every role may read their cost and revenue (user decision), only editors change them. Unknown users start read-only. Tested for every endpoint. | Give each person the least role they need. |
 | A02 | Cryptographic failures | HTTPS enforced + HSTS + secure cookies in production; DB connection encrypted; PBKDF2 passwords; secret key required. | Certificates, disk/backup encryption (see §1), key management. |
 | A03 | Injection | Django ORM only (no raw SQL). All input whitelisted, typed and length-limited in `validators.py`. Output escaped in the browser (`esc()`), strict CSP, CSV export neutralises formula injection. Tested with script payloads. | – |
 | A04 | Insecure design | Least-privilege roles, all-or-nothing bulk imports, server-side money maths (the browser preview is never trusted), request size limits (1 MB), bulk limit (200 rows), login lock-out. | API-wide rate limiting at the proxy (e.g. nginx `limit_req`). |
@@ -58,7 +58,7 @@ have it penetration-tested before you rely on it for sensitive data.
 
 ## 5. What is tested
 
-`python manage.py test sheet` (145 tests, also run against PostgreSQL 16): access control for every endpoint and role,
+`python manage.py test sheet` (147 tests, also run against PostgreSQL 16): access control for every endpoint and role,
 port isolation, CSRF, malformed / hostile JSON, validation limits, money maths, login throttling (user, IP, admin login,
 proxy header spoofing), password change rules, audit/security logging without secrets, headers and CSP, CSV injection,
 bulk all-or-nothing, port-call time rules, database settings.

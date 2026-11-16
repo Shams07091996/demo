@@ -8,9 +8,9 @@ export function calcLocal(type, data, monthRate) {
   let rateMissing = false;
   const toEgp = (amount, currency) => {
     const value = num(amount);
-    if (currency !== 'USD') return value;
+    if (currency !== 'USD') return Math.round(value * 100) / 100;
     if (value && !rate) rateMissing = true;
-    return value * (rate || 1);
+    return Math.round(value * (rate || 1) * 100) / 100; // to the cent, as finance.money does on the server
   };
 
   let cost = 0;

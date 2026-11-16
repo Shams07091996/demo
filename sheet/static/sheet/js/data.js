@@ -2,6 +2,7 @@
 // the browser only keeps the current page (plus a cache by id for dialogs).
 import { api } from './api.js';
 import { setStatus } from './feedback.js';
+import { calculationsPage } from './pages/calculations.js';
 import { renderDashboard } from './render/dashboard.js';
 import { renderAll } from './render/index.js';
 import { fillQuickSelects, renderFilterInputs } from './render/list.js';
@@ -116,7 +117,12 @@ export async function afterVesselSaved(vessel) {
 
 /** After any save or delete: reload the page, alerts and (if open) the Dashboard so totals stay right. */
 export async function refreshAfterChange() {
-  await Promise.all([loadVessels(), loadAlerts(), state.page === 'dashboard' ? loadDashboard() : null]);
+  await Promise.all([
+    loadVessels(),
+    loadAlerts(),
+    state.page === 'dashboard' ? loadDashboard() : null,
+    state.page === 'calculations' ? calculationsPage.load() : null, // an edit made from that page shows there at once
+  ]);
   if (!state.vessels.length && state.filter.page > state.list.pages) {
     state.filter.page = state.list.pages; // the last row of the last page was deleted
     await loadVessels();

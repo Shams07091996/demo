@@ -115,6 +115,42 @@ async function login() {
   ok(await waitFor(() => $$('#c-tbody tr').length > 0 && $$('#c-tbody tr').every((t) => t.textContent.includes('MSK'))), 'calculations: the OPR filter narrows the lines');
   type($('#c-opr'), '');
   await waitFor(() => $('#c-totals').textContent.includes('lines'));
+  if (ROLE !== 'viewer') {
+    // An edit made from the page (vessel name → summary → details → add a service) shows up on the page at once.
+    click(waterRow().querySelector('[data-act="summary"]'));
+    await waitFor(() => $('#modal [data-act="open-vessel"]'));
+    click($('#modal [data-act="open-vessel"]'));
+    await waitFor(() => $('[data-act="add-service"]'));
+    click($('[data-act="add-service"]'));
+    click($('[data-type="Others / Remarks"]'));
+    type($('#svc-form [name=note]'), 'calc smoke'); type($('#svc-form [name=cost]'), '7');
+    click($('[data-act="save-service"]'));
+    await waitFor(() => modalText().includes('calc smoke'));
+    closeModal();
+    const othersRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('MSC AURORA') && t.textContent.includes('Others / Remarks'));
+    ok(await waitFor(() => othersRow() && othersRow().textContent.includes('EGP 7.00')), 'calculations: an edit made from the page shows up without reloading');
+    click(othersRow().querySelector('[data-act="summary"]')); // remove the test service again
+    await waitFor(() => $('#modal [data-act="open-vessel"]'));
+    click($('#modal [data-act="open-vessel"]'));
+    await waitFor(() => $$('.svc-card').some((c) => c.textContent.includes('Others / Remarks')));
+    click($$('.svc-card').find((c) => c.textContent.includes('Others / Remarks')).querySelector('[data-act="del-service"]'));
+    await waitFor(() => !$$('.svc-card').some((c) => c.textContent.includes('Others / Remarks')));
+    closeModal();
+    await waitFor(() => !othersRow());
+  }
+  if (ROLE === 'admin') {
+    // Rates are stored with 4 decimals; the working shows them in full so the multiplication adds up.
+    await go('rates');
+    type($('#rate-form [name=month]'), localNow().slice(0, 7)); type($('#rate-form [name=rate]'), '48.2525');
+    click($('[data-act="save-rate"]'));
+    await waitFor(() => $('#rates-panel').textContent.includes('48.2525'));
+    await go('calculations');
+    ok(await waitFor(() => waterRow()?.textContent.includes('USD 900.00 × 48.2525 = 43,427.25')), 'calculations: a 4-decimal rate is shown in full');
+    await go('rates');
+    type($('#rate-form [name=month]'), localNow().slice(0, 7)); type($('#rate-form [name=rate]'), '50');
+    click($('[data-act="save-rate"]'));
+    await waitFor(() => /\b50\b/.test($('#rates-panel').textContent));
+  }
   await go('vessels');
   ok($$('#tbody tr').length > 0, 'vessel table renders');
   ok(!$('#stats') && !$('#exportBtn'), 'no stat cards and no CSV button on the Vessels page');

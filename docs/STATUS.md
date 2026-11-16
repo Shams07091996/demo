@@ -15,7 +15,7 @@ and a build plan (`docs/superpowers/plans/`) that record what was decided and wh
 | 2026-11-16 | 💰 Calculations page: every money line with its working for a vessel-date range / OPR / port, totals; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`) | `2026-11-16-calculations-page-design.md` |
 | 2026-11-16 | 🏨 Hotels and 🚗 Transport pages: bookings for 1–6 crew guests of a vessel, rooms and cars can be shared, prices stored for a future calculations page and hidden from read-only users; transfers name which airport / hotel / port (Master data lists) | `2026-11-16-hotels-and-transport-design.md` |
 
-Tests: `python manage.py test sheet` → 145 OK; `tools` parser tests and the jsdom smoke test pass for `admin`, `alex`,
+Tests: `python manage.py test sheet` → 147 OK; `tools` parser tests and the jsdom smoke test pass for `admin`, `alex`,
 `viewer` (see `CLAUDE.md` for how to run the smoke test on a throwaway database).
 
 ## Next
@@ -47,7 +47,15 @@ Hotels and Transport:
 - Booking table headers sort but don't look clickable.
 - The dialog's vessel search also matches OPR / POC / agent, not only names.
 - `seed_demo` writes the flight month with the machine's locale.
-- Test gaps: transfer cross-port access; read-only detail GET without prices.
+- Test gaps: transfer cross-port access.
+
+Calculations:
+- Cash to Master no longer flags "no exchange rate" when only the amount handed to the master is in USD (share 0%);
+  the live preview still flags it.
+- The "Item" column sorts by service type, not by the label shown.
+- The Summary hides the profit banner when no service has money (it used to show 0.00).
+- Migration 0008 updates bookings one at a time (fine for the few rows that exist).
+- Bookings migrated from a single price show only a cost, so they appear as a loss until a revenue is entered.
 
 ## Operational notes
 

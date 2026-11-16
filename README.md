@@ -72,7 +72,7 @@ out-of-order times are rejected.
 | Role | Sees | Can edit |
 |---|---|---|
 | admin | all ports | everything, including shared master data |
-| readonly | all ports (hotel and transfer prices hidden) | nothing |
+| readonly | all ports, money included (vessels, hotels, transport, Calculations) | nothing |
 | alexandria / portsaid / damietta / suez | own port only | own port only (and that port's master-data values; exchange rates are admin-only) |
 
 Port restrictions are enforced on the server for every request, not just hidden in the page.
@@ -89,7 +89,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 145 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
+python manage.py test sheet         # 147 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
 ruff check .                        # lint (config in pyproject.toml)
 ```
 

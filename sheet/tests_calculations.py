@@ -7,7 +7,7 @@ from django.test import SimpleTestCase
 
 from . import finance
 from .logistics import booking_line
-from .models import HotelStay, Service, Transfer, Vessel
+from .models import ExchangeRate, HotelStay, Service, Transfer, Vessel
 from .tests import ApiTestCase
 from .validators import clean_service_data
 
@@ -165,3 +165,22 @@ class CalculationsApiTests(ApiTestCase):
         self.assertEqual(self.get("admin", opr="ARK")["oprs"], ["ARK", "MSK"])  # not narrowed by the OPR filter itself
         self.assertEqual(self.get("alex")["oprs"], ["ARK"])                     # port users: their port only
         self.assertEqual(self.get("admin", **{"from": "2027-01-01"})["oprs"], [])
+
+
+class CentAccuracyTests(ApiTestCase):
+    """The lines a person sees must add up to the vessel's figures, to the cent."""
+
+    def test_rows_add_up_to_the_vessel_total_with_usd_cents(self):
+        ExchangeRate.objects.create(month=date(2026, 11, 1), rate=Decimal("47.35"))
+        Service.objects.create(vessel=self.alex_vessel, service_type="Landing", data={"entries": [
+            {"cost": 1.01, "costCurrency": "USD"}, {"cost": 1.01, "costCurrency": "USD"}]})
+        vessel = self.call(self.login("admin"), "get", f"/api/vessels/{self.alex_vessel.id}/")[1]
+        rows = [r for r in self.login("admin").get("/api/calculations/", {"page_size": 200}).json()["rows"]
+                if r["vessel"]["id"] == self.alex_vessel.id]
+        self.assertEqual([r["cost_egp"] for r in rows], [47.82, 47.82])
+        self.assertEqual(round(sum(r["cost_egp"] for r in rows), 2), vessel["total_cost_egp"])
+
+    def test_profit_is_rounded_revenue_minus_rounded_cost(self):
+        [line] = finance.service_lines("Certificates", {"cost": 0.004, "revenue": 0.016}, None)
+        self.assertEqual((line["cost_egp"], line["revenue_egp"], line["profit_egp"]), (0.0, 0.02, 0.02))
+        self.assertEqual(finance.compute("Certificates", {"cost": 0.004, "revenue": 0.016}, None)["profit_egp"], 0.02)

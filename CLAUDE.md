@@ -75,7 +75,7 @@ figures computed once; then search (literal, case-insensitive), OPR bucket (ARK 
 OPR, sorting (ties by newest id) and paging run in Python. `totals` cover range + port only. The same module serves
 the alerts (today / tomorrow in Cairo time), the Dashboard, the bulk-add duplicate check and the CSV export.
 
-**Hotels and Transport** (`logistics.py`): `HotelStay` (one room, price per room per night) and `Transfer` (one car
+**Hotels and Transport** (`logistics.py`): `HotelStay` (one room; cost and revenue per room per night) and `Transfer` (one car
 trip between an airport, a hotel and a port, naming which one of each from Master data) each have 1–6 `Guest` rows (one table, a check constraint ties each guest to exactly one
 booking). Guests are copies of crew-change members taken at booking time, so editing a crew change never changes a
 booking. Bookings are scoped through `vessel` like everything else. Each booking has cost (what we pay) and revenue

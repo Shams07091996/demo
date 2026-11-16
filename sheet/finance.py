@@ -38,7 +38,9 @@ def money(amount, currency, rate, times=1):
         "currency": "USD" if usd else "EGP",
         "times": times,
         "rate": (rate or None) if usd else None,
-        "egp": amount * times * ((rate or 1) if usd else 1),
+        # Rounded to the cent here, once: every line, vessel total and page total adds these same figures, so what a
+        # person sees always adds up.
+        "egp": round(amount * times * ((rate or 1) if usd else 1), 2),
         "rate_missing": usd and not rate,
     }
 
@@ -57,7 +59,7 @@ def line(label, cost, revenue, own_rate, note=""):
         "revenue": revenue,
         "cost_egp": cost_egp,
         "revenue_egp": revenue_egp,
-        "profit_egp": revenue_egp - cost_egp,
+        "profit_egp": round(revenue_egp - cost_egp, 2),
         "rate_source": "" if not uses_usd or rate_missing else ("own" if own_rate else "month"),
         "rate_missing": rate_missing,
     }

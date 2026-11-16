@@ -35,12 +35,15 @@ let data = { rows: [], count: 0, pages: 1, page: 1, totals: null, oprs: [] };
 let ticket = 0;
 let wired = false;
 
+// Exchange rates are stored with up to 4 decimals: show them in full so the working multiplies out.
+const fmtRate = (rate) => Number(rate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
 /** One side of a line with its working: "USD 80.00 × 2 × 50.00 = 8,000.00", "EGP 900.00", or "—". */
 function sideCell(side) {
   if (!side) return '—';
   let text = `${esc(side.currency)} ${fmt(side.amount)}`;
   if (side.times > 1) text += ` × ${side.times}`;
-  if (side.currency === 'USD') text += side.rate ? ` × ${fmt(side.rate)}` : ' × 1 (no rate)';
+  if (side.currency === 'USD') text += side.rate ? ` × ${fmtRate(side.rate)}` : ' × 1 (no rate)';
   if (side.currency === 'USD' || side.times > 1) text += ` = ${fmt(side.egp)}`;
   return text;
 }
