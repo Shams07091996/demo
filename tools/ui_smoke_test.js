@@ -94,14 +94,28 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'viewer' ? 6 : 7), 'sidebar lists the pages (read-only users have no Bulk add)');
-  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === 'vessels,bulk,hotels,transport,dashboard,master,rates', 'Hotels and Transport sit after Bulk add');
+  ok($('#sidebar') && navItems.length === (ROLE === 'viewer' ? 7 : 8), 'sidebar lists the pages (read-only users have no Bulk add)');
+  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === 'vessels,bulk,hotels,transport,calculations,dashboard,master,rates', 'Calculations sits after Transport');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
-  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['dashboard', 'Dashboard'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
+  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
     await go(page);
     ok($$('.page').filter((p) => !p.hidden).length === 1 && $('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).classList.contains('active'), `sidebar opens "${title}"`);
   }
+
+  /* ---- calculations page (every role sees it, money included) ---- */
+  await go('calculations');
+  ok(await waitFor(() => /Revenue LE .+ · Cost LE .+ · Profit LE .+ · \d+ lines?/.test($('#c-totals').textContent)), 'calculations: one totals line');
+  const waterRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('MSC AURORA') && t.textContent.includes('Fresh Water'));
+  ok(await waitFor(() => waterRow()) && waterRow().textContent.includes('USD 900.00 × 50.00 = 45,000.00'), 'calculations: a USD line shows its working');
+  ok(waterRow().textContent.includes('EGP 30,000.00') && waterRow().textContent.includes('15,000.00'), 'calculations: cost and profit in EGP');
+  ok([...$('#c-pager #c-page-size').options].map((o) => o.value).join() === '10,25,50,100', 'calculations: rows per page 10/25/50/100');
+  ok([...$('#c-opr').options].map((o) => o.textContent).includes('MSK'), 'calculations: the OPR choices come from the range');
+  type($('#c-opr'), 'MSK');
+  ok(await waitFor(() => $$('#c-tbody tr').length > 0 && $$('#c-tbody tr').every((t) => t.textContent.includes('MSK'))), 'calculations: the OPR filter narrows the lines');
+  type($('#c-opr'), '');
+  await waitFor(() => $('#c-totals').textContent.includes('lines'));
+  await go('vessels');
   ok($$('#tbody tr').length > 0, 'vessel table renders');
   ok(!$('#stats') && !$('#exportBtn'), 'no stat cards and no CSV button on the Vessels page');
   ok($$('#tbody tr')[0].children.length === 9 && !$('th[data-sort="total_cost_egp"]') && !/Total Cost/.test($('thead').textContent), 'table has an Agent column and no Total Cost column');

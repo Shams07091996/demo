@@ -157,3 +157,12 @@ class CalculationsApiTests(ApiTestCase):
         self.assertEqual(rows[0]["kind"], "Fresh Water")
         for params in ({"sort": "price"}, {"page": "0"}, {"from": "x"}, {"dir": "up"}):
             self.assertEqual(self.status("admin", **params), 400, params)
+
+
+class CalculationsOprChoicesTests(CalculationsApiTests):
+    def test_the_opr_choices_are_the_oprs_in_range_and_scope(self):
+        Vessel.objects.filter(pk=self.alex_vessel.pk).update(opr="ARK")
+        Vessel.objects.filter(pk=self.suez_vessel.pk).update(opr="MSK")
+        self.assertEqual(self.get("admin", opr="ARK")["oprs"], ["ARK", "MSK"])  # not narrowed by the OPR filter itself
+        self.assertEqual(self.get("alex")["oprs"], ["ARK"])                     # port users: their port only
+        self.assertEqual(self.get("admin", **{"from": "2027-01-01"})["oprs"], [])

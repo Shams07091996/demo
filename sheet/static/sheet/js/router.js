@@ -2,6 +2,7 @@
 import { ME } from './config.js';
 import { loadDashboard, loadOptions, loadRates } from './data.js';
 import { hotelsPage, transportPage } from './pages/bookings.js';
+import { calculationsPage } from './pages/calculations.js';
 import { initBulkPage } from './pages/bulk.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
@@ -13,6 +14,7 @@ const TITLES = {
   bulk: 'Bulk add',
   hotels: 'Hotels',
   transport: 'Transport',
+  calculations: 'Calculations',
   dashboard: 'Dashboard',
   master: 'Master data',
   rates: 'Exchange rates',
@@ -35,6 +37,7 @@ export async function showPage(requested) {
   if (name === 'bulk') initBulkPage();
   if (name === 'hotels') await hotelsPage.load();
   if (name === 'transport') await transportPage.load();
+  if (name === 'calculations') await calculationsPage.load();
   if (name === 'master') {
     await loadOptions(); // refresh the "used by N vessels" counts
     renderMasterPage();

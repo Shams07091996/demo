@@ -12,6 +12,7 @@ import {
 } from './modals/booking.js';
 import { openVessel, openVesselForm, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
+import { calculationsPage } from './pages/calculations.js';
 import {
   addBulkRow, applyToAllRows, clearBulk, createBulk, previewBulk, removeBulkRow, viewCreated,
 } from './pages/bulk.js';
@@ -150,6 +151,7 @@ export const actions = {
   'booking-new': (b) => openBookingDialog(b.dataset.kind),
   'booking-open': (b) => openBookingDialog(b.dataset.kind, Number(b.dataset.id)),
   'booking-page': (b) => bookingsPage(b.dataset.kind).step(Number(b.dataset.step)),
+  'calc-page': (b) => calculationsPage.step(Number(b.dataset.step)),
   'booking-pick-vessel': pickVessel,
   'booking-change-vessel': changeVessel,
   'booking-add-guest': addGuest,

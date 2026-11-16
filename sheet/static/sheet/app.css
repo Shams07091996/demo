@@ -269,3 +269,9 @@ tr.clickable{cursor:pointer}
 .bkd-guest{display:grid;grid-template-columns:2fr 1fr 1.3fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center}
 .bkd-guest .input{padding:6px 8px;font-size:12px}
 .bkd-guest-head{font-size:11px;color:var(--muted);margin-bottom:2px}
+
+/* ----- Calculations ----- */
+.calc-totals{font-size:13px;margin:4px 2px 12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.calc-note{font-size:11px;margin-top:2px}
+td.num.neg{color:var(--danger)}
+th[data-csort],th[data-bsort]{cursor:pointer}

@@ -85,7 +85,8 @@ def _vessel_rows(vessel, rate):
     """One vessel's lines: its services in order, then its hotel stays, then its transfers."""
     rows = []
     for service in vessel.services.all():
-        rows += [_row(vessel, service.service_type, item) for item in service_lines(service.service_type, service.data, rate)]
+        lines = service_lines(service.service_type, service.data, rate)
+        rows += [_row(vessel, service.service_type, item) for item in lines]
     for kind, label, bookings in (("hotels", "Hotel stay", vessel.hotel_stays.all()),
                                   ("transfers", "Transfer", vessel.transfers.all())):
         for booking in bookings:
@@ -102,6 +103,8 @@ def response(profile, params):
         vessels = vessels.filter(date__gte=p.date_from)
     if p.date_to:
         vessels = vessels.filter(date__lte=p.date_to)
+    # The OPR dropdown offers the OPRs that actually occur in this range and scope (not narrowed by the OPR filter).
+    oprs = sorted(set(vessels.exclude(opr="").values_list("opr", flat=True)), key=str.casefold)
     if p.opr is not None:
         vessels = vessels.filter(opr=p.opr)
     rates = month_rates()
@@ -128,4 +131,5 @@ def response(profile, params):
         "count": len(rows),
         "pages": max(1, -(-len(rows) // p.page_size)),
         "totals": totals,
+        "oprs": oprs,
     }
