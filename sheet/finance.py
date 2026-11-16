@@ -47,6 +47,7 @@ def line(label, cost, revenue, own_rate, note=""):
     """A money line from its two sides (either may be None). `rate_source` says where a USD rate came from."""
     sides = [side for side in (cost, revenue) if side]
     uses_usd = any(side["currency"] == "USD" for side in sides)
+    rate_missing = any(side["rate_missing"] for side in sides)
     cost_egp = cost["egp"] if cost else 0.0
     revenue_egp = revenue["egp"] if revenue else 0.0
     return {
@@ -57,8 +58,8 @@ def line(label, cost, revenue, own_rate, note=""):
         "cost_egp": cost_egp,
         "revenue_egp": revenue_egp,
         "profit_egp": revenue_egp - cost_egp,
-        "rate_source": "" if not uses_usd or any(s["rate_missing"] for s in sides) else ("own" if own_rate else "month"),
-        "rate_missing": any(side["rate_missing"] for side in sides),
+        "rate_source": "" if not uses_usd or rate_missing else ("own" if own_rate else "month"),
+        "rate_missing": rate_missing,
     }
 
 

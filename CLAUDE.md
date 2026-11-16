@@ -9,9 +9,9 @@ deliveries, cash to master…), with cost / revenue / profit in EGP. One Django 
 front end with **no build step**. Users have a role: `admin`, `readonly` (sees all ports, edits nothing), or a port
 role (`alexandria`, `portsaid`, `damietta`, `suez`: sees and edits only that port). See `README.md` and `SECURITY.md`.
 
-The folder is **not a git repository** and runs on Windows. Designs and plans live in `docs/superpowers/`.
+The project is a **git repository** (branch `main`; feature work on branches) and runs on Windows. Designs and plans live in `docs/superpowers/`.
 
-**Start here:** `docs/STATUS.md` lists what has been built, what is planned next (a calculations page), and the small
+**Start here:** `docs/STATUS.md` lists what has been built, what is planned next, and the small
 issues the user has not decided on yet. Keep it up to date when you finish a piece of work.
 
 ## Commands
@@ -64,7 +64,9 @@ shared by all ports, so admin-only). Changes are recorded with `api.audit(...)`;
 **Input** is cleaned only in `validators.py` (whitelisted keys, length limits, typed numbers). Services store their
 details as JSON in `Service.data`, whose shape per type is defined by `clean_service_data`.
 
-**Money** is computed in Python by `finance.compute` (per service, EGP, USD converted with the service's own rate or
+**Money** is worked out only in `finance.py`: `service_lines` gives each service's money lines with their working
+(every service, Crew Change and Others / Remarks included, has cost and revenue) and `finance.compute` adds them up
+(per service, EGP, USD converted with the service's own rate or
 the vessel's month rate from `ExchangeRate`); it cannot be summed in SQL. `serializers.vessel_to_dict` attaches the
 figures. The front end has a mirror for the live preview (`js/calc.js`), but the server's numbers are the truth.
 
@@ -76,10 +78,16 @@ the alerts (today / tomorrow in Cairo time), the Dashboard, the bulk-add duplica
 **Hotels and Transport** (`logistics.py`): `HotelStay` (one room, price per room per night) and `Transfer` (one car
 trip between an airport, a hotel and a port, naming which one of each from Master data) each have 1–6 `Guest` rows (one table, a check constraint ties each guest to exactly one
 booking). Guests are copies of crew-change members taken at booking time, so editing a crew change never changes a
-booking. Bookings are scoped through `vessel` like everything else; `booking_to_dict` leaves prices out for read-only
-users. Booking money is for the coming calculations page only and is not part of `finance.compute` or any vessel
+booking. Bookings are scoped through `vessel` like everything else. Each booking has cost (what we pay) and revenue
+(what we get) — per room per night for hotels — visible to every role; `logistics.booking_line` turns it into a money
+line. Booking money counts on the Calculations page only and is not part of `finance.compute` or any vessel
 figure. `crew_of(vessel)` feeds the dialog's crew picker (on-signers use their last flight leg, off-signers their
 first). The two pages are one module configured twice (`js/pages/bookings.js`) plus the dialog (`js/modals/booking.js`).
+
+**Calculations** (`calculations.py`, `GET /api/calculations/`): vessels in a vessel-date range / exact OPR / port →
+`service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
+filtered rows, and the OPRs present in the range for the page's dropdown. Computed on each request, never stored.
+Every role may read it.
 
 **Front end** (`static/sheet/js/`, entry `main.js`):
 - `state.js` holds one `state.filter` (from, to, q, bucket, port, sort, dir, page, pageSize), the current page of

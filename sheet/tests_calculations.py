@@ -159,7 +159,6 @@ class CalculationsApiTests(ApiTestCase):
             self.assertEqual(self.status("admin", **params), 400, params)
 
 
-class CalculationsOprChoicesTests(CalculationsApiTests):
     def test_the_opr_choices_are_the_oprs_in_range_and_scope(self):
         Vessel.objects.filter(pk=self.alex_vessel.pk).update(opr="ARK")
         Vessel.objects.filter(pk=self.suez_vessel.pk).update(opr="MSK")

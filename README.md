@@ -43,8 +43,9 @@ This version was tested on PostgreSQL 16.
 |---|---|
 | Vessels | The vessel table for a **From – To date range** (this month by default), quick-add bar, search / ARK–MSK filters, sorting and paging (10 / 25 / 50 / 100 rows) – all done by the server – a *Summary of services* button on every vessel, CSV export of everything matching |
 | Bulk add | Paste many vessels from Excel (name, date, OPR, POC, agent), preview, then edit the rows in the table (names, dates, OPR, POC, agent), add / remove rows or set one value on all rows, and create them all at once |
-| Hotels | Every hotel stay (one room, 1–6 crew guests, check-in, nights, hotel from Master data) with guest and vessel, for a date range and port; editors add / edit / delete, read-only users only see (without prices) |
+| Hotels | Every hotel stay (one room, 1–6 crew guests, check-in, nights, hotel from Master data) with guest and vessel, for a date range and port; cost and revenue per night; editors add / edit / delete, read-only users only see |
 | Transport | Every transfer between an airport, a hotel and a port — saying which one of each, from Master data — with date and time, 1–6 guests, flight and vessel; same rules as Hotels |
+| Calculations | Every money line — each service (each entry of Parcels / Courier / Landing), hotel stay and transfer — for a vessel-date range, OPR and port, showing its working (amount × rate = EGP) and one totals line (revenue, cost, profit, lines without an exchange rate). Every role can see it |
 | Dashboard | Charts and cards per OPR for the same date range, totalled by the server |
 | Master data | Add / remove the OPR, POC and **Agent** values used in the dropdowns (with "used by N vessels") |
 | Exchange rates | Monthly USD → EGP rates (shared by every port, so only admins can change them) |
@@ -88,7 +89,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 130 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
+python manage.py test sheet         # 145 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
 ruff check .                        # lint (config in pyproject.toml)
 ```
 

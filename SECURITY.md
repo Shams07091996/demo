@@ -58,7 +58,7 @@ have it penetration-tested before you rely on it for sensitive data.
 
 ## 5. What is tested
 
-`python manage.py test sheet` (130 tests, also run against PostgreSQL 16): access control for every endpoint and role,
+`python manage.py test sheet` (145 tests, also run against PostgreSQL 16): access control for every endpoint and role,
 port isolation, CSRF, malformed / hostile JSON, validation limits, money maths, login throttling (user, IP, admin login,
 proxy header spoofing), password change rules, audit/security logging without secrets, headers and CSP, CSV injection,
 bulk all-or-nothing, port-call time rules, database settings.
