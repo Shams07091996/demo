@@ -9,10 +9,13 @@ deliveries, cash to master…), with cost / revenue / profit in EGP. One Django 
 front end with **no build step**. Users have a role: `admin`, `readonly` (sees all ports, edits nothing), or a port
 role (`alexandria`, `portsaid`, `damietta`, `suez`: sees and edits only that port). See `README.md` and `SECURITY.md`.
 
-The project is a **git repository** (branch `main`; feature work on branches) and runs on Windows. Designs and plans live in `docs/superpowers/`.
+The project is a **git repository** (branch `main`; each feature on its own branch, merged only when the user agrees)
+and runs on Windows. Designs and plans live in `docs/superpowers/`.
 
-**Start here:** `docs/STATUS.md` lists what has been built, what is planned next, and the small
-issues the user has not decided on yet. Keep it up to date when you finish a piece of work.
+**Start here:** `docs/STATUS.md` says where things stand (unmerged branches, migrations the user's database still
+needs), what was built, the **decisions the user made** (respect them), what may come next, the small issues the user
+hasn't decided on, and how work has been done (Superpowers: brainstorm → design → plan → build test-first → fresh
+review). Keep it up to date when you finish a piece of work.
 
 ## Commands
 
@@ -47,7 +50,9 @@ cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # t
 - `seed_demo` only sets passwords for users it creates; on a database that already has them, use a new database.
 - A run that fails part-way leaves its test vessels behind and later runs then fail on them: start from a fresh
   database (or delete the leftovers) before trusting a result.
-- `runserver --noreload` caches templates: restart it after editing `index.html`.
+- `runserver --noreload` caches templates **and Python code**: restart it after editing `index.html` or any `.py`.
+- `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers and a USD Fresh Water service at
+  the month rate 50; the smoke test relies on both.
 - Assertions on anything async (search, date inputs, alerts, duplicate checks) must `waitFor`, not read immediately.
 
 ## Architecture
@@ -66,18 +71,19 @@ details as JSON in `Service.data`, whose shape per type is defined by `clean_ser
 
 **Money** is worked out only in `finance.py`: `service_lines` gives each service's money lines with their working
 (every service, Crew Change and Others / Remarks included, has cost and revenue) and `finance.compute` adds them up
-(per service, EGP, USD converted with the service's own rate or
-the vessel's month rate from `ExchangeRate`); it cannot be summed in SQL. `serializers.vessel_to_dict` attaches the
-figures. The front end has a mirror for the live preview (`js/calc.js`), but the server's numbers are the truth.
+for the vessel figures. USD is converted with the item's own rate, else the vessel's month rate (`ExchangeRate`), else
+1:1 and flagged `rate_missing`. Every amount is rounded to the cent once, in `finance.money`, so lines always add up
+to totals. It cannot be summed in SQL. `serializers.vessel_to_dict` attaches the figures. The front end mirrors the
+maths for the live preview (`js/calc.js`, same rounding), but the server's numbers are the truth.
 
 **Vessel list** (`listing.py`): the database narrows by date range and port; every vessel in that range gets its
 figures computed once; then search (literal, case-insensitive), OPR bucket (ARK / MSK / other / with services), exact
 OPR, sorting (ties by newest id) and paging run in Python. `totals` cover range + port only. The same module serves
 the alerts (today / tomorrow in Cairo time), the Dashboard, the bulk-add duplicate check and the CSV export.
 
-**Hotels and Transport** (`logistics.py`): `HotelStay` (one room; cost and revenue per room per night) and `Transfer` (one car
-trip between an airport, a hotel and a port, naming which one of each from Master data) each have 1–6 `Guest` rows (one table, a check constraint ties each guest to exactly one
-booking). Guests are copies of crew-change members taken at booking time, so editing a crew change never changes a
+**Hotels and Transport** (`logistics.py`): `HotelStay` (one room; cost and revenue per room per night) and
+`Transfer` (one car trip between an airport, a hotel and a port, naming which one of each from Master data) each have
+1–6 `Guest` rows (one table; a check constraint ties each guest to exactly one booking). Guests are copies of crew-change members taken at booking time, so editing a crew change never changes a
 booking. Bookings are scoped through `vessel` like everything else. Each booking has cost (what we pay) and revenue
 (what we get) — per room per night for hotels — visible to every role; `logistics.booking_line` turns it into a money
 line. Booking money counts on the Calculations page only and is not part of `finance.compute` or any vessel
@@ -106,7 +112,11 @@ because `sheet` is listed before `django.contrib.staticfiles` in `INSTALLED_APPS
 
 - Files use **LF** line endings. On Windows, Python's `Path.write_text` turns `\n` into CRLF: write with
   `write_bytes(text.encode("utf-8"))` or `newline=""`.
-- Shell heredocs containing backslash escapes or complex quoting can be mangled; put such scripts in a file instead.
+- Shell heredocs containing backslash escapes, `$$(` or complex quoting can be mangled or refused by the shell safety
+  check; put such scripts in a file (or use the Edit tool) instead. Windows occasionally refuses a file write
+  ("Invalid argument"): check the file is intact, then retry the change.
+- Hand-write migrations that rename fields (`RenameField` + a data step); `makemigrations` would drop and re-add the
+  column and lose data. Check with `makemigrations --check --dry-run`.
 - Production requires PostgreSQL and `DJANGO_SECRET_KEY` (`config/settings.py`, `config/database.py`); SQLite is
   development only. The admin URL can be moved with `DJANGO_ADMIN_URL`.
 - Keep `BULK_MAX_ROWS` (`constants.py`) and `MAX_ROWS` (`pages/bulk.js`) in step.

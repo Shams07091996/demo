@@ -1,7 +1,18 @@
 # Project status
 
-Last updated: 2026-11-16 (calculations page). Read this with `CLAUDE.md` before starting work. Each feature has a design (`docs/superpowers/specs/`)
-and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
+Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each feature has a design
+(`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
+
+## Where things stand right now
+
+- **Git:** `main` = everything up to the Hotels / Transport pages (first commit `d65d696`). The Calculations work is on
+  **`feature/calculations-page` and is NOT merged yet** — ask the user before merging (they were asked last).
+- **The user's own database** (`db.sqlite3`, not in git) is at migration `0005`. It needs
+  `DJANGO_DEBUG=1` + `python manage.py migrate` to get `0006` (hotels / transfers), `0007` (airport / port on
+  transfers) and, once the branch is merged, `0008` (booking cost / revenue). Until then the Hotels, Transport,
+  Calculations and Master data pages fail on that database.
+- **Tests:** `python manage.py test sheet` → 147 OK on the branch; `tools` parser tests and the jsdom smoke test pass
+  for `admin`, `alex`, `viewer` (see `CLAUDE.md` for running the smoke test on a throwaway database).
 
 ## Built and tested
 
@@ -12,16 +23,32 @@ and a build plan (`docs/superpowers/plans/`) that record what was decided and wh
 | 2026-11-15 | Vessels page trimmed at the user's request: no stat cards, no CSV button, no Total Cost column, smaller chips, a 🗑 Delete button per row (click a row to edit) | — |
 | 2026-11-15 | Bulk add: editable preview table (edit cells, live checks, add / remove rows, "Set on all rows", server duplicate check); help text and placeholders removed | `2026-11-15-bulk-add-editable-preview-design.md` |
 | 2026-11-15 | ☰ hides / shows the sidebar on wide screens; alerts banner can shrink to one line; dev `runserver` sends static files with `no-cache` | — |
-| 2026-11-16 | 💰 Calculations page: every money line with its working for a vessel-date range / OPR / port, totals; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`) | `2026-11-16-calculations-page-design.md` |
-| 2026-11-16 | 🏨 Hotels and 🚗 Transport pages: bookings for 1–6 crew guests of a vessel, rooms and cars can be shared, prices stored for a future calculations page and hidden from read-only users; transfers name which airport / hotel / port (Master data lists) | `2026-11-16-hotels-and-transport-design.md` |
+| 2026-11-16 | 🏨 Hotels and 🚗 Transport pages: bookings for 1–6 crew guests of a vessel (rooms and cars can be shared), entered on their own pages with the guest picked from the vessel's crew change; transfers name which airport / hotel / port (Master data lists) | `2026-11-16-hotels-and-transport-design.md` |
+| 2026-11-16 (branch) | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
+| 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
-Tests: `python manage.py test sheet` → 147 OK; `tools` parser tests and the jsdom smoke test pass for `admin`, `alex`,
-`viewer` (see `CLAUDE.md` for how to run the smoke test on a throwaway database).
+## Decisions the user made (respect these)
+
+- **Who sees what:** admins everything; port users only their port (server-enforced); **read-only users see all
+  money everywhere** (vessels, Dashboard, Hotels / Transport cost and revenue, Calculations) but change nothing. The
+  read-only role is also used by the hotel / transport staff.
+- **Money:** every service and every booking has cost (what we pay) and revenue (what we get). **Hotel / transport money
+  counts only on the Calculations page**, never in vessel totals, the Summary of services or the Dashboard. Crew
+  Change / Others money does count in vessel totals (they are services).
+- **Calculations page:** company profit view, filtered by date range and OPR; the range is on the **vessel date**
+  (a vessel's whole port call lands in one period).
+- **Hotels / Transport:** two separate pages; bookings entered there (not in the Crew Change editor); one room or one
+  car trip can hold several guests and is priced once; transfers record which airport / hotel / port; no driver data.
+- **UI taste:** lean screens — no help paragraphs, no placeholders, no stat cards; compact controls.
+- **Process:** the user chooses **Native** execution (built in-session, one fresh reviewer at the end).
 
 ## Next
 
-Nothing agreed yet. Ideas raised along the way: run the test suite on the user's local PostgreSQL 17 (they
-need to create the app's database user first); exports of the Calculations page.
+Nothing agreed yet. Ideas raised along the way:
+- Merge `feature/calculations-page` into `main` (waiting for the user).
+- Run the test suite on the user's local PostgreSQL 17 (installed at `C:\Program Files\PostgreSQL\17`, not on PATH;
+  the user must create the app's database role first — see README "PostgreSQL"). New tests have only run on SQLite.
+- Exports of the Calculations page.
 
 ## Left open — small things the user hasn't decided on yet
 
@@ -44,7 +71,6 @@ Hotels and Transport:
 - An exchange rate like 999999.99999 overflows the database column on PostgreSQL.
 - The 60-night cap is checked by the app but not on the model (the Django admin could store more).
 - Transfer time pre-fill uses arrival (on-signers) / departure (off-signers) regardless of direction.
-- Booking table headers sort but don't look clickable.
 - The dialog's vessel search also matches OPR / POC / agent, not only names.
 - `seed_demo` writes the flight month with the machine's locale.
 - Test gaps: transfer cross-port access.
@@ -57,8 +83,19 @@ Calculations:
 - Migration 0008 updates bookings one at a time (fine for the few rows that exist).
 - Bookings migrated from a single price show only a cost, so they appear as a loss until a revenue is entered.
 
+## How work has been done here
+
+1. **Brainstorm** with the user (Superpowers `brainstorming`): one question at a time, approaches compared, user picks.
+2. **Design** written to `docs/superpowers/specs/`, read by a fresh "builder check" agent, user approves.
+3. **Plan** written to `docs/superpowers/plans/` (tasks with failing tests first), user picks Native.
+4. **Build** on a feature branch, test first, one commit per task; backend suite + parser tests + smoke test (3 roles).
+5. **Fresh reviewer** (most capable model) reads the whole branch; important findings fixed test-first; the rest are
+   listed above under "Left open".
+6. Update this file, `README.md` / `SECURITY.md` test counts and `CLAUDE.md`.
+
 ## Operational notes
 
-- The user's own `db.sqlite3` must be migrated after pulling these changes (`DJANGO_DEBUG=1`, `python manage.py migrate`).
-- After front-end changes, a browser that cached old modules may need one hard refresh (Ctrl + Shift + R).
-- Git: `main` holds released work; each feature is built on its own branch and merged when the user agrees.
+- After front-end changes, a browser that cached old modules may need one hard refresh (Ctrl + Shift + R); the dev
+  server now sends `no-cache`, so this is only needed once after upgrading from an old version.
+- Moving data from SQLite to PostgreSQL: see README "PostgreSQL" (`dumpdata` → `migrate` → `loaddata`).
+- Git commits made by Claude end with a `Co-Authored-By: Claude …` line.
