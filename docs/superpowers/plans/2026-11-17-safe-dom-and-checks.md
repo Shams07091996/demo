@@ -64,6 +64,36 @@ innerHTML, no security vulnerability should be there").
 - [ ] **Step 5:** Run `npm run check` → everything passes (note any `check --deploy` warning that is deliberate,
   e.g. HSTS preload, and silence only that id). Commit `chore: add ruff security rules, ESLint, pip-audit and one check command`.
 
+### Task 1b: No eval anywhere (user: "if there is any eval delete it too")
+
+Found: the app's own code has none. It remains in four places:
+- `tools/parsing_test.js:11` (`new Function`, to load the bundled parsers);
+- `tools/ui_smoke_test.js:83, 91, 593` (`w.eval`);
+- the vendored PDF.js: a `new Function("")` probe in both files, plus the PostScript-function compiler in
+  `pdf.worker.min.mjs`. That compiler is the path behind CVE-2024-4367. Today it is switched off only by
+  `isEvalSupported: false`, and the worker file may be served without our CSP (for example by nginx in production).
+
+**Files:** `tools/parsing_test.js`, `tools/ui_smoke_test.js`, `sheet/static/sheet/vendor/pdfjs/pdf.min.mjs`,
+`pdf.worker.min.mjs`, new `sheet/vendor/pdfjs/PATCHES.md`, `sheet/tests_dev.py`.
+
+- [ ] **Step 1: Failing test** (`tests_dev.py`) `test_no_eval_in_shipped_javascript`: for every `.js`/`.mjs` under
+  `sheet/static/sheet/` (vendor included) the text contains none of `eval(`, `new Function`, `Function(`
+  (word-boundary regex, `\beval\s*\(` and `\bFunction\s*\(`).
+- [ ] **Step 2:** FAIL (PDF.js). **Step 3:** patch both PDF.js files with exact string replacements:
+  - `try{new Function("");return!0}catch{return!1}` → `return!1`;
+  - in the worker, `if(e)return new Function("src","srcOffset","dest","destOffset",e)` → `` (PDF.js then falls back
+    to its built-in PostScript interpreter).
+
+  Record both in `PATCHES.md` with the original strings, so a future PDF.js update repeats them.
+- [ ] **Step 4:** tools without eval:
+  - `parsing_test.js`: write the esbuild `cjs` output to a temp file and `require()` it.
+  - smoke test: `localNow` / `plusDays` use `new w.Date()` directly, and the bundle loads through a `<script>`
+    element appended to the jsdom document (jsdom's `runScripts` setting).
+  - Then `grep -rnE "\beval\s*\(|\bFunction\s*\(" sheet tools --include=*.js --include=*.mjs --include=*.py`
+    (excluding `node_modules`) → nothing.
+- [ ] **Step 5:** test PASS, parser tests PASS, smoke alex PASS, reading a PDF still works (checked again in
+  Task 9's browser list). Commit `security: remove every eval and new Function, PDF.js included`.
+
 ### Task 2: Element builder
 
 **Files:** Create `sheet/static/sheet/js/dom.js`, `tools/dom_test.js`.

@@ -21,6 +21,9 @@ pip-audit). This is piece 1 of 3; piece 2 is an OWASP Top 10 (2025) review, piec
   checks and tests.
 - Screens look and behave **exactly as today** (same markup, classes, `data-act` buttons, ids).
 
+- **No `eval` / `new Function` anywhere** (user, after approval): not in our code, not in our test tools, and not
+  in the vendored PDF.js (its probe and PostScript compiler are patched out, recorded in `vendor/pdfjs/PATCHES.md`).
+
 ## Non-goals
 Visual changes; a framework or build step (still vanilla ES modules, no bundler); server-side changes beyond the CSP
 header; the Django admin pages (they keep Django's own defaults); MFA and the wider OWASP review (pieces 2 and 3).
