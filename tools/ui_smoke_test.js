@@ -92,6 +92,24 @@ async function login() {
   await waitFor(() => $$('#tbody tr').length > 0);
   console.log(`role: ${ROLE} | vessels: ${$$('#tbody tr').map((t) => t.querySelector('.vessel-name').textContent).join(', ')}`);
 
+  // A port user outside Alexandria (run: node ui_smoke_test.js suez): their own Master-data values are offered in the
+  // Add vessel form. A short, separate run: the rest of this script is written for alex / admin / viewer.
+  if (ROLE === 'suez') {
+    await go('master');
+    type($('[data-new="agent"]'), 'SMOKE SUEZ OWN AGENT');
+    click($('[data-act="add-option"][data-kind="agent"]'));
+    const ownRow = () => $$('.opt-row').find((r) => r.textContent.includes('SMOKE SUEZ OWN AGENT'));
+    ok(await waitFor(() => ownRow()?.textContent.includes('Suez')), 'suez user: a value they add belongs to Suez');
+    const own = { id: ownRow().querySelector('[data-act="del-option"]').dataset.id };
+    await go('vessels');
+    click($('#addVesselBtn'));
+    ok(await waitFor(() => $('#vessel-form [name=agent]')) && [...$('#vessel-form [name=agent]').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: the Add vessel form offers their own agent');
+    closeModal();
+    ok([...$('#qa-agent').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: quick add offers their own agent');
+    await w.fetch(`/api/options/${own.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
+    return finish();
+  }
+
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
   ok($('#sidebar') && navItems.length === (ROLE === 'viewer' ? 7 : 8), 'sidebar lists the pages (read-only users have no Bulk add)');
@@ -280,6 +298,15 @@ async function login() {
     }
     const optionRow = (value) => $$('.opt-row').find((r) => r.textContent.includes(value));
     ok(optionRow('SMOKE SUEZ AGENT')?.querySelector('select[data-option-port]')?.value === 'suez', 'admin: the new agent belongs to Suez');
+    ok($('select[data-new-port="agent"]').value === 'suez', 'admin: the port chosen for a list is remembered for the next value');
+    await go('bulk'); // first visit: the default lists follow the bulk port (Alexandria)
+    ok(![...$('#bk-agent').options].some((o) => o.textContent === 'SMOKE SUEZ AGENT'), 'bulk add: default lists follow the target port on the first visit');
+    await go('vessels');
+    type($('#portSelect'), 'suez');
+    ok(await waitFor(() => $('#qa-port').value === 'suez' && [...$('#qa-agent').options].some((o) => o.textContent === 'SMOKE SUEZ AGENT')), 'quick add follows the header port selector');
+    type($('#portSelect'), 'ALL');
+    await waitFor(() => $('#portSelect').value === 'ALL');
+    await go('master');
     const agentChoices = () => [...$('#vessel-form [name=agent]').options].map((o) => o.textContent);
     await go('vessels');
     click($('#addVesselBtn'));

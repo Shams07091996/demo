@@ -37,12 +37,12 @@ const defaults = () => ({ date: $('#bk-date').value, opr: $('#bk-opr').value, po
 const targetPort = () => (ME.isAdmin ? $('#bk-port').value : ME.port);
 
 export function initBulkPage() {
-  fillQuickSelects();
   if (!$('#bk-date').value) $('#bk-date').value = today();
   if (ME.isAdmin && !$('#bk-port').options.length) {
     $('#bk-port').innerHTML = PORTS.map((p) => `<option value="${p.key}">${p.label}</option>`).join('');
     $('#bk-port-wrap').style.display = '';
   }
+  fillQuickSelects(); // after the port select exists, so the default lists follow its port
 }
 
 /* ---- drawing ---- */

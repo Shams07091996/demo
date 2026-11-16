@@ -44,9 +44,10 @@ Loads the real page in jsdom, signs in over HTTP and clicks through every page; 
 DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py migrate
 DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py seed_demo --password "<long password>"
 DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py runserver 8765 --noreload   # background
-cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # then admin, viewer
+cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # then admin, viewer, suez
 ```
 
+- `suez` is a short separate run (a port user outside Alexandria); the full script is written for alex / admin / viewer.
 - `seed_demo` only sets passwords for users it creates; on a database that already has them, use a new database.
 - A run that fails part-way leaves its test vessels behind and later runs then fail on them: start from a fresh
   database (or delete the leftovers) before trusting a result.

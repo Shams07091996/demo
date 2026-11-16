@@ -92,7 +92,7 @@ const timeField = ({ key, label }, vessel) => `
 
 export function openVesselForm(vessel) {
   state.ctx = { view: 'vessel-form', vesselId: vessel ? vessel.id : null };
-  const selectedPort = vessel ? vessel.port : state.filter.port !== 'ALL' ? state.filter.port : 'alexandria';
+  const selectedPort = vessel ? vessel.port : ME.port || (state.filter.port !== 'ALL' ? state.filter.port : 'alexandria');
   const summary = (vessel && vessel.summary) || {};
   const portField = ME.isAdmin
     ? `<div class="field"><label>Port</label><select name="port">${PORTS.map(

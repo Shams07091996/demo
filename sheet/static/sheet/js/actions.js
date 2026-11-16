@@ -16,7 +16,7 @@ import { calculationsPage } from './pages/calculations.js';
 import {
   addBulkRow, applyToAllRows, clearBulk, createBulk, previewBulk, removeBulkRow, viewCreated,
 } from './pages/bulk.js';
-import { renderMasterPage, usageUnit } from './pages/master.js';
+import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
 import { fillQuickSelects } from './render/list.js';
 import { closePanel, toggleAlerts } from './render/notifications.js';
@@ -144,6 +144,7 @@ export const actions = {
     const input = $(`[data-new="${b.dataset.kind}"]`);
     if (!input.value.trim()) return undefined;
     const port = $(`select[data-new-port="${b.dataset.kind}"]`)?.value || '';
+    newValuePort[b.dataset.kind] = port; // offered again for the next value of this list
     return changeOption(() => api('/api/options/', 'POST', { kind: b.dataset.kind, value: input.value, port }));
   },
   'del-option': removeOption,

@@ -155,7 +155,10 @@ if (ME.seesAll) {
   select.innerHTML = `<option value="ALL">🌐 All ports</option>${PORTS.map((p) => `<option value="${p.key}">${p.label}</option>`).join('')}`;
   select.style.display = '';
   select.addEventListener('change', () => {
-    if (ME.isAdmin && select.value !== 'ALL') $('#qa-port').value = select.value;
+    if (ME.isAdmin && select.value !== 'ALL') {
+      $('#qa-port').value = select.value;
+      fillQuickSelects();
+    }
     setFilter({ port: select.value });
   });
 }

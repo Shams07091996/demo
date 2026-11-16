@@ -79,6 +79,14 @@ Hotels and Transport:
 - `seed_demo` writes the flight month with the machine's locale.
 - Test gaps: transfer cross-port access.
 
+Master data per port:
+- A PATCH without a `port` key moves the value to All ports (the page always sends one).
+- Two admins moving the same value at once could hit the unique rule (500 instead of the duplicate message).
+- The audit line for a move records the new port only.
+- Changing the bulk-add port redraws the table, dropping any unapplied "Set on all rows" choices.
+- Bulk add's "not in Master data" warning counts values of any port.
+- The server does not check that a vessel's OPR / POC / Agent belongs to its port (only the dropdowns filter).
+
 Calculations:
 - Cash to Master no longer flags "no exchange rate" when only the amount handed to the master is in USD (share 0%);
   the live preview still flags it.

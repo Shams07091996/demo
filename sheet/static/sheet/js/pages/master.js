@@ -7,6 +7,9 @@ import { $, esc } from '../util.js';
 const portSelect = (attrs, current) => `<select class="select port-pick" ${attrs}>${[['', 'All ports'], ...PORTS.map((p) => [p.key, p.label])]
   .map(([key, label]) => `<option value="${key}" ${key === current ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select>`;
 
+/** The port an admin last chose when adding to each list (kept while the page is open). */
+export const newValuePort = {};
+
 // Hotel / Airport / Port values are used by hotel stays and transfers, not by vessels.
 const BOOKING_KINDS = ['hotel', 'airport', 'port'];
 export const usageUnit = (kind, n) => `${BOOKING_KINDS.includes(kind) ? 'booking' : 'vessel'}${n === 1 ? '' : 's'}`;
@@ -28,7 +31,7 @@ function listPanel({ key, label }) {
   const rows = state.options.filter((o) => o.kind === key).map(optionRow);
   const adder = ME.canEdit
     ? `<div class="add-row"><input class="input" data-new="${key}" maxlength="100" placeholder="New ${esc(label)}…">
-       ${ME.isAdmin ? portSelect(`data-new-port="${key}" aria-label="Port for a new ${esc(label)}"`, '') : ''}
+       ${ME.isAdmin ? portSelect(`data-new-port="${key}" aria-label="Port for a new ${esc(label)}"`, newValuePort[key] || '') : ''}
        <button class="btn primary" data-act="add-option" data-kind="${key}">Add</button></div>`
     : '';
   return `<section class="panel"><h3>${esc(label)}</h3>${rows.join('') || '<div class="none">None yet.</div>'}${adder}</section>`;
