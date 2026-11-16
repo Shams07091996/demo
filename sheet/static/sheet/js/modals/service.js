@@ -134,10 +134,13 @@ function cashToMasterFields(vessel, d) {
 }
 
 function formFields(type, vessel, d) {
+  // Every service has a cost and a revenue (Crew Change and Others / Remarks too).
+  const money = () => moneyField('Revenue', 'revenue', 'revenueCurrency', d, 'USD') +
+    moneyField('Cost', 'cost', 'costCurrency', d, 'EGP') + rateField(vessel, d) + previewBox;
   if (type === 'Others / Remarks') {
-    return `<div class="field"><label>Notes</label><textarea name="note" maxlength="1000">${val(d.note)}</textarea></div>`;
+    return `<div class="field"><label>Notes</label><textarea name="note" maxlength="1000">${val(d.note)}</textarea></div>${money()}`;
   }
-  if (type === 'Crew Change') return '<div id="crew-editor"></div>';
+  if (type === 'Crew Change') return `<div id="crew-editor"></div>${money()}`;
   if (MULTI.includes(type)) {
     return `<div id="entries">${(d.entries || []).map((e) => entryRowHtml(type, e)).join('')}</div>
       <button class="btn ghost wide" data-act="add-entry" style="margin:0 0 12px">+ Add entry</button>${rateField(vessel, d)}${previewBox}`;
@@ -172,10 +175,16 @@ export function readServiceForm() {
   const root = $('#svc-form');
   const { type } = state.ctx;
   const values = formValues(root);
-  if (type === 'Others / Remarks') return { note: values.note };
+  const money = {
+    cost: values.cost, costCurrency: values.costCurrency, revenue: values.revenue,
+    revenueCurrency: values.revenueCurrency, exchangeRate: values.exchangeRate,
+  };
+  if (type === 'Others / Remarks') return { note: values.note, ...money };
   if (type === 'Crew Change') {
     const withoutUiState = ({ _open, ...member }) => member;
-    return { onSigners: state.crew.onSigners.map(withoutUiState), offSigners: state.crew.offSigners.map(withoutUiState) };
+    return {
+      onSigners: state.crew.onSigners.map(withoutUiState), offSigners: state.crew.offSigners.map(withoutUiState), ...money,
+    };
   }
   if (MULTI.includes(type)) {
     const entries = $$('.entry', root).map((row) => {

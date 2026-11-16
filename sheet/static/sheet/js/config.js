@@ -17,7 +17,6 @@ export const PORT_COLOR = { alexandria: 'var(--teal)', portsaid: 'var(--gold)', 
 
 // Service kinds (must match sheet/constants.py).
 export const MULTI = ['Delivery Parcels', 'Delivery Courier', 'Landing'];
-export const NO_MONEY = ['Crew Change', 'Others / Remarks'];
 export const SINGLE_EXTRA = {
   'Medical Treatment': { name: 'patientName', label: 'Patient name', type: 'text' },
   Certificates: { name: 'certName', label: 'Certificate name', type: 'text' },

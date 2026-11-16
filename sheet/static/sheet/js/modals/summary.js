@@ -1,6 +1,6 @@
 // Read-only reports: one vessel's summary, and the combined summary of an OPR.
 import { head, metaBadges, pill, portCallBlock, profitClass, serviceCounts, statusChip, tagLabel } from '../components.js';
-import { MULTI, NO_MONEY, SINGLE_EXTRA } from '../config.js';
+import { MULTI, SINGLE_EXTRA } from '../config.js';
 import { openModal } from '../modal.js';
 import { api } from '../api.js';
 import { ensureVessel } from '../data.js';
@@ -69,7 +69,9 @@ function singleBlock(service) {
 
 function serviceBlock(service) {
   let inner;
-  if (service.type === 'Others / Remarks') inner = `<div>${esc(service.data.note || '—')}</div>`;
+  if (service.type === 'Others / Remarks') {
+    inner = `<div>${esc(service.data.note || '—')}</div>${service.calc.cost_egp || service.calc.revenue_egp ? singleBlock(service) : ''}`;
+  }
   else if (MULTI.includes(service.type)) inner = multiEntryBlock(service);
   else if (service.type === 'Cash to Master') inner = cashToMasterBlock(service);
   else inner = singleBlock(service);
@@ -82,7 +84,8 @@ function crewBlock(service) {
   return `<div class="crew-box">
     <h4 class="crew-title">👥 Crew Change <span class="tag">↑ ${on.length} On</span> <span class="tag">↓ ${off.length} Off</span></h4>
     <div class="section-title" style="margin-top:10px;color:var(--success)">↑ On-signers</div>${crewTable(on, 'on')}
-    <div class="section-title" style="color:var(--gold)">↓ Off-signers</div>${crewTable(off, 'off')}</div>`;
+    <div class="section-title" style="color:var(--gold)">↓ Off-signers</div>${crewTable(off, 'off')}
+    ${service.calc.cost_egp || service.calc.revenue_egp ? singleBlock(service) : ''}</div>`;
 }
 
 export async function openSummary(id) {
@@ -90,7 +93,7 @@ export async function openSummary(id) {
   if (!vessel) return;
   state.ctx = { view: 'summary', vesselId: id };
   const services = vessel.services;
-  const hasMoney = services.some((s) => !NO_MONEY.includes(s.type));
+  const hasMoney = services.some((s) => s.calc.cost_egp || s.calc.revenue_egp);
   const body =
     (services.length ? '' : '<div class="hint">No services recorded.</div>') +
     services.filter((s) => s.type !== 'Crew Change').map(serviceBlock).join('') +

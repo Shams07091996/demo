@@ -1,6 +1,6 @@
 // Live profit preview while a service form is open. The server recalculates on save and is the source of truth.
 // Keep this in step with sheet/finance.py.
-import { MULTI, NO_MONEY } from './config.js';
+import { MULTI } from './config.js';
 import { num } from './util.js';
 
 export function calcLocal(type, data, monthRate) {
@@ -27,7 +27,7 @@ export function calcLocal(type, data, monthRate) {
     const ours = Math.max(0, Math.min(share, amount));
     revenue = toEgp(ours, data.amountCurrency);
     toMaster = toEgp(amount - ours, data.amountCurrency);
-  } else if (!NO_MONEY.includes(type)) {
+  } else { // every other service, Crew Change and Others / Remarks included
     cost = toEgp(data.cost, data.costCurrency);
     revenue = toEgp(data.revenue, data.revenueCurrency);
   }

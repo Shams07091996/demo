@@ -10,7 +10,9 @@ import { optionValues, state } from '../state.js';
 import { $, $$, dmy, esc } from '../util.js';
 
 const PLACES = [['airport', 'Airport'], ['hotel', 'Hotel'], ['port', 'Port']];
-const PRICE_KEY = { hotels: 'price_per_night', transfers: 'price' };
+// The API names of the cost / revenue amounts (per room per night for hotels, per trip for transfers).
+const MONEY_KEYS = { hotels: ['cost_per_night', 'revenue_per_night'], transfers: ['cost', 'revenue'] };
+const MONEY_FORM = { cost: '', cost_currency: 'EGP', revenue: '', revenue_currency: 'EGP', exchange_rate: '' };
 const SEARCH_DELAY_MS = 300;
 const MAX_GUESTS = 6; // keep in step with MAX_GUESTS in sheet/constants.py
 
@@ -23,8 +25,8 @@ const touches = (form, place) => form.from_place === place || form.to_place === 
 const touchesHotel = (form) => touches(form, 'hotel');
 
 const blankForm = (kind) => (kind === 'hotels'
-  ? { hotel: '', check_in: '', nights: '1', price: '', currency: 'EGP', exchange_rate: '' }
-  : { from_place: 'airport', to_place: 'port', airport: '', port_name: '', hotel: '', at: '', price: '', currency: 'EGP', exchange_rate: '' });
+  ? { hotel: '', check_in: '', nights: '1', ...MONEY_FORM }
+  : { from_place: 'airport', to_place: 'port', airport: '', port_name: '', hotel: '', at: '', ...MONEY_FORM });
 
 /** The Master-data value that names this place (e.g. "Borg El Arab Airport" for the city "Borg El Arab"), or ''. */
 function matchOption(kind, text) {
@@ -57,10 +59,11 @@ export async function openBookingDialog(kind, id = null) {
       vessel: { id: booking.vessel.id, name: booking.vessel.name, port_label: booking.vessel.port_label },
       guests: booking.guests.map((g) => ({ ...g })),
     });
-    for (const key of Object.keys(form)) if (key in booking && key !== 'price') form[key] = booking[key] ?? '';
+    for (const key of Object.keys(form)) if (key in booking) form[key] = booking[key] ?? '';
     form.nights = String(booking.nights ?? form.nights);
-    form.price = booking[PRICE_KEY[kind]] ?? '';
-    form.exchange_rate = booking.exchange_rate ?? '';
+    const [costKey, revenueKey] = MONEY_KEYS[kind];
+    form.cost = booking[costKey] ?? '';
+    form.revenue = booking[revenueKey] ?? '';
   }
   render({ fresh: true }); // a new dialog starts at the top
   if (id) loadCrew();
@@ -154,13 +157,20 @@ function detailsBlock() {
         ${field('Date & time', `<input class="input" type="datetime-local" data-bf="at" value="${esc(form.at)}">`)}
       </div><div class="row three">${named}</div>`;
   }
-  const currency = `<select class="select" data-bf="currency">${['EGP', 'USD'].map((c) =>
-    `<option ${form.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`;
-  const price = `<div class="section-title"><span>Price ${isHotel() ? '(per room per night)' : '(per trip)'} — optional</span></div>
+  const currencySelect = (key) => `<select class="select" data-bf="${key}">${['EGP', 'USD'].map((c) =>
+    `<option ${form[key] === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`;
+  const amount = (key) => `<input class="input" type="number" min="0" step="any" data-bf="${key}" value="${esc(form[key])}">`;
+  const usd = form.cost_currency === 'USD' || form.revenue_currency === 'USD';
+  const per = isHotel() ? ' per night' : '';
+  const price = `<div class="section-title"><span>Money ${isHotel() ? '(per room per night)' : '(per trip)'} — optional</span></div>
     <div class="row three">
-      ${field('Price', `<input class="input" type="number" min="0" step="any" data-bf="price" value="${esc(form.price)}">`)}
-      ${field('Currency', currency)}
-      ${form.currency === 'USD' ? field('Exchange rate (optional)', `<input class="input" type="number" min="0" step="any" data-bf="exchange_rate" value="${esc(form.exchange_rate)}">`) : ''}
+      ${field(`Cost${per} (we pay)`, amount('cost'))}
+      ${field('Currency', currencySelect('cost_currency'))}
+      ${usd ? field('Exchange rate (optional)', amount('exchange_rate')) : '<div></div>'}
+    </div>
+    <div class="row three">
+      ${field(`Revenue${per} (we get)`, amount('revenue'))}
+      ${field('Currency', currencySelect('revenue_currency'))}
     </div>`;
   return `<div class="section-title"><span>${isHotel() ? 'Hotel stay' : 'Transfer'}</span></div>${details}${price}`;
 }
@@ -270,9 +280,9 @@ export function onBookingInput(event) {
   const before = form[input.dataset.bf];
   form[input.dataset.bf] = input.value;
   if (before === input.value) return;
-  if (['from_place', 'to_place', 'currency'].includes(input.dataset.bf)) {
+  if (['from_place', 'to_place', 'cost_currency', 'revenue_currency'].includes(input.dataset.bf)) {
     render();
-    if (input.dataset.bf !== 'currency') prefill();
+    if (!input.dataset.bf.endsWith('currency')) prefill();
   } else if (isHotel() && ['check_in', 'nights'].includes(input.dataset.bf)) {
     const out = form.check_in && Number(form.nights) > 0 ? dmy(addDays(form.check_in, Number(form.nights))) : '—';
     const box = $('#bkd-check-out');
@@ -340,12 +350,14 @@ async function once(mine, action) {
 export async function saveBooking() {
   const mine = ctx();
   const { kind, id, vessel, guests, form } = mine;
-  const { price, ...fields } = form;
+  const { cost, revenue, ...fields } = form;
+  const [costKey, revenueKey] = MONEY_KEYS[kind];
   const payload = {
     ...fields,
     vessel: vessel.id,
     guests: guests.map(({ name, rank, nationality, group, flight }) => ({ name, rank, nationality, group, flight })),
-    [PRICE_KEY[kind]]: price,
+    [costKey]: cost,
+    [revenueKey]: revenue,
   };
   if (kind === 'hotels') payload.nights = Number(form.nights);
   const saved = await once(mine, () => (id ? api(`/api/${kind}/${id}/`, 'PUT', payload) : api(`/api/${kind}/`, 'POST', payload)));

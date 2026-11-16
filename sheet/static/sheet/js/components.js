@@ -1,5 +1,5 @@
 // Small HTML building blocks shared by several screens. Every dynamic value is escaped.
-import { NO_MONEY, PORT_LABEL, STATUS_LABEL, TIME_FIELDS } from './config.js';
+import { PORT_LABEL, STATUS_LABEL, TIME_FIELDS } from './config.js';
 import { optionValues } from './state.js';
 import { dmy, esc, fmt, fmtDuration, fmtStamp, oprClass, sign } from './util.js';
 
@@ -22,7 +22,7 @@ export const pill = (label, value, cls = '') =>
 export const profitClass = (n) => (n >= 0 ? 'good' : 'bad');
 
 export function moneyPills(type, calc) {
-  if (NO_MONEY.includes(type)) return '';
+  if (!calc.cost_egp && !calc.revenue_egp && type !== 'Cash to Master') return ''; // no money entered
   if (type === 'Cash to Master') {
     return `<div class="pills">
       ${pill('Our revenue', `LE ${fmt(calc.revenue_egp)}`, 'good')}

@@ -188,7 +188,7 @@ async function login() {
     for (const [page, p] of [['hotels', 'h'], ['transport', 't']]) {
       await go(page);
       ok(await waitFor(() => $(`#${p}-head`).textContent.includes('Vessel')), `read-only: ${page} list renders`);
-      ok($(`#${p}-add`).style.display === 'none' && !/Price/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button and no prices`);
+      ok($(`#${p}-add`).style.display === 'none' && /Cost/.test($(`#${p}-head`).textContent) && /Revenue/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button but sees cost and revenue`);
       ok($(`#${p}-port`).style.display !== 'none', `read-only: ${page} has the port selector`);
     }
     return finish();
@@ -326,8 +326,11 @@ async function login() {
   const offCard = $('.crew-card[data-group="offSigners"]');
   type(offCard.querySelector('[data-crew=name]'), 'Mona Off');
   type(offCard.querySelector('[data-crew=flightData]'), 'FLIGHT TK 689 - Turkish Airlines\nDEPARTURE: Alexandria, Egypt  05 APR 08:55\nARRIVAL: Istanbul, Turkey  05 APR 12:30');
+  ok($('#svc-form [name=cost]') && $('#svc-form [name=revenue]'), 'crew change: has cost and revenue like every service');
+  type($('#svc-form [name=cost]'), '100');
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => modalText().includes('On-signers (1): Ahmed Test')), 'Crew Change saved');
+  ok($$('.svc-card').some((c) => c.textContent.includes('Crew Change') && c.textContent.includes('LE 100.00')), 'crew change: its cost shows on the vessel');
 
   /* ======== summary of services ======== */
   click($('#modal [data-act="summary"]'));
@@ -484,7 +487,7 @@ async function login() {
     return waitFor(() => $$('#bkd-crew input[data-crew-i]').length >= 2);
   };
   await go('hotels');
-  ok(await waitFor(() => /Price\/night/.test($('#h-head').textContent)), 'hotels: editors see the price column');
+  ok(await waitFor(() => /Cost\/night/.test($('#h-head').textContent) && /Revenue\/night/.test($('#h-head').textContent)), 'hotels: cost and revenue per night columns');
   ok($('#h-from').value === todayIso.slice(0, 8) + '01' && [...$('#h-pager #h-page-size').options].map((o) => o.value).join() === '10,25,50,100', 'hotels: this month by default, rows per page 10/25/50/100');
   click($('#h-add'));
   ok(await waitFor(() => $('#bkd-vessel-q')), 'hotels: "+ Add hotel stay" opens the dialog');
@@ -496,18 +499,19 @@ async function login() {
   ok($$('#bkd-guests [data-g-f="name"]').map((i) => i.value).join() === 'Ahmed Test,Ali Sayed', 'dialog: ticked crew become guest lines');
   ok($('[data-bf="check_in"]').value === todayIso, 'dialog: check-in pre-filled from the flight arrival');
   type($('[data-bf="hotel"]'), 'SMOKE HOTEL'); type($('[data-bf="nights"]'), '2');
-  type($('[data-bf="price"]'), '80');
-  const currencySelect = $('[data-bf="currency"]');
+  ok($('[data-bf="cost"]') && $('[data-bf="revenue"]') && $('[data-bf="revenue_currency"]') && !$('[data-bf="price"]'), 'dialog: cost and revenue, each with a currency');
+  type($('[data-bf="cost"]'), '80'); type($('[data-bf="revenue"]'), '4500');
+  const currencySelect = $('[data-bf="cost_currency"]');
   currencySelect.focus();
   type(currencySelect, 'USD');
-  ok(await waitFor(() => $('[data-bf="exchange_rate"]')), 'dialog: the exchange rate shows for USD');
-  ok(w.document.activeElement?.dataset?.bf === 'currency', 'dialog: the field you were in keeps focus when the dialog redraws');
+  ok(await waitFor(() => $('[data-bf="exchange_rate"]')), 'dialog: the exchange rate shows when either side is USD');
+  ok(w.document.activeElement?.dataset?.bf === 'cost_currency', 'dialog: the field you were in keeps focus when the dialog redraws');
   const postsBefore = stayPosts;
   click($('[data-act="booking-save"]')); click($('[data-act="booking-save"]')); // a double click
   ok(await waitFor(() => !$('#overlay').classList.contains('open') && $('#h-tbody').textContent.includes('AHMED TEST') && $('#h-tbody').textContent.includes('ALI SAYED')), 'hotels: the shared room is listed with both guests');
   ok(stayPosts - postsBefore === 1, `hotels: a double click on Save creates the stay once (sent ${stayPosts - postsBefore} times)`);
   const stayRow = () => $$('#h-tbody tr').find((t) => t.textContent.includes('AHMED TEST'));
-  ok(stayRow().textContent.includes('USD 80.00') && stayRow().textContent.includes('MSC AURORA') && stayRow().textContent.includes(dmyOf(plusDays(todayIso, 2))), 'hotels: price, vessel and check-out shown');
+  ok(stayRow().textContent.includes('USD 80.00') && stayRow().textContent.includes('EGP 4,500.00') && stayRow().textContent.includes('MSC AURORA') && stayRow().textContent.includes(dmyOf(plusDays(todayIso, 2))), 'hotels: cost, revenue, vessel and check-out shown');
   click(stayRow());
   ok(await waitFor(() => $('[data-bf="nights"]')?.value === '2'), 'hotels: a row opens its booking');
   type($('[data-bf="nights"]'), '3');
