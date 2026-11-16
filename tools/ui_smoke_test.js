@@ -264,6 +264,40 @@ async function login() {
     click($(`[data-act="add-option"][data-kind="${kind}"]`));
     ok(await waitFor(() => $('#master-grid').textContent.includes(value)), `master data: ${kind} added`);
   }
+
+  /* ---- master data per port ---- */
+  if (ROLE === 'alex') {
+    ok(!$('select[data-new-port]') && !$('select[data-option-port]'), 'port user: no port choices on Master data (values go to their port)');
+  }
+  if (ROLE === 'admin') {
+    const portChoices = (sel) => [...sel.options].map((o) => o.value).join();
+    ok($$('select[data-new-port]').length === 6 && portChoices($('select[data-new-port="agent"]')) === ',alexandria,portsaid,damietta,suez', 'admin: every list has a port choice (All ports + each port)');
+    for (const [kind, value] of [['agent', 'SMOKE SUEZ AGENT'], ['hotel', 'SMOKE SUEZ HOTEL']]) {
+      type($(`[data-new="${kind}"]`), value);
+      type($(`select[data-new-port="${kind}"]`), 'suez');
+      click($(`[data-act="add-option"][data-kind="${kind}"]`));
+      await waitFor(() => $('#master-grid').textContent.includes(value));
+    }
+    const optionRow = (value) => $$('.opt-row').find((r) => r.textContent.includes(value));
+    ok(optionRow('SMOKE SUEZ AGENT')?.querySelector('select[data-option-port]')?.value === 'suez', 'admin: the new agent belongs to Suez');
+    const agentChoices = () => [...$('#vessel-form [name=agent]').options].map((o) => o.textContent);
+    await go('vessels');
+    click($('#addVesselBtn'));
+    type($('#vessel-form [name=port]'), 'alexandria');
+    ok(await waitFor(() => !agentChoices().includes('SMOKE SUEZ AGENT')), 'a Suez agent is not offered for an Alexandria vessel');
+    type($('#vessel-form [name=port]'), 'suez');
+    ok(await waitFor(() => agentChoices().includes('SMOKE SUEZ AGENT')), 'switching the vessel to Suez offers the Suez agent');
+    closeModal();
+    await go('master');
+    type(optionRow('SMOKE SUEZ AGENT').querySelector('select[data-option-port]'), '');
+    ok(await waitFor(() => optionRow('SMOKE SUEZ AGENT')?.querySelector('select[data-option-port]')?.value === ''), 'admin: moving a value to All ports saves');
+    await go('vessels');
+    click($('#addVesselBtn'));
+    type($('#vessel-form [name=port]'), 'alexandria');
+    ok(await waitFor(() => agentChoices().includes('SMOKE SUEZ AGENT')), 'an All-ports agent is offered everywhere');
+    closeModal();
+    await go('master');
+  }
   const agentRow = $$('.opt-row').find((r) => r.textContent.includes('SMOKE AGENT'));
   ok(agentRow.textContent.includes('0 vessels'), 'master data: shows how many vessels use a value');
   ok($$('#qa-agent option').some((o) => o.textContent === 'SMOKE AGENT') && $$('#qa-opr option').some((o) => o.textContent === 'SMOKE-OPR'), 'master data: dropdowns elsewhere are updated');
@@ -542,6 +576,10 @@ async function login() {
   click($('#h-add'));
   ok(await waitFor(() => $('#bkd-vessel-q')), 'hotels: "+ Add hotel stay" opens the dialog');
   ok(await pickVessel('MSC AURORA'), 'dialog: picking the vessel lists its crew');
+  if (ROLE === 'admin') {
+    const hotelChoices = [...$('[data-bf="hotel"]').options].map((o) => o.textContent);
+    ok(hotelChoices.includes('SMOKE HOTEL') && !hotelChoices.includes('SMOKE SUEZ HOTEL'), 'dialog: an Alexandria vessel is offered only Alexandria and All-ports hotels');
+  }
   click($$('#bkd-crew input[data-crew-i]')[0]);
   await waitFor(() => $$('#bkd-guests [data-g-f="name"]').length === 1);
   click($$('#bkd-crew input[data-crew-i]')[1]); // the dialog redraws after each tick: look the box up again
@@ -665,7 +703,7 @@ async function login() {
   }
   ok(await waitFor(() => !$$('#tbody tr').some((t) => /UI SMOKE|SMOKE TODAY|<img|BULK|PORT MOVE/.test(t.textContent))), 'test vessels deleted (the list reloads after the dialog closes)');
   await go('master');
-  for (const value of ['SMOKE AGENT', 'SMOKE-OPR', 'SMOKE HOTEL', 'SMOKE ALEXANDRIA AIRPORT', 'SMOKE ALEXANDRIA PORT']) {
+  for (const value of ['SMOKE AGENT', 'SMOKE-OPR', 'SMOKE HOTEL', 'SMOKE ALEXANDRIA AIRPORT', 'SMOKE ALEXANDRIA PORT', 'SMOKE SUEZ AGENT', 'SMOKE SUEZ HOTEL']) {
     const row = $$('.opt-row').find((r) => r.textContent.includes(value));
     if (row) { click(row.querySelector('[data-act="del-option"]')); await waitFor(() => !$('#master-grid').textContent.includes(value)); }
   }

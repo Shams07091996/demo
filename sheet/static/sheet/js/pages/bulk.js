@@ -72,7 +72,7 @@ function summaryHtml() {
 
 function rowHtml(row, i) {
   const st = rowState(row);
-  const select = (kind) => `<select class="select" data-f="${kind}" aria-label="${kind.toUpperCase()}">${optionChoices(kind, row[kind])}</select>`;
+  const select = (kind) => `<select class="select" data-f="${kind}" aria-label="${kind.toUpperCase()}">${optionChoices(kind, row[kind], targetPort())}</select>`;
   return `<tr data-i="${i}" class="${st.trCss}">
     <td class="num">${i + 1}</td>
     <td><input class="input" data-f="name" value="${esc(row.name)}" maxlength="120" aria-label="Vessel name"></td>
@@ -89,7 +89,7 @@ function renderPreview() {
     box.innerHTML = '';
     return;
   }
-  const allSelect = (kind) => `<select class="select" id="bk-all-${kind}" aria-label="${kind.toUpperCase()} for all rows">${optionChoices(kind, '')}</select>`;
+  const allSelect = (kind) => `<select class="select" id="bk-all-${kind}" aria-label="${kind.toUpperCase()} for all rows">${optionChoices(kind, '', targetPort())}</select>`;
   box.innerHTML = `
     <div class="bulk-all"><span>Set on all rows:</span>
       <input class="input" type="date" id="bk-all-date" aria-label="Date for all rows">
@@ -247,7 +247,10 @@ export function applyToAllRows() {
 
 /** Admins: the duplicate marks depend on the target port, so re-check when it changes. */
 export function onBulkPortChange() {
-  if (rows.length) scheduleCheck();
+  fillQuickSelects(); // the default OPR / POC / Agent lists follow the port
+  if (!rows.length) return;
+  renderPreview(); // so do the table's lists
+  scheduleCheck();
 }
 
 let created = { from: '', to: '' };

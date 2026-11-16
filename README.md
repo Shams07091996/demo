@@ -58,7 +58,7 @@ data loads, but run the test suite against PostgreSQL once before relying on it.
 | Transport | Every transfer between an airport, a hotel and a port — saying which one of each, from Master data — with date and time, 1–6 guests, flight and vessel; same rules as Hotels |
 | Calculations | Every money line — each service (each entry of Parcels / Courier / Landing), hotel stay and transfer — for a vessel-date range, OPR and port, showing its working (amount × rate = EGP) and one totals line (revenue, cost, profit, lines without an exchange rate). Every role can see it |
 | Dashboard | Charts and cards per OPR for the same date range, totalled by the server |
-| Master data | Add / remove the OPR, POC and **Agent** values used in the dropdowns (with "used by N vessels") |
+| Master data | Add / remove the OPR, POC, Agent, Hotel, Airport and Port values used in the dropdowns (with "used by N"). Each value belongs to **one port or All ports**: admins choose when adding and can move it later; port users' values are for their port. Every dropdown offers only the item's port plus All-ports values |
 | Exchange rates | Monthly USD → EGP rates (shared by every port, so only admins can change them) |
 
 Each vessel also records its **agent** and its **port-call times** (arrived, berthed, ops started, ops finished, sailed – Cairo
@@ -100,7 +100,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 147 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
+python manage.py test sheet         # 150 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
 ruff check .                        # lint (config in pyproject.toml)
 ```
 

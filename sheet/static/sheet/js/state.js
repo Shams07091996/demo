@@ -76,6 +76,9 @@ export function rememberVessels(vessels) {
 /** Is an ISO date inside the current From–To range? (an empty end is open) */
 export const inRange = (iso) => (!state.filter.from || iso >= state.filter.from) && (!state.filter.to || iso <= state.filter.to);
 
-export const optionValues = (kind) => [...new Set(state.options.filter((o) => o.kind === kind).map((o) => o.value))];
+/** Master-data values of a list; with `port`, only that port's values and the All-ports ones (port ''). */
+export const optionValues = (kind, port = null) => [...new Set(state.options
+  .filter((o) => o.kind === kind && (port === null || !o.port || o.port === port))
+  .map((o) => o.value))];
 
 export const resetContext = () => { state.ctx = { view: null, vesselId: null }; };

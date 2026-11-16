@@ -32,7 +32,7 @@ const blankForm = (kind) => (kind === 'hotels'
 function matchOption(kind, text) {
   const needle = (text || '').trim().toLowerCase();
   if (!needle) return '';
-  return optionValues(kind).find((v) => v.toLowerCase().includes(needle) || needle.includes(v.toLowerCase())) || '';
+  return optionValues(kind, ctx().vessel?.port ?? null).find((v) => v.toLowerCase().includes(needle) || needle.includes(v.toLowerCase())) || '';
 }
 
 const addDays = (iso, n) => {
@@ -56,7 +56,7 @@ export async function openBookingDialog(kind, id = null) {
     if (!stillOpen(mine)) return; // another booking was opened meanwhile
     const form = ctx().form;
     Object.assign(ctx(), {
-      vessel: { id: booking.vessel.id, name: booking.vessel.name, port_label: booking.vessel.port_label },
+      vessel: { id: booking.vessel.id, name: booking.vessel.name, port: booking.vessel.port, port_label: booking.vessel.port_label },
       guests: booking.guests.map((g) => ({ ...g })),
     });
     for (const key of Object.keys(form)) if (key in booking) form[key] = booking[key] ?? '';
@@ -133,7 +133,7 @@ function detailsBlock() {
   const { form, vessel } = ctx();
   if (!vessel) return '';
   const field = (label, html) => `<div class="field"><label>${label}</label>${html}</div>`;
-  const hotelSelect = `<select class="select" data-bf="hotel">${optionChoices('hotel', form.hotel)}</select>`;
+  const hotelSelect = `<select class="select" data-bf="hotel">${optionChoices('hotel', form.hotel, vessel.port)}</select>`;
   let details;
   if (isHotel()) {
     const out = form.check_in && Number(form.nights) > 0 ? dmy(addDays(form.check_in, Number(form.nights))) : '—';
@@ -147,9 +147,9 @@ function detailsBlock() {
       `<option value="${v}" ${form[key] === v ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
     // Which airport / hotel / port: asked only for the ends the trip uses.
     const named = [
-      touches(form, 'airport') && field('Airport', `<select class="select" data-bf="airport">${optionChoices('airport', form.airport)}</select>`),
+      touches(form, 'airport') && field('Airport', `<select class="select" data-bf="airport">${optionChoices('airport', form.airport, vessel.port)}</select>`),
       touchesHotel(form) && field('Hotel', hotelSelect),
-      touches(form, 'port') && field('Port', `<select class="select" data-bf="port_name">${optionChoices('port', form.port_name)}</select>`),
+      touches(form, 'port') && field('Port', `<select class="select" data-bf="port_name">${optionChoices('port', form.port_name, vessel.port)}</select>`),
     ].filter(Boolean).join('');
     details = `<div class="row three">
         ${field('From', placeSelect('from_place'))}

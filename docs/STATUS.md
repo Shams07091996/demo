@@ -10,7 +10,9 @@ Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each 
 - **The user's own database** (`db.sqlite3`, not in git) is at migration `0006`. It still needs
   `DJANGO_DEBUG=1` + `python manage.py migrate` for `0007` (airport / port on transfers) and `0008` (booking cost /
   revenue); until then Transport, Calculations and the Master data page fail on that database.
-- **Tests:** `python manage.py test sheet` → 147 OK on `main`; `tools` parser tests and the jsdom smoke test pass
+- **Branch `feature/master-data-per-port`** (Master data values per port) is built and tested, **not merged yet** —
+  ask the user before merging. No migration needed.
+- **Tests:** `python manage.py test sheet` → 150 OK on that branch; `tools` parser tests and the jsdom smoke test pass
   for `admin`, `alex`, `viewer` (see `CLAUDE.md` for running the smoke test on a throwaway database).
 
 ## Built and tested
@@ -24,6 +26,7 @@ Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-15 | ☰ hides / shows the sidebar on wide screens; alerts banner can shrink to one line; dev `runserver` sends static files with `no-cache` | — |
 | 2026-11-16 | 🏨 Hotels and 🚗 Transport pages: bookings for 1–6 crew guests of a vessel (rooms and cars can be shared), entered on their own pages with the guest picked from the vessel's crew change; transfers name which airport / hotel / port (Master data lists) | `2026-11-16-hotels-and-transport-design.md` |
 | 2026-11-16 | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
+| 2026-11-17 (branch) | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -38,6 +41,8 @@ Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each 
   (a vessel's whole port call lands in one period).
 - **Hotels / Transport:** two separate pages; bookings entered there (not in the Crew Change editor); one room or one
   car trip can hold several guests and is priced once; transfers record which airport / hotel / port; no driver data.
+- **Master data:** every list (OPR, POC, Agent, Hotel, Airport, Port) can be per port; admins choose (default All
+  ports) and can move values; port users' values are their port's.
 - **UI taste:** lean screens — no help paragraphs, no placeholders, no stat cards; compact controls.
 - **Process:** the user chooses **Native** execution (built in-session, one fresh reviewer at the end).
 

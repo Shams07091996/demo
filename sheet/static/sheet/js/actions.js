@@ -87,6 +87,13 @@ async function removeOption(button) {
   await changeOption(() => api(`/api/options/${button.dataset.id}/`, 'DELETE'));
 }
 
+/** Admins: move a Master-data value to another port ('' = All ports). */
+export function moveOption(select) {
+  return changeOption(() => api(`/api/options/${select.dataset.id}/`, 'PATCH', { port: select.value })).catch(() => {
+    renderMasterPage(); // refused (e.g. duplicate): show the value where it really is
+  });
+}
+
 const crewCard = (button) => button.closest('.crew-card');
 
 export const actions = {
@@ -136,7 +143,8 @@ export const actions = {
   'add-option': (b) => {
     const input = $(`[data-new="${b.dataset.kind}"]`);
     if (!input.value.trim()) return undefined;
-    return changeOption(() => api('/api/options/', 'POST', { kind: b.dataset.kind, value: input.value }));
+    const port = $(`select[data-new-port="${b.dataset.kind}"]`)?.value || '';
+    return changeOption(() => api('/api/options/', 'POST', { kind: b.dataset.kind, value: input.value, port }));
   },
   'del-option': removeOption,
 

@@ -46,8 +46,9 @@ export const statusChip = (status) =>
   `<span class="status-chip st-${esc(status)}">${esc(STATUS_LABEL[status] || status)}</span>`;
 
 /** <option> list for an OPR / POC / Agent dropdown; keeps a value that is no longer in the master list. */
-export function optionChoices(kind, current = '') {
-  const values = optionValues(kind);
+/** <option>s for a Master-data list; with `port`, only values for that port (+ All ports). `current` is always kept. */
+export function optionChoices(kind, current = '', port = null) {
+  const values = optionValues(kind, port);
   const all = current && !values.includes(current) ? [...values, current] : values;
   return `<option value="">—</option>${all.map((v) => `<option ${v === current ? 'selected' : ''}>${esc(v)}</option>`).join('')}`;
 }

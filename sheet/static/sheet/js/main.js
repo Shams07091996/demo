@@ -1,15 +1,15 @@
 // Entry point: wires the page together and loads the first data.
-import { actions } from './actions.js';
+import { actions, moveOption } from './actions.js';
 import { ME, PORTS, el } from './config.js';
 import { loadAlerts, loadOptions, loadVessels, setFilter } from './data.js';
 import { setStatus } from './feedback.js';
 import { closeModal, isModalOpen } from './modal.js';
 import { onBookingInput } from './modals/booking.js';
 import { onModalChange, onModalInput } from './modals/service.js';
-import { openVessel, openVesselForm } from './modals/vessel.js';
+import { onVesselFormChange, openVessel, openVesselForm } from './modals/vessel.js';
 import { onBulkPortChange, onPreviewEdit } from './pages/bulk.js';
 import { setupQuickAdd } from './quickAdd.js';
-import { renderFilterInputs } from './render/list.js';
+import { fillQuickSelects, renderFilterInputs } from './render/list.js';
 import { closePanel, togglePanel } from './render/notifications.js';
 import { startRouter } from './router.js';
 import { state } from './state.js';
@@ -47,6 +47,7 @@ document.addEventListener('keydown', (event) => {
 });
 el.modal.addEventListener('input', onModalInput);
 el.modal.addEventListener('change', onModalChange);
+el.modal.addEventListener('change', onVesselFormChange); // admin switches a vessel's port
 el.modal.addEventListener('input', onBookingInput);  // hotel stay / transfer dialog
 el.modal.addEventListener('change', onBookingInput);
 
@@ -138,6 +139,10 @@ $('#pager').addEventListener('change', (event) => {
 $('#bk-preview').addEventListener('input', onPreviewEdit);
 $('#bk-preview').addEventListener('change', onPreviewEdit);
 $('#bk-port').addEventListener('change', onBulkPortChange);
+$('#qa-port').addEventListener('change', fillQuickSelects); // quick-add lists follow the chosen port
+$('#master-grid').addEventListener('change', (event) => {
+  if (event.target.matches('select[data-option-port]')) moveOption(event.target);
+});
 
 if (ME.canEdit) $('#addVesselBtn').addEventListener('click', () => openVesselForm(null));
 else $('#addVesselBtn').style.display = 'none';

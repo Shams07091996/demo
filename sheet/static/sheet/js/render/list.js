@@ -57,12 +57,13 @@ export function renderTable() {
   $('#tbody').innerHTML = state.vessels.map(rowHtml).join('');
 }
 
-/** Refill every OPR / POC / Agent dropdown outside dialogs (quick-add bar and bulk-add defaults). */
+/** Refill every OPR / POC / Agent dropdown outside dialogs (quick-add bar and bulk-add defaults), each for its port. */
 export function fillQuickSelects() {
-  for (const [prefix, kinds] of [['#qa', ['opr', 'poc', 'agent']], ['#bk', ['opr', 'poc', 'agent']]]) {
-    for (const kind of kinds) {
+  const portOf = (selector) => (ME.isAdmin ? $(selector)?.value || null : ME.port);
+  for (const [prefix, port] of [['#qa', portOf('#qa-port')], ['#bk', portOf('#bk-port')]]) {
+    for (const kind of ['opr', 'poc', 'agent']) {
       const select = $(`${prefix}-${kind}`);
-      select.innerHTML = optionChoices(kind, select.value);
+      select.innerHTML = optionChoices(kind, select.value, port);
     }
   }
 }

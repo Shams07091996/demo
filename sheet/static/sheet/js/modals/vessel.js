@@ -73,8 +73,17 @@ export async function openVessel(id) {
     </div>`);
 }
 
-const selectField = (kind, label, current) =>
-  `<div class="field"><label>${label}</label><select name="${kind}">${optionChoices(kind, current)}</select></div>`;
+const selectField = (kind, label, current, port) =>
+  `<div class="field"><label>${label}</label><select name="${kind}">${optionChoices(kind, current, port)}</select></div>`;
+
+/** Admin changed the vessel's port in the form: offer that port's OPR / POC / Agent values (keeping the chosen ones). */
+export function onVesselFormChange(event) {
+  if (state.ctx.view !== 'vessel-form' || event.target.name !== 'port') return;
+  for (const kind of ['opr', 'poc', 'agent']) {
+    const select = $(`#vessel-form [name="${kind}"]`);
+    if (select) select.innerHTML = optionChoices(kind, select.value, event.target.value);
+  }
+}
 
 const timeField = ({ key, label }, vessel) => `
   <div class="time-row"><div class="field"><label>${esc(label)}</label>
@@ -94,7 +103,7 @@ export function openVesselForm(vessel) {
     <div class="m-body" id="vessel-form">
       <div class="field"><label>Vessel name</label><input name="name" value="${val(vessel?.name)}" maxlength="120" autofocus></div>
       <div class="row three">
-        ${selectField('opr', 'OPR', vessel?.opr)}${selectField('poc', 'POC', vessel?.poc)}${selectField('agent', 'Agent', vessel?.agent)}
+        ${selectField('opr', 'OPR', vessel?.opr, selectedPort)}${selectField('poc', 'POC', vessel?.poc, selectedPort)}${selectField('agent', 'Agent', vessel?.agent, selectedPort)}
       </div>
       <div class="hint">Missing an OPR, POC or agent? Add it under <a href="#master" data-act="goto" data-page="master" style="color:var(--teal)">Master data</a>.</div>
       <div class="row two">
