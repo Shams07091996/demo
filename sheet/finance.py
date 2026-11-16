@@ -6,7 +6,7 @@ otherwise with the exchange rate of the vessel's month.
 
 import math
 
-from .constants import MULTI_TYPES, NO_MONEY_TYPES
+from .constants import MULTI_TYPES
 
 
 def num(value):
@@ -69,7 +69,7 @@ def compute(service_type, data, month_rate):
             per_entry.append(_figures(entry_cost, entry_revenue))
     elif service_type == "Cash to Master":
         revenue, to_master = _cash_to_master(data, conv)
-    elif service_type not in NO_MONEY_TYPES:
+    else:  # every other service, Crew Change and Others / Remarks included, has a cost and a revenue
         cost = conv.to_egp(data.get("cost"), data.get("costCurrency"))
         revenue = conv.to_egp(data.get("revenue"), data.get("revenueCurrency"))
 

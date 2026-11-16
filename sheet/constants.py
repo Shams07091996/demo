@@ -25,8 +25,6 @@ SERVICE_TYPES = [
 
 # Services made of several priced entries (AWB / weight / cost / revenue).
 MULTI_TYPES = ("Delivery Parcels", "Delivery Courier", "Landing")
-# Services that carry no money.
-NO_MONEY_TYPES = ("Crew Change", "Others / Remarks")
 # Single-priced services and the one extra descriptive field each of them has.
 SINGLE_EXTRAS = {
     "Medical Treatment": "patientName",

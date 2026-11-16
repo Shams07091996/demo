@@ -119,14 +119,19 @@ def _clean_cash_to_master(raw):
     }
 
 
-def _clean_single(service_type, raw):
-    cleaned = {
+def _service_money(raw):
+    """The cost / revenue fields every single-priced service has (Crew Change and Others / Remarks too)."""
+    return {
         "cost": _number(raw.get("cost")),
         "costCurrency": _currency(raw.get("costCurrency")),
         "revenue": _number(raw.get("revenue")),
         "revenueCurrency": _currency(raw.get("revenueCurrency")),
         "exchangeRate": _number(raw.get("exchangeRate")),
     }
+
+
+def _clean_single(service_type, raw):
+    cleaned = _service_money(raw)
     extra = SINGLE_EXTRAS.get(service_type)
     if extra == "quantity":
         cleaned["quantity"] = _number(raw.get("quantity"))
@@ -139,9 +144,9 @@ def clean_service_data(service_type, raw):
     """Return a sanitised copy of a service's data for its type; unknown keys are dropped."""
     raw = _as_dict(raw)
     if service_type == "Others / Remarks":
-        return {"note": _text(raw.get("note"), 1000)}
+        return {"note": _text(raw.get("note"), 1000), **_service_money(raw)}
     if service_type == "Crew Change":
-        return _clean_crew_change(raw)
+        return {**_clean_crew_change(raw), **_service_money(raw)}
     if service_type in MULTI_TYPES:
         return _clean_multi(service_type, raw)
     if service_type == "Cash to Master":
