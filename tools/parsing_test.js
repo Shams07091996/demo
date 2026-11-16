@@ -1,15 +1,18 @@
 // Unit tests for the pure parsers: crew / flight text and pasted vessel lists (no browser needed).
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { buildSync } = require('esbuild');
 
-function load(file) {
+function load(entry) {
   const code = buildSync({
-    entryPoints: [path.join(__dirname, '../sheet/static/sheet/js', file)],
+    entryPoints: [path.join(__dirname, '../sheet/static/sheet/js', entry)],
     bundle: true, write: false, format: 'cjs', logLevel: 'error',
   }).outputFiles[0].text;
-  const mod = { exports: {} };
-  new Function('module', 'exports', code)(mod, mod.exports);
-  return mod.exports;
+  // Load the bundle as an ordinary CommonJS file (no eval / new Function).
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'parsing-')), `${path.basename(entry)}.cjs`);
+  fs.writeFileSync(file, code);
+  return require(file);
 }
 const { parsePersonal, parseFlightText, parsePdfText } = load('crewParsing.js');
 const { parseBulk, parseDate, detectDelimiter } = load('bulkParsing.js');

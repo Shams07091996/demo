@@ -43,7 +43,7 @@ async function login() {
 
 (async () => {
   const html = (await login()).replace(/<script type="module"[^>]*><\/script>/, '');
-  const dom = new JSDOM(html, { url: `${BASE}/`, runScripts: 'outside-only', pretendToBeVisual: true });
+  const dom = new JSDOM(html, { url: `${BASE}/`, runScripts: 'dangerously', pretendToBeVisual: true });
   const w = dom.window;
   let listCalls = 0;          // how many vessel-list requests the page made
   let slowAlertsFor = null;   // a query fragment whose alerts response is held back (to test late answers)
@@ -80,7 +80,7 @@ async function login() {
   const go = async (page) => { w.location.hash = page; return waitFor(() => !$(`#page-${page}`).hidden && $('#pageTitle').textContent.length > 0); };
   const openRow = async (name) => { click(rowFor(name).querySelector('td')); await waitFor(() => $('#modal h2')?.textContent.includes(name)); };
   const closeModal = () => click($('#modal [data-act="close"]'));
-  const localNow = () => w.eval('(function(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")})()');
+  const localNow = () => { const d = new w.Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const meta = () => $('meta[name="csrf-token"]').content;
   const clearTestRate = async () => {
     const { rates } = await (await w.fetch('/api/rates/')).json();
@@ -88,7 +88,10 @@ async function login() {
   };
   if (ROLE === 'admin') await clearTestRate();
 
-  w.eval(bundle);
+  // Run the app the way a page does: as a <script> element (no eval).
+  const appScript = w.document.createElement('script');
+  appScript.textContent = bundle;
+  w.document.body.appendChild(appScript);
   await waitFor(() => $$('#tbody tr').length > 0);
   console.log(`role: ${ROLE} | vessels: ${$$('#tbody tr').map((t) => t.querySelector('.vessel-name').textContent).join(', ')}`);
 
@@ -590,7 +593,7 @@ async function login() {
   /* ======== hotels and transport ======== */
   const dmyOf = (iso) => iso.split('-').reverse().join('.');
   const todayIso = localNow();
-  const plusDays = (iso, n) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() + n); return w.eval(`(${JSON.stringify(d.toISOString().slice(0, 10))})`); };
+  const plusDays = (iso, n) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
   const pickVessel = async (name) => {
     type($('#bkd-vessel-q'), name);
     ok(await waitFor(() => $$('#bkd-vessel-results [data-act="booking-pick-vessel"]').some((b) => b.textContent.includes(name))), `dialog: vessel search finds ${name}`);
