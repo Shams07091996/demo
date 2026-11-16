@@ -290,7 +290,8 @@ def _money(value, message):
     return amount.quantize(Decimal("0.01"))
 
 
-def _price_fields(data, price_key):
+def _price_fields(data, cost_key, revenue_key):
+    """Cost (what we pay) and revenue (what we get), each optional with its own currency, plus one optional rate."""
     rate = data.get("exchange_rate")
     if rate in (None, ""):
         rate = None
@@ -302,14 +303,16 @@ def _price_fields(data, price_key):
         if not rate.is_finite() or not 0 < rate < 1_000_000:
             raise BadRequest("Exchange rate must be a positive number.")
     return {
-        price_key: _money(data.get(price_key), "Prices cannot be negative."),
-        "currency": _currency(data.get("currency")),
+        cost_key: _money(data.get(cost_key), "Prices cannot be negative."),
+        "cost_currency": _currency(data.get("cost_currency")),
+        revenue_key: _money(data.get(revenue_key), "Prices cannot be negative."),
+        "revenue_currency": _currency(data.get("revenue_currency")),
         "exchange_rate": rate,
     }
 
 
 def clean_hotel_stay(data):
-    """One room: hotel, check-in, nights (1..MAX_NIGHTS), optional price per room per night, guests."""
+    """One room: hotel, check-in, nights (1..MAX_NIGHTS), optional cost / revenue per room per night, guests."""
     guests = clean_guests(data.get("guests"))  # first: the guests are the first part of the form
     hotel = _text(data.get("hotel"), 100)
     if not hotel:
@@ -329,7 +332,7 @@ def clean_hotel_stay(data):
         "hotel": hotel,
         "check_in": check_in,
         "nights": nights,
-        **_price_fields(data, "price_per_night"),
+        **_price_fields(data, "cost_per_night", "revenue_per_night"),
         "guests": guests,
     }
 
@@ -364,6 +367,6 @@ def clean_transfer(data):
         "to_place": to_place,
         **named,
         "at": at,
-        **_price_fields(data, "price"),
+        **_price_fields(data, "cost", "revenue"),
         "guests": guests,
     }

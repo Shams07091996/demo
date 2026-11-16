@@ -1,8 +1,9 @@
 """Hotels and Transport: the bookings lists (range, search, sort, paging), saving bookings, and the crew picker.
 
 A booking is one hotel room (HotelStay) or one car trip (Transfer) for 1..6 guests of one vessel. Bookings are
-scoped through their vessel, so port users only ever see and change their own port's. Read-only users never get
-prices. Booking money is kept for the calculations page only; it is not part of any vessel figure.
+scoped through their vessel, so port users only ever see and change their own port's. Every role sees booking money
+(cost = what we pay, revenue = what we get); only editors change it. Booking money counts on the Calculations page
+only; it is not part of any vessel figure.
 """
 
 import re
@@ -13,6 +14,7 @@ from django.db import transaction
 from django.http import Http404
 from django.utils import timezone
 
+from . import finance
 from .access import scoped_vessels
 from .constants import MAX_NIGHTS, PORT_LABELS
 from .errors import BadRequest
@@ -26,7 +28,8 @@ SORTS = {
     "hotels": ("check_in", "nights", "hotel", "guest", "vessel"),
     "transfers": ("at", "from_place", "to_place", "guest", "vessel"),
 }
-PRICE_KEY = {"hotels": "price_per_night", "transfers": "price"}
+MONEY_KEYS = {"hotels": ("cost_per_night", "revenue_per_night"), "transfers": ("cost", "revenue")}
+PLACE_LABELS = {"airport": "Airport", "hotel": "Hotel", "port": "Port"}
 CLEANERS = {"hotels": clean_hotel_stay, "transfers": clean_transfer}
 GUEST_FK = {"hotels": "stay", "transfers": "transfer"}
 
@@ -112,13 +115,41 @@ def booking_to_dict(kind, obj, profile):
     else:
         row.update(from_place=obj.from_place, to_place=obj.to_place, airport=obj.airport, port_name=obj.port_name,
                    at=local_iso(obj.at))
-    if profile.can_edit:  # read-only users never get prices
-        price = getattr(obj, PRICE_KEY[kind])
-        row.update(
-            {PRICE_KEY[kind]: float(price) if price is not None else None, "currency": obj.currency,
-             "exchange_rate": float(obj.exchange_rate) if obj.exchange_rate is not None else None}
-        )
+    as_float = lambda value: float(value) if value is not None else None  # noqa: E731
+    cost_key, revenue_key = MONEY_KEYS[kind]
+    row.update(
+        {
+            cost_key: as_float(getattr(obj, cost_key)),
+            "cost_currency": obj.cost_currency,
+            revenue_key: as_float(getattr(obj, revenue_key)),
+            "revenue_currency": obj.revenue_currency,
+            "exchange_rate": as_float(obj.exchange_rate),
+        }
+    )
     return row
+
+
+def _place(transfer, place):
+    name = {"airport": transfer.airport, "hotel": transfer.hotel, "port": transfer.port_name}[place]
+    return f"{PLACE_LABELS[place]} ({name})" if name else PLACE_LABELS[place]
+
+
+def booking_line(kind, obj, month_rate):
+    """The money line of a hotel stay (per night × nights) or a transfer, in finance's line shape."""
+    own_rate = finance.num(obj.exchange_rate)
+    rate = own_rate or finance.num(month_rate)
+    cost_key, revenue_key = MONEY_KEYS[kind]
+    times = obj.nights if kind == "hotels" else 1
+    if kind == "hotels":
+        label = f"Hotel · {obj.hotel} · {obj.nights} night{'' if obj.nights == 1 else 's'}"
+    else:
+        label = f"Transfer · {_place(obj, obj.from_place)} → {_place(obj, obj.to_place)}"
+    return finance.line(
+        label,
+        finance.money(getattr(obj, cost_key), obj.cost_currency, rate, times),
+        finance.money(getattr(obj, revenue_key), obj.revenue_currency, rate, times),
+        own_rate,
+    )
 
 
 def _matches(row, needle):

@@ -100,14 +100,17 @@ CURRENCIES = [("EGP", "EGP"), ("USD", "USD")]
 
 
 class HotelStay(models.Model):
-    """One hotel room for one or more guests of a vessel's crew change. The price is per room per night."""
+    """One hotel room for one or more guests of a vessel's crew change. Cost (what we pay) and revenue (what we
+    get) are per room per night; the stay's money is that times the nights."""
 
     vessel = models.ForeignKey(Vessel, on_delete=models.CASCADE, related_name="hotel_stays")
     hotel = models.CharField(max_length=100)
     check_in = models.DateField(db_index=True)
     nights = models.PositiveSmallIntegerField()
-    price_per_night = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
+    cost_per_night = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    cost_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
+    revenue_per_night = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    revenue_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -132,8 +135,10 @@ class Transfer(models.Model):
     airport = models.CharField(max_length=100, blank=True)  # which airport, when one end is "airport"
     port_name = models.CharField(max_length=100, blank=True)  # which port, when one end is "port"
     at = models.DateTimeField(db_index=True)
-    price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
+    cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  # what we pay, per trip
+    cost_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
+    revenue = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  # what we get, per trip
+    revenue_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -33,7 +33,7 @@ class BookingData(ApiTestCase):
         super().setUpTestData()
         cls.stay = HotelStay.objects.create(
             vessel=cls.alex_vessel, hotel="HILTON", check_in=date(2026, 11, 14), nights=3,
-            price_per_night=Decimal("80"), currency="USD",
+            cost_per_night=Decimal("80"), cost_currency="USD",
         )
         Guest.objects.create(stay=cls.stay, position=0, name="AHMED TEST", rank="2/E")
         Guest.objects.create(stay=cls.stay, position=1, name="ALI SAYED", rank="OS")
@@ -41,7 +41,7 @@ class BookingData(ApiTestCase):
         Guest.objects.create(stay=cls.suez_stay, position=0, name="SUEZ GUEST")
         cls.transfer = Transfer.objects.create(
             vessel=cls.alex_vessel, from_place="airport", to_place="hotel", airport="BORG EL ARAB", hotel="HILTON",
-            at=timezone.make_aware(datetime(2026, 11, 15, 14, 30)), price=Decimal("900"),
+            at=timezone.make_aware(datetime(2026, 11, 15, 14, 30)), cost=Decimal("900"), revenue=Decimal("1200"),
         )
         Guest.objects.create(transfer=cls.transfer, position=0, name="AHMED TEST", flight="TK689")
 
@@ -56,7 +56,7 @@ class BookingData(ApiTestCase):
     def payload(self, **o):
         guests = [{"name": "ahmed test", "rank": "2/E", "group": "on"}, {"name": "ali sayed", "rank": "OS", "group": "on"}]
         return {"vessel": self.alex_vessel.id, "hotel": "HILTON", "check_in": "2026-11-14", "nights": 3,
-                "price_per_night": "80", "currency": "USD", "guests": guests, **o}
+                "cost_per_night": "80", "cost_currency": "USD", "revenue_per_night": "4500", "guests": guests, **o}
 
 
 class BookingApiTests(BookingData):
@@ -83,16 +83,18 @@ class BookingApiTests(BookingData):
         row = next(b for b in self.list("admin", "hotels")["bookings"] if b["id"] == self.stay.id)
         self.assertEqual(row["vessel"]["name"], "ALEX SHIP")
         self.assertEqual([g["name"] for g in row["guests"]], ["AHMED TEST", "ALI SAYED"])
-        self.assertEqual((row["check_in"], row["check_out"], row["price_per_night"], row["currency"]),
+        self.assertEqual((row["check_in"], row["check_out"], row["cost_per_night"], row["cost_currency"]),
                          ("2026-11-14", "2026-11-17", 80.0, "USD"))
         trip_row = self.list("admin", "transfers")["bookings"][0]
-        self.assertEqual((trip_row["at"], trip_row["from_place"], trip_row["hotel"], trip_row["price"]),
+        self.assertEqual((trip_row["at"], trip_row["from_place"], trip_row["hotel"], trip_row["cost"]),
                          ("2026-11-15T14:30", "airport", "HILTON", 900.0))
 
-    def test_read_only_sees_no_prices_and_cannot_write(self):
-        for kind in ("hotels", "transfers"):
-            for row in self.list("viewer", kind)["bookings"]:
-                self.assertFalse({"price_per_night", "price", "currency", "exchange_rate"} & row.keys())
+    def test_read_only_sees_booking_money_but_cannot_write(self):
+        """User decision: read-only users can see money everywhere; they still can't change anything."""
+        row = next(b for b in self.list("viewer", "hotels")["bookings"] if b["id"] == self.stay.id)
+        self.assertEqual((row["cost_per_night"], row["cost_currency"], row["revenue_per_night"]), (80.0, "USD", None))
+        trip_row = self.list("viewer", "transfers")["bookings"][0]
+        self.assertEqual((trip_row["cost"], trip_row["revenue"], trip_row["revenue_currency"]), (900.0, 1200.0, "EGP"))
         self.assertEqual(self.call(self.login("viewer"), "post", "/api/hotels/", self.payload())[0], 403)
         self.assertEqual(self.call(self.login("viewer"), "delete", f"/api/hotels/{self.stay.id}/")[0], 403)
 
@@ -165,18 +167,20 @@ class LogisticsValidationTests(SimpleTestCase):
         self.assertEqual(len(clean_guests(G * 6)), 6)
 
     def test_stay_rules(self):
-        cleaned = clean_hotel_stay(stay(price_per_night="80", currency="USD", exchange_rate="49.5"))
-        self.assertEqual((cleaned["nights"], cleaned["check_in"], cleaned["price_per_night"], cleaned["currency"]),
+        cleaned = clean_hotel_stay(stay(cost_per_night="80", cost_currency="USD", revenue_per_night="4500", exchange_rate="49.5"))
+        self.assertEqual((cleaned["nights"], cleaned["check_in"], cleaned["cost_per_night"], cleaned["cost_currency"]),
                          (2, date(2026, 11, 14), Decimal("80"), "USD"))
         self.assertEqual(cleaned["exchange_rate"], Decimal("49.5"))
         for nights in (0, 61, "two", None):
             self.assertRejects(clean_hotel_stay, stay(nights=nights), "Nights must be a whole number from 1 to 60.")
         self.assertRejects(clean_hotel_stay, stay(check_in="14.11.2026"), "Enter a valid check-in date.")
         self.assertRejects(clean_hotel_stay, stay(hotel=" "), "Choose a hotel.")
-        self.assertRejects(clean_hotel_stay, stay(price_per_night=-1), "Prices cannot be negative.")
+        self.assertRejects(clean_hotel_stay, stay(cost_per_night=-1), "Prices cannot be negative.")
+        self.assertRejects(clean_hotel_stay, stay(revenue_per_night=-1), "Prices cannot be negative.")
+        self.assertEqual((cleaned["revenue_per_night"], cleaned["revenue_currency"]), (Decimal("4500"), "EGP"))
         self.assertRejects(clean_hotel_stay, stay(exchange_rate=0), "Exchange rate must be a positive number.")
-        self.assertEqual(clean_hotel_stay(stay(price_per_night="80", currency="GBP"))["currency"], "EGP")
-        self.assertIsNone(clean_hotel_stay(stay(price_per_night=""))["price_per_night"])
+        self.assertEqual(clean_hotel_stay(stay(cost_per_night="80", cost_currency="GBP"))["cost_currency"], "EGP")
+        self.assertIsNone(clean_hotel_stay(stay(cost_per_night=""))["cost_per_night"])
 
     def test_transfer_rules(self):
         self.assertEqual(clean_transfer(trip())["hotel"], "HILTON")
@@ -188,7 +192,9 @@ class LogisticsValidationTests(SimpleTestCase):
         self.assertRejects(clean_transfer, trip(from_place="sea"), "Choose where from and where to.")
         self.assertRejects(clean_transfer, trip(at=""), "Enter the date and time.")
         self.assertRejects(clean_transfer, trip(at="2026-11-14"), "Enter the date and time.")
-        self.assertRejects(clean_transfer, trip(price="-5"), "Prices cannot be negative.")
+        self.assertRejects(clean_transfer, trip(cost="-5"), "Prices cannot be negative.")
+        self.assertRejects(clean_transfer, trip(revenue="-5"), "Prices cannot be negative.")
+        self.assertEqual(clean_transfer(trip(revenue="12", revenue_currency="USD"))["revenue"], Decimal("12"))
 
 
 class ModelTests(ApiTestCase):

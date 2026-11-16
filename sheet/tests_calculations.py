@@ -1,11 +1,13 @@
 """Calculations: money on every service, the money lines behind every figure, and the Calculations page API."""
 
+from datetime import date
 from decimal import Decimal
 
 from django.test import SimpleTestCase
 
 from . import finance
-from .models import Service
+from .logistics import booking_line
+from .models import HotelStay, Service, Transfer
 from .tests import ApiTestCase
 from .validators import clean_service_data
 
@@ -71,3 +73,22 @@ class ServiceLinesTests(SimpleTestCase):
         self.assertAlmostEqual(figures["profit_egp"], round(sum(line["profit_egp"] for line in lines), 2), places=2)
         self.assertEqual(len(figures["entries"]), 3)
         self.assertEqual(len(finance.compute("Landing", {"entries": [{}, {"cost": 1}]}, None)["entries"]), 2)  # kept 1:1
+
+
+class BookingLineTests(ApiTestCase):
+    def test_hotel_line_multiplies_by_nights(self):
+        stay = HotelStay(vessel=self.alex_vessel, hotel="HILTON", check_in=date(2026, 11, 14), nights=2,
+                         cost_per_night=Decimal("80"), cost_currency="USD",
+                         revenue_per_night=Decimal("4500"), revenue_currency="EGP")
+        line = booking_line("hotels", stay, Decimal("50"))
+        self.assertEqual(
+            (line["label"], line["cost"]["times"], line["cost_egp"], line["revenue_egp"], line["profit_egp"]),
+            ("Hotel · HILTON · 2 nights", 2, 8000.0, 9000.0, 1000.0),
+        )
+
+    def test_transfer_line_names_the_places_and_uses_its_own_rate(self):
+        trip = Transfer(vessel=self.alex_vessel, from_place="airport", to_place="hotel", airport="BORG", hotel="HILTON",
+                        cost=Decimal("20"), cost_currency="USD", exchange_rate=Decimal("48"), revenue=Decimal("1200"))
+        line = booking_line("transfers", trip, Decimal("50"))
+        self.assertEqual((line["label"], line["cost_egp"], line["rate_source"]),
+                         ("Transfer · Airport (BORG) → Hotel (HILTON)", 960.0, "own"))
