@@ -275,11 +275,24 @@ def options(request):
 
 
 @json_api
-@require_http_methods(["DELETE"])
-def option_delete(request, pk):
+@require_http_methods(["PATCH", "DELETE"])
+def option_detail(request, pk):
+    """DELETE removes a value (port users: their port's only); PATCH {port} moves it to a port or to all ports
+    ("") — admins only."""
     profile = request.profile
     require_edit(profile)
     option = get_object_or_404(Option, pk=pk)
+    if request.method == "PATCH":
+        require_admin(profile)
+        port = read_json(request).get("port") or ""
+        if port and port not in PORT_KEYS:
+            raise BadRequest("Unknown port.")
+        if Option.objects.filter(kind=option.kind, value=option.value, port=port).exclude(pk=pk).exists():
+            raise BadRequest("That value already exists for that port.")
+        option.port = port
+        option.save(update_fields=["port"])
+        audit(request, "option.port", id=pk, port=port or "all")
+        return _options_json(profile)
     if not profile.is_admin and option.port != profile.port:
         raise Forbidden("You can only remove options for your own port.")
     option.delete()
