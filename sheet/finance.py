@@ -1,12 +1,16 @@
-"""Money maths: cost, revenue and profit of a service, in EGP.
+"""Money maths: cost, revenue and profit, in EGP — the only place they are worked out.
 
-USD amounts are converted with the service's own override rate if it has one,
-otherwise with the exchange rate of the vessel's month.
+USD amounts are converted with the item's own override rate if it has one, otherwise with the exchange rate of the
+vessel's month; with neither, USD counts 1:1 and the line is flagged `rate_missing`.
+
+`service_lines` returns the money lines of one service with their working (amount, currency, rate, EGP); `compute`
+adds them up for the vessel figures, so the Calculations page and the vessel totals can never disagree.
+Hotel stays and transfers use the same `money` / `line` helpers (see logistics.booking_line).
 """
 
 import math
 
-from .constants import MULTI_TYPES
+from .constants import MULTI_TYPES, SINGLE_EXTRAS
 
 
 def num(value):
@@ -18,66 +22,135 @@ def num(value):
     return result if math.isfinite(result) else 0.0
 
 
-class _Converter:
-    """Converts amounts to EGP and remembers whether a USD amount lacked a rate."""
-
-    def __init__(self, rate):
-        self.rate = rate
-        self.rate_missing = False
-
-    def to_egp(self, amount, currency):
-        amount = num(amount)
-        if currency != "USD":
-            return amount
-        if amount and not self.rate:
-            self.rate_missing = True
-        return amount * (self.rate or 1)
+def _fmt(amount):
+    return f"{amount:,.2f}"
 
 
-def _multi_entries(data, conv):
-    entries = []
-    for entry in data.get("entries", []):
-        cost = conv.to_egp(entry.get("cost"), entry.get("costCurrency"))
-        revenue = conv.to_egp(entry.get("revenue"), entry.get("revenueCurrency"))
-        entries.append((cost, revenue))
-    return entries
+def money(amount, currency, rate, times=1):
+    """One side of a line: {amount, currency, times, rate (USD only, None if missing), egp, rate_missing}, or None
+    when there is no amount."""
+    amount = num(amount)
+    if not amount:
+        return None
+    usd = currency == "USD"
+    return {
+        "amount": amount,
+        "currency": "USD" if usd else "EGP",
+        "times": times,
+        "rate": (rate or None) if usd else None,
+        "egp": amount * times * ((rate or 1) if usd else 1),
+        "rate_missing": usd and not rate,
+    }
 
 
-def _cash_to_master(data, conv):
+def line(label, cost, revenue, own_rate, note=""):
+    """A money line from its two sides (either may be None). `rate_source` says where a USD rate came from."""
+    sides = [side for side in (cost, revenue) if side]
+    uses_usd = any(side["currency"] == "USD" for side in sides)
+    cost_egp = cost["egp"] if cost else 0.0
+    revenue_egp = revenue["egp"] if revenue else 0.0
+    return {
+        "label": label,
+        "note": note,
+        "cost": cost,
+        "revenue": revenue,
+        "cost_egp": cost_egp,
+        "revenue_egp": revenue_egp,
+        "profit_egp": revenue_egp - cost_egp,
+        "rate_source": "" if not uses_usd or any(s["rate_missing"] for s in sides) else ("own" if own_rate else "month"),
+        "rate_missing": any(side["rate_missing"] for side in sides),
+    }
+
+
+def _number_text(value):
+    value = num(value)
+    return f"{value:g}" if value else ""
+
+
+def _single_label(service_type, data):
+    extra = SINGLE_EXTRAS.get(service_type)
+    if extra == "quantity":
+        detail = f"{_number_text(data.get('quantity'))} t" if _number_text(data.get("quantity")) else ""
+    else:
+        detail = str(data.get(extra) or "").strip() if extra else ""
+    return f"{service_type} · {detail}" if detail else service_type
+
+
+def _entry_label(service_type, entry):
+    parts = [service_type]
+    if str(entry.get("awb") or "").strip():
+        parts.append(f"AWB {str(entry['awb']).strip()}")
+    if _number_text(entry.get("weight")):
+        parts.append(f"{_number_text(entry.get('weight'))} kg")
+    return " · ".join(parts)
+
+
+def _cash_to_master(data, rate, own_rate):
     """Our revenue is a share OF the amount (a percentage or a fixed figure), never on top of it.
     The rest is handed to the master and is not our cost."""
     amount = num(data.get("amount"))
-    if data.get("shareMode") == "fixed":
-        share = num(data.get("fixedRevenue"))
-    else:
-        share = amount * num(data.get("percentage")) / 100
+    fixed = data.get("shareMode") == "fixed"
+    share = num(data.get("fixedRevenue")) if fixed else amount * num(data.get("percentage")) / 100
     share = max(0.0, min(share, amount))
-    currency = data.get("amountCurrency")
-    return conv.to_egp(share, currency), conv.to_egp(amount - share, currency)
+    currency = "USD" if data.get("amountCurrency") == "USD" else "EGP"
+    percent = _number_text(data.get("percentage")) or "0"
+    how = f"fixed {currency} {_fmt(share)}" if fixed else f"{percent}% of {currency} {_fmt(amount)}"
+    result = line("Cash to Master", None, money(share, currency, rate), own_rate,
+                  note=f"{how} · {currency} {_fmt(amount - share)} to the master")
+    to_master = money(amount - share, currency, rate)
+    result["to_master_egp"] = to_master["egp"] if to_master else 0.0
+    return result
+
+
+def _all_lines(service_type, data, month_rate):
+    """Every money line of a service, empty ones included (multi-entry figures stay aligned with their entries)."""
+    own_rate = num(data.get("exchangeRate"))
+    rate = own_rate or num(month_rate)
+    if service_type in MULTI_TYPES:
+        return [
+            line(
+                _entry_label(service_type, entry),
+                money(entry.get("cost"), entry.get("costCurrency"), rate),
+                money(entry.get("revenue"), entry.get("revenueCurrency"), rate),
+                own_rate,
+            )
+            for entry in data.get("entries", [])
+            if isinstance(entry, dict)
+        ]
+    if service_type == "Cash to Master":
+        return [_cash_to_master(data, rate, own_rate)]
+    # Every other service (Crew Change and Others / Remarks included) has one cost and one revenue.
+    return [
+        line(
+            _single_label(service_type, data),
+            money(data.get("cost"), data.get("costCurrency"), rate),
+            money(data.get("revenue"), data.get("revenueCurrency"), rate),
+            own_rate,
+        )
+    ]
+
+
+def has_money(item):
+    return bool(item["cost"] or item["revenue"])
+
+
+def service_lines(service_type, data, month_rate):
+    """The money lines of one service (lines with neither cost nor revenue are left out). Figures are unrounded."""
+    return [item for item in _all_lines(service_type, data or {}, month_rate) if has_money(item)]
 
 
 def compute(service_type, data, month_rate):
     """Return cost / revenue / profit / to_master (EGP), per-entry figures and a missing-rate flag."""
-    conv = _Converter(num(data.get("exchangeRate")) or float(month_rate or 0))
-    cost = revenue = to_master = 0.0
-    per_entry = []
-
-    if service_type in MULTI_TYPES:
-        for entry_cost, entry_revenue in _multi_entries(data, conv):
-            cost += entry_cost
-            revenue += entry_revenue
-            per_entry.append(_figures(entry_cost, entry_revenue))
-    elif service_type == "Cash to Master":
-        revenue, to_master = _cash_to_master(data, conv)
-    else:  # every other service, Crew Change and Others / Remarks included, has a cost and a revenue
-        cost = conv.to_egp(data.get("cost"), data.get("costCurrency"))
-        revenue = conv.to_egp(data.get("revenue"), data.get("revenueCurrency"))
-
+    lines = _all_lines(service_type, data or {}, month_rate)
+    cost = sum(item["cost_egp"] for item in lines)
+    revenue = sum(item["revenue_egp"] for item in lines)
     return {
         **_figures(cost, revenue),
-        "to_master_egp": round(to_master, 2),
-        "entries": per_entry,
-        "rate_missing": conv.rate_missing,
+        "to_master_egp": round(sum(item.get("to_master_egp", 0.0) for item in lines), 2),
+        "entries": (
+            [_figures(item["cost_egp"], item["revenue_egp"]) for item in lines] if service_type in MULTI_TYPES else []
+        ),
+        "rate_missing": any(item["rate_missing"] for item in lines),
     }
 
 

@@ -1,5 +1,7 @@
 """Calculations: money on every service, the money lines behind every figure, and the Calculations page API."""
 
+from decimal import Decimal
+
 from django.test import SimpleTestCase
 
 from . import finance
@@ -28,3 +30,44 @@ class CrewChangeMoneyInVesselTotalsTests(ApiTestCase):
         Service.objects.create(vessel=self.alex_vessel, service_type="Crew Change", data={"cost": 10, "costCurrency": "EGP"})
         vessel = self.call(self.login("admin"), "get", f"/api/vessels/{self.alex_vessel.id}/")[1]
         self.assertEqual(vessel["total_cost_egp"], 10.0)
+
+
+class ServiceLinesTests(SimpleTestCase):
+    def test_lines_show_the_working(self):
+        data = {"quantity": 40, "cost": 2000, "costCurrency": "EGP", "revenue": 100, "revenueCurrency": "USD"}
+        [line] = finance.service_lines("Fresh Water", data, Decimal("50"))
+        self.assertEqual(
+            (line["label"], line["revenue"]["rate"], line["revenue"]["egp"], line["rate_source"], line["profit_egp"]),
+            ("Fresh Water · 40 t", 50.0, 5000.0, "month", 3000.0),
+        )
+        self.assertEqual((line["cost"]["currency"], line["cost"]["rate"], line["cost"]["times"]), ("EGP", None, 1))
+        own = finance.service_lines("Fresh Water", {"revenue": 1, "revenueCurrency": "USD", "exchangeRate": 48}, Decimal("50"))[0]
+        self.assertEqual((own["rate_source"], own["revenue"]["egp"], own["rate_missing"]), ("own", 48.0, False))
+        egp_only = finance.service_lines("Certificates", {"certName": "SOLAS", "revenue": 5}, Decimal("50"))[0]
+        self.assertEqual((egp_only["label"], egp_only["rate_source"], egp_only["cost"]), ("Certificates · SOLAS", "", None))
+        flagged = finance.service_lines("Landing", {"entries": [{"revenue": 10, "revenueCurrency": "USD"}]}, None)[0]
+        self.assertEqual((flagged["rate_missing"], flagged["revenue"]["egp"], flagged["revenue"]["rate"]), (True, 10.0, None))
+
+    def test_multi_entries_and_cash_to_master(self):
+        lines = finance.service_lines("Delivery Parcels", {"entries": [{"awb": "123", "weight": 3, "cost": 10}, {"cost": 5}]}, None)
+        self.assertEqual([line["label"] for line in lines], ["Delivery Parcels · AWB 123 · 3 kg", "Delivery Parcels"])
+        data = {"amount": 1000, "amountCurrency": "USD", "percentage": 5}
+        [cash] = finance.service_lines("Cash to Master", data, Decimal("50"))
+        self.assertEqual((cash["cost"], cash["revenue_egp"], cash["revenue"]["amount"]), (None, 2500.0, 50.0))
+        self.assertEqual(cash["note"], "5% of USD 1,000.00 · USD 950.00 to the master")
+        fixed = finance.service_lines("Cash to Master", {**data, "shareMode": "fixed", "fixedRevenue": 40}, Decimal("50"))[0]
+        self.assertEqual(fixed["note"], "fixed USD 40.00 · USD 960.00 to the master")
+
+    def test_empty_lines_are_dropped_but_one_sided_lines_stay(self):
+        self.assertEqual(finance.service_lines("Others / Remarks", {"note": "hello"}, None), [])
+        self.assertEqual(finance.service_lines("Others / Remarks", {"note": "x", "cost": 0, "revenue": 0}, None), [])
+        self.assertEqual(len(finance.service_lines("Certificates", {"revenue": 5}, None)), 1)
+        self.assertEqual(len(finance.service_lines("Landing", {"entries": [{"cost": 1}, {}]}, None)), 1)
+
+    def test_compute_equals_the_sum_of_lines_to_the_cent(self):
+        data = {"entries": [{"cost": 0.333, "revenue": 0.335}] * 3}
+        lines = finance.service_lines("Landing", data, None)
+        figures = finance.compute("Landing", data, None)
+        self.assertAlmostEqual(figures["profit_egp"], round(sum(line["profit_egp"] for line in lines), 2), places=2)
+        self.assertEqual(len(figures["entries"]), 3)
+        self.assertEqual(len(finance.compute("Landing", {"entries": [{}, {"cost": 1}]}, None)["entries"]), 2)  # kept 1:1
