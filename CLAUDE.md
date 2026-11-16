@@ -96,6 +96,11 @@ first). The two pages are one module configured twice (`js/pages/bookings.js`) p
 filtered rows, and the OPRs present in the range for the page's dropdown. Computed on each request, never stored.
 Every role may read it.
 
+**Master data** (`Option`: kind, value, `port`): six lists (OPR, POC, Agent, Hotel, Airport, Port). `port` is `""`
+for All ports or one port key. Port users only ever create values for their port and see All-ports + their own;
+admins choose the port when adding and move values with `PATCH /api/options/<id>/` (admin only). Every dropdown is
+built with `optionChoices(kind, current, port)` → only that port's + All-ports values, always keeping `current`.
+
 **Front end** (`static/sheet/js/`, entry `main.js`):
 - `state.js` holds one `state.filter` (from, to, q, bucket, port, sort, dir, page, pageSize), the current page of
   vessels and a cache by id (`getVessel`); `data.js` loads from the server (`setFilter`, `loadVessels`,

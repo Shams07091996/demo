@@ -1,19 +1,22 @@
 # Project status
 
-Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each feature has a design
+Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each feature has a design
 (`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
 
 ## Where things stand right now
 
-- **Git:** everything is on `main`, including the Calculations page (`feature/calculations-page` was merged
-  fast-forward on 2026-11-16; the branch still exists and can be deleted).
-- **The user's own database** (`db.sqlite3`, not in git) is at migration `0006`. It still needs
-  `DJANGO_DEBUG=1` + `python manage.py migrate` for `0007` (airport / port on transfers) and `0008` (booking cost /
-  revenue); until then Transport, Calculations and the Master data page fail on that database.
-- **Branch `feature/master-data-per-port`** (Master data values per port) is built and tested, **not merged yet** —
-  ask the user before merging. No migration needed.
-- **Tests:** `python manage.py test sheet` → 150 OK on that branch; `tools` parser tests and the jsdom smoke test pass
-  for `admin`, `alex`, `viewer` (see `CLAUDE.md` for running the smoke test on a throwaway database).
+- **Git branches:**
+  - `main` — everything up to and including the 💰 Calculations page.
+  - `feature/master-data-per-port` — **checked out**, built, reviewed and tested, **not merged yet**. The user was
+    last asked whether to merge it into `main`; do it only when they say so (`git switch main` +
+    `git merge --ff-only feature/master-data-per-port`). No migration needed. The docs on this branch (this file,
+    `CLAUDE.md`, `README.md`) are newer than `main`'s.
+  - `feature/calculations-page` — already merged; can be deleted (`git branch -d feature/calculations-page`).
+- **The user's own database** (`db.sqlite3`, not in git) is up to date: migrations through `0008` are applied.
+  It still has one **shared** agent and one shared hotel from before per-port Master data; once the branch is merged,
+  an admin can move them to a port on the Master data page.
+- **Tests (on the branch):** `python manage.py test sheet` → 150 OK; `tools` parser tests pass; the jsdom smoke test
+  passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
 
@@ -26,7 +29,7 @@ Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-15 | ☰ hides / shows the sidebar on wide screens; alerts banner can shrink to one line; dev `runserver` sends static files with `no-cache` | — |
 | 2026-11-16 | 🏨 Hotels and 🚗 Transport pages: bookings for 1–6 crew guests of a vessel (rooms and cars can be shared), entered on their own pages with the guest picked from the vessel's crew change; transfers name which airport / hotel / port (Master data lists) | `2026-11-16-hotels-and-transport-design.md` |
 | 2026-11-16 | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
-| 2026-11-17 (branch) | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
+| 2026-11-17 (branch, unmerged) | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -48,7 +51,9 @@ Last updated: 2026-11-16. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Next
 
-Nothing agreed yet. Ideas raised along the way:
+- Merge `feature/master-data-per-port` into `main` (waiting for the user).
+
+Ideas raised along the way:
 
 - Run the test suite on the user's local PostgreSQL 17 (installed at `C:\Program Files\PostgreSQL\17`, not on PATH;
   the user must create the app's database role first — see README "PostgreSQL"). New tests have only run on SQLite.
