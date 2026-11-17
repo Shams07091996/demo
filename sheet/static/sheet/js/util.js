@@ -3,6 +3,9 @@
 export const $ = (selector, root = document) => root.querySelector(selector);
 export const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
+/** The first `max` items and how many more there are (the alerts banner caps its missing-agent rows). */
+export const limitRows = (list, max) => ({ shown: list.slice(0, max), more: Math.max(0, list.length - max) });
+
 export const num = (x) => {
   const n = parseFloat(x);
   return Number.isFinite(n) ? n : 0;

@@ -91,7 +91,7 @@ async function login() {
   if (ROLE === 'alex' || ROLE === 'admin') {
     const res = await w.fetch('/api/vessels/', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
-      body: JSON.stringify({ name: HOSTILE, agent: HOSTILE_AGENT, opr: '<i>O</i>', port: 'alexandria', date: localNow() }),
+      body: JSON.stringify({ name: HOSTILE, arrival_agent: HOSTILE_AGENT, opr: '<i>O</i>', port: 'alexandria', date: localNow() }),
     });
     hostileId = (await res.json()).id;
     ok(res.status === 201 || res.status === 200, `hostile-text vessel created (HTTP ${res.status})`);
@@ -117,10 +117,10 @@ async function login() {
     ok(await waitFor(() => $('#modal h2')?.textContent === HOSTILE) && modalText().includes(HOSTILE_AGENT) && noMarkup($('#modal')), 'vessel details: texts literal, no markup');
     click($('#modal [data-act="edit-vessel"]'));
     ok(await waitFor(() => $('#vessel-form [name=name]')?.value === HOSTILE), 'vessel form: name input holds the exact text');
-    ok($('#vessel-form [name=agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: agent / OPR kept as exact values');
+    ok($('#vessel-form [name=arrival_agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: agent / OPR kept as exact values');
     if (ROLE === 'admin') {
       type($('#vessel-form [name=port]'), 'suez');
-      ok($('#vessel-form [name=agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: changing the port keeps the chosen values');
+      ok($('#vessel-form [name=arrival_agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: changing the port keeps the chosen values');
     }
     closeModal();
 
@@ -180,7 +180,7 @@ async function login() {
     const own = { id: ownRow().querySelector('[data-act="del-option"]').dataset.id };
     await go('vessels');
     click($('#addVesselBtn'));
-    ok(await waitFor(() => $('#vessel-form [name=agent]')) && [...$('#vessel-form [name=agent]').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: the Add vessel form offers their own agent');
+    ok(await waitFor(() => $('#vessel-form [name=arrival_agent]')) && [...$('#vessel-form [name=sailing_agent]').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: the Add vessel form offers their own agent');
     closeModal();
     ok([...$('#qa-agent').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: quick add offers their own agent');
     await w.fetch(`/api/options/${own.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
@@ -251,7 +251,8 @@ async function login() {
   await go('vessels');
   ok($$('#tbody tr').length > 0, 'vessel table renders');
   ok(!$('#stats') && !$('#exportBtn'), 'no stat cards and no CSV button on the Vessels page');
-  ok($$('#tbody tr')[0].children.length === 9 && !$('th[data-sort="total_cost_egp"]') && !/Total Cost/.test($('thead').textContent), 'table has an Agent column and no Total Cost column');
+  ok($$('#tbody tr')[0].children.length === 10 && !$('th[data-sort="total_cost_egp"]') && !/Total Cost/.test($('thead').textContent), 'table has arrival / sailing agent columns and no Total Cost column');
+  ok($('th[data-sort="arrival_agent"]')?.textContent.includes('Arrival agent') && $('th[data-sort="sailing_agent"]')?.textContent.includes('Sailing agent'), 'the two agent columns are sortable');
 
   // The ☰ button: on a wide screen it hides / shows the sidebar (remembered); jsdom counts as wide.
   click($('#menuBtn'));
@@ -391,7 +392,7 @@ async function login() {
     type($('#portSelect'), 'ALL');
     await waitFor(() => $('#portSelect').value === 'ALL');
     await go('master');
-    const agentChoices = () => [...$('#vessel-form [name=agent]').options].map((o) => o.textContent);
+    const agentChoices = () => [...$('#vessel-form [name=arrival_agent]').options].map((o) => o.textContent);
     await go('vessels');
     click($('#addVesselBtn'));
     type($('#vessel-form [name=port]'), 'alexandria');
@@ -432,7 +433,8 @@ async function login() {
 
   /* ======== add-vessel form (+ XSS) ======== */
   click($('#addVesselBtn'));
-  ok($('#vessel-form select[name=opr]') && $('#vessel-form select[name=poc]') && $('#vessel-form select[name=agent]'), 'vessel form uses master-data dropdowns');
+  ok($('#vessel-form select[name=opr]') && $('#vessel-form select[name=poc]') && $('#vessel-form select[name=arrival_agent]') && $('#vessel-form select[name=sailing_agent]'), 'vessel form uses master-data dropdowns');
+  ok($('#vessel-form [name=arrival_agent]').value === '' && $('#vessel-form [name=sailing_agent]').value === '', 'a new vessel starts with no agents');
   ok($$('#vessel-form [type=datetime-local]').length === 5, 'vessel form has the five port-call time fields');
   type($('#vessel-form [name=name]'), '<img src=x onerror=window.__xss=1>');
   type($('#vessel-form [name=opr]'), 'MSK');
@@ -461,7 +463,8 @@ async function login() {
   /* ======== port-call times and agent ======== */
   await openRow(NAME);
   click($('#modal [data-act="edit-vessel"]'));
-  ok($('#vessel-form [name=agent]').value === 'SMOKE AGENT', 'edit form shows the saved agent');
+  ok($('#vessel-form [name=arrival_agent]').value === 'SMOKE AGENT' && $('#vessel-form [name=sailing_agent]').value === '', 'quick add set only the arrival agent');
+  ok(modalText().includes('Arrival agent') && modalText().includes('Sailing agent'), 'the dialog lists both agents');
   click($('[data-act="time-now"][data-target="arrival_at"]'));
   ok(/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test($('[name=arrival_at]').value), '"Now" fills a time');
   const times = { arrival_at: '2020-01-15T06:00', berthing_at: '2020-01-15T08:30', ops_start_at: '2020-01-15T09:00', ops_end_at: '2020-01-15T15:00', sailing_at: '2020-01-15T05:00' };
@@ -480,12 +483,15 @@ async function login() {
   await openRow(NAME);
   click($('[data-act="add-service"]'));
   click($('[data-type="Fresh Water"]'));
+  ok($('#svc-form select[name=agent]') && $('#svc-form [name=agent]').value === '', 'a new service starts with no agent');
+  type($('#svc-form [name=agent]'), 'SMOKE AGENT');
   type($('[name=quantity]'), '40'); type($('[name=revenue]'), '100'); type($('[name=revenueCurrency]'), 'USD'); type($('[name=cost]'), '2000');
   ok($('#preview').textContent.includes('No exchange rate'), 'preview warns when the month has no rate');
   type($('[name=exchangeRate]'), '50');
   ok($('#preview').textContent.includes('5,000.00') && $('#preview').textContent.includes('3,000.00'), 'preview: 100 USD at 50 = 5,000 revenue, 3,000 profit');
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => modalText().includes('Quantity (tons): 40')), 'Fresh Water saved');
+  ok($$('.svc-card').some((c) => c.textContent.includes('Fresh Water') && c.textContent.includes('Agent: SMOKE AGENT')), 'the service card shows its agent');
 
   /* ======== Cash to Master ======== */
   click($('[data-act="add-service"]'));
@@ -577,6 +583,15 @@ async function login() {
   click($('#notifPanel [data-act="summary"]'));
   ok(await waitFor(() => $('#modal h2')?.textContent.includes('SMOKE TODAY')), 'clicking a notification opens its summary');
   closeModal();
+  // Past vessels missing an agent (seed_demo: SEA BREEZE, Alexandria, yesterday — no sailing agent, Landing without agent).
+  if (ROLE !== 'suez') {
+    ok(await waitFor(() => /\d+ missing an agent/.test($('#notifBanner').textContent) && $('#notifBanner').textContent.includes('SEA BREEZE')), 'banner shows vessels missing an agent');
+    const missRow = $$('#notifBanner .notif-row.missing').find((r) => r.textContent.includes('SEA BREEZE'));
+    ok(missRow && missRow.textContent.includes('Sailing') && missRow.textContent.includes('Landing'), 'the row says what is missing');
+    click($('#bell'));
+    ok($('#notifPanel').textContent.includes('Missing agent') && $('#notifPanel').textContent.includes('SEA BREEZE'), 'bell panel has a Missing agent group');
+    click($('#bell'));
+  }
 
   /* ======== hotels and transport ======== */
   const dmyOf = (iso) => iso.split('-').reverse().join('.');

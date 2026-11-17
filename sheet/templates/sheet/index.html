@@ -43,7 +43,7 @@
       <span class="spacer"></span>
       <span id="status" class="status"><span class="dot"></span><span id="status-text">Loading…</span></span>
       <div class="bell-wrap">
-        <button class="btn ghost bell" id="bell" title="Vessels due today and tomorrow">🔔<span class="badge-dot" id="bellBadge" hidden>0</span></button>
+        <button class="btn ghost bell" id="bell" title="Vessels due today and tomorrow, and past vessels missing an agent">🔔<span class="badge-dot" id="bellBadge" hidden>0</span></button>
         <div class="notif-panel" id="notifPanel"></div>
       </div>
     </header>
@@ -58,7 +58,7 @@
         <input class="input" id="qa-date" type="date">
         <select class="select" id="qa-opr" title="OPR"></select>
         <select class="select" id="qa-poc" title="POC"></select>
-        <select class="select" id="qa-agent" title="Agent"></select>
+        <select class="select" id="qa-agent" title="Arrival agent"></select>
         <select class="select" id="qa-port" title="Port" hidden></select>
         <button class="btn primary" id="qa-add">Add</button>
         <button class="btn ghost" id="qa-edit">+ Add &amp; edit</button>
@@ -90,7 +90,8 @@
               <th data-sort="name">Vessel <span class="arrow">↕</span></th>
               <th data-sort="opr">OPR <span class="arrow">↕</span></th>
               <th data-sort="poc">POC <span class="arrow">↕</span></th>
-              <th data-sort="agent">Agent <span class="arrow">↕</span></th>
+              <th data-sort="arrival_agent">Arrival agent <span class="arrow">↕</span></th>
+              <th data-sort="sailing_agent">Sailing agent <span class="arrow">↕</span></th>
               <th data-sort="port" class="col-port">Port <span class="arrow">↕</span></th>
               <th data-sort="date">Date <span class="arrow">↕</span></th>
               <th>Services</th>

@@ -15,6 +15,7 @@ function load(entry) {
   return require(file);
 }
 const { parsePersonal, parseFlightText } = load('crewParsing.js');
+const { limitRows } = load('util.js');
 
 let failed = 0;
 const check = (cond, label) => { console.log(`${cond ? 'PASS' : 'FAIL'} ${label}`); if (!cond) failed += 1; };
@@ -39,6 +40,10 @@ const leg = parseFlightText(itinerary);
 check(leg.length === 1 && leg[0].flightNo === 'TK689', 'pasted itinerary: only the Egypt departure leg is kept');
 check(leg[0].airline === 'Turkish Airlines' && leg[0].arrivalCity === 'Istanbul Airport', 'pasted itinerary airline and destination');
 check(leg[0].departureTime === '05 Apr 2026 08:55', 'pasted itinerary departure date and time');
+/* ---------- limitRows: the alerts banner shows at most 20 missing-agent rows ---------- */
+const many = limitRows(Array.from({ length: 25 }, (_, i) => i), 20);
+check(many.shown.length === 20 && many.shown[19] === 19 && many.more === 5, 'limitRows: 25 rows → 20 shown, 5 more');
+check(limitRows([1, 2], 20).more === 0 && limitRows([], 20).shown.length === 0, 'limitRows: short lists are shown whole');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

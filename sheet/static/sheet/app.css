@@ -119,6 +119,8 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:rgb
 .notif-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px}
 .notif-row.today{background:rgba(230,57,70,.1);border:1px solid rgba(230,57,70,.35)}
 .notif-row.tomorrow{background:rgba(244,162,97,.1);border:1px solid rgba(244,162,97,.35)}
+.notif-row.missing{background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.3)}
+.svc-agent{font-size:12px;color:var(--muted);margin-top:4px}
 .notif-row b{font-size:11px;letter-spacing:.5px;text-transform:uppercase}
 .bell-wrap{position:relative}.bell{position:relative;padding:6px 12px}
 .bell.alert{border-color:rgba(230,57,70,.45);color:var(--danger);background:rgba(230,57,70,.1)}

@@ -36,7 +36,7 @@ export const state = {
   vessels: [],        // the current page only
   list: { count: 0, pages: 1, page: 1, totals: null },
   cache: new Map(),   // every vessel seen so far, by id (dialogs read from here)
-  alerts: { today: [], tomorrow: [] },
+  alerts: { today: [], tomorrow: [], missing_agent: [] },
   dashboard: { count: 0, oprs: [] },
   options: [],        // OPR / POC / Agent master data
   rates: [],          // monthly USD -> EGP rates
