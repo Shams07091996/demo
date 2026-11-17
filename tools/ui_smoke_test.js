@@ -549,6 +549,13 @@ async function login() {
   ok($('#bk-opr') && $$('#bk-agent option').some((o) => o.textContent === 'SMOKE AGENT'), 'bulk page: dropdowns come from master data');
   if (ROLE === 'admin') ok($('#bk-port-wrap').style.display !== 'none', 'bulk page: admin can choose the port');
   type($('#bk-date'), '2026-11-20');
+  type($('#bk-text'), 'SMOKE <i>B</i> & "Q"\t13.11.2026\t<b>O</b>');
+  click($('[data-act="bulk-preview"]'));
+  ok(await waitFor(() => $('#bk-preview [data-f=name]')), 'bulk: markup-like row previewed');
+  ok($('#bk-preview [data-f=name]').value === 'SMOKE <I>B</I> & "Q"' && $('#bk-preview [data-f=opr]').value === '<b>O</b>' && noMarkup($('#bk-preview')),
+    'bulk: markup-like name and OPR stay exact values, no markup');
+  ok($('#bk-preview .bk-check').textContent.includes('<b>O</b>') && noMarkup($('#bk-preview .bk-check')), 'bulk: check message quotes the value literally');
+  click($('[data-act="bulk-clear"]'));
   type($('#bk-agent'), 'SMOKE AGENT');
   type($('#bk-text'), ['Vessel\tDate\tOPR\tPOC\tAgent', 'BULK A\t13.11.2026\tSMOKE-OPR\tALY\tSMOKE AGENT', 'bulk b\t14/11/2026', 'BULK C\tnot-a-date', 'BULK A\t13.11.2026'].join('\n'));
   click($('[data-act="bulk-preview"]'));

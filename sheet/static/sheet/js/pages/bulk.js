@@ -1,14 +1,15 @@
 // Bulk add page: paste many vessels, then fix them in an editable table, then create them in one go.
 import { api } from '../api.js';
 import { setStatus } from '../feedback.js';
-import { ME, PORTS } from '../config.js';
+import { ME } from '../config.js';
 import { checkRows, parseBulk } from '../bulkParsing.js';
-import { optionChoices } from '../components.js';
+import { optionChoicesEl, portOptionEls } from '../components.js';
 import { refreshAfterChange, widenRangeTo } from '../data.js';
+import { h, setChildren } from '../dom.js';
 import { navigate } from '../router.js';
 import { fillQuickSelects } from '../render/list.js';
 import { optionValues } from '../state.js';
-import { $, $$, esc, today } from '../util.js';
+import { $, $$, today } from '../util.js';
 
 const MAX_ROWS = 200; // keep in step with BULK_MAX_ROWS in sheet/constants.py
 const CHECK_DELAY_MS = 300; // ask the server about duplicates once edits pause
@@ -39,7 +40,7 @@ const targetPort = () => (ME.isAdmin ? $('#bk-port').value : ME.port);
 export function initBulkPage() {
   if (!$('#bk-date').value) $('#bk-date').value = today();
   if (ME.isAdmin && !$('#bk-port').options.length) {
-    $('#bk-port').innerHTML = PORTS.map((p) => `<option value="${p.key}">${p.label}</option>`).join('');
+    setChildren($('#bk-port'), portOptionEls());
     $('#bk-port-wrap').style.display = '';
   }
   fillQuickSelects(); // after the port select exists, so the default lists follow its port
@@ -56,49 +57,56 @@ const rowState = (row) => {
 
 const readyRows = () => rows.filter((r) => !r.errors.length && !r.skip);
 
-function summaryHtml() {
+function summaryEls() {
   const failed = rows.filter((r) => r.errors.length).length;
   const skipped = rows.filter((r) => r.skip).length;
   const ready = readyRows().length;
   const canCreate = ready && !failed && !checking && !checkFailed && !saving;
-  return `<span class="st-ok"><b>${ready}</b> ready</span>
-    ${skipped ? `<span class="st-warn"><b>${skipped}</b> duplicate${skipped === 1 ? '' : 's'} skipped</span>` : ''}
-    ${failed ? `<span class="st-bad"><b>${failed}</b> with errors — fix them in the table or remove them</span>` : ''}
-    ${checking ? '<span class="none">Checking for duplicates…</span>' : ''}
-    ${checkFailed && !checking ? "<span class=\"st-bad\">Couldn't check for duplicates — edit a cell or press Preview to try again.</span>" : ''}
-    ${saving ? '<span class="none">Saving…</span>' : ''}
-    <button class="btn primary" data-act="bulk-create" ${canCreate ? '' : 'disabled'}>Create ${ready} vessel${ready === 1 ? '' : 's'}</button>`;
+  const part = (cls, count, text) => h('span', { class: cls }, h('b', null, count), text);
+  return [
+    part('st-ok', ready, ' ready'),
+    skipped ? part('st-warn', skipped, ` duplicate${skipped === 1 ? '' : 's'} skipped`) : null,
+    failed ? part('st-bad', failed, ' with errors — fix them in the table or remove them') : null,
+    checking ? h('span', { class: 'none' }, 'Checking for duplicates…') : null,
+    checkFailed && !checking ? h('span', { class: 'st-bad' }, "Couldn't check for duplicates — edit a cell or press Preview to try again.") : null,
+    saving ? h('span', { class: 'none' }, 'Saving…') : null,
+    h('button', { class: 'btn primary', dataset: { act: 'bulk-create' }, disabled: !canCreate }, `Create ${ready} vessel${ready === 1 ? '' : 's'}`),
+  ];
 }
 
-function rowHtml(row, i) {
+function rowEl(row, i) {
   const st = rowState(row);
-  const select = (kind) => `<select class="select" data-f="${kind}" aria-label="${kind.toUpperCase()}">${optionChoices(kind, row[kind], targetPort())}</select>`;
-  return `<tr data-i="${i}" class="${st.trCss}">
-    <td class="num">${i + 1}</td>
-    <td><input class="input" data-f="name" value="${esc(row.name)}" maxlength="120" aria-label="Vessel name"></td>
-    <td><input class="input" type="date" data-f="date" value="${esc(row.date)}" aria-label="Date"></td>
-    <td>${select('opr')}</td><td>${select('poc')}</td><td>${select('agent')}</td>
-    <td class="bk-check ${st.css}">${st.mark} ${esc(st.text)}</td>
-    <td><button class="btn ghost small" data-act="bulk-del-row" data-i="${i}" title="Remove this row">🗑</button></td></tr>`;
+  const select = (kind) => h('select', { class: 'select', dataset: { f: kind }, attrs: { 'aria-label': kind.toUpperCase() } },
+    optionChoicesEl(kind, row[kind], targetPort()));
+  return h('tr', { class: st.trCss, dataset: { i } },
+    h('td', { class: 'num' }, i + 1),
+    h('td', null, h('input', { class: 'input', dataset: { f: 'name' }, attrs: { maxlength: 120, 'aria-label': 'Vessel name' }, value: row.name })),
+    h('td', null, h('input', { class: 'input', dataset: { f: 'date' }, attrs: { type: 'date', 'aria-label': 'Date' }, value: row.date })),
+    h('td', null, select('opr')), h('td', null, select('poc')), h('td', null, select('agent')),
+    h('td', { class: `bk-check ${st.css}` }, `${st.mark} ${st.text}`),
+    h('td', null, h('button', { class: 'btn ghost small', dataset: { act: 'bulk-del-row', i }, attrs: { title: 'Remove this row' } }, '🗑')));
 }
 
 /** Draw the whole table (after Preview, adding, removing or "Set on all rows"). */
 function renderPreview() {
   const box = $('#bk-preview');
   if (!rows.length) {
-    box.innerHTML = '';
+    setChildren(box);
     return;
   }
-  const allSelect = (kind) => `<select class="select" id="bk-all-${kind}" aria-label="${kind.toUpperCase()} for all rows">${optionChoices(kind, '', targetPort())}</select>`;
-  box.innerHTML = `
-    <div class="bulk-all"><span>Set on all rows:</span>
-      <input class="input" type="date" id="bk-all-date" aria-label="Date for all rows">
-      ${allSelect('opr')} ${allSelect('poc')} ${allSelect('agent')}
-      <button class="btn ghost small" data-act="bulk-apply-all">Apply</button></div>
-    <div class="bulk-summary" id="bk-summary">${summaryHtml()}</div>
-    <div class="table-wrap"><table class="bulk-table bulk-edit"><thead><tr><th>#</th><th>Vessel</th><th>Date</th><th>OPR</th><th>POC</th><th>Agent</th><th>Check</th><th></th></tr></thead>
-    <tbody>${rows.map(rowHtml).join('')}</tbody></table></div>
-    <button class="btn ghost small" data-act="bulk-add-row">+ Add row</button>`;
+  const allSelect = (kind) => h('select', { class: 'select', id: `bk-all-${kind}`, attrs: { 'aria-label': `${kind.toUpperCase()} for all rows` } },
+    optionChoicesEl(kind, '', targetPort()));
+  const headers = ['#', 'Vessel', 'Date', 'OPR', 'POC', 'Agent', 'Check', ''].map((label) => h('th', null, label));
+  setChildren(box,
+    h('div', { class: 'bulk-all' }, h('span', null, 'Set on all rows:'), ' ',
+      h('input', { class: 'input', id: 'bk-all-date', attrs: { type: 'date', 'aria-label': 'Date for all rows' } }), ' ',
+      allSelect('opr'), ' ', allSelect('poc'), ' ', allSelect('agent'), ' ',
+      h('button', { class: 'btn ghost small', dataset: { act: 'bulk-apply-all' } }, 'Apply')),
+    h('div', { class: 'bulk-summary', id: 'bk-summary' }, summaryEls()),
+    h('div', { class: 'table-wrap' }, h('table', { class: 'bulk-table bulk-edit' },
+      h('thead', null, h('tr', null, headers)),
+      h('tbody', null, rows.map(rowEl)))),
+    h('button', { class: 'btn ghost small', dataset: { act: 'bulk-add-row' } }, '+ Add row'));
 }
 
 /** Re-run the checks and update only the check cells and the summary, so the input being typed in keeps focus. */
@@ -114,7 +122,7 @@ function updateChecks() {
     cell.textContent = `${st.mark} ${st.text}`;
   });
   const summary = $('#bk-summary');
-  if (summary) summary.innerHTML = summaryHtml();
+  if (summary) setChildren(summary, summaryEls());
 }
 
 /* ---- duplicates already saved (server) ---- */
@@ -281,7 +289,9 @@ export async function createBulk() {
     const dates = vessels.map((v) => v.date).sort();
     created = { from: dates[0] || '', to: dates[dates.length - 1] || '' };
     await refreshAfterChange();
-    $('#bk-preview').innerHTML = `<div class="ok-box">✅ Added ${vessels.length} vessel${vessels.length === 1 ? '' : 's'}. <a href="#vessels" data-act="bulk-view">View them</a></div>`;
+    setChildren($('#bk-preview'), h('div', { class: 'ok-box' },
+      `✅ Added ${vessels.length} vessel${vessels.length === 1 ? '' : 's'}. `,
+      h('a', { href: '#vessels', dataset: { act: 'bulk-view' } }, 'View them')));
   } catch (error) {
     setStatus('error', 'Failed');
     showError(error.message); // nothing was saved: the server is all-or-nothing
