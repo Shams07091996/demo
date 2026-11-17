@@ -591,6 +591,21 @@ async function login() {
     click($('#bell'));
     ok($('#notifPanel').textContent.includes('Missing agent') && $('#notifPanel').textContent.includes('SEA BREEZE'), 'bell panel has a Missing agent group');
     click($('#bell'));
+    if (ROLE === 'alex') {
+      // More than 20 vessels missing an agent: the banner stops at 20 and "+ N more" opens the full list.
+      const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': meta() };
+      const extra = [];
+      for (let i = 1; i <= 21; i += 1) {
+        const res = await w.fetch('/api/vessels/', { method: 'POST', headers, body: JSON.stringify({ name: `SMOKE GAP ${i}`, date: '2019-03-01' }) });
+        extra.push((await res.json()).id);
+      }
+      type($('#qa-name'), 'smoke gap trigger'); type($('#qa-date'), localNow()); click($('#qa-add')); // a save reloads the alerts
+      ok(await waitFor(() => $$('#notifBanner .notif-row.missing').length === 20 && /\+ \d+ more/.test($('#notifBanner').textContent)), 'banner caps missing-agent rows at 20 with "+ N more"');
+      click($('#notifBanner [data-act="show-alerts-panel"]'));
+      ok($('#notifPanel').classList.contains('open') && $$('#notifPanel .notif-item.missing').length >= 22, '"+ N more" opens the bell panel with every vessel missing an agent');
+      click($('#bell'));
+      for (const id of extra) await w.fetch(`/api/vessels/${id}/`, { method: 'DELETE', headers });
+    }
   }
 
   /* ======== hotels and transport ======== */
@@ -757,13 +772,13 @@ async function login() {
 
   /* ======== clean up ======== */
   await go('vessels');
-  for (const name of [NAME, '<img', 'SMOKE TODAY', 'PORT MOVE']) {
+  for (const name of [NAME, '<img', 'SMOKE TODAY', 'SMOKE GAP TRIGGER', 'PORT MOVE']) {
     const row = $$('#tbody tr').find((t) => t.textContent.includes(name));
     if (!row) continue;
     click(row.querySelector('[data-act="del-vessel-row"]')); // the Delete button in the table row
     await waitFor(() => !$$('#tbody tr').some((t) => t.dataset.id === row.dataset.id));
   }
-  ok(await waitFor(() => !$$('#tbody tr').some((t) => /UI SMOKE|SMOKE TODAY|<img|PORT MOVE/.test(t.textContent))), 'test vessels deleted (the list reloads after the dialog closes)');
+  ok(await waitFor(() => !$$('#tbody tr').some((t) => /UI SMOKE|SMOKE TODAY|SMOKE GAP|<img|PORT MOVE/.test(t.textContent))), 'test vessels deleted (the list reloads after the dialog closes)');
   await go('master');
   for (const value of ['SMOKE AGENT', 'SMOKE-OPR', 'SMOKE HOTEL', 'SMOKE ALEXANDRIA AIRPORT', 'SMOKE ALEXANDRIA PORT', 'SMOKE SUEZ AGENT', 'SMOKE SUEZ HOTEL']) {
     const row = $$('.opt-row').find((r) => r.textContent.includes(value));
