@@ -60,7 +60,8 @@ cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # t
 - The smoke test's writes count against the API rate limits (120 writes / 10 min per user, 600 per address): fine for
   one run of each role; many back-to-back runs on one server may need `DJANGO_RATE_LIMIT_*` raised.
 - `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers and a USD Fresh Water service at
-  the month rate 50; the smoke test relies on both.
+  the month rate 50, and SEA BREEZE (Alexandria, yesterday) a missing sailing agent and a Landing without agent (the
+  "Missing agent" alert); the smoke test relies on all of these.
 - Assertions on anything async (search, date inputs, alerts, duplicate checks) must `waitFor`, not read immediately.
 
 ## Architecture
@@ -98,7 +99,7 @@ maths for the live preview (`js/calc.js`, same rounding), but the server's numbe
 **Vessel list** (`listing.py`): the database narrows by date range and port; every vessel in that range gets its
 figures computed once; then search (literal, case-insensitive), OPR bucket (ARK / MSK / other / with services), exact
 OPR, sorting (ties by newest id) and paging run in Python. `totals` cover range + port only. The same module serves
-the alerts (today / tomorrow in Cairo time), the Dashboard, the bulk-add duplicate check and the CSV export.
+the alerts (today / tomorrow in Cairo time, and past vessels missing an agent), the Dashboard and the CSV export.
 
 **Hotels and Transport** (`logistics.py`): `HotelStay` (one room; cost and revenue per room per night) and
 `Transfer` (one car trip between an airport, a hotel and a port, naming which one of each from Master data) each have
@@ -113,6 +114,10 @@ first). The two pages are one module configured twice (`js/pages/bookings.js`) p
 `service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
 filtered rows, and the OPRs present in the range for the page's dropdown. Computed on each request, never stored.
 Every role may read it.
+
+**Agents:** `Vessel.arrival_agent` (who entered it), `Vessel.sailing_agent` (who sailed it) and `Service.agent` (who
+did that service), all plain text from the Agent list, empty until chosen. `listing.missing_agents` feeds the
+"Missing agent" alert: vessels dated before today (Cairo) missing any of them (every service type needs one).
 
 **Master data** (`Option`: kind, value, `port`): six lists (OPR, POC, Agent, Hotel, Airport, Port). `port` is `""`
 for All ports or one port key. Port users only ever create values for their port and see All-ports + their own;
@@ -132,7 +137,8 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
   and `sheet/tests_frontend_safety.py` checks the files. Hide/show template elements with the `hidden` attribute.
   No Trusted Types policy may be created (`trusted-types 'none'`); there is no PDF reader any more (removed for
   security; crew are added with + Add and pasted text).
-- `bulkParsing.js` (`parseBulk`, `checkRows`) and `crewParsing.js` are pure and unit-tested in `tools/parsing_test.js`.
+- `crewParsing.js` and `util.limitRows` are pure and unit-tested in `tools/parsing_test.js`. (Bulk add was removed
+  on 2026-11-18: vessels are added with the quick-add bar and the vessel form.)
 
 **Dev server caching:** `sheet/management/commands/runserver.py` overrides `runserver` to send static files with
 `Cache-Control: no-cache`, because the browser otherwise mixes old and new ES modules after an update. It only wins
@@ -149,5 +155,4 @@ because `sheet` is listed before `django.contrib.staticfiles` in `INSTALLED_APPS
   column and lose data. Check with `makemigrations --check --dry-run`.
 - Production requires PostgreSQL and `DJANGO_SECRET_KEY` (`config/settings.py`, `config/database.py`); SQLite is
   development only. The admin URL can be moved with `DJANGO_ADMIN_URL`.
-- Keep `BULK_MAX_ROWS` (`constants.py`) and `MAX_ROWS` (`pages/bulk.js`) in step.
 - `README.md` and `SECURITY.md` both state the backend test count; update them when it changes.
