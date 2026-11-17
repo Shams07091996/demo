@@ -1,6 +1,7 @@
 """Agents per job: arrival / sailing agent on a vessel, an agent on every service, the missing-agent alert."""
 
-from datetime import date
+from datetime import date, timedelta
+from unittest import mock
 
 from django.test import TestCase
 
@@ -124,3 +125,73 @@ class AgentApiTests(ApiTestCase):
             o for o in self.call(client, "get", "/api/options/")[1]["options"] if o["value"] == "DELTA")["used"]
         self.assertEqual(used(admin), 3)
         self.assertEqual(used(self.login("alex")), 2)
+
+
+TODAY = date(2026, 11, 18)
+DAY = timedelta(days=1)
+
+
+@FAST_HASHER
+@mock.patch("sheet.listing.timezone.localdate", return_value=TODAY)
+class MissingAgentTests(ApiTestCase):
+    def setUp(self):
+        # The shared fixture vessels (13.11.2026, past) are complete, so each test sees only its own gaps.
+        Vessel.objects.update(arrival_agent="BASE", sailing_agent="BASE")
+        Service.objects.update(agent="BASE")
+
+    def vessel(self, name, when, port="alexandria", arrival="DELTA", sailing="NILE"):
+        return Vessel.objects.create(name=name, date=when, port=port, arrival_agent=arrival, sailing_agent=sailing)
+
+    def missing(self, user="admin", query=""):
+        status, data = self.call(self.login(user), "get", f"/api/vessels/alerts/{query}")
+        self.assertEqual(status, 200)
+        return data["missing_agent"]
+
+    def test_past_vessel_with_every_agent_and_no_services_is_fine(self, _):
+        self.vessel("COMPLETE", TODAY - DAY)
+        self.assertEqual(self.missing(), [])
+
+    def test_missing_sailing_agent(self, _):
+        v = self.vessel("NO SAIL", TODAY - DAY, sailing="")
+        self.assertEqual(self.missing(), [{"id": v.id, "name": "NO SAIL", "date": "2026-11-17", "missing": ["Sailing"]}])
+
+    def test_blank_arrival_agent_sent_by_the_api_counts_as_missing(self, _):
+        alex = self.login("alex")
+        _, sent = self.call(alex, "post", "/api/vessels/",
+                            {"name": "BLANK", "date": "2026-11-17", "arrival_agent": "   ", "sailing_agent": "NILE"})
+        self.assertEqual([(m["id"], m["missing"]) for m in self.missing()], [(sent["id"], ["Arrival"])])
+
+    def test_services_without_agent_are_listed_once_per_type_in_order(self, _):
+        v = self.vessel("SERVICES", TODAY - DAY)
+        Service.objects.create(vessel=v, service_type="Others / Remarks")
+        Service.objects.create(vessel=v, service_type="Crew Change")
+        Service.objects.create(vessel=v, service_type="Crew Change")
+        Service.objects.create(vessel=v, service_type="Fresh Water", agent="NILE")
+        self.assertEqual(self.missing()[0]["missing"], ["Crew Change", "Others / Remarks"])
+
+    def test_everything_missing_is_listed_in_order(self, _):
+        v = self.vessel("ALL", TODAY - DAY, arrival="", sailing="")
+        Service.objects.create(vessel=v, service_type="Landing")
+        self.assertEqual(self.missing()[0]["missing"], ["Arrival", "Sailing", "Landing"])
+
+    def test_today_and_later_never_count(self, _):
+        for offset, name in ((0, "TODAY"), (1, "TOMORROW"), (30, "LATER")):
+            v = self.vessel(name, TODAY + offset * DAY, arrival="", sailing="")
+            Service.objects.create(vessel=v, service_type="Landing")
+        self.assertEqual(self.missing(), [])
+
+    def test_no_look_back_limit_and_oldest_first(self, _):
+        recent = self.vessel("RECENT", TODAY - DAY, sailing="")
+        old = self.vessel("OLD", TODAY - 365 * DAY, sailing="")
+        self.assertEqual([m["id"] for m in self.missing()], [old.id, recent.id])
+
+    def test_port_user_sees_only_their_port_whatever_port_they_ask(self, _):
+        alex_gap = self.vessel("ALEX GAP", TODAY - DAY, sailing="")
+        self.vessel("SUEZ GAP", TODAY - DAY, port="suez", sailing="")
+        self.assertEqual([m["id"] for m in self.missing("alex", "?port=suez")], [alex_gap.id])
+
+    def test_read_only_sees_every_port_and_the_port_filter_applies(self, _):
+        self.vessel("ALEX GAP", TODAY - DAY, sailing="")
+        suez = self.vessel("SUEZ GAP", TODAY - DAY, port="suez", sailing="")
+        self.assertEqual(len(self.missing("viewer")), 2)
+        self.assertEqual([m["id"] for m in self.missing("viewer", "?port=suez")], [suez.id])

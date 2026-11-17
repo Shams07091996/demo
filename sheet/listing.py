@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from django.utils import timezone
 
 from .access import scoped_vessels
+from .constants import SERVICE_TYPES
 from .errors import BadRequest
 from .serializers import month_rates, vessel_to_dict
 
@@ -171,7 +172,26 @@ def alerts_response(profile, params):
     return {
         "today": [r for r in rows if r["date"] == today.isoformat()],
         "tomorrow": [r for r in rows if r["date"] == tomorrow.isoformat()],
+        "missing_agent": missing_agents(profile, params.get("port") or None, today),
     }
+
+
+def missing_agents(profile, port, today):
+    """Vessels dated before today (Cairo) that miss an agent, oldest first. Every service type needs one.
+
+    `missing` names what is missing: "Arrival", "Sailing", then each service type without an agent (once, in
+    SERVICE_TYPES order). Only these four fields are sent, so the list stays light however long it grows."""
+    order = {name: i for i, name in enumerate(SERVICE_TYPES)}
+    found = []
+    vessels = scoped_vessels(profile, port, prefetch=False).filter(date__lt=today).prefetch_related("services")
+    for vessel in vessels.order_by("date", "id"):
+        missing = [label for label, agent in (("Arrival", vessel.arrival_agent), ("Sailing", vessel.sailing_agent))
+                   if not agent]
+        types = {s.service_type for s in vessel.services.all() if not s.agent}
+        missing += sorted(types, key=lambda name: order.get(name, len(order)))
+        if missing:
+            found.append({"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "missing": missing})
+    return found
 
 
 def _service_counts(rows):
