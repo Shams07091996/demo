@@ -8,14 +8,17 @@ written in the same transaction as the change (json_api wraps writes in one), so
 import json
 from contextvars import ContextVar
 
+from django.contrib.auth.models import User
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models.signals import post_save, pre_delete, pre_save
 
 from .models import ChangeRecord, ExchangeRate, Guest, HotelStay, Option, Profile, Service, Transfer, Vessel
 from .netutils import client_ip
 
-TRACKED = (Vessel, Service, HotelStay, Transfer, Guest, Option, ExchangeRate, Profile)
-SKIPPED_FIELDS = {"id", "created_at"}
+TRACKED = (Vessel, Service, HotelStay, Transfer, Guest, Option, ExchangeRate, Profile, User)
+# last_login changes on every sign-in (not a change to record); date_joined never changes.
+SKIPPED_FIELDS = {"id", "created_at", "last_login", "date_joined"}
+HIDDEN = "(changed)"  # the password hash is never copied into the history, only the fact that it changed
 
 _request = ContextVar("history_request", default=None)
 
@@ -36,7 +39,14 @@ class HistoryMiddleware:
 
 def _values(instance):
     fields = instance._meta.concrete_fields
-    return {f.attname: getattr(instance, f.attname) for f in fields if f.attname not in SKIPPED_FIELDS}
+    values = {f.attname: getattr(instance, f.attname) for f in fields if f.attname not in SKIPPED_FIELDS}
+    if isinstance(instance, User):
+        values.pop("password")
+    return values
+
+
+def _password_changed(instance, old_hash):
+    return isinstance(instance, User) and old_hash is not None and old_hash != instance.password
 
 
 def _json_safe(value):
@@ -101,6 +111,7 @@ def _before_save(sender, instance, raw=False, **kwargs):
     if not raw and instance.pk is not None:
         old = sender._base_manager.filter(pk=instance.pk).first()
         instance._history_old = _values(old) if old is not None else None
+        instance._history_old_password = old.password if isinstance(old, User) else None
 
 
 def _after_save(sender, instance, created, raw=False, **kwargs):
@@ -112,6 +123,8 @@ def _after_save(sender, instance, created, raw=False, **kwargs):
         record("create", instance, {k: [None, v] for k, v in new.items()})
         return
     changes = {k: [old.get(k), v] for k, v in new.items() if old.get(k) != v}
+    if _password_changed(instance, getattr(instance, "_history_old_password", None)):
+        changes["password"] = [HIDDEN, HIDDEN]
     if changes:
         record("update", instance, changes)
 

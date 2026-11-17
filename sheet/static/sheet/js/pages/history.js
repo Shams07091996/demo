@@ -10,7 +10,7 @@ import { $ } from '../util.js';
 const TYPES = [
   ['', 'Everything'], ['vessel', 'Vessel'], ['service', 'Service'], ['hotelstay', 'Hotel stay'],
   ['transfer', 'Transfer'], ['guest', 'Guest'], ['option', 'Master data'], ['exchangerate', 'Exchange rate'],
-  ['profile', 'User role'],
+  ['profile', 'User role'], ['user', 'User account'],
 ];
 const TYPE_LABEL = Object.fromEntries(TYPES);
 const ACTION_LABEL = { create: 'Created', update: 'Changed', delete: 'Deleted' };

@@ -115,3 +115,37 @@ class SessionRotationTests(TestCase):
         client.post("/login/", {"username": "alex", "password": PASSWORD})
         self.assertNotEqual(client.session.session_key, before)
         self.assertEqual(client.get("/api/vessels/").status_code, 200)
+
+
+class EmailTimeoutTests(SimpleTestCase):
+    def test_alert_mail_cannot_hang_a_worker(self):
+        result = load_settings("print(s.EMAIL_TIMEOUT)", DJANGO_DEBUG="1")
+        self.assertEqual(result.stdout.strip(), "10", result.stderr)
+
+
+@FAST_HASHER
+class ApiErrorsAreJsonTests(TestCase):
+    def setUp(self):
+        make_user("alex", "alexandria")
+        self.client = Client(enforce_csrf_checks=True)
+        self.client.login(username="alex", password=PASSWORD)
+
+    def test_csrf_failure_under_the_api_answers_json(self):
+        response = self.client.post("/api/vessels/", "{}", content_type="application/json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertIn("error", response.json())
+
+    def test_csrf_failure_on_a_page_stays_html(self):
+        response = Client(enforce_csrf_checks=True).post("/login/", {"username": "x", "password": "y"})
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(response["Content-Type"].startswith("text/html"))
+
+    def test_too_big_a_body_answers_json(self):
+        self.client.get("/")
+        token = self.client.cookies["csrftoken"].value
+        body = '{"rows": "' + "x" * (settings.DATA_UPLOAD_MAX_MEMORY_SIZE + 10) + '"}'
+        response = self.client.post("/api/vessels/bulk/", body, content_type="application/json", HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertIn("error", response.json())

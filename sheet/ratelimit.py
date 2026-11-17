@@ -28,7 +28,8 @@ def hit(key, span):
     """Count one request for `key` in a window of length `span`; returns the count in the current window."""
     now = timezone.now()
     with transaction.atomic():
-        RateCounter.objects.filter(window_start__lte=now - max(span, TIDY_AFTER)).delete()
+        keep = max(span, TIDY_AFTER, window(), timedelta(seconds=settings.ALERT_WINDOW_SECONDS))
+        RateCounter.objects.filter(window_start__lte=now - keep).delete()  # only counters no window can still use
         if not RateCounter.objects.filter(key=key, window_start__gt=now - span).update(count=F("count") + 1):
             # No counter yet, or its window is over: start a new window.
             if not RateCounter.objects.filter(key=key).update(count=1, window_start=now):

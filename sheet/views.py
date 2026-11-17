@@ -11,6 +11,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
@@ -417,6 +418,25 @@ def calculations_list(request):
 
 def _is_api(request):
     return request.path.startswith("/api/")
+
+
+def bad_request(request, exception=None):
+    if _is_api(request):
+        return JsonResponse({"error": "Bad request."}, status=400)
+    return defaults.bad_request(request, exception)
+
+
+def forbidden(request, exception=None):
+    if _is_api(request):
+        return JsonResponse({"error": "You do not have permission to do that."}, status=403)
+    return defaults.permission_denied(request, exception)
+
+
+def csrf_failure(request, reason=""):
+    """A missing or stale CSRF token: under /api/ the page shows the message (e.g. after signing in in another tab)."""
+    if _is_api(request):
+        return JsonResponse({"error": "Your session changed — reload the page and try again."}, status=403)
+    return csrf.csrf_failure(request, reason)
 
 
 def not_found(request, exception=None):

@@ -5,8 +5,9 @@ from django.conf import settings
 from django.db import migrations, models
 
 
-# PostgreSQL only (SQLite is development only): the history table refuses UPDATE and DELETE, so not even a direct
-# database session of the app can rewrite it. The one UPDATE allowed is Django's SET NULL of `user_id` when a user is
+# PostgreSQL only (SQLite is development only): the history table refuses UPDATE and DELETE, so no app bug, ORM call
+# or ordinary SQL statement can rewrite it. It does not stop the table's OWNER (who can disable or drop the trigger, or
+# TRUNCATE): see SECURITY.md for running the app as a role that does not own it. The one UPDATE allowed is Django's SET NULL of `user_id` when a user is
 # deleted (every other column unchanged), so deleting a user keeps their history.
 APPEND_ONLY_SQL = """
 CREATE OR REPLACE FUNCTION sheet_changerecord_append_only() RETURNS trigger AS $$

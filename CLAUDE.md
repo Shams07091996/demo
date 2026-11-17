@@ -80,7 +80,7 @@ with `api.audit(...)`; values go through `api.log_safe`. `handler404` / `handler
 **Security plumbing:** `ratelimit.py` (writes per user / address, CSV per user, counted in `RateCounter`; a broken
 counter refuses writes, allows reads), `alerts.note(kind)` (threshold → one `sheet.alert` record + `mail_admins`),
 `checks.py` (deploy check `sheet.E001`). **Change history** (`history.py`): model signals on Vessel, Service,
-HotelStay, Transfer, Guest, Option, ExchangeRate, Profile write a `ChangeRecord` (who / when / IP / old → new) in the
+HotelStay, Transfer, Guest, Option, ExchangeRate, Profile and auth `User` (no password hash, no last_login) write a `ChangeRecord` (who / when / IP / old → new) in the
 same transaction; `bulk_create` sends no signals, so callers use `history.record_created`. The request comes from
 `HistoryMiddleware` (none → "system"). Append-only (read-only admin; PostgreSQL trigger in migration 0010).
 `GET /api/history/` is admin-only; the History page is `js/pages/history.js`, rendered in the template for admins only.

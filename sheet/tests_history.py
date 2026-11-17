@@ -4,7 +4,7 @@ from datetime import date
 from unittest import mock
 
 from django.db import DatabaseError
-from django.test import TestCase
+from django.test import Client, TestCase
 
 from .models import ChangeRecord, Guest, HotelStay, Option, Service, Vessel
 from .tests import FAST_HASHER, ApiTestCase
@@ -150,3 +150,29 @@ class HistoryApiTests(ApiTestCase):
         self.assertEqual(admin.get("/api/history/?from=nope").status_code, 400)
         self.assertEqual(admin.get("/api/history/?page=0").status_code, 400)
         self.assertEqual(admin.get("/api/history/?page_size=7").status_code, 400)
+
+
+class UserAccountHistoryTests(TestCase):
+    def test_user_account_changes_are_recorded_without_the_password_hash(self):
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user("newbie", password="first-password-long")
+        created = records(object_type="user", object_id=user.id, action="create")
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0].changes["username"], [None, "newbie"])
+        self.assertNotIn("pbkdf2", str(created[0].changes))
+        user.is_superuser = True
+        user.save()
+        update = records(object_type="user", object_id=user.id, action="update")
+        self.assertEqual(update[-1].changes, {"is_superuser": [False, True]})
+        user.set_password("second-password-long")
+        user.save()
+        self.assertEqual(records(object_type="user", action="update")[-1].changes, {"password": ["(changed)", "(changed)"]})
+
+    def test_signing_in_records_nothing(self):
+        from django.contrib.auth.models import User
+
+        User.objects.create_user("signer", password="first-password-long")
+        before = ChangeRecord.objects.count()
+        Client().login(username="signer", password="first-password-long")
+        self.assertEqual(ChangeRecord.objects.count(), before)

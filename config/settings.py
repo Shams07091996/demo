@@ -111,6 +111,7 @@ CSRF_COOKIE_HTTPONLY = True  # the page reads the token from a <meta> tag instea
 CSRF_COOKIE_SAMESITE = "Lax"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024  # the API only receives small JSON bodies
 X_FRAME_OPTIONS = "DENY"
+CSRF_FAILURE_VIEW = "sheet.views.csrf_failure"  # JSON under /api/, Django's page elsewhere
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
@@ -156,6 +157,7 @@ EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", 25))
 EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_TLS", True)
+EMAIL_TIMEOUT = int(os.environ.get("DJANGO_EMAIL_TIMEOUT", 10))  # seconds: a dead mail server never hangs a request
 SERVER_EMAIL = os.environ.get("DJANGO_EMAIL_FROM", "marine-sheet@localhost")
 
 # Logs go to the console, and also to a rotating file when DJANGO_LOG_FILE is set (10 MB x 10 files).

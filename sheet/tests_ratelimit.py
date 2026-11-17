@@ -3,7 +3,7 @@
 from unittest import mock
 
 from django.db import DatabaseError
-from django.test import override_settings
+from django.test import TestCase, override_settings
 
 from .tests import FAST_HASHER, ApiTestCase
 
@@ -73,3 +73,18 @@ class RateLimitTests(ApiTestCase):
             self.assertIn("error", data)
             self.assertEqual(alex.get("/api/vessels/").status_code, 200)
             self.assertEqual(alex.get("/export.csv").status_code, 200)
+
+
+class CounterTidyTests(TestCase):
+    @override_settings(ALERT_WINDOW_SECONDS=7200)
+    def test_a_long_alert_window_survives_the_tidy(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from . import ratelimit
+        from .models import RateCounter
+
+        RateCounter.objects.create(key="alert|denied", count=5, window_start=timezone.now() - timedelta(minutes=90))
+        ratelimit.hit("write|user|1", ratelimit.window())
+        self.assertEqual(RateCounter.objects.get(key="alert|denied").count, 5)
