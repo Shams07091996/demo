@@ -9,7 +9,7 @@ role allows.
 ```bash
 python -m venv venv
 source venv/bin/activate            # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.txt   # exact versions, every file checked against its hash
 export DJANGO_DEBUG=1               # Windows PowerShell: $env:DJANGO_DEBUG="1"   (cmd: set DJANGO_DEBUG=1)
 python manage.py migrate            # uses SQLite unless DJANGO_DB_NAME is set (see "PostgreSQL" below)
 python manage.py seed_demo          # optional: demo users + vessels (prints a random password for each user)
@@ -100,10 +100,18 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 152 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
-pip install -r requirements-dev.txt # dev tools: ruff (with security rules) and pip-audit
+python manage.py test sheet         # 155 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
+pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
+```
+
+**Dependencies** are locked: `requirements.in` lists the direct ones (with version ranges) and `requirements.txt` is
+generated from it with exact versions and the hash of every published file (a test checks they agree). To update a
+package, edit `requirements.in` if needed, then:
+
+```bash
+pip-compile --generate-hashes --strip-extras --upgrade-package <name> requirements.in -o requirements.txt
 ```
 
 Optional front-end tests (need Node 18+):
