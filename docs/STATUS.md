@@ -5,7 +5,10 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Git branches:** only `main` (checked out). Agents per job and Dashboards merged 2026-11-18 (branches deleted).
+- **Git branches:** `main` (checked out) and **`feature/new-look`** (built in the worktree `.superpowers/worktrees/look`,
+  waiting for the user to merge). Agents per job and Dashboards merged 2026-11-18 (branches deleted).
+- **Tests (on `feature/new-look`):** `npm run check` green with 257 backend tests; smoke test passes for `alex`,
+  `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
   `%APPDATA%\postgresql\pgpass.conf`, never in the project). Migrations through `0010` applied; **`0011_agents_per_job` still to apply** (`DJANGO_DEBUG=1 python manage.py migrate` with the settings below); no users yet.
@@ -32,6 +35,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-17 | OWASP Top 10 (2025) hardening: PDF reader removed (CSP `trusted-types 'none'`); hash-locked `requirements.txt` from `requirements.in`; API rate limits (writes per user / address, CSV per user, 429; broken counter refuses writes); every API error JSON, unexpected ones with an 8-hex `ref` in the log; alerting (`sheet.alert` + optional e-mail); append-only change history of every tracked model incl. user accounts, with an admin-only 🕘 History page; `__Host-` cookies in production; deploy check `sheet.E001`; SECURITY.md rewritten for 2025 | `2026-11-17-owasp-2025-design.md` |
 | 2026-11-18 | **Agents per job** (merged 2026-11-18): Arrival agent (was Agent) and Sailing agent on each vessel, an Agent on every service (all from the Master data Agent list, empty until chosen); search / sort / CSV / "used by N" cover them; a **Missing agent** alert (bell + banner, max 20 rows + "+ N more") for vessels dated before today that miss any agent; **Bulk add removed** | `2026-11-18-agents-per-job-design.md` |
 | 2026-11-18 | **Dashboards** (merged 2026-11-18): one filter bar (dates, port, OPR, agent, service type); jobs per agent (bars + table; a row opens that agent's jobs), services per month (stacked columns + table), money per month (Cost / Revenue / Profit table); OPR charts and cards follow the filters | `2026-11-18-dashboards-design.md` |
+| 2026-11-18 | **New look** (branch `feature/new-look`, not merged): neutral grey with one blue accent; dark and light mode (follows the computer until chosen in the sidebar, remembered); system font, no Google Fonts (CSP `font-src 'none'`); 28 line icons drawn for the app instead of emojis; full-width pages, smaller radii, no gradients or all-caps headings | `2026-11-18-new-look-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -65,7 +69,7 @@ Agreed order (2026-11-18), each on its own branch, designed and approved:
 
 1. **Agents per job** — done and merged (2026-11-18).
 2. **Dashboards** — done and merged (2026-11-18).
-3. **New look** — `2026-11-18-new-look-design.md` (next; branch from `main`).
+3. **New look** — built on `feature/new-look`, waiting for the user to merge.
 4. Then two-step login (below).
 
 The user is **selling the app to their company: security comes first** ("no security vulnerability should be there").
@@ -179,3 +183,14 @@ Dashboards (final review, minor, for the user to decide):
 - An agent named exactly `__none__` would be read as "(no agent)".
 - Two quick clicks on different agent rows can open the slower answer last.
 - Vessels still in port (no sailing agent yet) count as "(no agent)" sailings, as the design says.
+
+New look (final review, minor, for the user to decide):
+
+- The 404 and 500 pages follow the computer's light / dark setting only (they are rendered without the request, so the theme cookie is not read).
+- In light mode a few tinted boxes (yellow notices, the OPR badges) are just under the 4.5:1 contrast guideline (about 4.2–4.4:1).
+- The dialog header's top-right corner is rounder (16px) than the rest (6px).
+- Screen readers: the "rate missing" warning icon on Calculations and the sort direction of table headings are not read out.
+- If no mode was chosen and the computer switches mode while the page is open, the sidebar button's label is not updated until reload.
+- The chosen mode belongs to the browser, not the user account (on a shared PC it carries over to the next person).
+- OPR cards no longer say "Click for details" (they are still clickable).
+- Tints and borders use CSS `color-mix()` (Chrome 111+, Edge 111+, Firefox 113+, Safari 16.2+).

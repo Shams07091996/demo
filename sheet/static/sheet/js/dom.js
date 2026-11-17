@@ -63,6 +63,31 @@ export function setChildren(el, ...children) {
   el.replaceChildren(frag(...children));
 }
 
+/** The icons drawn in templates/sheet/icons.svg (one <symbol id="i-NAME"> each; sheet/tests_look.py keeps them equal). */
+export const ICONS = Object.freeze([
+  'anchor', 'ship', 'bed', 'car', 'calculator', 'chart', 'database', 'swap', 'clock', 'key', 'log-out', 'bell', 'trash',
+  'pencil', 'plus', 'x', 'check', 'alert', 'menu', 'sun', 'moon', 'chevron-down', 'chevron-up', 'sort', 'calendar',
+  'users', 'printer', 'file',
+]);
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const ICON_NAME = /^[a-z0-9-]+$/;
+
+/**
+ * <svg class="ic" aria-hidden="true"><use href="#i-NAME"></use></svg>, pointing at the page's own sprite. Only a
+ * known name is accepted, so this can never put any other URL into the page; h() itself stays HTML-only.
+ */
+export function icon(name, cls = '') {
+  if (typeof name !== 'string' || !ICON_NAME.test(name) || !ICONS.includes(name)) throw new Error(`icon(): unknown icon "${name}"`);
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', cls ? `ic ${cls}` : 'ic');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const use = document.createElementNS(SVG_NS, 'use');
+  use.setAttribute('href', `#i-${name}`);
+  svg.appendChild(use);
+  return svg;
+}
+
 /** <option> elements from [value, label] pairs; the one equal to `selected` is selected. */
 export const optionEls = (pairs, selected) =>
   pairs.map(([value, label]) => h('option', { value, selected: String(value) === String(selected ?? '') }, label));

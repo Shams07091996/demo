@@ -1,9 +1,9 @@
 // The Calculations page: every money line (services, hotel stays, transfers) of the vessels in a vessel-date range,
 // OPR and port, with its working and one totals line. Everything is worked out by the server (/api/calculations/).
 import { api } from '../api.js';
-import { portOptionEls } from '../components.js';
+import { portOptionEls, sortIcon } from '../components.js';
 import { ME } from '../config.js';
-import { h, optionEls, setChildren } from '../dom.js';
+import { h, icon, optionEls, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { pagerEl } from '../render/pager.js';
 import { PAGE_SIZES, defaultRange } from '../state.js';
@@ -53,7 +53,7 @@ function sideCell(side) {
 function itemCell(row) {
   return [
     row.label,
-    row.rate_missing ? [' ', h('span', { class: 'warn-text', attrs: { title: 'No exchange rate: USD counted 1:1' } }, '⚠')] : null,
+    row.rate_missing ? [' ', h('span', { class: 'warn-text', attrs: { title: 'No exchange rate: USD counted 1:1' } }, icon('alert'))] : null,
     row.note ? h('div', { class: 'none calc-note' }, row.note) : null,
   ];
 }
@@ -76,14 +76,14 @@ function totalsEls(t) {
     `Revenue LE ${fmt(t.revenue_egp)} · Cost LE ${fmt(t.cost_egp)} · Profit LE ${fmt(t.profit_egp)} · ${lines}`,
     t.rate_missing_lines
       ? [' ', h('span', { class: 'warn-text' },
-        `⚠ ${t.rate_missing_lines} line${t.rate_missing_lines === 1 ? ' uses' : 's use'} USD without a rate (counted 1:1)`)]
+        icon('alert'), ` ${t.rate_missing_lines} line${t.rate_missing_lines === 1 ? ' uses' : 's use'} USD without a rate (counted 1:1)`)]
       : null,
   ];
 }
 
 function render() {
   setChildren($('#c-head'), h('tr', null, COLUMNS.map((c) => h('th', { dataset: { csort: c.sort } }, c.title, ' ',
-    h('span', { class: 'arrow' }, filter.sort === c.sort ? (filter.dir === 'asc' ? '↑' : '↓') : '↕')))));
+    h('span', { class: 'arrow' }, sortIcon(filter.sort === c.sort, filter.dir))))));
   setChildren($('#c-tbody'), data.rows.map(rowEl));
   $('#c-empty').hidden = data.rows.length > 0;
   setChildren($('#c-totals'), totalsEls(data.totals));

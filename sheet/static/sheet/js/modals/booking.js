@@ -4,7 +4,7 @@ import { api, mutate } from '../api.js';
 import { headEl, optionChoicesEl } from '../components.js';
 import { el } from '../config.js';
 import { setStatus } from '../feedback.js';
-import { h, optionEls, setChildren } from '../dom.js';
+import { h, icon, optionEls, setChildren } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
 import { bookingsPage } from '../pages/bookings.js';
 import { optionValues, state } from '../state.js';
@@ -117,12 +117,12 @@ function guestsBlock() {
   const crewList = crew.length
     ? crew.map((c, i) => h('label', { class: 'bkd-crew-item' },
       h('input', { attrs: { type: 'checkbox' }, dataset: { crewI: i }, checked: ticked(i) }),
-      ` ${c.group === 'on' ? '↑ On' : '↓ Off'} · ${c.name}${c.rank ? ` · ${c.rank}` : ''}`))
+      ` ${c.group === 'on' ? 'On' : 'Off'} · ${c.name}${c.rank ? ` · ${c.rank}` : ''}`))
     : h('span', { class: 'none' }, 'No crew change on this vessel. Add guests by name below.');
   const input = (g, key, label) => h('input', { class: 'input', dataset: { gF: key }, attrs: { 'aria-label': label }, value: g[key] });
   const line = (g, i) => h('div', { class: 'bkd-guest', dataset: { gI: i } },
     input(g, 'name', 'Guest name'), input(g, 'rank', 'Rank'), input(g, 'nationality', 'Nationality'), input(g, 'flight', 'Flight'),
-    h('button', { class: 'btn ghost small', dataset: { act: 'booking-del-guest', i }, attrs: { title: 'Remove this guest' } }, '🗑'));
+    h('button', { class: 'btn ghost small', dataset: { act: 'booking-del-guest', i }, attrs: { title: 'Remove this guest', 'aria-label': 'Remove this guest' } }, icon('trash')));
   const headings = guests.length
     ? h('div', { class: 'bkd-guest bkd-guest-head' }, ['Name', 'Rank', 'Nationality', 'Flight', ''].map((t) => h('span', null, t)))
     : null;

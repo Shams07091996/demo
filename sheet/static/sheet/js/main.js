@@ -1,4 +1,5 @@
 // Entry point: wires the page together and loads the first data.
+import { initTheme } from './theme.js';
 import { actions, moveOption } from './actions.js';
 import { portOptionEls } from './components.js';
 import { ME, el } from './config.js';
@@ -54,7 +55,7 @@ el.modal.addEventListener('change', onBookingInput);
 
 /* ---- top bar and sidebar ---- */
 $('#bell').addEventListener('click', (event) => { event.stopPropagation(); togglePanel(); });
-// ☰: on a small screen the sidebar slides in over the page; on a wide screen it hides / shows (remembered).
+// The menu button: on a small screen the sidebar slides in over the page; on a wide screen it hides / shows (remembered).
 const NAV_KEY = 'sheet.navCollapsed';
 const isNarrow = () => window.matchMedia?.('(max-width: 900px)').matches;
 try {
@@ -169,6 +170,7 @@ for (const [selector, key] of [['#d-opr', 'opr'], ['#d-agent', 'agent'], ['#d-se
   $(selector).addEventListener('change', (event) => setDashboardFilter({ [key]: event.target.value }));
 }
 
+initTheme();
 renderFilterInputs();
 loadOptions();
 loadVessels();

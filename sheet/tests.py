@@ -616,7 +616,7 @@ class SessionAndHeaderTests(ApiTestCase):
         self.assertIn("require-trusted-types-for 'script'", csp)
         self.assertIn("trusted-types 'none'", csp)
         self.assertNotIn("worker-src", csp)
-        self.assertIn("style-src-elem 'self' https://fonts.googleapis.com", page["Content-Security-Policy"])
+        self.assertIn("style-src-elem 'self';", page["Content-Security-Policy"])
         self.assertEqual(page["Cross-Origin-Resource-Policy"], "same-origin")
         self.assertEqual(page["Cache-Control"], "no-store")
 

@@ -3,6 +3,7 @@ import { api, mutate } from './api.js';
 import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from './data.js';
 import { closeModal } from './modal.js';
 import { openAgentJobs } from './modals/agentJobs.js';
+import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import {
   entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
@@ -104,6 +105,7 @@ export const actions = {
   summary: (b) => { closePanel(); openSummary(Number(b.dataset.id)); },
   'opr-summary': (b) => openOprSummary(b.dataset.opr),
   'agent-jobs': (b) => openAgentJobs(b.dataset.agent),
+  'toggle-theme': toggleTheme,
   'toggle-alerts': toggleAlerts,
   'show-alerts-panel': openPanel,
   'show-outside': async (b) => { await widenRangeTo(b.dataset.date); hideRangeNotice(); },

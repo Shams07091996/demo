@@ -1,8 +1,8 @@
 // The vessels tab: port banner, filter inputs, table and the quick-add dropdowns.
 // Everything shown comes from the server (state.vessels = the current page). Clicking a row opens the vessel.
 import { PORT_COLOR, PORT_LABEL, ME } from '../config.js';
-import { optionChoicesEl, statusChipEl, tagLabel } from '../components.js';
-import { h, setChildren } from '../dom.js';
+import { optionChoicesEl, sortIcon, statusChipEl, tagLabel } from '../components.js';
+import { h, icon, setChildren } from '../dom.js';
 import { state } from '../state.js';
 import { $, $$, dmy, oprClass } from '../util.js';
 
@@ -31,7 +31,7 @@ export function renderFilterInputs() {
   $$('#filters .chip').forEach((c) => c.classList.toggle('active', c.dataset.filter === bucket));
   $$('th[data-sort]').forEach((th) => {
     const arrow = th.querySelector('.arrow');
-    if (arrow) arrow.textContent = th.dataset.sort === sort ? (dir === 'asc' ? '↑' : '↓') : '↕';
+    if (arrow) setChildren(arrow, sortIcon(th.dataset.sort === sort, dir));
   });
 }
 
@@ -48,9 +48,9 @@ function rowEl(v) {
     h('td', { class: 'col-port' }, PORT_LABEL[v.port] || v.port),
     h('td', null, dmy(v.date)),
     h('td', null, tags),
-    h('td', null, h('button', { class: 'btn ghost small btn-green', dataset: { act: 'summary', id: v.id } }, '📋 Summary')),
+    h('td', null, h('button', { class: 'btn ghost small btn-green', dataset: { act: 'summary', id: v.id } }, icon('file'), ' Summary')),
     h('td', null, ME.canEdit
-      ? h('button', { class: 'btn danger small', dataset: { act: 'del-vessel-row', id: v.id }, attrs: { title: 'Delete this vessel and its services' } }, '🗑 Delete')
+      ? h('button', { class: 'btn danger small', dataset: { act: 'del-vessel-row', id: v.id }, attrs: { title: 'Delete this vessel and its services' } }, icon('trash'), ' Delete')
       : null),
   );
 }

@@ -1,17 +1,17 @@
 {% load static %}<!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sign in · Marine Service Sheet</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'sheet/app.css' %}">
 </head>
 <body class="login-body">
+{% include "sheet/icons.svg" %}
   <form method="post" class="login-card">
     {% csrf_token %}
     <div class="login-logo">
-      <span class="anchor">⚓</span>
+      <span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span>
       <h1>MARINE <span>SERVICE SHEET</span></h1>
       <p>Sign in to continue</p>
     </div>

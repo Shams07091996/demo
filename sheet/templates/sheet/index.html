@@ -1,36 +1,37 @@
 {% load static %}<!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Marine Service Sheet</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'sheet/app.css' %}">
 </head>
 <body>
+{% include "sheet/icons.svg" %}
 <div class="app">
 
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <div class="anchor-icon">⚓</div>
+      <div class="anchor-icon"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></div>
       <div class="brand-text">MARINE<span>SERVICE SHEET</span></div>
     </div>
     <nav class="nav" id="nav" aria-label="Pages">
-      <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico">🚢</span><span>Vessels</span></a>
-      <a class="nav-item" data-page="hotels" href="#hotels"><span class="ico">🏨</span><span>Hotels</span></a>
-      <a class="nav-item" data-page="transport" href="#transport"><span class="ico">🚗</span><span>Transport</span></a>
-      <a class="nav-item" data-page="calculations" href="#calculations"><span class="ico">💰</span><span>Calculations</span></a>
-      <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico">📊</span><span>Dashboard</span></a>
-      <a class="nav-item" data-page="master" href="#master"><span class="ico">🗂</span><span>Master data</span></a>
-      <a class="nav-item" data-page="rates" href="#rates"><span class="ico">💱</span><span>Exchange rates</span></a>
-      {% if me.isAdmin %}<a class="nav-item" data-page="history" href="#history"><span class="ico">🕘</span><span>History</span></a>{% endif %}
+      <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessels</span></a>
+      <a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>
+      <a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>
+      <a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>
+      <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>
+      <a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>
+      <a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>
+      {% if me.isAdmin %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
     </nav>
     <div class="sidebar-foot">
       <div class="user-line"><strong>{{ request.user.get_username }}</strong><small id="roleLabel"></small></div>
-      <a class="nav-item" href="{% url 'password_change' %}"><span class="ico">🔑</span><span>Change password</span></a>
+      <button class="nav-item" type="button" id="themeBtn" data-act="toggle-theme"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-moon"></use></svg></span><span class="label">Dark mode</span></button>
+      <a class="nav-item" href="{% url 'password_change' %}"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Change password</span></a>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
-        <button class="nav-item" type="submit"><span class="ico">⎋</span><span>Log out</span></button>
+        <button class="nav-item" type="submit"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-log-out"></use></svg></span><span>Log out</span></button>
       </form>
     </div>
   </aside>
@@ -38,12 +39,12 @@
 
   <div class="content">
     <header class="topbar">
-      <button class="btn ghost menu-btn" id="menuBtn" aria-label="Show or hide the menu" title="Show or hide the menu">☰</button>
+      <button class="btn ghost menu-btn" id="menuBtn" aria-label="Show or hide the menu" title="Show or hide the menu"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
       <h2 id="pageTitle">Vessels</h2>
       <span class="spacer"></span>
       <span id="status" class="status"><span class="dot"></span><span id="status-text">Loading…</span></span>
       <div class="bell-wrap">
-        <button class="btn ghost bell" id="bell" title="Vessels due today and tomorrow, and past vessels missing an agent">🔔<span class="badge-dot" id="bellBadge" hidden>0</span></button>
+        <button class="btn ghost bell" id="bell" title="Vessels due today and tomorrow, and past vessels missing an agent"><svg class="ic" aria-hidden="true"><use href="#i-bell"></use></svg><span class="badge-dot" id="bellBadge" hidden>0</span></button>
         <div class="notif-panel" id="notifPanel"></div>
       </div>
     </header>
@@ -66,7 +67,7 @@
       <div class="date-range" role="group" aria-label="Date range">
         <label>From <input class="input" type="date" id="f-from"></label>
         <label>To <input class="input" type="date" id="f-to"></label>
-        <button class="btn ghost small" id="f-clear" title="Show all dates">✕ All dates</button>
+        <button class="btn ghost small" id="f-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
       </div>
       <div class="toolbar">
         <div class="filters" id="filters">
@@ -87,13 +88,13 @@
         <table>
           <thead>
             <tr>
-              <th data-sort="name">Vessel <span class="arrow">↕</span></th>
-              <th data-sort="opr">OPR <span class="arrow">↕</span></th>
-              <th data-sort="poc">POC <span class="arrow">↕</span></th>
-              <th data-sort="arrival_agent">Arrival agent <span class="arrow">↕</span></th>
-              <th data-sort="sailing_agent">Sailing agent <span class="arrow">↕</span></th>
-              <th data-sort="port" class="col-port">Port <span class="arrow">↕</span></th>
-              <th data-sort="date">Date <span class="arrow">↕</span></th>
+              <th data-sort="name">Vessel <span class="arrow"><svg class="ic" aria-hidden="true"><use href="#i-sort"></use></svg></span></th>
+              <th data-sort="opr">OPR <span class="arrow"><svg class="ic" aria-hidden="true"><use href="#i-sort"></use></svg></span></th>
+              <th data-sort="poc">POC <span class="arrow"><svg class="ic" aria-hidden="true"><use href="#i-sort"></use></svg></span></th>
+              <th data-sort="arrival_agent">Arrival agent <span class="arrow"><svg class="ic" aria-hidden="true"><use href="#i-sort"></use></svg></span></th>
+              <th data-sort="sailing_agent">Sailing agent <span class="arrow"><svg class="ic" aria-hidden="true"><use href="#i-sort"></use></svg></span></th>
+              <th data-sort="port" class="col-port">Port <span class="arrow"><svg class="ic" aria-hidden="true"><use href="#i-sort"></use></svg></span></th>
+              <th data-sort="date">Date <span class="arrow"><svg class="ic" aria-hidden="true"><use href="#i-sort"></use></svg></span></th>
               <th>Services</th>
               <th>Summary</th>
               <th aria-label="Delete"></th>
@@ -112,7 +113,7 @@
       <div class="date-range" role="group" aria-label="Date range">
         <label>From <input class="input" type="date" id="{{ p }}-from"></label>
         <label>To <input class="input" type="date" id="{{ p }}-to"></label>
-        <button class="btn ghost small" id="{{ p }}-clear" title="Show all dates">✕ All dates</button>
+        <button class="btn ghost small" id="{{ p }}-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
       </div>
       <div class="toolbar">
         <div class="tools">
@@ -134,7 +135,7 @@
       <div class="date-range" role="group" aria-label="Vessel date range">
         <label>From <input class="input" type="date" id="c-from"></label>
         <label>To <input class="input" type="date" id="c-to"></label>
-        <button class="btn ghost small" id="c-clear" title="Show all dates">✕ All dates</button>
+        <button class="btn ghost small" id="c-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
         <select id="c-opr" class="select" aria-label="OPR"></select>
         <select id="c-port" class="select" hidden aria-label="Port"></select>
       </div>
@@ -173,7 +174,7 @@
           <div class="date-range" role="group" aria-label="Date range">
             <label>From <input class="input" type="date" id="d-from"></label>
             <label>To <input class="input" type="date" id="d-to"></label>
-            <button class="btn ghost small" id="d-clear" title="Show all dates">✕ All dates</button>
+            <button class="btn ghost small" id="d-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
           </div>
           <select class="select" id="d-port" aria-label="Port" hidden></select>
           <select class="select" id="d-opr" aria-label="OPR"></select>

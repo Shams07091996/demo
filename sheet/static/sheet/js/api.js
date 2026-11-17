@@ -26,7 +26,7 @@ export async function mutate(action) {
   setStatus('saving', 'Saving…');
   try {
     const result = await action();
-    setStatus('ok', 'Saved ✓');
+    setStatus('ok', 'Saved');
     return result;
   } catch (error) {
     setStatus('error', 'Failed');

@@ -336,6 +336,8 @@ async function login() {
       ok(!shown($(`#${p}-add`)) && /Cost/.test($(`#${p}-head`).textContent) && /Revenue/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button but sees cost and revenue`);
       ok(shown($(`#${p}-port`)), `read-only: ${page} has the port selector`);
     }
+    checkIcons();
+    await checkTheme();
     await checkDashboard();
     await checkHistory();
     return finish();
@@ -754,6 +756,9 @@ async function login() {
     ok(await waitFor(() => !/AHMED TEST|LATE TEST|STEP \d/.test($(`#${p}-tbody`).textContent)), `${page}: test bookings deleted`);
   }
 
+  checkIcons();
+  await checkTheme();
+
   /* ======== dashboard ======== */
   await checkDashboard();
 
@@ -780,6 +785,31 @@ async function login() {
 
   await checkHistory();
   finish();
+
+  /** Line icons instead of emojis: the sidebar draws them from the page's sprite and no screen text holds an emoji. */
+  function checkIcons() {
+    const uses = $$('#sidebar svg.ic use');
+    ok(uses.length >= 7 && uses.every((u) => w.document.getElementById(u.getAttribute('href').slice(1))), 'icons: sidebar icons point at symbols of the sprite');
+    const emoji = /[←↑↓-⇿⌀-⏿①-➿⬀-⯿\u{1F000}-\u{1FFFF}️]/u;
+    ok(!emoji.test(w.document.body.textContent), 'icons: no emoji in any text on the page');
+  }
+
+  /** Dark / light switch in the sidebar: flips the page, relabels itself, sets the cookie; works with storage blocked. */
+  async function checkTheme() {
+    const root = w.document.documentElement;
+    const label = () => $('#themeBtn .label').textContent;
+    const before = root.dataset.theme || 'light';
+    click($('#themeBtn'));
+    const after = root.dataset.theme;
+    ok(after === (before === 'dark' ? 'light' : 'dark') && label() === (after === 'dark' ? 'Light mode' : 'Dark mode'), 'theme: the switch flips the mode and its label');
+    ok(w.document.cookie.includes(`theme=${after}`), 'theme: the choice is kept in a cookie');
+    const storage = Object.getOwnPropertyDescriptor(w, 'localStorage');
+    Object.defineProperty(w, 'localStorage', { configurable: true, get() { throw new Error('blocked'); } });
+    const errorsBefore = jsErrors.length;
+    click($('#themeBtn'));
+    Object.defineProperty(w, 'localStorage', storage);
+    ok(root.dataset.theme === before && w.document.cookie.includes(`theme=${before}`) && jsErrors.length === errorsBefore, 'theme: switching back works with storage blocked');
+  }
 
   /** The Dashboard: OPR charts and cards, jobs per agent, services and money per month, and its filters. */
   async function checkDashboard() {
