@@ -1,13 +1,14 @@
 // The add / edit dialog for a hotel stay or a transfer: pick the vessel, tick guests from its crew change (or add
 // other guests), fill in the booking and an optional price. The server checks everything again.
 import { api, mutate } from '../api.js';
-import { head, optionChoices } from '../components.js';
+import { headEl, optionChoicesEl } from '../components.js';
 import { el } from '../config.js';
 import { setStatus } from '../feedback.js';
-import { closeModal, openModalHtml } from '../modal.js';
+import { h, optionEls, setChildren } from '../dom.js';
+import { closeModal, openModal } from '../modal.js';
 import { bookingsPage } from '../pages/bookings.js';
 import { optionValues, state } from '../state.js';
-import { $, $$, dmy, esc } from '../util.js';
+import { $, $$, dmy } from '../util.js';
 
 const PLACES = [['airport', 'Airport'], ['hotel', 'Hotel'], ['port', 'Port']];
 // The API names of the cost / revenue amounts (per room per night for hotels, per trip for transfers).
@@ -92,87 +93,93 @@ async function loadCrew() {
 
 /* ---- drawing ---- */
 
+const btn = (cls, act, label, extra = {}) => h('button', { class: `btn ${cls}`, dataset: { act, ...extra } }, label);
+const field = (label, ...control) => h('div', { class: 'field' }, h('label', null, label), control);
+const vesselButton = (v) => btn('ghost small', 'booking-pick-vessel', `${v.name} · ${dmy(v.date)} · ${v.port_label}`, { id: v.id });
+
 function vesselBlock() {
   const { vessel, id, results } = ctx();
   if (vessel) {
-    return `<div class="field"><label>Vessel</label><div class="bkd-vessel"><b>${esc(vessel.name)}</b>
-      ${vessel.date ? `<span class="none">${dmy(vessel.date)}</span>` : ''} <span class="none">${esc(vessel.port_label || '')}</span>
-      ${id ? '' : '<button class="btn ghost small" data-act="booking-change-vessel">Change</button>'}</div></div>`;
+    return field('Vessel', h('div', { class: 'bkd-vessel' }, h('b', null, vessel.name), ' ',
+      vessel.date ? [h('span', { class: 'none' }, dmy(vessel.date)), ' '] : null,
+      h('span', { class: 'none' }, vessel.port_label || ''), ' ',
+      id ? null : btn('ghost small', 'booking-change-vessel', 'Change')));
   }
-  const found = results.map((v) => `<button class="btn ghost small" data-act="booking-pick-vessel" data-id="${v.id}">
-      ${esc(v.name)} · ${dmy(v.date)} · ${esc(v.port_label)}</button>`).join('');
-  return `<div class="field"><label for="bkd-vessel-q">Vessel</label>
-    <input class="input" id="bkd-vessel-q" autocomplete="off" aria-label="Find the vessel by name">
-    <div id="bkd-vessel-results" class="bkd-results">${found}</div></div>`;
+  return h('div', { class: 'field' }, h('label', { attrs: { for: 'bkd-vessel-q' } }, 'Vessel'),
+    h('input', { class: 'input', id: 'bkd-vessel-q', attrs: { autocomplete: 'off', 'aria-label': 'Find the vessel by name' } }),
+    h('div', { id: 'bkd-vessel-results', class: 'bkd-results' }, results.map(vesselButton)));
 }
 
 function guestsBlock() {
   const { crew, guests, vessel } = ctx();
-  if (!vessel) return '';
+  if (!vessel) return null;
   const ticked = (i) => guests.some((g) => g.crewIndex === i);
   const crewList = crew.length
-    ? crew.map((c, i) => `<label class="bkd-crew-item"><input type="checkbox" data-crew-i="${i}" ${ticked(i) ? 'checked' : ''}>
-        ${c.group === 'on' ? '↑ On' : '↓ Off'} · ${esc(c.name)}${c.rank ? ` · ${esc(c.rank)}` : ''}</label>`).join('')
-    : '<span class="none">No crew change on this vessel. Add guests by name below.</span>';
-  const line = (g, i) => `<div class="bkd-guest" data-g-i="${i}">
-      <input class="input" data-g-f="name" value="${esc(g.name)}" aria-label="Guest name">
-      <input class="input" data-g-f="rank" value="${esc(g.rank)}" aria-label="Rank">
-      <input class="input" data-g-f="nationality" value="${esc(g.nationality)}" aria-label="Nationality">
-      <input class="input" data-g-f="flight" value="${esc(g.flight)}" aria-label="Flight">
-      <button class="btn ghost small" data-act="booking-del-guest" data-i="${i}" title="Remove this guest">🗑</button></div>`;
+    ? crew.map((c, i) => h('label', { class: 'bkd-crew-item' },
+      h('input', { attrs: { type: 'checkbox' }, dataset: { crewI: i }, checked: ticked(i) }),
+      ` ${c.group === 'on' ? '↑ On' : '↓ Off'} · ${c.name}${c.rank ? ` · ${c.rank}` : ''}`))
+    : h('span', { class: 'none' }, 'No crew change on this vessel. Add guests by name below.');
+  const input = (g, key, label) => h('input', { class: 'input', dataset: { gF: key }, attrs: { 'aria-label': label }, value: g[key] });
+  const line = (g, i) => h('div', { class: 'bkd-guest', dataset: { gI: i } },
+    input(g, 'name', 'Guest name'), input(g, 'rank', 'Rank'), input(g, 'nationality', 'Nationality'), input(g, 'flight', 'Flight'),
+    h('button', { class: 'btn ghost small', dataset: { act: 'booking-del-guest', i }, attrs: { title: 'Remove this guest' } }, '🗑'));
   const headings = guests.length
-    ? '<div class="bkd-guest bkd-guest-head"><span>Name</span><span>Rank</span><span>Nationality</span><span>Flight</span><span></span></div>'
-    : '';
-  return `<div class="section-title"><span>Guests</span></div>
-    <div id="bkd-crew" class="bkd-crew">${crewList}</div>
-    <div id="bkd-guests">${headings}${guests.map(line).join('')}</div>
-    ${guests.length < MAX_GUESTS ? '<button class="btn ghost small" data-act="booking-add-guest">+ Other guest</button>' : ''}`;
+    ? h('div', { class: 'bkd-guest bkd-guest-head' }, ['Name', 'Rank', 'Nationality', 'Flight', ''].map((t) => h('span', null, t)))
+    : null;
+  return [
+    h('div', { class: 'section-title' }, h('span', null, 'Guests')),
+    h('div', { id: 'bkd-crew', class: 'bkd-crew' }, crewList),
+    h('div', { id: 'bkd-guests' }, headings, guests.map(line)),
+    guests.length < MAX_GUESTS ? btn('ghost small', 'booking-add-guest', '+ Other guest') : null,
+  ];
 }
 
 function detailsBlock() {
   const { form, vessel } = ctx();
-  if (!vessel) return '';
-  const field = (label, html) => `<div class="field"><label>${label}</label>${html}</div>`;
-  const hotelSelect = `<select class="select" data-bf="hotel">${optionChoices('hotel', form.hotel, vessel.port)}</select>`;
+  if (!vessel) return null;
+  const select = (key, options) => h('select', { class: 'select', dataset: { bf: key } }, options);
+  const input = (key, type, attrs = {}) => h('input', { class: 'input', dataset: { bf: key }, attrs: { type, ...attrs }, value: form[key] });
+  const hotelSelect = () => select('hotel', optionChoicesEl('hotel', form.hotel, vessel.port));
   let details;
   if (isHotel()) {
     const out = form.check_in && Number(form.nights) > 0 ? dmy(addDays(form.check_in, Number(form.nights))) : '—';
-    details = `<div class="row three">
-        ${field('Hotel', hotelSelect)}
-        ${field('Check-in', `<input class="input" type="date" data-bf="check_in" value="${esc(form.check_in)}">`)}
-        ${field('Nights', `<input class="input" type="number" min="1" max="60" step="1" data-bf="nights" value="${esc(form.nights)}">`)}
-      </div><div class="help">Check-out: <b id="bkd-check-out">${out}</b></div>`;
+    details = [
+      h('div', { class: 'row three' },
+        field('Hotel', hotelSelect()),
+        field('Check-in', input('check_in', 'date')),
+        field('Nights', input('nights', 'number', { min: 1, max: 60, step: 1 }))),
+      h('div', { class: 'help' }, 'Check-out: ', h('b', { id: 'bkd-check-out' }, out)),
+    ];
   } else {
-    const placeSelect = (key) => `<select class="select" data-bf="${key}">${PLACES.map(([v, label]) =>
-      `<option value="${v}" ${form[key] === v ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
+    const placeSelect = (key) => select(key, optionEls(PLACES, form[key]));
     // Which airport / hotel / port: asked only for the ends the trip uses.
     const named = [
-      touches(form, 'airport') && field('Airport', `<select class="select" data-bf="airport">${optionChoices('airport', form.airport, vessel.port)}</select>`),
-      touchesHotel(form) && field('Hotel', hotelSelect),
-      touches(form, 'port') && field('Port', `<select class="select" data-bf="port_name">${optionChoices('port', form.port_name, vessel.port)}</select>`),
-    ].filter(Boolean).join('');
-    details = `<div class="row three">
-        ${field('From', placeSelect('from_place'))}
-        ${field('To', placeSelect('to_place'))}
-        ${field('Date & time', `<input class="input" type="datetime-local" data-bf="at" value="${esc(form.at)}">`)}
-      </div><div class="row three">${named}</div>`;
+      touches(form, 'airport') ? field('Airport', select('airport', optionChoicesEl('airport', form.airport, vessel.port))) : null,
+      touchesHotel(form) ? field('Hotel', hotelSelect()) : null,
+      touches(form, 'port') ? field('Port', select('port_name', optionChoicesEl('port', form.port_name, vessel.port))) : null,
+    ];
+    details = [
+      h('div', { class: 'row three' },
+        field('From', placeSelect('from_place')), field('To', placeSelect('to_place')),
+        field('Date & time', input('at', 'datetime-local'))),
+      h('div', { class: 'row three' }, named),
+    ];
   }
-  const currencySelect = (key) => `<select class="select" data-bf="${key}">${['EGP', 'USD'].map((c) =>
-    `<option ${form[key] === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`;
-  const amount = (key) => `<input class="input" type="number" min="0" step="any" data-bf="${key}" value="${esc(form[key])}">`;
+  const currencySelect = (key) => select(key, optionEls([['EGP', 'EGP'], ['USD', 'USD']], form[key]));
+  const amount = (key) => input(key, 'number', { min: 0, step: 'any' });
   const usd = form.cost_currency === 'USD' || form.revenue_currency === 'USD';
   const per = isHotel() ? ' per night' : '';
-  const price = `<div class="section-title"><span>Money ${isHotel() ? '(per room per night)' : '(per trip)'} — optional</span></div>
-    <div class="row three">
-      ${field(`Cost${per} (we pay)`, amount('cost'))}
-      ${field('Currency', currencySelect('cost_currency'))}
-      ${usd ? field('Exchange rate (optional)', amount('exchange_rate')) : '<div></div>'}
-    </div>
-    <div class="row three">
-      ${field(`Revenue${per} (we get)`, amount('revenue'))}
-      ${field('Currency', currencySelect('revenue_currency'))}
-    </div>`;
-  return `<div class="section-title"><span>${isHotel() ? 'Hotel stay' : 'Transfer'}</span></div>${details}${price}`;
+  const price = [
+    h('div', { class: 'section-title' }, h('span', null, `Money ${isHotel() ? '(per room per night)' : '(per trip)'} — optional`)),
+    h('div', { class: 'row three' },
+      field(`Cost${per} (we pay)`, amount('cost')),
+      field('Currency', currencySelect('cost_currency')),
+      usd ? field('Exchange rate (optional)', amount('exchange_rate')) : h('div')),
+    h('div', { class: 'row three' },
+      field(`Revenue${per} (we get)`, amount('revenue')),
+      field('Currency', currencySelect('revenue_currency'))),
+  ];
+  return [h('div', { class: 'section-title' }, h('span', null, isHotel() ? 'Hotel stay' : 'Transfer')), details, price];
 }
 
 /** A selector that finds the same field again after a redraw, or null. */
@@ -190,12 +197,14 @@ function render({ fresh = false } = {}) {
   const scroll = el.modal.scrollTop;
   const focused = fresh ? null : fieldKey(document.activeElement);
   const title = `${id ? 'Edit' : 'Add'} ${kind === 'hotels' ? 'hotel stay' : 'transfer'}`;
-  openModalHtml(`${head(title)}
-    <div class="m-body" id="booking-form">${vesselBlock()}${guestsBlock()}${detailsBlock()}</div>
-    <div class="m-foot">
-      ${id ? '<button class="btn danger" data-act="booking-delete">Delete</button>' : '<span></span>'}
-      <div class="right"><button class="btn ghost" data-act="close">Cancel</button>
-        <button class="btn primary" data-act="booking-save" ${ctx().vessel && !ctx().saving ? '' : 'disabled'}>Save</button></div></div>`);
+  openModal(
+    headEl(title),
+    h('div', { class: 'm-body', id: 'booking-form' }, vesselBlock(), guestsBlock(), detailsBlock()),
+    h('div', { class: 'm-foot' },
+      id ? btn('danger', 'booking-delete', 'Delete') : h('span'),
+      h('div', { class: 'right' }, btn('ghost', 'close', 'Cancel'), ' ',
+        h('button', { class: 'btn primary', dataset: { act: 'booking-save' }, disabled: !(ctx().vessel && !ctx().saving) }, 'Save'))),
+  );
   if (fresh) return;
   el.modal.scrollTop = scroll;
   if (focused) el.modal.querySelector(focused)?.focus();
@@ -249,7 +258,7 @@ export function onBookingInput(event) {
       const box = () => $('#bkd-vessel-results');
       if (!q) {
         mine.results = [];
-        if (box()) box().innerHTML = '';
+        if (box()) setChildren(box());
         return;
       }
       let vessels;
@@ -261,8 +270,7 @@ export function onBookingInput(event) {
       }
       if (!stillOpen(mine) || mine.vessel || ticket !== searchTicket) return; // an older search answering late
       mine.results = vessels;
-      if (box()) box().innerHTML = vessels.map((v) => `<button class="btn ghost small" data-act="booking-pick-vessel" data-id="${v.id}">
-          ${esc(v.name)} · ${dmy(v.date)} · ${esc(v.port_label)}</button>`).join('') || '<span class="none">No vessel found.</span>';
+      if (box()) setChildren(box(), vessels.length ? vessels.map(vesselButton) : h('span', { class: 'none' }, 'No vessel found.'));
     }, SEARCH_DELAY_MS);
     return;
   }

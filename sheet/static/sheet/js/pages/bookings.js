@@ -1,28 +1,31 @@
 // The Hotels and Transport pages: one list module, configured twice. The server filters, sorts and pages
 // (/api/hotels/, /api/transfers/); read-only users get no prices and no Add button.
 import { api } from '../api.js';
-import { ME, PORTS } from '../config.js';
+import { portOptionEls } from '../components.js';
+import { ME } from '../config.js';
+import { h, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
-import { pagerHtml } from '../render/pager.js';
+import { pagerEl } from '../render/pager.js';
 import { PAGE_SIZES, defaultRange } from '../state.js';
-import { $, dmy, esc, fmt, fmtStamp } from '../util.js';
+import { $, dmy, fmt, fmtStamp } from '../util.js';
 
 const PLACE = { airport: 'Airport', hotel: 'Hotel', port: 'Port' };
 const SEARCH_DELAY_MS = 300;
 const DATE_DELAY_MS = 400;
 const typingYear = (iso) => iso && Number(iso.slice(0, 4)) < 1900;
 
-const guestsCell = (guests) => guests.map((g) => esc(g.rank ? `${g.name} (${g.rank})` : g.name)).join('<br>');
-const priceCell = (amount, currency) => (amount === null || amount === undefined ? '—' : `${esc(currency)} ${fmt(amount)}`);
+// Cells return text or nodes (never HTML strings).
+const guestsCell = (guests) => guests.flatMap((g, i) => [i ? h('br') : null, g.rank ? `${g.name} (${g.rank})` : g.name]);
+const priceCell = (amount, currency) => (amount === null || amount === undefined ? '—' : `${currency} ${fmt(amount)}`);
 
 const HOTEL_COLUMNS = [
   { title: 'Check-in', sort: 'check_in', cell: (b) => dmy(b.check_in) },
   { title: 'Nights', sort: 'nights', cell: (b) => b.nights },
   { title: 'Check-out', cell: (b) => dmy(b.check_out) },
-  { title: 'Hotel', sort: 'hotel', cell: (b) => esc(b.hotel) },
+  { title: 'Hotel', sort: 'hotel', cell: (b) => b.hotel },
   { title: 'Guests', sort: 'guest', cell: (b) => guestsCell(b.guests) },
-  { title: 'Nationality', cell: (b) => [...new Set(b.guests.map((g) => g.nationality).filter(Boolean))].map(esc).join(', ') || '—' },
-  { title: 'Vessel', sort: 'vessel', cell: (b) => esc(b.vessel.name) },
+  { title: 'Nationality', cell: (b) => [...new Set(b.guests.map((g) => g.nationality).filter(Boolean))].join(', ') || '—' },
+  { title: 'Vessel', sort: 'vessel', cell: (b) => b.vessel.name },
   { title: 'Cost/night', cell: (b) => priceCell(b.cost_per_night, b.cost_currency) },
   { title: 'Revenue/night', cell: (b) => priceCell(b.revenue_per_night, b.revenue_currency) },
 ];
@@ -35,13 +38,13 @@ const TRANSFER_COLUMNS = [
     cell: (b) => {
       // "Airport (Borg El Arab) → Hotel (Hilton)": which airport / hotel / port, as the driver needs it.
       const name = { airport: b.airport, hotel: b.hotel, port: b.port_name };
-      const place = (p) => (name[p] ? `${PLACE[p]} (${esc(name[p])})` : PLACE[p]);
+      const place = (p) => (name[p] ? `${PLACE[p]} (${name[p]})` : PLACE[p]);
       return `${place(b.from_place)} → ${place(b.to_place)}`;
     },
   },
   { title: 'Guests', sort: 'guest', cell: (b) => guestsCell(b.guests) },
-  { title: 'Flight', cell: (b) => [...new Set(b.guests.map((g) => g.flight).filter(Boolean))].map(esc).join(', ') || '—' },
-  { title: 'Vessel', sort: 'vessel', cell: (b) => esc(b.vessel.name) },
+  { title: 'Flight', cell: (b) => [...new Set(b.guests.map((g) => g.flight).filter(Boolean))].join(', ') || '—' },
+  { title: 'Vessel', sort: 'vessel', cell: (b) => b.vessel.name },
   { title: 'Cost', cell: (b) => priceCell(b.cost, b.cost_currency) },
   { title: 'Revenue', cell: (b) => priceCell(b.revenue, b.revenue_currency) },
 ];
@@ -73,23 +76,20 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
   }
 
   function renderHead() {
-    $(id('head')).innerHTML = `<tr>${cols.map((c) => {
-      const arrow = c.sort ? ` <span class="arrow">${filter.sort === c.sort ? (filter.dir === 'asc' ? '↑' : '↓') : '↕'}</span>` : '';
-      return `<th ${c.sort ? `data-bsort="${c.sort}"` : ''}>${esc(c.title)}${arrow}</th>`;
-    }).join('')}</tr>`;
+    setChildren($(id('head')), h('tr', null, cols.map((c) => h('th', { dataset: { bsort: c.sort } }, c.title,
+      c.sort ? [' ', h('span', { class: 'arrow' }, filter.sort === c.sort ? (filter.dir === 'asc' ? '↑' : '↓') : '↕')] : null))));
   }
 
   function render() {
     renderHead();
-    const rowAttrs = (b) => (ME.canEdit ? `data-act="booking-open" data-kind="${kind}" data-id="${b.id}" class="clickable"` : '');
-    $(id('tbody')).innerHTML = list.bookings
-      .map((b) => `<tr ${rowAttrs(b)}>${cols.map((c) => `<td>${c.cell(b)}</td>`).join('')}</tr>`).join('');
+    const rowProps = (b) => (ME.canEdit ? { class: 'clickable', dataset: { act: 'booking-open', kind, id: b.id } } : null);
+    setChildren($(id('tbody')), list.bookings.map((b) => h('tr', rowProps(b), cols.map((c) => h('td', null, c.cell(b))))));
     $(id('empty')).style.display = list.bookings.length ? 'none' : 'block';
-    $(id('pager')).innerHTML = pagerHtml({
+    setChildren($(id('pager')), pagerEl({
       count: list.count, pages: list.pages, page: list.page, size: filter.pageSize, noun, sizeId: `${prefix}-page-size`,
-      prev: `data-act="booking-page" data-kind="${kind}" data-step="-1"`,
-      next: `data-act="booking-page" data-kind="${kind}" data-step="1"`,
-    });
+      prev: { act: 'booking-page', kind, step: -1 },
+      next: { act: 'booking-page', kind, step: 1 },
+    }));
     const from = $(id('from'));
     const to = $(id('to'));
     if (document.activeElement !== from) from.value = filter.from;
@@ -137,7 +137,7 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
     $(id('add')).style.display = ME.canEdit ? '' : 'none';
     if (ME.seesAll) {
       const select = $(id('port'));
-      select.innerHTML = `<option value="ALL">🌐 All ports</option>${PORTS.map((p) => `<option value="${p.key}">${esc(p.label)}</option>`).join('')}`;
+      setChildren(select, portOptionEls({ all: true }));
       select.style.display = '';
       select.addEventListener('change', () => setFilter({ port: select.value }));
     }

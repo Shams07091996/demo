@@ -718,6 +718,33 @@ async function login() {
   click($('[data-act="booking-save"]'));
   ok(await waitFor(() => stayRow()?.textContent.includes(dmyOf(plusDays(todayIso, 3)))), 'hotels: editing nights moves the check-out');
 
+  // Markup-like texts in bookings: the vessel picker, a guest and the hotels table show them literally.
+  if (hostileId) {
+    click($('#h-add'));
+    await waitFor(() => $('#bkd-vessel-q'));
+    type($('#bkd-vessel-q'), 'SMOKE <i>');
+    const hostileButton = () => $$('#bkd-vessel-results [data-act="booking-pick-vessel"]').find((b) => b.dataset.id === String(hostileId));
+    ok(await waitFor(() => hostileButton()), 'dialog: vessel search finds the markup-like vessel');
+    ok(hostileButton().textContent.includes(HOSTILE) && noMarkup($('#bkd-vessel-results')), 'dialog: vessel picker shows the name literally');
+    click(hostileButton());
+    ok(await waitFor(() => $('.bkd-vessel')?.textContent.includes(HOSTILE)) && noMarkup($('#modal')), 'dialog: chosen vessel shows literally');
+    closeModal();
+    const res = await w.fetch('/api/hotels/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
+      body: JSON.stringify({ vessel: hostileId, hotel: '<b>G</b> hotel', check_in: todayIso, nights: 1, guests: [{ name: '<b>G</b>', rank: '<i>X</i>' }] }),
+    });
+    const hostileStay = (await res.json()).id;
+    await go('vessels'); await go('hotels');
+    const hostileRow = () => $(`#h-tbody tr[data-id="${hostileStay}"]`) || $$('#h-tbody tr').find((t) => t.textContent.includes(HOSTILE));
+    ok(await waitFor(() => hostileRow()), 'hotels: stay on the markup-like vessel is listed');
+    ok(hostileRow().textContent.includes('<B>G</B>') && hostileRow().textContent.includes(HOSTILE) && noMarkup($('#h-tbody')), 'hotels: guest, rank and vessel show literally');
+    click(hostileRow());
+    ok(await waitFor(() => $('#bkd-guests [data-g-f="name"]')?.value === '<B>G</B>') && noMarkup($('#modal')), 'dialog: guest name kept as the exact value');
+    closeModal();
+    await w.fetch(`/api/hotels/${hostileStay}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
+    await go('vessels'); await go('hotels');
+  }
+
   // More stays straight through the API: one to open quickly after another, and enough to fill two pages.
   const post = (url, body) => w.fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() }, body: JSON.stringify(body) });
   const vesselId = (await (await w.fetch(`/api/vessels/?q=${encodeURIComponent('MSC AURORA')}`)).json()).vessels[0].id;
