@@ -61,7 +61,7 @@ export function renderTable() {
 }
 
 /** Refill every OPR / POC / Agent dropdown outside dialogs (the quick-add bar), for its port. */
-  const portOf = (selector) => (ME.isAdmin ? $(selector)?.value || null : ME.port);
+export function fillQuickSelects() {
   const port = ME.isAdmin ? $('#qa-port')?.value || null : ME.port;
   for (const kind of ['opr', 'poc', 'agent']) {
     const select = $(`#qa-${kind}`);
