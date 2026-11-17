@@ -440,7 +440,7 @@ class PortCallTests(ApiTestCase):
         alex = self.login("alex")
         status, vessel = self.create(
             alex,
-            agent="NILE AGENCY",
+            arrival_agent="NILE AGENCY",
             arrival_at="2026-11-13T06:00",
             berthing_at="2026-11-13T08:30",
             ops_start_at="2026-11-13T09:00",
@@ -448,7 +448,7 @@ class PortCallTests(ApiTestCase):
             sailing_at="2026-11-13T18:00",
         )
         self.assertEqual(status, 201)
-        self.assertEqual(vessel["agent"], "NILE AGENCY")
+        self.assertEqual(vessel["arrival_agent"], "NILE AGENCY")
         self.assertEqual(vessel["berthing_at"], "2026-11-13T08:30")
         self.assertEqual(vessel["durations"], {"ops_hours": 6.0, "berth_hours": 9.5, "port_hours": 12.0})
         self.assertEqual(vessel["status"], "sailed")
@@ -496,8 +496,8 @@ class AgentMasterDataTests(ApiTestCase):
     def test_agents_are_a_master_data_kind_with_usage_counts(self):
         admin = self.login("admin")
         self.call(admin, "post", "/api/options/", {"kind": "agent", "value": "NILE AGENCY"})
-        Vessel.objects.create(name="A", date=date(2026, 11, 13), port="alexandria", agent="NILE AGENCY")
-        Vessel.objects.create(name="B", date=date(2026, 11, 13), port="suez", agent="NILE AGENCY")
+        Vessel.objects.create(name="A", date=date(2026, 11, 13), port="alexandria", arrival_agent="NILE AGENCY")
+        Vessel.objects.create(name="B", date=date(2026, 11, 13), port="suez", arrival_agent="NILE AGENCY")
         _, data = self.call(admin, "get", "/api/options/")
         agent = next(o for o in data["options"] if o["kind"] == "agent")
         self.assertEqual((agent["value"], agent["used"]), ("NILE AGENCY", 2))
@@ -505,8 +505,8 @@ class AgentMasterDataTests(ApiTestCase):
     def test_usage_counts_only_cover_vessels_the_user_can_see(self):
         admin, alex = self.login("admin"), self.login("alex")
         self.call(admin, "post", "/api/options/", {"kind": "agent", "value": "NILE AGENCY"})
-        Vessel.objects.create(name="A", date=date(2026, 11, 13), port="alexandria", agent="NILE AGENCY")
-        Vessel.objects.create(name="B", date=date(2026, 11, 13), port="suez", agent="NILE AGENCY")
+        Vessel.objects.create(name="A", date=date(2026, 11, 13), port="alexandria", arrival_agent="NILE AGENCY")
+        Vessel.objects.create(name="B", date=date(2026, 11, 13), port="suez", arrival_agent="NILE AGENCY")
         _, data = self.call(alex, "get", "/api/options/")
         self.assertEqual(next(o for o in data["options"] if o["kind"] == "agent")["used"], 1)
 
@@ -625,10 +625,10 @@ class SessionAndHeaderTests(ApiTestCase):
 
     def test_csv_has_agent_and_milestones(self):
         Vessel.objects.create(
-            name="CSV SHIP", date=date(2026, 11, 13), port="alexandria", agent="NILE", arrival_at="2026-11-13T04:30:00Z"
+            name="CSV SHIP", date=date(2026, 11, 13), port="alexandria", arrival_agent="NILE", arrival_at="2026-11-13T04:30:00Z"
         )
         header, *rows = self.login("admin").get("/export.csv").content.decode("utf-8-sig").splitlines()
-        self.assertIn("Agent", header)
+        self.assertIn("Arrival agent", header)
         self.assertIn("Sailed", header)
         row = next(r for r in rows if "CSV SHIP" in r)
         self.assertIn("NILE", row)

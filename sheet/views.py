@@ -31,7 +31,7 @@ from .constants import (
 from .errors import BadRequest, Forbidden, TooManyRequests
 from .models import ChangeRecord, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
-from .validators import clean_service_data, clean_vessel
+from .validators import clean_agent, clean_service_data, clean_vessel
 
 # ---- page -----------------------------------------------------------------------------------
 
@@ -121,11 +121,12 @@ def vessel_detail(request, pk):
 
 
 def _read_service(request):
+    """(type, agent, data) of a service sent by the browser."""
     payload = read_json(request)
     service_type = payload.get("type")
     if service_type not in SERVICE_TYPES:
         raise BadRequest("Choose a service type.")
-    return service_type, clean_service_data(service_type, payload.get("data"))
+    return service_type, clean_agent(payload.get("agent")), clean_service_data(service_type, payload.get("data"))
 
 
 @json_api
@@ -133,8 +134,8 @@ def _read_service(request):
 def service_create(request, pk):
     require_edit(request.profile)
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
-    service_type, data = _read_service(request)
-    service = Service.objects.create(vessel=vessel, service_type=service_type, data=data)
+    service_type, agent, data = _read_service(request)
+    service = Service.objects.create(vessel=vessel, service_type=service_type, agent=agent, data=data)
     audit(request, "service.create", id=service.id, vessel=vessel.id, type=service_type)
     return _vessel_json(vessel.pk, status=201)
 
@@ -149,7 +150,7 @@ def service_detail(request, pk):
         service.delete()
         audit(request, "service.delete", id=pk, vessel=service.vessel_id)
     else:
-        service.service_type, service.data = _read_service(request)
+        service.service_type, service.agent, service.data = _read_service(request)
         service.save()
         audit(request, "service.update", id=service.id, vessel=service.vessel_id)
     return _vessel_json(service.vessel_id)
@@ -203,8 +204,16 @@ def _usage_counts(profile):
     counts = {
         kind: {row[kind]: row["n"] for row in vessels.values(kind).annotate(n=Count("id")).order_by()}
         for kind in OPTION_KIND_KEYS
-        if kind not in BOOKING_KINDS
+        if kind not in BOOKING_KINDS and kind != "agent"
     }
+    # An agent is used by a vessel when it entered it, sailed it or did any of its services (each vessel once).
+    agent_vessels = {}
+    for field in ("arrival_agent", "sailing_agent", "services__agent"):
+        # No .exclude(): on services__agent it would drop a vessel when *any* of its services has no agent.
+        for value, vessel_id in vessels.values_list(field, "id").order_by():
+            if value:  # empty, or None for a vessel without services
+                agent_vessels.setdefault(value, set()).add(vessel_id)
+    counts["agent"] = {value: len(ids) for value, ids in agent_vessels.items()}
     for kind, field, models_using in (("hotel", "hotel", (HotelStay, Transfer)), ("airport", "airport", (Transfer,)),
                                       ("port", "port_name", (Transfer,))):
         found = {}
@@ -314,7 +323,7 @@ def export_csv(request):
     response.write("\ufeff")  # byte-order mark so Excel reads UTF-8
     writer = csv.writer(response)
     writer.writerow(
-        ["Vessel", "OPR", "POC", "Agent", "Port", "Date", "Status"]
+        ["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Date", "Status"]
         + [label for _, label in TIME_FIELDS]
         + ["Services", "Total Cost LE", "Total Profit LE"]
     )
@@ -324,7 +333,8 @@ def export_csv(request):
                 _csv_safe(data["name"]),
                 _csv_safe(data["opr"]),
                 _csv_safe(data["poc"]),
-                _csv_safe(data["agent"]),
+                _csv_safe(data["arrival_agent"]),
+                _csv_safe(data["sailing_agent"]),
                 PORT_LABELS.get(data["port"], data["port"]),
                 date.fromisoformat(data["date"]).strftime("%d.%m.%Y"),
                 data["status"],

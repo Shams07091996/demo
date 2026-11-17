@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.crypto import get_random_string
 
-from sheet.models import ExchangeRate, Profile, Service, Vessel
+from sheet.models import ExchangeRate, Option, Profile, Service, Vessel
 
 DEMO_USERS = [
     ("admin", "admin"),
@@ -48,10 +48,15 @@ class Command(BaseCommand):
         ExchangeRate.objects.get_or_create(month=today.replace(day=1), defaults={"rate": "50.00"})
         if Vessel.objects.exists():
             return
-        v1 = Vessel.objects.create(name="MSC AURORA", opr="MSK", poc="ALY", date=today, port="alexandria")
+        for agent in ("DELTA SHIPPING", "NILE AGENCY"):
+            Option.objects.get_or_create(kind="agent", value=agent, port="")
+        v1 = Vessel.objects.create(
+            name="MSC AURORA", opr="MSK", poc="ALY", date=today, port="alexandria", arrival_agent="DELTA SHIPPING"
+        )
         Service.objects.create(
             vessel=v1,
             service_type="Fresh Water",
+            agent="NILE AGENCY",
             data={"quantity": 50, "revenue": 900, "revenueCurrency": "USD", "cost": 30000, "costCurrency": "EGP"},
         )
         Service.objects.create(
@@ -75,7 +80,8 @@ class Command(BaseCommand):
             },
         )
         v2 = Vessel.objects.create(
-            name="ARKAS STAR", opr="ARK", poc="AIT", date=today + timedelta(days=1), port="portsaid"
+            name="ARKAS STAR", opr="ARK", poc="AIT", date=today + timedelta(days=1), port="portsaid",
+            arrival_agent="NILE AGENCY", sailing_agent="NILE AGENCY",
         )
         Service.objects.create(
             vessel=v2,
@@ -88,6 +94,13 @@ class Command(BaseCommand):
             },
         )
         Vessel.objects.create(
-            name="NORTHERN LIGHT", opr="Other", poc="ACT", date=today - timedelta(days=3), port="suez"
+            name="NORTHERN LIGHT", opr="Other", poc="ACT", date=today - timedelta(days=3), port="suez",
+            arrival_agent="DELTA SHIPPING",
         )
+        # A past Alexandria call that still misses its sailing agent and a service agent: the "Missing agent" alert.
+        v4 = Vessel.objects.create(
+            name="SEA BREEZE", opr="MSK", poc="ALY", date=today - timedelta(days=1), port="alexandria",
+            arrival_agent="DELTA SHIPPING",
+        )
+        Service.objects.create(vessel=v4, service_type="Landing", data={"entries": []})
         self.stdout.write(self.style.SUCCESS("Demo data created."))

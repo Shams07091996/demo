@@ -196,6 +196,11 @@ def _check_time_order(times):
             raise BadRequest(f"{TIME_LABELS[later]} cannot be before {TIME_LABELS[earlier].lower()}.")
 
 
+def clean_agent(value):
+    """An agent from the Master data Agent list: trimmed text, at most 100 characters, may be empty."""
+    return _text(value, 100)
+
+
 def clean_vessel(data, profile, existing=None):
     """Validate vessel input. Port users are always pinned to their own port."""
     name = _text(data.get("name"), 120)
@@ -220,7 +225,8 @@ def clean_vessel(data, profile, existing=None):
         "name": name,
         "opr": _text(data.get("opr"), 100),
         "poc": _text(data.get("poc"), 100),
-        "agent": _text(data.get("agent"), 100),
+        "arrival_agent": clean_agent(data.get("arrival_agent")),
+        "sailing_agent": clean_agent(data.get("sailing_agent")),
         "date": when,
         "port": port,
         "summary": clean_summary(data.get("summary")),

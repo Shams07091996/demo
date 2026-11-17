@@ -15,7 +15,7 @@ from .access import scoped_vessels
 from .errors import BadRequest
 from .serializers import month_rates, vessel_to_dict
 
-SORT_KEYS = ("name", "opr", "poc", "agent", "port", "date", "total_cost_egp")
+SORT_KEYS = ("name", "opr", "poc", "arrival_agent", "sailing_agent", "port", "date", "total_cost_egp")
 BUCKETS = ("ALL", "ARK", "MSK", "OTH", "SERVICES")
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
@@ -106,7 +106,8 @@ def range_rows(profile, f):
 
 
 def _matches_query(row, needle):
-    fields = [row["name"], row["opr"], row["poc"], row["agent"], *(s["type"] for s in row["services"])]
+    fields = [row["name"], row["opr"], row["poc"], row["arrival_agent"], row["sailing_agent"]]
+    fields += [part for s in row["services"] for part in (s["type"], s["agent"])]
     return any(needle in (field or "").casefold() for field in fields)
 
 

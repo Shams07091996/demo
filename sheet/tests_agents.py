@@ -35,6 +35,92 @@ class AgentFieldTests(TestCase):
         self.assertEqual(update.changes, {"sailing_agent": ["", "DELTA"]})
 
 
+WATER = {"cost": 10, "costCurrency": "EGP"}
+
+
 @FAST_HASHER
 class AgentApiTests(ApiTestCase):
-    pass
+    def new_vessel(self, client, **fields):
+        return self.call(client, "post", "/api/vessels/", {"name": "AG", "date": "2026-11-13", **fields})
+
+    def test_create_vessel_with_agents(self):
+        status, vessel = self.new_vessel(self.login("alex"), arrival_agent=" DELTA ", sailing_agent="")
+        self.assertEqual(status, 201)
+        self.assertEqual((vessel["arrival_agent"], vessel["sailing_agent"]), ("DELTA", ""))
+        self.assertNotIn("agent", vessel)
+
+    def test_agent_is_cut_to_100_characters(self):
+        _, vessel = self.new_vessel(self.login("alex"), arrival_agent="A" * 150, sailing_agent="B" * 150)
+        self.assertEqual((len(vessel["arrival_agent"]), len(vessel["sailing_agent"])), (100, 100))
+
+    def test_update_keeps_or_clears_agents(self):
+        alex = self.login("alex")
+        _, vessel = self.new_vessel(alex, arrival_agent="DELTA")
+        _, updated = self.call(alex, "put", f"/api/vessels/{vessel['id']}/",
+                               {"name": "AG", "date": "2026-11-13", "arrival_agent": "DELTA", "sailing_agent": "NILE"})
+        self.assertEqual((updated["arrival_agent"], updated["sailing_agent"]), ("DELTA", "NILE"))
+
+    def test_service_agent_round_trip(self):
+        alex = self.login("alex")
+        url = f"/api/vessels/{self.alex_vessel.id}/services/"
+        status, vessel = self.call(alex, "post", url, {"type": "Fresh Water", "agent": " NILE ", "data": WATER})
+        self.assertEqual(status, 201)
+        service = vessel["services"][-1]
+        self.assertEqual(service["agent"], "NILE")
+        self.assertNotIn("agent", service["data"])
+        _, vessel = self.call(alex, "put", f"/api/services/{service['id']}/",
+                              {"type": "Fresh Water", "agent": "   ", "data": WATER})
+        self.assertEqual(vessel["services"][-1]["agent"], "")
+
+    def test_port_user_cannot_touch_another_ports_service(self):
+        status, _ = self.call(self.login("alex"), "put", f"/api/services/{self.suez_service.id}/",
+                              {"type": "Fresh Water", "agent": "X", "data": WATER})
+        self.assertEqual(status, 404)
+
+    def test_search_matches_each_agent(self):
+        a = Vessel.objects.create(name="ONE", date=date(2026, 11, 13), port="alexandria", arrival_agent="ZETA ARR")
+        b = Vessel.objects.create(name="TWO", date=date(2026, 11, 13), port="alexandria", sailing_agent="ZETA SAIL")
+        c = Vessel.objects.create(name="THREE", date=date(2026, 11, 13), port="alexandria")
+        Service.objects.create(vessel=c, service_type="Fresh Water", agent="ZETA SVC", data=WATER)
+        admin = self.login("admin")
+        for needle, vessel in (("zeta arr", a), ("zeta sail", b), ("zeta svc", c)):
+            _, data = self.call(admin, "get", f"/api/vessels/?q={needle}")
+            self.assertEqual([v["id"] for v in data["vessels"]], [vessel.id], needle)
+
+    def test_sort_by_sailing_agent(self):
+        Vessel.objects.create(name="S1", date=date(2026, 11, 13), port="alexandria", sailing_agent="B")
+        Vessel.objects.create(name="S2", date=date(2026, 11, 13), port="alexandria", sailing_agent="A")
+        _, data = self.call(self.login("alex"), "get", "/api/vessels/?sort=sailing_agent&dir=asc")
+        names = [v["name"] for v in data["vessels"] if v["name"] in ("S1", "S2")]
+        self.assertEqual(names, ["S2", "S1"])
+        self.assertEqual(self.call(self.login("alex"), "get", "/api/vessels/?sort=arrival_agent")[0], 200)
+
+    def test_old_sort_key_agent_is_rejected(self):
+        self.assertEqual(self.call(self.login("alex"), "get", "/api/vessels/?sort=agent")[0], 400)
+
+    def test_csv_has_arrival_and_sailing_agent_columns(self):
+        Vessel.objects.create(name="CSV", date=date(2026, 11, 13), port="alexandria",
+                              arrival_agent="DELTA", sailing_agent="NILE")
+        header, *rows = self.login("admin").get("/export.csv").content.decode("utf-8-sig").splitlines()
+        columns = header.split(",")
+        self.assertIn("Arrival agent", columns)
+        self.assertIn("Sailing agent", columns)
+        self.assertNotIn("Agent", columns)
+        row = next(r.split(",") for r in rows if r.startswith("CSV,"))
+        self.assertEqual(row[columns.index("Arrival agent")], "DELTA")
+        self.assertEqual(row[columns.index("Sailing agent")], "NILE")
+
+    def test_usage_counts_each_vessel_once_for_any_role(self):
+        admin = self.login("admin")
+        self.call(admin, "post", "/api/options/", {"kind": "agent", "value": "DELTA"})
+        v1 = Vessel.objects.create(name="V1", date=date(2026, 11, 13), port="alexandria", arrival_agent="DELTA")
+        v2 = Vessel.objects.create(name="V2", date=date(2026, 11, 13), port="alexandria", sailing_agent="DELTA")
+        v3 = Vessel.objects.create(name="V3", date=date(2026, 11, 13), port="suez")
+        Service.objects.create(vessel=v2, service_type="Fresh Water", agent="DELTA", data=WATER)
+        Service.objects.create(vessel=v3, service_type="Fresh Water", agent="DELTA", data=WATER)
+        Service.objects.create(vessel=v3, service_type="Landing", agent="DELTA")
+        Service.objects.create(vessel=v1, service_type="Landing", agent="OTHER")
+        used = lambda client: next(  # noqa: E731
+            o for o in self.call(client, "get", "/api/options/")[1]["options"] if o["value"] == "DELTA")["used"]
+        self.assertEqual(used(admin), 3)
+        self.assertEqual(used(self.login("alex")), 2)
