@@ -1,11 +1,10 @@
 {% load static %}<!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Marine Service Sheet</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'sheet/app.css' %}">
 </head>
 <body>
@@ -28,6 +27,7 @@
     </nav>
     <div class="sidebar-foot">
       <div class="user-line"><strong>{{ request.user.get_username }}</strong><small id="roleLabel"></small></div>
+      <button class="nav-item" type="button" id="themeBtn" data-act="toggle-theme"><span class="ico">◐</span><span class="label">Dark mode</span></button>
       <a class="nav-item" href="{% url 'password_change' %}"><span class="ico">🔑</span><span>Change password</span></a>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
         <button class="nav-item" type="submit"><span class="ico">⎋</span><span>Log out</span></button>

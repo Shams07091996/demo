@@ -1,4 +1,5 @@
 // Entry point: wires the page together and loads the first data.
+import { initTheme } from './theme.js';
 import { actions, moveOption } from './actions.js';
 import { portOptionEls } from './components.js';
 import { ME, el } from './config.js';
@@ -169,6 +170,7 @@ for (const [selector, key] of [['#d-opr', 'opr'], ['#d-agent', 'agent'], ['#d-se
   $(selector).addEventListener('change', (event) => setDashboardFilter({ [key]: event.target.value }));
 }
 
+initTheme();
 renderFilterInputs();
 loadOptions();
 loadVessels();

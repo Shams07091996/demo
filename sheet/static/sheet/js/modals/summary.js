@@ -12,7 +12,7 @@ import { filterParams, rememberVessels, state } from '../state.js';
 import { dmy, fmt, sign } from '../util.js';
 
 const txt = (x) => (x === null || x === undefined ? '' : String(x));
-const teal = { color: 'var(--teal)' };
+const teal = { color: 'var(--accent)' };
 const pillsTight = (...pills) => h('div', { class: 'pills', style: { marginTop: '0' } }, pills);
 
 function crewTable(list, group) {
@@ -68,7 +68,7 @@ function singleBlock(service) {
   const d = service.data;
   const extra = SINGLE_EXTRA[service.type];
   const extraLine = extra && d[extra.name]
-    ? h('div', { class: 'none', style: { marginBottom: '6px' } }, `${extra.label}: `, h('b', { style: { color: 'var(--white)' } }, d[extra.name]))
+    ? h('div', { class: 'none', style: { marginBottom: '6px' } }, `${extra.label}: `, h('b', { style: { color: 'var(--text)' } }, d[extra.name]))
     : null;
   return [extraLine, pillsTight(
     pillEl('Cost', `${txt(d.costCurrency)} ${fmt(d.cost)}`), pillEl('Revenue', `${txt(d.revenueCurrency)} ${fmt(d.revenue)}`, 'good'),
@@ -94,7 +94,7 @@ function crewBlock(service) {
     h('h4', { class: 'crew-title' }, '👥 Crew Change ', h('span', { class: 'tag' }, `↑ ${on.length} On`), ' ',
       h('span', { class: 'tag' }, `↓ ${off.length} Off`)),
     h('div', { class: 'section-title', style: { marginTop: '10px', color: 'var(--success)' } }, '↑ On-signers'), crewTable(on, 'on'),
-    h('div', { class: 'section-title', style: { color: 'var(--gold)' } }, '↓ Off-signers'), crewTable(off, 'off'),
+    h('div', { class: 'section-title', style: { color: 'var(--warning)' } }, '↓ Off-signers'), crewTable(off, 'off'),
     hasMoney(service) ? singleBlock(service) : null);
 }
 

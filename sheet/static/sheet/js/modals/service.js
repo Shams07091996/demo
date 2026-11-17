@@ -90,7 +90,7 @@ function crewGroupEl(group, label, color) {
 export function renderCrewEditor() {
   setChildren($('#crew-editor'),
     crewGroupEl('onSigners', '↑ On-signers', 'var(--success)'),
-    crewGroupEl('offSigners', '↓ Off-signers', 'var(--gold)'));
+    crewGroupEl('offSigners', '↓ Off-signers', 'var(--warning)'));
 }
 
 /* ---------- screens ---------- */

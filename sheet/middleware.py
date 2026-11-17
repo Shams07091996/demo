@@ -15,13 +15,13 @@ CSP = "; ".join(
         "default-src 'self'",
         "script-src 'self'",
         # No inline styles at all: screens set styles through el.style (CSSOM), which this does not block.
-        "style-src 'self' https://fonts.googleapis.com",
-        "style-src-elem 'self' https://fonts.googleapis.com",
+        "style-src 'self'",
+        "style-src-elem 'self'",
         "style-src-attr 'none'",
         # Trusted Types: the browser refuses every HTML-string sink (innerHTML …), and no policy may be created.
         "require-trusted-types-for 'script'",
         "trusted-types 'none'",
-        "font-src https://fonts.gstatic.com",
+        "font-src 'none'",  # the system font: no web fonts at all
         "img-src 'self' data:",
         "connect-src 'self'",
         "object-src 'none'",

@@ -127,7 +127,7 @@ export function openVesselForm(vessel) {
         selectField('arrival_agent', 'Arrival agent', vessel?.arrival_agent, selectedPort, 'agent'),
         selectField('sailing_agent', 'Sailing agent', vessel?.sailing_agent, selectedPort, 'agent')),
       h('div', { class: 'hint' }, 'Missing an OPR, POC or agent? Add it under ',
-        h('a', { href: '#master', dataset: { act: 'goto', page: 'master' }, style: { color: 'var(--teal)' } }, 'Master data'), '.'),
+        h('a', { href: '#master', dataset: { act: 'goto', page: 'master' }, style: { color: 'var(--accent)' } }, 'Master data'), '.'),
       h('div', { class: 'row two' },
         h('div', { class: 'field' }, h('label', null, 'Date'), h('input', { attrs: { type: 'date', name: 'date' }, value: vessel ? vessel.date : today() })),
         portField),

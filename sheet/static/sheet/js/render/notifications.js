@@ -72,8 +72,8 @@ export function buildNotifications() {
   const group = (list, color, title) =>
     list.length ? [h('div', { class: 'notif-group', style: { color } }, title), list.map(panelItem)] : null;
   setChildren($('#notifPanel'), total
-    ? [group(todays, 'var(--danger)', `🔴 Today — ${dmy(todayIso)}`), group(tomorrows, 'var(--gold)', `🟡 Tomorrow — ${dmy(tomorrowIso)}`),
-      missing.length ? [h('div', { class: 'notif-group', style: { color: 'var(--teal)' } }, 'Missing agent'),
+    ? [group(todays, 'var(--danger)', `🔴 Today — ${dmy(todayIso)}`), group(tomorrows, 'var(--warning)', `🟡 Tomorrow — ${dmy(tomorrowIso)}`),
+      missing.length ? [h('div', { class: 'notif-group', style: { color: 'var(--accent)' } }, 'Missing agent'),
         missing.map((v) => missingRow(v, 'notif-item missing'))] : null]
     : h('div', { class: 'empty' }, '✅ No vessels today or tomorrow.'));
 }

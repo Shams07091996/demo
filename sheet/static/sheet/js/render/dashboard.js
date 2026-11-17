@@ -33,7 +33,7 @@ function renderOprCards(oprs) {
   setChildren($('#opr-cards'), oprs.length
     ? oprs.map((t, i) => {
       const color = CHART_COLORS[i % CHART_COLORS.length];
-      return h('div', { class: 'opr-card', dataset: { act: 'opr-summary', opr: t.opr }, style: { borderColor: `${color}55` } },
+      return h('div', { class: 'opr-card', dataset: { act: 'opr-summary', opr: t.opr }, style: { borderColor: `color-mix(in srgb, ${color} 35%, transparent)` } },
         h('div', { class: 'n', style: { color } }, t.opr),
         h('div', { class: 'big' }, t.vessels, ' ', h('small', null, 'vessels')),
         h('div', { class: 'none' }, `${t.services} services`),

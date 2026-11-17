@@ -13,7 +13,7 @@ export const NO_AGENT = readJson('no-agent-data');            // Dashboard agent
 
 
 export const PORT_LABEL = Object.fromEntries(PORTS.map((p) => [p.key, p.label]));
-export const PORT_COLOR = { alexandria: 'var(--teal)', portsaid: 'var(--gold)', damietta: '#a8dadc', suez: '#c77dff' };
+export const PORT_COLOR = { alexandria: 'var(--c1)', portsaid: 'var(--c2)', damietta: 'var(--c3)', suez: 'var(--c5)' };
 
 // Service kinds (must match sheet/constants.py).
 export const MULTI = ['Delivery Parcels', 'Delivery Courier', 'Landing'];
@@ -32,10 +32,8 @@ export const STATUS_LABEL = {
   sailed: 'Sailed',
 };
 
-export const CHART_COLORS = [
-  '#00b4d8', '#f4a261', '#52b788', '#e63946', '#a8dadc', '#9b5de5', '#f15bb5', '#fee440',
-  '#00bbf9', '#fb5607', '#ff006e', '#8338ec', '#3a86ff', '#06d6a0', '#ffd166',
-];
+// One colour per series, per mode (app.css --c1 … --c8).
+export const CHART_COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)', 'var(--c7)', 'var(--c8)'];
 
 export const el = {
   overlay: $('#overlay'),
