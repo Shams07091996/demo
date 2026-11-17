@@ -6,6 +6,6 @@ class SheetConfig(AppConfig):
     name = "sheet"
 
     def ready(self):
-        from . import history, signals  # noqa: F401  (signals registers the login signal handlers)
+        from . import checks, history, signals  # noqa: F401  (checks / signals register themselves on import)
 
         history.connect()

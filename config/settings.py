@@ -104,6 +104,8 @@ LOGOUT_REDIRECT_URL = "/login/"
 # Idle timeout: the session lives N minutes after the LAST request (it is refreshed on every request).
 SESSION_COOKIE_AGE = int(os.environ.get("DJANGO_SESSION_IDLE_MINUTES", 60)) * 60
 SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_NAME = "sessionid"  # "__Host-" prefixed in production, below
+CSRF_COOKIE_NAME = "csrftoken"
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = True  # the page reads the token from a <meta> tag instead
 CSRF_COOKIE_SAMESITE = "Lax"
@@ -113,17 +115,23 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 
+BEHIND_PROXY = env_bool("DJANGO_BEHIND_PROXY", False)  # only if your reverse proxy sets the headers itself
+
 if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("DJANGO_SSL_REDIRECT", True)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    # "__Host-": the browser only accepts these cookies over HTTPS, for this exact host and path "/" — no subdomain
+    # or other path can set or overwrite them. The app must be served from the root of its own host.
+    SESSION_COOKIE_NAME = "__Host-sessionid"
+    CSRF_COOKIE_NAME = "__Host-csrftoken"
     SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", 31536000))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     # Preloading commits the whole domain to HTTPS in every browser for months; the domain owner decides.
     SECURE_HSTS_PRELOAD = env_bool("DJANGO_HSTS_PRELOAD", False)
     if not SECURE_HSTS_PRELOAD:
         SILENCED_SYSTEM_CHECKS = ["security.W021"]
-    if env_bool("DJANGO_BEHIND_PROXY", False):  # only if your reverse proxy sets this header itself
+    if BEHIND_PROXY:
         SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Behind a reverse proxy every request seems to come from the proxy. Name the header your proxy sets
