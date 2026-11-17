@@ -275,3 +275,10 @@ tr.clickable{cursor:pointer}
 .calc-note{font-size:11px;margin-top:2px}
 td.num.neg{color:var(--danger)}
 th[data-csort],th[data-bsort]{cursor:pointer}
+
+/* Former inline styles (the CSP allows none) */
+#qa-name{width:200px}
+#qa-date{width:150px}
+.count.flush{margin:0}
+.center{text-align:center}
+.login-error.tight{margin:6px 0 0}

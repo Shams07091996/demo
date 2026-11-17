@@ -85,7 +85,7 @@ function render() {
   setChildren($('#c-head'), h('tr', null, COLUMNS.map((c) => h('th', { dataset: { csort: c.sort } }, c.title, ' ',
     h('span', { class: 'arrow' }, filter.sort === c.sort ? (filter.dir === 'asc' ? '↑' : '↓') : '↕')))));
   setChildren($('#c-tbody'), data.rows.map(rowEl));
-  $('#c-empty').style.display = data.rows.length ? 'none' : 'block';
+  $('#c-empty').hidden = data.rows.length > 0;
   setChildren($('#c-totals'), totalsEls(data.totals));
   const oprs = filter.opr && !data.oprs.includes(filter.opr) ? [...data.oprs, filter.opr] : data.oprs;
   setChildren($('#c-opr'), optionEls([['', 'All OPRs'], ...oprs.map((o) => [o, o])], filter.opr));
@@ -149,7 +149,7 @@ function wire() {
   if (ME.seesAll) {
     const select = $('#c-port');
     setChildren(select, portOptionEls({ all: true }));
-    select.style.display = '';
+    select.hidden = false;
     select.addEventListener('change', () => setFilter({ port: select.value }));
   }
   $('#c-opr').addEventListener('change', (event) => setFilter({ opr: event.target.value }));

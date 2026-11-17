@@ -43,6 +43,6 @@ export function setupQuickAdd() {
   if (ME.isAdmin) {
     const select = $('#qa-port');
     setChildren(select, portOptionEls());
-    select.style.display = '';
+    select.hidden = false;
   }
 }

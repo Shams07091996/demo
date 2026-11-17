@@ -84,7 +84,7 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
     renderHead();
     const rowProps = (b) => (ME.canEdit ? { class: 'clickable', dataset: { act: 'booking-open', kind, id: b.id } } : null);
     setChildren($(id('tbody')), list.bookings.map((b) => h('tr', rowProps(b), cols.map((c) => h('td', null, c.cell(b))))));
-    $(id('empty')).style.display = list.bookings.length ? 'none' : 'block';
+    $(id('empty')).hidden = list.bookings.length > 0;
     setChildren($(id('pager')), pagerEl({
       count: list.count, pages: list.pages, page: list.page, size: filter.pageSize, noun, sizeId: `${prefix}-page-size`,
       prev: { act: 'booking-page', kind, step: -1 },
@@ -134,11 +134,11 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
   function wire() {
     if (wired) return;
     wired = true;
-    $(id('add')).style.display = ME.canEdit ? '' : 'none';
+    $(id('add')).hidden = !ME.canEdit;
     if (ME.seesAll) {
       const select = $(id('port'));
       setChildren(select, portOptionEls({ all: true }));
-      select.style.display = '';
+      select.hidden = false;
       select.addEventListener('change', () => setFilter({ port: select.value }));
     }
     let searchTimer;

@@ -155,7 +155,7 @@ if (ME.seesAll) {
   document.body.classList.add('show-port');
   const select = $('#portSelect');
   setChildren(select, portOptionEls({ all: true }));
-  select.style.display = '';
+  select.hidden = false;
   select.addEventListener('change', () => {
     if (ME.isAdmin && select.value !== 'ALL') {
       $('#qa-port').value = select.value;

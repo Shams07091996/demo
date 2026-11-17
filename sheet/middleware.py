@@ -14,10 +14,14 @@ CSP = "; ".join(
     [
         "default-src 'self'",
         "script-src 'self'",
-        # Modern browsers use the two precise rules below; the plain style-src is the fallback for old ones.
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        # No inline styles at all: screens set styles through el.style (CSSOM), which this does not block.
+        "style-src 'self' https://fonts.googleapis.com",
         "style-src-elem 'self' https://fonts.googleapis.com",
-        "style-src-attr 'unsafe-inline'",
+        "style-src-attr 'none'",
+        # Trusted Types: the browser refuses every HTML-string sink (innerHTML …). The one policy only lets the
+        # bundled PDF.js worker URL through (js/pdfReader.js).
+        "require-trusted-types-for 'script'",
+        "trusted-types pdfjs-worker",
         "font-src https://fonts.gstatic.com",
         "img-src 'self' data:",
         "connect-src 'self'",

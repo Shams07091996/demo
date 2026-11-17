@@ -25,3 +25,10 @@ class NoEvalTests(SimpleTestCase):
             for match in EVAL.finditer(path.read_text(encoding="utf-8"))
         ]
         self.assertEqual(offenders, [])
+
+
+class NoInlineStyleTests(SimpleTestCase):
+    def test_templates_have_no_style_attributes(self):
+        templates = Path(settings.BASE_DIR) / "sheet" / "templates"
+        offenders = [str(path.relative_to(settings.BASE_DIR)) for path in templates.rglob("*.html") if "style=" in path.read_text(encoding="utf-8")]
+        self.assertEqual(offenders, [])

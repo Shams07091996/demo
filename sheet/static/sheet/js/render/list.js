@@ -9,7 +9,7 @@ import { $, $$, dmy, oprClass } from '../util.js';
 export function renderPortBanner() {
   const port = ME.port || (state.filter.port !== 'ALL' ? state.filter.port : null);
   const banner = $('#portBanner');
-  banner.style.display = port ? 'block' : 'none';
+  banner.hidden = !port;
   if (!port) return;
   banner.style.color = PORT_COLOR[port];
   banner.style.borderTopColor = PORT_COLOR[port];
@@ -56,7 +56,7 @@ function rowEl(v) {
 
 /** The current page exactly as the server sent it (already filtered, sorted and paged). */
 export function renderTable() {
-  $('#empty').style.display = state.vessels.length ? 'none' : 'block';
+  $('#empty').hidden = state.vessels.length > 0;
   setChildren($('#tbody'), state.vessels.map(rowEl));
 }
 

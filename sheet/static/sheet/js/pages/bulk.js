@@ -26,7 +26,7 @@ let checkTicket = 0;    // bumped by every change to the table, so older check a
 const showError = (message) => {
   const box = $('#bk-error');
   box.textContent = message;
-  box.style.display = message ? 'block' : 'none';
+  box.hidden = !message;
 };
 
 const known = () => ({
@@ -41,7 +41,7 @@ export function initBulkPage() {
   if (!$('#bk-date').value) $('#bk-date').value = today();
   if (ME.isAdmin && !$('#bk-port').options.length) {
     setChildren($('#bk-port'), portOptionEls());
-    $('#bk-port-wrap').style.display = '';
+    $('#bk-port-wrap').hidden = false;
   }
   fillQuickSelects(); // after the port select exists, so the default lists follow its port
 }

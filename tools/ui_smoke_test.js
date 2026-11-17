@@ -76,6 +76,7 @@ async function login() {
   const type = (el, value) => { el.value = value; el.dispatchEvent(new w.Event('input', { bubbles: true })); el.dispatchEvent(new w.Event('change', { bubbles: true })); };
   const waitFor = async (cond, ms = 4000) => { const end = Date.now() + ms; while (Date.now() < end) { if (cond()) return true; await sleep(40); } return false; };
   const modalText = () => $('#modal').textContent;
+  const shown = (el) => !!el && !el.hidden && el.style.display !== 'none'; // hidden attribute or a style set by the app
   const rowFor = (name) => $$('#tbody tr').find((t) => t.textContent.includes(name));
   const go = async (page) => { w.location.hash = page; return waitFor(() => !$(`#page-${page}`).hidden && $('#pageTitle').textContent.length > 0); };
   const openRow = async (name) => { click(rowFor(name).querySelector('td')); await waitFor(() => $('#modal h2')?.textContent.includes(name)); };
@@ -276,7 +277,7 @@ async function login() {
   ok($('#pager').textContent.includes('Showing'), 'pager shows "Showing x–y of n"');
   type($('#search'), 'zzzz-no-match');
   ok($$('#tbody tr').length > 0, 'search waits for a pause before asking the server');
-  ok(await waitFor(() => $$('#tbody tr').length === 0 && $('#empty').style.display === 'block'), 'search with no match shows the empty state (from the server)');
+  ok(await waitFor(() => $$('#tbody tr').length === 0 && shown($('#empty'))), 'search with no match shows the empty state (from the server)');
   type($('#search'), '');
   ok(await waitFor(() => $$('#tbody tr').length > 0), 'clearing the search brings the rows back');
   type($('#page-size'), '10');
@@ -324,7 +325,7 @@ async function login() {
   /* ======== read-only user ======== */
   if (ROLE === 'viewer') {
     ok($('#addVesselBtn').style.display === 'none' && $('#quickAdd').style.display === 'none', 'read-only: add controls hidden');
-    ok($('#portSelect').style.display !== 'none', 'read-only: sees the port selector');
+    ok(shown($('#portSelect')), 'read-only: sees the port selector');
     await go('bulk');
     ok($('#page-bulk').hidden && !$('#page-vessels').hidden, 'read-only: opening #bulk lands back on Vessels');
     click($$('#tbody tr')[0]);
@@ -340,14 +341,14 @@ async function login() {
     for (const [page, p] of [['hotels', 'h'], ['transport', 't']]) {
       await go(page);
       ok(await waitFor(() => $(`#${p}-head`).textContent.includes('Vessel')), `read-only: ${page} list renders`);
-      ok($(`#${p}-add`).style.display === 'none' && /Cost/.test($(`#${p}-head`).textContent) && /Revenue/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button but sees cost and revenue`);
-      ok($(`#${p}-port`).style.display !== 'none', `read-only: ${page} has the port selector`);
+      ok(!shown($(`#${p}-add`)) && /Cost/.test($(`#${p}-head`).textContent) && /Revenue/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button but sees cost and revenue`);
+      ok(shown($(`#${p}-port`)), `read-only: ${page} has the port selector`);
     }
     return finish();
   }
 
   if (ROLE === 'alex') ok($('#portBanner').textContent.includes('Alexandria'), 'port user sees the port banner');
-  if (ROLE === 'admin') ok($('#qa-port').style.display !== 'none' && $('#portSelect').style.display !== 'none', 'admin sees the port selectors');
+  if (ROLE === 'admin') ok(shown($('#qa-port')) && shown($('#portSelect')), 'admin sees the port selectors');
   if (ROLE === 'admin') {
     const keepPort = $('#qa-port').value;
     const pick = [...$('#qa-opr').options].find((o) => o.value)?.value; // the demo data's OPRs are All-ports values
@@ -562,7 +563,7 @@ async function login() {
   /* ======== bulk add ======== */
   await go('bulk');
   ok($('#bk-opr') && $$('#bk-agent option').some((o) => o.textContent === 'SMOKE AGENT'), 'bulk page: dropdowns come from master data');
-  if (ROLE === 'admin') ok($('#bk-port-wrap').style.display !== 'none', 'bulk page: admin can choose the port');
+  if (ROLE === 'admin') ok(shown($('#bk-port-wrap')), 'bulk page: admin can choose the port');
   type($('#bk-date'), '2026-11-20');
   type($('#bk-text'), 'SMOKE <i>B</i> & "Q"\t13.11.2026\t<b>O</b>');
   click($('[data-act="bulk-preview"]'));
@@ -675,7 +676,7 @@ async function login() {
   type($('#qa-date'), localNow());
   click($('#qa-add'));
   ok(await waitFor(() => rowFor('SMOKE TODAY')), 'vessel dated today created');
-  ok(await waitFor(() => $('#bellBadge').style.display !== 'none' && $('#notifBanner').textContent.includes('SMOKE TODAY')), 'bell badge and banner show vessels due today (alerts load alongside the table)');
+  ok(await waitFor(() => shown($('#bellBadge')) && $('#notifBanner').textContent.includes('SMOKE TODAY')), 'bell badge and banner show vessels due today (alerts load alongside the table)');
   // The banner can shrink to one line (and back); the choice is remembered.
   click($('#notifBanner [data-act="toggle-alerts"]'));
   ok($('#notifBanner').classList.contains('collapsed') && !$('#notifBanner .notif-row') && /\d+ today/.test($('#notifBanner').textContent) && w.localStorage.getItem('sheet.alertsCollapsed') === '1', 'alerts banner shrinks to one line');
@@ -743,6 +744,8 @@ async function login() {
     ok(hostileButton().textContent.includes(HOSTILE) && noMarkup($('#bkd-vessel-results')), 'dialog: vessel picker shows the name literally');
     click(hostileButton());
     ok(await waitFor(() => $('.bkd-vessel')?.textContent.includes(HOSTILE)) && noMarkup($('#modal')), 'dialog: chosen vessel shows literally');
+    await waitFor(() => $('#bkd-crew')?.textContent.includes('No crew change') || $('#bkd-crew input')); // crew loaded
+    await sleep(100); // let that request finish before the next write (SQLite allows one writer at a time)
     closeModal();
     const res = await w.fetch('/api/hotels/', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },

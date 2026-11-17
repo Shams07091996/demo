@@ -34,7 +34,7 @@ export function buildNotifications() {
   const total = todays.length + tomorrows.length;
 
   const badge = $('#bellBadge');
-  badge.style.display = total ? 'flex' : 'none';
+  badge.hidden = !total;
   badge.textContent = total > 9 ? '9+' : total;
   $('#bell').classList.toggle('alert', total > 0);
 
@@ -43,7 +43,7 @@ export function buildNotifications() {
       h('b', null, label), h('span', null, `🚢 ${v.name}`), serviceTags(v));
   const banner = $('#notifBanner');
   const collapsed = alertsCollapsed();
-  banner.style.display = total ? 'flex' : 'none';
+  banner.hidden = !total;
   banner.classList.toggle('collapsed', collapsed);
   const head = h('div', { class: 'notif-head' },
     h('span', null, '🔴 ', h('b', null, todays.length), ' today · 🟡 ', h('b', null, tomorrows.length), ' tomorrow'),

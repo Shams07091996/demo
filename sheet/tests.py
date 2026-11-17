@@ -655,7 +655,12 @@ class SessionAndHeaderTests(ApiTestCase):
 
     def test_extra_headers(self):
         page = self.login("alex").get("/")
-        self.assertIn("style-src-attr 'unsafe-inline'", page["Content-Security-Policy"])
+        csp = page["Content-Security-Policy"]
+        # No inline style attributes and no HTML strings: the browser refuses both.
+        self.assertIn("style-src-attr 'none'", csp)
+        self.assertNotIn("'unsafe-inline'", csp)
+        self.assertIn("require-trusted-types-for 'script'", csp)
+        self.assertIn("trusted-types pdfjs-worker", csp)
         self.assertIn("style-src-elem 'self' https://fonts.googleapis.com", page["Content-Security-Policy"])
         self.assertEqual(page["Cross-Origin-Resource-Policy"], "same-origin")
         self.assertEqual(page["Cache-Control"], "no-store")
