@@ -4,7 +4,6 @@ import { loadDashboard, loadOptions, loadRates } from './data.js';
 import { hotelsPage, transportPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { historyPage } from './pages/history.js';
-import { initBulkPage } from './pages/bulk.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
 import { state } from './state.js';
@@ -12,7 +11,6 @@ import { $, $$ } from './util.js';
 
 const TITLES = {
   vessels: 'Vessels',
-  bulk: 'Bulk add',
   hotels: 'Hotels',
   transport: 'Transport',
   calculations: 'Calculations',
@@ -28,7 +26,7 @@ const pageFromHash = () => {
 };
 
 export async function showPage(requested) {
-  let name = requested === 'bulk' && !ME.canEdit ? 'vessels' : requested; // read-only users cannot add
+  let name = requested;
   if (name === 'history' && !ME.isAdmin) name = 'vessels'; // the change history is for admins only
   state.page = name;
   $$('.page').forEach((page) => { page.hidden = page.id !== `page-${name}`; });
@@ -37,7 +35,6 @@ export async function showPage(requested) {
   document.body.classList.remove('nav-open');
 
   if (name === 'dashboard') await loadDashboard();
-  if (name === 'bulk') initBulkPage();
   if (name === 'hotels') await hotelsPage.load();
   if (name === 'transport') await transportPage.load();
   if (name === 'calculations') await calculationsPage.load();

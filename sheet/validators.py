@@ -8,7 +8,6 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 
 from .constants import (
-    BULK_MAX_ROWS,
     GUEST_GROUPS,
     MAX_GUESTS,
     MAX_NIGHTS,
@@ -227,26 +226,6 @@ def clean_vessel(data, profile, existing=None):
         "summary": clean_summary(data.get("summary")),
         **times,
     }
-
-
-def clean_bulk(rows, profile, default_port=None):
-    """Validate many new vessels at once. Nothing is saved unless every row is valid."""
-    if not isinstance(rows, list) or not rows:
-        raise BadRequest("Add at least one vessel.")
-    if len(rows) > BULK_MAX_ROWS:
-        raise BadRequest(f"Add at most {BULK_MAX_ROWS} vessels at a time.")
-    cleaned, problems = [], {}
-    for number, raw in enumerate(rows, start=1):
-        try:
-            if not isinstance(raw, dict):
-                raise BadRequest("Invalid row.")
-            cleaned.append(clean_vessel({"port": default_port, **raw} if default_port else raw, profile))
-        except BadRequest as error:
-            problems[number] = str(error)
-    if problems:
-        shown = "; ".join(f"row {number}: {message}" for number, message in list(problems.items())[:5])
-        raise BadRequest(f"Nothing was saved. {shown}", rows=problems)
-    return cleaned
 
 
 # ---- hotels and transport ---------------------------------------------------------------------

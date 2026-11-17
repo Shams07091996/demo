@@ -10,7 +10,7 @@ class DevStaticCachingTests(SimpleTestCase):
         from sheet.management.commands.runserver import Command
 
         handler = Command().get_handler(use_static_handler=True, insecure_serving=True)
-        request = RequestFactory().get("/static/sheet/js/bulkParsing.js")
+        request = RequestFactory().get("/static/sheet/js/crewParsing.js")
         response = handler.get_response(request)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Cache-Control"], "no-cache")

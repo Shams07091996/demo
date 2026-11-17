@@ -5,7 +5,6 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.views import redirect_to_login
-from django.db import transaction
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -15,7 +14,7 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, history, listing, logistics, ratelimit
+from . import calculations, listing, logistics, ratelimit
 from .access import profile_of, require_admin, require_edit, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
 from .constants import (
@@ -32,7 +31,7 @@ from .constants import (
 from .errors import BadRequest, Forbidden, TooManyRequests
 from .models import ChangeRecord, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
-from .validators import clean_bulk, clean_service_data, clean_vessel
+from .validators import clean_service_data, clean_vessel
 
 # ---- page -----------------------------------------------------------------------------------
 
@@ -84,31 +83,6 @@ def vessels(request):
     vessel = Vessel.objects.create(**clean_vessel(read_json(request), request.profile))
     audit(request, "vessel.create", id=vessel.id, port=vessel.port)
     return _vessel_json(vessel.pk, status=201)
-
-
-@json_api
-@require_http_methods(["POST"])
-def vessels_bulk(request):
-    """Create many vessels in one go (e.g. pasted from Excel). All-or-nothing."""
-    require_edit(request.profile)
-    payload = read_json(request)
-    rows = clean_bulk(payload.get("rows"), request.profile, default_port=payload.get("port"))
-    with transaction.atomic():
-        created = Vessel.objects.bulk_create([Vessel(**fields) for fields in rows])
-        history.record_created(created)
-    audit(request, "vessel.bulk_create", count=len(created), port=request.profile.port or "any")
-    rates = month_rates()
-    return JsonResponse({"vessels": [vessel_to_dict(v, rates) for v in created]}, status=201)
-
-
-@json_api
-@require_http_methods(["POST"])
-def vessels_bulk_check(request):
-    """Which pasted rows already exist (bulk-add preview marks them as duplicates). Changes nothing."""
-    require_edit(request.profile)
-    payload = read_json(request)
-    existing = listing.existing_rows(request.profile, payload.get("rows"), payload.get("port"))
-    return JsonResponse({"existing": existing})
 
 
 @json_api

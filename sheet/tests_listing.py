@@ -1,4 +1,4 @@
-"""Server-side vessel list: date range, search, buckets, sorting, paging, totals, alerts, dashboard, bulk check."""
+"""Server-side vessel list: date range, search, buckets, sorting, paging, totals, alerts, dashboard."""
 
 from datetime import date
 from unittest import mock
@@ -193,32 +193,3 @@ class DashboardTests(ListingData):
         self.assertEqual(self.dash("alex", "?port=suez")[1]["count"], Vessel.objects.filter(port="alexandria").count())
         self.assertEqual(self.dash("admin", "?from=bad")[0], 400)
         self.assertEqual(self.dash("admin", "?from=2026-12-01&to=2026-11-01")[0], 400)
-
-
-class BulkCheckTests(ListingData):
-    URL = "/api/vessels/bulk/check/"
-
-    def test_duplicates_are_found_in_the_target_port_only(self):
-        admin = self.login("admin")
-        rows = [{"name": " alex ship ", "date": "2026-11-13"}, {"name": "NEW", "date": "2026-11-13"}]
-        self.assertEqual(self.call(admin, "post", self.URL, {"rows": rows, "port": "alexandria"}), (200, {"existing": [0]}))
-        self.assertEqual(self.call(admin, "post", self.URL, {"rows": rows, "port": "suez"}), (200, {"existing": []}))
-
-    def test_same_name_other_date_is_not_a_duplicate_and_bad_rows_are_skipped(self):
-        rows = [{"name": "ALEX SHIP", "date": "2026-11-14"}, {"name": "ALEX SHIP", "date": "nope"}, "junk"]
-        self.assertEqual(self.call(self.login("alex"), "post", self.URL, {"rows": rows})[1], {"existing": []})
-
-    def test_port_user_checks_own_port_and_viewer_is_refused(self):
-        rows = [{"name": "SUEZ SHIP", "date": "2026-11-13"}]
-        self.assertEqual(self.call(self.login("alex"), "post", self.URL, {"rows": rows, "port": "suez"})[1],
-                         {"existing": []})
-        self.assertEqual(self.call(self.login("suezuser"), "post", self.URL, {"rows": rows})[1], {"existing": [0]})
-        self.assertEqual(self.call(self.login("viewer"), "post", self.URL, {"rows": rows})[0], 403)
-
-    def test_limits_and_unknown_port(self):
-        admin = self.login("admin")
-        rows = [{"name": "X", "date": "2026-11-13"}]
-        self.assertEqual(self.call(admin, "post", self.URL, {"rows": rows * 201, "port": "suez"})[0], 400)
-        self.assertEqual(self.call(admin, "post", self.URL, {"rows": rows, "port": "mars"})[0], 400)
-        self.assertEqual(self.call(admin, "post", self.URL, {"rows": "x", "port": "suez"})[0], 400)
-        self.assertEqual(self.call(admin, "post", self.URL, {"rows": [], "port": "suez"}), (200, {"existing": []}))

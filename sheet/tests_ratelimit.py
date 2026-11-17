@@ -46,14 +46,6 @@ class RateLimitTests(ApiTestCase):
             self.new_vessel(admin)
             self.assertEqual(self.new_vessel(admin)[0], 429)
 
-    def test_a_bulk_add_of_200_rows_counts_once(self):
-        alex = self.login("alex")
-        rows = [{"name": f"BULK {i}", "date": "2026-11-13"} for i in range(200)]
-        self.assertEqual(self.call(alex, "post", "/api/vessels/bulk/", {"rows": rows})[0], 201)
-        self.assertEqual(self.new_vessel(alex)[0], 201)
-        self.assertEqual(self.new_vessel(alex)[0], 201)
-        self.assertEqual(self.new_vessel(alex)[0], 429)
-
     def test_fourth_export_is_refused(self):
         alex = self.login("alex")
         for _ in range(3):

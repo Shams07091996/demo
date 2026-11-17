@@ -129,7 +129,7 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:rgb
 .notif-item{background:var(--navy3);border-radius:8px;padding:9px 11px;margin-bottom:6px;cursor:pointer;font-size:13px}
 .notif-item:hover{outline:1px solid var(--teal)}
 
-/* ----- panels, master data, bulk, rates ----- */
+/* ----- panels, master data, rates ----- */
 .panel{background:var(--navy);border:1px solid rgba(0,180,216,.15);border-radius:14px;padding:18px 20px;overflow-x:auto}
 .panel h3,.dash-title{font-family:'Bebas Neue',sans-serif;font-weight:400;letter-spacing:2px;font-size:17px;color:var(--teal);margin-bottom:12px}
 .dash-title{margin:6px 0 12px}
@@ -141,19 +141,7 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:rgb
 .add-row{display:flex;gap:8px;margin-top:12px}
 .rate-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(244,162,97,.1);border:1px solid rgba(244,162,97,.3);border-radius:8px;padding:5px 10px;margin:0 8px 8px 0;font-size:13px}
 .rate-chip b{color:var(--gold)}.rate-chip button{background:none;border:none;color:var(--danger);cursor:pointer}
-.bulk-table th,.bulk-table td{padding:7px 10px;font-size:12px}
-.bulk-table tr.row-error td{background:rgba(230,57,70,.08)}
-.bulk-table tr.row-warn td{background:rgba(244,162,97,.07)}
-.bulk-table tr.row-skip td{opacity:.55}
-.bulk-table tbody tr{cursor:default}.bulk-table tbody tr:hover{background:none}
-.bulk-edit td{padding:4px 6px}
-.bulk-edit .input,.bulk-edit .select{width:100%;min-width:90px;padding:5px 7px;font-size:12px}
-.bulk-edit td:nth-child(2) .input{min-width:160px}
-.bulk-edit .bk-check{min-width:160px}
-.bulk-all{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0 4px;font-size:12px;color:var(--muted)}
-.bulk-all .input,.bulk-all .select{width:auto;padding:5px 7px;font-size:12px}
 .st-ok{color:var(--success)}.st-bad{color:var(--danger)}.st-warn{color:var(--gold)}
-.bulk-summary{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:14px 0 10px;font-size:13px}
 
 /* ----- dashboard ----- */
 .dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;margin-bottom:24px}

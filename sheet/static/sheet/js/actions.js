@@ -14,9 +14,6 @@ import { openVessel, openVesselForm, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { historyPage } from './pages/history.js';
-import {
-  addBulkRow, applyToAllRows, clearBulk, createBulk, previewBulk, removeBulkRow, viewCreated,
-} from './pages/bulk.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
 import { fillQuickSelects } from './render/list.js';
@@ -149,13 +146,6 @@ export const actions = {
   },
   'del-option': removeOption,
 
-  'bulk-preview': previewBulk,
-  'bulk-create': createBulk,
-  'bulk-clear': clearBulk,
-  'bulk-view': viewCreated,
-  'bulk-add-row': addBulkRow,
-  'bulk-del-row': (b) => removeBulkRow(Number(b.dataset.i)),
-  'bulk-apply-all': applyToAllRows,
 
   'booking-new': (b) => openBookingDialog(b.dataset.kind),
   'booking-open': (b) => openBookingDialog(b.dataset.kind, Number(b.dataset.id)),

@@ -12,7 +12,6 @@ from datetime import date, timedelta
 from django.utils import timezone
 
 from .access import scoped_vessels
-from .constants import BULK_MAX_ROWS, PORT_KEYS
 from .errors import BadRequest
 from .serializers import month_rates, vessel_to_dict
 
@@ -208,32 +207,3 @@ def dashboard_response(profile, params):
         for opr, group in sorted(by_opr.items())
     ]
     return {"count": len(rows), "oprs": oprs}
-
-
-def existing_rows(profile, rows, port=None):
-    """Indexes of pasted rows that already exist: same name (trimmed, upper-cased) and date in the target port.
-
-    The target port is the port user's own port, otherwise the admin's choice (Alexandria when none is given,
-    the same default bulk create uses). A row that isn't a {name, date} pair with a valid date is never a match."""
-    if not isinstance(rows, list):
-        raise BadRequest("Add at least one vessel.")
-    if len(rows) > BULK_MAX_ROWS:
-        raise BadRequest(f"Add at most {BULK_MAX_ROWS} vessels at a time.")
-    target = profile.port or port or "alexandria"
-    if target not in PORT_KEYS:
-        raise BadRequest("Unknown port.")
-    wanted = {}
-    for index, row in enumerate(rows):
-        if not isinstance(row, dict):
-            continue
-        try:
-            day = date.fromisoformat(str(row.get("date", "")))
-        except ValueError:
-            continue
-        wanted.setdefault((str(row.get("name", "")).strip().upper(), day), []).append(index)
-    if not wanted:
-        return []
-    days = {day for _, day in wanted}
-    taken = scoped_vessels(profile, target, prefetch=False).filter(date__in=days).values_list("name", "date")
-    found = {(name.strip().upper(), day) for name, day in taken}
-    return sorted(i for key, indexes in wanted.items() if key in found for i in indexes)

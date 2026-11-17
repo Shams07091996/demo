@@ -56,14 +56,6 @@ class HistoryRecordingTests(ApiTestCase):
         self.assertTrue(all(r.username == "alex" for r in records(action="delete")))
         self.assertEqual({r.port for r in records(action="delete")}, {"alexandria"})
 
-    def test_bulk_add_records_each_vessel(self):
-        rows = [{"name": f"BULK {i}", "date": "2026-11-13"} for i in range(3)]
-        status, data = self.call(self.login("alex"), "post", "/api/vessels/bulk/", {"rows": rows})
-        self.assertEqual(status, 201)
-        created = records(object_type="vessel", action="create", username="alex")
-        self.assertEqual(sorted(r.object_id for r in created), sorted(v["id"] for v in data["vessels"]))
-        self.assertEqual({r.port for r in created}, {"alexandria"})
-
     def test_booking_guests_are_recorded(self):
         alex = self.login("alex")
         payload = {

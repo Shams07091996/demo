@@ -145,7 +145,7 @@ class ApiErrorsAreJsonTests(TestCase):
         self.client.get("/")
         token = self.client.cookies["csrftoken"].value
         body = '{"rows": "' + "x" * (settings.DATA_UPLOAD_MAX_MEMORY_SIZE + 10) + '"}'
-        response = self.client.post("/api/vessels/bulk/", body, content_type="application/json", HTTP_X_CSRFTOKEN=token)
+        response = self.client.post("/api/vessels/", body, content_type="application/json", HTTP_X_CSRFTOKEN=token)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response["Content-Type"], "application/json")
         self.assertIn("error", response.json())
