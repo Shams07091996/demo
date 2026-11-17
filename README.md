@@ -35,7 +35,7 @@ CREATE DATABASE marine_sheet OWNER marine_app;
 
 The connection is encrypted by default (`sslmode=require`); use `verify-full` with a CA file when you can. **PostgreSQL
 does not encrypt the data on disk by itself** – see `SECURITY.md` §1 for what is and isn't encrypted and what to do about it.
-This version was tested on PostgreSQL 16. A local PostgreSQL without a certificate needs `DJANGO_DB_SSLMODE=disable`.
+This version was tested on PostgreSQL 17 (all 204 tests; the older suite also on 16). A local PostgreSQL without a certificate needs `DJANGO_DB_SSLMODE=disable`.
 
 **Moving existing data from SQLite to PostgreSQL** (Django's own export / import; users keep their hashed passwords):
 
@@ -102,7 +102,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 201 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
+python manage.py test sheet         # 204 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)

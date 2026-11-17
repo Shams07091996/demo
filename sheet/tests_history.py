@@ -1,9 +1,9 @@
 """Change history (A09, A08): every create / update / delete is recorded with who, when, where and old → new."""
 
 from datetime import date
-from unittest import mock
+from unittest import mock, skipUnless
 
-from django.db import DatabaseError
+from django.db import DatabaseError, connection, transaction
 from django.test import Client, TestCase
 
 from .models import ChangeRecord, Guest, HotelStay, Option, Service, Vessel
@@ -176,3 +176,33 @@ class UserAccountHistoryTests(TestCase):
         before = ChangeRecord.objects.count()
         Client().login(username="signer", password="first-password-long")
         self.assertEqual(ChangeRecord.objects.count(), before)
+
+
+@skipUnless(connection.vendor == "postgresql", "the append-only trigger exists on PostgreSQL only")
+class PostgresAppendOnlyTriggerTests(TestCase):
+    def setUp(self):
+        Option.objects.create(kind="opr", value="TRIGGER")
+        self.record = ChangeRecord.objects.latest("id")
+
+    def test_an_update_is_refused(self):
+        with self.assertRaisesMessage(DatabaseError, "append-only"), transaction.atomic():
+            ChangeRecord.objects.filter(pk=self.record.pk).update(username="someone else")
+        self.record.refresh_from_db()
+        self.assertEqual(self.record.username, "system")
+
+    def test_a_delete_is_refused(self):
+        with self.assertRaisesMessage(DatabaseError, "append-only"), transaction.atomic():
+            ChangeRecord.objects.filter(pk=self.record.pk).delete()
+        self.assertTrue(ChangeRecord.objects.filter(pk=self.record.pk).exists())
+
+    def test_deleting_a_user_keeps_their_history(self):
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user("leaver", password="first-password-long")
+        mine = ChangeRecord.objects.create(
+            user=user, username="leaver", action="create", object_type="option", object_id=1, changes={}
+        )
+        user.delete()
+        mine.refresh_from_db()
+        self.assertIsNone(mine.user)
+        self.assertEqual(mine.username, "leaver")

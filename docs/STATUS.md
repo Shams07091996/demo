@@ -11,10 +11,14 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
   - `feature/owasp-2025` — merged into `main` 2026-11-17; can be deleted when the user agrees.
   - `feature/safe-dom-and-checks` — merged; can be deleted (`git branch -d feature/safe-dom-and-checks`) when the
     user agrees.
-- **The user's own database:** the user will use **PostgreSQL only**. The old `db.sqlite3` (test data) was deleted
-  on 2026-11-17. PostgreSQL isn't set up for the app yet: create the role and database (README "PostgreSQL"), then
-  `migrate` and create the real users. SQLite stays in the code only for the throwaway test databases.
-- **Tests (on `main`):** `cd tools && npm run check` → all passed (201 backend tests); `tools` parser tests pass; the jsdom smoke test
+- **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
+  Database `marine_sheet`, signed in as `postgres` for now (password in the user's
+  `%APPDATA%\postgresql\pgpass.conf`, never in the project). All migrations through `0010` applied; no users yet.
+  The old `db.sqlite3` (test data) was deleted. Before company data: a dedicated `marine_app` login instead of the
+  superuser, and a stronger `postgres` password.
+  App settings for it: `DJANGO_DB_NAME=marine_sheet DJANGO_DB_USER=postgres DJANGO_DB_HOST=localhost
+  DJANGO_DB_PORT=5432 DJANGO_DB_SSLMODE=disable` (the local server has SSL off and accepts local connections only).
+- **Tests (on `main`):** `cd tools && npm run check` → all passed (204 backend tests; the backend suite also passes on PostgreSQL 17); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
@@ -77,8 +81,6 @@ Ideas raised along the way:
 ## Left open — small things the user hasn't decided on yet
 
 OWASP 2025 (from the final review, minor / for the user to decide):
-- The change history's PostgreSQL trigger has never run on a real PostgreSQL (suite runs on SQLite): run `migrate`,
-  delete a user who has history, try an UPDATE, before shipping.
 - The history keeps crew personal data (guest names, crew in services) forever and, on PostgreSQL, undeletable:
   conflicts with right-to-erasure — a policy decision for the company.
 - Splitting the database roles (migrations as owner, app with only SELECT / INSERT on the history) would make the
@@ -96,7 +98,6 @@ Vessel list:
 - The default month and "Today / Tomorrow" labels use the browser's clock, not Cairo's.
 - Sorting by Port uses the port key, not its label.
 - The vessel cache can show figures another user changed, until reload.
-- SECURITY.md claims the tests also run on PostgreSQL 16; the newer ones have only run on SQLite.
 
 Bulk add:
 - The 200-row limit message is above the table, out of view of "+ Add row".
