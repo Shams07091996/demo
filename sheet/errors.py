@@ -15,3 +15,17 @@ class BadRequest(ApiError):
 
 class Forbidden(ApiError):
     status = 403
+
+
+class TooManyRequests(ApiError):
+    status = 429
+
+    def __init__(self, message="Too many requests — wait a minute and try again.", **extra):
+        super().__init__(message, **extra)
+
+
+class ServiceUnavailable(ApiError):
+    status = 503
+
+    def __init__(self, message="The server is busy — try again in a moment.", **extra):
+        super().__init__(message, **extra)

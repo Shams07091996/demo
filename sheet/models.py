@@ -185,3 +185,14 @@ class LoginAttempt(models.Model):
 
     def __str__(self):
         return f"{self.key}: {self.failures}"
+
+
+class RateCounter(models.Model):
+    """Requests counted per key in a time window: API rate limits and alert thresholds (ratelimit.py, alerts.py)."""
+
+    key = models.CharField(max_length=200, unique=True)
+    count = models.PositiveIntegerField(default=0)
+    window_start = models.DateTimeField()
+
+    def __str__(self):
+        return f"{self.key}: {self.count}"

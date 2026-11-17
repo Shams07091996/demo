@@ -131,6 +131,12 @@ if not DEBUG:
 _ip_header = os.environ.get("DJANGO_CLIENT_IP_HEADER", "").strip()
 CLIENT_IP_META_KEY = "HTTP_" + _ip_header.upper().replace("-", "_") if _ip_header else ""
 
+# API rate limits (sheet/ratelimit.py), per window: writes per user and per address, CSV exports per user.
+RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("DJANGO_RATE_LIMIT_WINDOW_SECONDS", 600))
+RATE_LIMIT_WRITES_PER_USER = int(os.environ.get("DJANGO_RATE_LIMIT_WRITES_PER_USER", 120))
+RATE_LIMIT_WRITES_PER_IP = int(os.environ.get("DJANGO_RATE_LIMIT_WRITES_PER_IP", 600))
+RATE_LIMIT_EXPORTS_PER_USER = int(os.environ.get("DJANGO_RATE_LIMIT_EXPORTS_PER_USER", 20))
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

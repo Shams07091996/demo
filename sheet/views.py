@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, listing, logistics
+from . import calculations, listing, logistics, ratelimit
 from .access import profile_of, require_admin, require_edit, scoped_vessels
 from .api import audit, json_api, read_json
 from .constants import (
@@ -26,7 +26,7 @@ from .constants import (
     TIME_FIELDS,
     TIME_KEYS,
 )
-from .errors import BadRequest, Forbidden
+from .errors import BadRequest, Forbidden, TooManyRequests
 from .models import ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import clean_bulk, clean_service_data, clean_vessel
@@ -321,6 +321,10 @@ def _display_time(local_iso_value):
 def export_csv(request):
     if not request.user.is_authenticated:
         return HttpResponse(status=401)
+    try:
+        ratelimit.check(request, "export")
+    except TooManyRequests as error:
+        return JsonResponse({"error": str(error)}, status=error.status)
     profile = profile_of(request.user)
     try:
         filters = listing.parse_filters(request.GET, paged=False)

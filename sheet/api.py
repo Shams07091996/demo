@@ -6,6 +6,7 @@ from functools import wraps
 
 from django.http import JsonResponse
 
+from . import ratelimit
 from .access import profile_of
 from .errors import ApiError, BadRequest
 from .netutils import client_ip
@@ -28,6 +29,7 @@ def json_api(view):
             return JsonResponse({"error": "Please log in again."}, status=401)
         request.profile = profile_of(request.user)
         try:
+            ratelimit.check(request)
             return view(request, *args, **kwargs)
         except ApiError as error:
             if error.status == 403:
