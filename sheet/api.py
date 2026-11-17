@@ -6,6 +6,7 @@ import secrets
 from functools import wraps
 
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
+from django.db import transaction
 from django.http import Http404, JsonResponse
 
 from . import alerts, ratelimit
@@ -52,6 +53,10 @@ def json_api(view):
         request.profile = profile_of(request.user)
         try:
             ratelimit.check(request)
+            if request.method in ratelimit.WRITE_METHODS:
+                # One transaction per write: the change and its history record are saved together or not at all.
+                with transaction.atomic():
+                    return view(request, *args, **kwargs)
             return view(request, *args, **kwargs)
         except ApiError as error:
             if error.status == 403:

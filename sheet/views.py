@@ -10,10 +10,11 @@ from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, listing, logistics, ratelimit
+from . import calculations, history, listing, logistics, ratelimit
 from .access import profile_of, require_admin, require_edit, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
 from .constants import (
@@ -28,7 +29,7 @@ from .constants import (
     TIME_KEYS,
 )
 from .errors import BadRequest, Forbidden, TooManyRequests
-from .models import ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
+from .models import ChangeRecord, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import clean_bulk, clean_service_data, clean_vessel
 
@@ -93,6 +94,7 @@ def vessels_bulk(request):
     rows = clean_bulk(payload.get("rows"), request.profile, default_port=payload.get("port"))
     with transaction.atomic():
         created = Vessel.objects.bulk_create([Vessel(**fields) for fields in rows])
+        history.record_created(created)
     audit(request, "vessel.bulk_create", count=len(created), port=request.profile.port or "any")
     rates = month_rates()
     return JsonResponse({"vessels": [vessel_to_dict(v, rates) for v in created]}, status=201)
@@ -429,3 +431,50 @@ def server_error(request):
     if response is not None:
         return response
     return HttpResponse(render_to_string("500.html", {"ref": ref}), status=500)
+
+
+HISTORY_PAGE_SIZES = (10, 25, 50, 100)
+
+
+@json_api
+@require_http_methods(["GET"])
+def history_list(request):
+    """The change history, newest first; admins only (it spans every port). Filters: from / to (dates, Cairo time),
+    type (object type), user (username), page, page_size."""
+    require_admin(request.profile)
+    params = request.GET
+    date_from, date_to = listing.date_param(params, "from"), listing.date_param(params, "to")
+    if date_from and date_to and date_from > date_to:
+        raise BadRequest("From must be on or before To.")
+    page = listing.int_param(params, "page", 1, 1, 10**9, "Page must be a whole number from 1.")
+    page_size = listing.int_param(params, "page_size", 25, 1, 100, "Rows per page must be 10, 25, 50 or 100.")
+    if page_size not in HISTORY_PAGE_SIZES:
+        raise BadRequest("Rows per page must be 10, 25, 50 or 100.")
+    rows = ChangeRecord.objects.all()
+    if date_from:
+        rows = rows.filter(at__date__gte=date_from)
+    if date_to:
+        rows = rows.filter(at__date__lte=date_to)
+    if params.get("type"):
+        rows = rows.filter(object_type=params["type"][:30])
+    if params.get("user"):
+        rows = rows.filter(username=params["user"][:150])
+    count = rows.count()
+    pages = max(1, -(-count // page_size))
+    page = min(page, pages)
+    start = (page - 1) * page_size
+    records = [
+        {
+            "id": r.id,
+            "at": timezone.localtime(r.at).isoformat(),
+            "username": r.username,
+            "ip": r.ip,
+            "action": r.action,
+            "object_type": r.object_type,
+            "object_id": r.object_id,
+            "port": r.port,
+            "changes": r.changes,
+        }
+        for r in rows.order_by("-id")[start : start + page_size]
+    ]
+    return JsonResponse({"records": records, "count": count, "pages": pages, "page": page})

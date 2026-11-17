@@ -38,6 +38,7 @@ urlpatterns = [
     path("api/rates/", views.rates, name="api_rates"),
     path("api/rates/<int:pk>/", views.rate_delete, name="api_rate_delete"),
     path("api/calculations/", views.calculations_list, name="api_calculations"),
+    path("api/history/", views.history_list, name="api_history"),
     path("api/hotels/", views.bookings, {"kind": "hotels"}, name="api_hotels"),
     path("api/hotels/<int:pk>/", views.booking_detail, {"kind": "hotels"}, name="api_hotel"),
     path("api/transfers/", views.bookings, {"kind": "transfers"}, name="api_transfers"),

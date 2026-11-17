@@ -192,13 +192,15 @@ async function login() {
     closeModal();
     ok([...$('#qa-agent').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: quick add offers their own agent');
     await w.fetch(`/api/options/${own.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
+    await checkHistory();
     return finish();
   }
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'viewer' ? 7 : 8), 'sidebar lists the pages (read-only users have no Bulk add)');
-  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === 'vessels,bulk,hotels,transport,calculations,dashboard,master,rates', 'Calculations sits after Transport');
+  ok($('#sidebar') && navItems.length === ({ viewer: 7, admin: 9 }[ROLE] || 8), 'sidebar lists the pages (read-only users have no Bulk add, admins have History)');
+  const pageOrder = 'vessels,bulk,hotels,transport,calculations,dashboard,master,rates' + (ROLE === 'admin' ? ',history' : '');
+  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Calculations sits after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
   for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
@@ -344,6 +346,7 @@ async function login() {
       ok(!shown($(`#${p}-add`)) && /Cost/.test($(`#${p}-head`).textContent) && /Revenue/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button but sees cost and revenue`);
       ok(shown($(`#${p}-port`)), `read-only: ${page} has the port selector`);
     }
+    await checkHistory();
     return finish();
   }
 
@@ -870,7 +873,30 @@ async function login() {
     const res = await w.fetch(`/api/vessels/${hostileId}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
     ok(res.ok, 'hostile-text vessel deleted');
   }
+
+  await checkHistory();
   finish();
+
+  /** The change history: admins read it on the History page; everyone else gets no page and a 403. */
+  async function checkHistory() {
+    const historyStatus = (await w.fetch('/api/history/')).status;
+    if (ROLE === 'admin') {
+      ok(historyStatus === 200, 'history: admin may read the change history');
+      await go('history');
+      const historyRows = () => $$('#hi-tbody tr');
+      ok(await waitFor(() => historyRows().length > 0), 'history: the page lists changes');
+      ok(historyRows().some((r) => r.textContent.includes('admin') && r.textContent.includes('Deleted Vessel')), "history: this run's own deletes are listed");
+      ok(historyRows().some((r) => r.textContent.includes(HOSTILE)) && noMarkup($('#hi-tbody')), 'history: a markup-like vessel name shows literally');
+      ok([...$('#hi-pager #hi-page-size').options].map((o) => o.value).join() === '10,25,50,100', 'history: rows per page 10/25/50/100');
+      type($('#hi-type'), 'exchangerate');
+      ok(await waitFor(() => historyRows().length > 0 && historyRows().every((r) => r.textContent.includes('Exchange rate'))), 'history: filter by what changed');
+    } else {
+      ok(historyStatus === 403, `history: ${ROLE} gets 403 from the history API`);
+      ok(!$('#nav [data-page="history"]') && !$('#page-history'), `history: ${ROLE} has no History page`);
+      w.location.hash = 'history';
+      ok(await waitFor(() => $('#pageTitle').textContent === 'Vessels'), `history: ${ROLE} opening #history lands on Vessels`);
+    }
+  }
 
   function finish() {
     ok(jsErrors.length === 0, `no JavaScript errors${jsErrors.length ? ': ' + jsErrors.join('; ') : ''}`);

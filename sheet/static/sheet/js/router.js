@@ -3,6 +3,7 @@ import { ME } from './config.js';
 import { loadDashboard, loadOptions, loadRates } from './data.js';
 import { hotelsPage, transportPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
+import { historyPage } from './pages/history.js';
 import { initBulkPage } from './pages/bulk.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
@@ -18,6 +19,7 @@ const TITLES = {
   dashboard: 'Dashboard',
   master: 'Master data',
   rates: 'Exchange rates',
+  history: 'History',
 };
 
 const pageFromHash = () => {
@@ -26,7 +28,8 @@ const pageFromHash = () => {
 };
 
 export async function showPage(requested) {
-  const name = requested === 'bulk' && !ME.canEdit ? 'vessels' : requested; // read-only users cannot add
+  let name = requested === 'bulk' && !ME.canEdit ? 'vessels' : requested; // read-only users cannot add
+  if (name === 'history' && !ME.isAdmin) name = 'vessels'; // the change history is for admins only
   state.page = name;
   $$('.page').forEach((page) => { page.hidden = page.id !== `page-${name}`; });
   $$('#nav .nav-item').forEach((link) => link.classList.toggle('active', link.dataset.page === name));
@@ -38,6 +41,7 @@ export async function showPage(requested) {
   if (name === 'hotels') await hotelsPage.load();
   if (name === 'transport') await transportPage.load();
   if (name === 'calculations') await calculationsPage.load();
+  if (name === 'history') await historyPage.load();
   if (name === 'master') {
     await loadOptions(); // refresh the "used by N vessels" counts
     renderMasterPage();
