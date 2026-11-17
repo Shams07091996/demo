@@ -1,6 +1,7 @@
 // The bell and the banner: vessels with a date of today or tomorrow (state.alerts, from the server).
 import { state } from '../state.js';
-import { $, dayISO, dmy, esc, today } from '../util.js';  // today / dayISO only label the groups
+import { h, setChildren } from '../dom.js';
+import { $, dayISO, dmy, today } from '../util.js';  // today / dayISO only label the groups
 
 const COLLAPSED_KEY = 'sheet.alertsCollapsed';
 
@@ -22,7 +23,8 @@ export function toggleAlerts() {
   buildNotifications();
 }
 
-const serviceTags = (v) => v.services.map((s) => `<span class="tag">${esc(s.type)}</span>`).join(' ');
+// Tags separated by spaces, as before.
+const serviceTags = (v) => v.services.flatMap((s, i) => [i ? ' ' : null, h('span', { class: 'tag' }, s.type)]);
 
 export function buildNotifications() {
   const todayIso = today();
@@ -37,27 +39,31 @@ export function buildNotifications() {
   $('#bell').classList.toggle('alert', total > 0);
 
   const bannerRow = (v, kind, label) =>
-    `<div class="notif-row ${kind}" data-act="summary" data-id="${v.id}"><b>${label}</b><span>🚢 ${esc(v.name)}</span>${serviceTags(v)}</div>`;
+    h('div', { class: `notif-row ${kind}`, dataset: { act: 'summary', id: v.id } },
+      h('b', null, label), h('span', null, `🚢 ${v.name}`), serviceTags(v));
   const banner = $('#notifBanner');
   const collapsed = alertsCollapsed();
   banner.style.display = total ? 'flex' : 'none';
   banner.classList.toggle('collapsed', collapsed);
-  const head = `<div class="notif-head"><span>🔴 <b>${todays.length}</b> today · 🟡 <b>${tomorrows.length}</b> tomorrow</span>
-    <span class="spacer"></span>
-    <button class="btn ghost small" data-act="toggle-alerts" aria-expanded="${!collapsed}">${collapsed ? 'Show ▾' : 'Hide ▴'}</button></div>`;
-  banner.innerHTML = head + (collapsed ? '' :
-    todays.map((v) => bannerRow(v, 'today', '🔴 Today')).join('') +
-    tomorrows.map((v) => bannerRow(v, 'tomorrow', '🟡 Tomorrow')).join(''));
+  const head = h('div', { class: 'notif-head' },
+    h('span', null, '🔴 ', h('b', null, todays.length), ' today · 🟡 ', h('b', null, tomorrows.length), ' tomorrow'),
+    h('span', { class: 'spacer' }),
+    h('button', { class: 'btn ghost small', dataset: { act: 'toggle-alerts' }, attrs: { 'aria-expanded': String(!collapsed) } },
+      collapsed ? 'Show ▾' : 'Hide ▴'));
+  setChildren(banner, head, collapsed ? null : [
+    todays.map((v) => bannerRow(v, 'today', '🔴 Today')),
+    tomorrows.map((v) => bannerRow(v, 'tomorrow', '🟡 Tomorrow')),
+  ]);
 
-  const panelItem = (v) => `<div class="notif-item" data-act="summary" data-id="${v.id}">
-      <b>🚢 ${esc(v.name)}</b>
-      <div class="none" style="font-size:12px">📅 ${dmy(v.date)} · ${esc(v.opr)}</div>
-      <div style="margin-top:4px">${serviceTags(v)}</div></div>`;
+  const panelItem = (v) => h('div', { class: 'notif-item', dataset: { act: 'summary', id: v.id } },
+    h('b', null, `🚢 ${v.name}`),
+    h('div', { class: 'none', style: { fontSize: '12px' } }, `📅 ${dmy(v.date)} · ${v.opr}`),
+    h('div', { style: { marginTop: '4px' } }, serviceTags(v)));
   const group = (list, color, title) =>
-    list.length ? `<div class="notif-group" style="color:${color}">${title}</div>${list.map(panelItem).join('')}` : '';
-  $('#notifPanel').innerHTML = total
-    ? group(todays, 'var(--danger)', `🔴 Today — ${dmy(todayIso)}`) + group(tomorrows, 'var(--gold)', `🟡 Tomorrow — ${dmy(tomorrowIso)}`)
-    : '<div class="empty">✅ No vessels today or tomorrow.</div>';
+    list.length ? [h('div', { class: 'notif-group', style: { color } }, title), list.map(panelItem)] : null;
+  setChildren($('#notifPanel'), total
+    ? [group(todays, 'var(--danger)', `🔴 Today — ${dmy(todayIso)}`), group(tomorrows, 'var(--gold)', `🟡 Tomorrow — ${dmy(tomorrowIso)}`)]
+    : h('div', { class: 'empty' }, '✅ No vessels today or tomorrow.'));
 }
 
 export const closePanel = () => $('#notifPanel').classList.remove('open');

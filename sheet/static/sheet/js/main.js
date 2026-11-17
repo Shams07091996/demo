@@ -1,7 +1,9 @@
 // Entry point: wires the page together and loads the first data.
 import { actions, moveOption } from './actions.js';
-import { ME, PORTS, el } from './config.js';
+import { portOptionEls } from './components.js';
+import { ME, el } from './config.js';
 import { loadAlerts, loadOptions, loadVessels, setFilter } from './data.js';
+import { setChildren } from './dom.js';
 import { setStatus } from './feedback.js';
 import { closeModal, isModalOpen } from './modal.js';
 import { onBookingInput } from './modals/booking.js';
@@ -152,7 +154,7 @@ setupQuickAdd();
 if (ME.seesAll) {
   document.body.classList.add('show-port');
   const select = $('#portSelect');
-  select.innerHTML = `<option value="ALL">🌐 All ports</option>${PORTS.map((p) => `<option value="${p.key}">${p.label}</option>`).join('')}`;
+  setChildren(select, portOptionEls({ all: true }));
   select.style.display = '';
   select.addEventListener('change', () => {
     if (ME.isAdmin && select.value !== 'ALL') {

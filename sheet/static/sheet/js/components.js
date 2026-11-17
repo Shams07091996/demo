@@ -1,5 +1,6 @@
 // Small HTML building blocks shared by several screens. Every dynamic value is escaped.
-import { PORT_LABEL, STATUS_LABEL, TIME_FIELDS } from './config.js';
+import { PORTS, PORT_LABEL, STATUS_LABEL, TIME_FIELDS } from './config.js';
+import { h, optionEls } from './dom.js';
 import { optionValues } from './state.js';
 import { dmy, esc, fmt, fmtDuration, fmtStamp, oprClass, sign } from './util.js';
 
@@ -72,3 +73,19 @@ export function serviceCounts(vessel) {
   const chips = Object.entries(counts).map(([type, n]) => `<span class="svc-chip">${esc(type)} ×${n}</span>`);
   return chips.join('') || '<span class="none"><i>No services</i></span>';
 }
+
+/* ---- element builders (no HTML strings) ---- */
+
+export const statusChipEl = (status) =>
+  h('span', { class: `status-chip st-${status}` }, STATUS_LABEL[status] || status);
+
+/** <option>s for a Master-data list; with `port`, only values for that port (+ All ports). `current` is always kept. */
+export function optionChoicesEl(kind, current = '', port = null) {
+  const values = optionValues(kind, port);
+  const all = current && !values.includes(current) ? [...values, current] : values;
+  return [h('option', { value: '' }, '—'), ...all.map((v) => h('option', { value: v, selected: v === current }, v))];
+}
+
+/** Port <option>s; with `all`, a first "🌐 All ports" option (value ALL). */
+export const portOptionEls = ({ all = false, selected = '' } = {}) =>
+  optionEls([...(all ? [['ALL', '🌐 All ports']] : []), ...PORTS.map((p) => [p.key, p.label])], selected);

@@ -1,7 +1,9 @@
 // The "Quick add" bar above the vessel table.
 import { api, mutate } from './api.js';
-import { ME, PORTS } from './config.js';
+import { portOptionEls } from './components.js';
+import { ME } from './config.js';
 import { afterVesselSaved } from './data.js';
+import { setChildren } from './dom.js';
 import { openVessel } from './modals/vessel.js';
 import { $, today } from './util.js';
 
@@ -40,7 +42,7 @@ export function setupQuickAdd() {
 
   if (ME.isAdmin) {
     const select = $('#qa-port');
-    select.innerHTML = PORTS.map((p) => `<option value="${p.key}">${p.label}</option>`).join('');
+    setChildren(select, portOptionEls());
     select.style.display = '';
   }
 }

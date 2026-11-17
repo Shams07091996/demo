@@ -1,9 +1,10 @@
 // The vessels tab: port banner, filter inputs, table and the quick-add dropdowns.
 // Everything shown comes from the server (state.vessels = the current page). Clicking a row opens the vessel.
 import { PORT_COLOR, PORT_LABEL, ME } from '../config.js';
-import { optionChoices, statusChip, tagLabel } from '../components.js';
+import { optionChoicesEl, statusChipEl, tagLabel } from '../components.js';
+import { h, setChildren } from '../dom.js';
 import { state } from '../state.js';
-import { $, $$, dmy, esc, oprClass } from '../util.js';
+import { $, $$, dmy, oprClass } from '../util.js';
 
 export function renderPortBanner() {
   const port = ME.port || (state.filter.port !== 'ALL' ? state.filter.port : null);
@@ -34,27 +35,29 @@ export function renderFilterInputs() {
   });
 }
 
-function rowHtml(v) {
+function rowEl(v) {
   const tags = v.services.length
-    ? `<div class="tags">${v.services.map((s) => `<span class="tag">${esc(tagLabel(s))}</span>`).join('')}</div>`
-    : '<span class="none">—</span>';
-  return `<tr data-id="${v.id}">
-    <td><span class="vessel-name">${esc(v.name)}</span>${v.status && v.status !== 'scheduled' ? statusChip(v.status) : ''}</td>
-    <td><span class="badge opr-${oprClass(v.opr)}">${esc(v.opr || '—')}</span></td>
-    <td><span class="badge poc">${esc(v.poc || '—')}</span></td>
-    <td>${esc(v.agent || '—')}</td>
-    <td class="col-port">${esc(PORT_LABEL[v.port] || v.port)}</td>
-    <td>${dmy(v.date)}</td>
-    <td>${tags}</td>
-    <td><button class="btn ghost small btn-green" data-act="summary" data-id="${v.id}">📋 Summary</button></td>
-    <td>${ME.canEdit ? `<button class="btn danger small" data-act="del-vessel-row" data-id="${v.id}" title="Delete this vessel and its services">🗑 Delete</button>` : ''}</td>
-  </tr>`;
+    ? h('div', { class: 'tags' }, v.services.map((s) => h('span', { class: 'tag' }, tagLabel(s))))
+    : h('span', { class: 'none' }, '—');
+  return h('tr', { dataset: { id: v.id } },
+    h('td', null, h('span', { class: 'vessel-name' }, v.name), v.status && v.status !== 'scheduled' ? statusChipEl(v.status) : null),
+    h('td', null, h('span', { class: `badge opr-${oprClass(v.opr)}` }, v.opr || '—')),
+    h('td', null, h('span', { class: 'badge poc' }, v.poc || '—')),
+    h('td', null, v.agent || '—'),
+    h('td', { class: 'col-port' }, PORT_LABEL[v.port] || v.port),
+    h('td', null, dmy(v.date)),
+    h('td', null, tags),
+    h('td', null, h('button', { class: 'btn ghost small btn-green', dataset: { act: 'summary', id: v.id } }, '📋 Summary')),
+    h('td', null, ME.canEdit
+      ? h('button', { class: 'btn danger small', dataset: { act: 'del-vessel-row', id: v.id }, attrs: { title: 'Delete this vessel and its services' } }, '🗑 Delete')
+      : null),
+  );
 }
 
 /** The current page exactly as the server sent it (already filtered, sorted and paged). */
 export function renderTable() {
   $('#empty').style.display = state.vessels.length ? 'none' : 'block';
-  $('#tbody').innerHTML = state.vessels.map(rowHtml).join('');
+  setChildren($('#tbody'), state.vessels.map(rowEl));
 }
 
 /** Refill every OPR / POC / Agent dropdown outside dialogs (quick-add bar and bulk-add defaults), each for its port. */
@@ -63,7 +66,7 @@ export function fillQuickSelects() {
   for (const [prefix, port] of [['#qa', portOf('#qa-port')], ['#bk', portOf('#bk-port')]]) {
     for (const kind of ['opr', 'poc', 'agent']) {
       const select = $(`${prefix}-${kind}`);
-      select.innerHTML = optionChoices(kind, select.value, port);
+      setChildren(select, optionChoicesEl(kind, select.value, port));
     }
   }
 }

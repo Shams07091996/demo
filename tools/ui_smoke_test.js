@@ -88,12 +88,35 @@ async function login() {
   };
   if (ROLE === 'admin') await clearTestRate();
 
+  // A vessel whose texts look like markup: every screen must show them literally (editors only; viewers can't add).
+  const HOSTILE = 'SMOKE <i>X</i> & "Q"';
+  const HOSTILE_AGENT = '<b>A</b> &amp;';
+  // The page's own <b> labels are fine; an <i>/<b> holding the hostile inner texts (or any <img>) is not.
+  const noMarkup = (root) => !!root && !root.querySelector('img')
+    && ![...root.querySelectorAll('i, b')].some((e) => ['X', 'A', 'O', 'R', 'G', 'M', 'B'].includes(e.textContent.trim()));
+  let hostileId = null;
+  if (ROLE === 'alex' || ROLE === 'admin') {
+    const res = await w.fetch('/api/vessels/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
+      body: JSON.stringify({ name: HOSTILE, agent: HOSTILE_AGENT, opr: '<i>O</i>', port: 'alexandria', date: localNow() }),
+    });
+    hostileId = (await res.json()).id;
+    ok(res.status === 201 || res.status === 200, `hostile-text vessel created (HTTP ${res.status})`);
+  }
+
   // Run the app the way a page does: as a <script> element (no eval).
   const appScript = w.document.createElement('script');
   appScript.textContent = bundle;
   w.document.body.appendChild(appScript);
   await waitFor(() => $$('#tbody tr').length > 0);
   console.log(`role: ${ROLE} | vessels: ${$$('#tbody tr').map((t) => t.querySelector('.vessel-name').textContent).join(', ')}`);
+  if (hostileId) {
+    const row = () => $(`#tbody tr[data-id="${hostileId}"]`);
+    ok(await waitFor(() => row()), 'hostile vessel is listed');
+    ok(row().querySelector('.vessel-name').textContent === HOSTILE && noMarkup(row()), 'vessels list: markup-like name shows literally');
+    ok(row().textContent.includes(HOSTILE_AGENT) && row().textContent.includes('<i>O</i>'), 'vessels list: agent and OPR show literally (no double escaping)');
+    ok(await waitFor(() => $('#notifPanel').textContent.includes(HOSTILE)) && noMarkup($('#notifPanel')) && $('#notifBanner').textContent.includes(HOSTILE) && noMarkup($('#notifBanner')), 'alerts: markup-like name shows literally');
+  }
 
   // A port user outside Alexandria (run: node ui_smoke_test.js suez): their own Master-data values are offered in the
   // Add vessel form. A short, separate run: the rest of this script is written for alex / admin / viewer.
@@ -267,6 +290,15 @@ async function login() {
 
   if (ROLE === 'alex') ok($('#portBanner').textContent.includes('Alexandria'), 'port user sees the port banner');
   if (ROLE === 'admin') ok($('#qa-port').style.display !== 'none' && $('#portSelect').style.display !== 'none', 'admin sees the port selectors');
+  if (ROLE === 'admin') {
+    const keepPort = $('#qa-port').value;
+    const pick = [...$('#qa-opr').options].find((o) => o.value)?.value; // the demo data's OPRs are All-ports values
+    type($('#qa-opr'), pick);
+    type($('#qa-port'), 'suez');
+    ok(pick && $('#qa-opr').value === pick, 'quick add: changing the port keeps the chosen OPR');
+    type($('#qa-port'), keepPort);
+    type($('#qa-opr'), '');
+  }
 
   /* ======== master data page ======== */
   await go('master');
@@ -739,6 +771,10 @@ async function login() {
   }
   ok(!$('#master-grid').textContent.includes('SMOKE'), 'master data values removed');
   if (ROLE === 'admin') await clearTestRate();
+  if (hostileId) {
+    const res = await w.fetch(`/api/vessels/${hostileId}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
+    ok(res.ok, 'hostile-text vessel deleted');
+  }
   finish();
 
   function finish() {
