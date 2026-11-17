@@ -11,10 +11,9 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
   - `feature/owasp-2025` — merged into `main` 2026-11-17; can be deleted when the user agrees.
   - `feature/safe-dom-and-checks` — merged; can be deleted (`git branch -d feature/safe-dom-and-checks`) when the
     user agrees.
-- **The user's own database** (`db.sqlite3`, not in git): migrations through `0008` are applied; **`0009` (rate
-  counters) and `0010` (change history) still need `migrate`** — the app needs their tables.
-  It still has one **shared** agent and one shared hotel from before per-port Master data; an admin can move them to
-  a port on the Master data page.
+- **The user's own database:** the user will use **PostgreSQL only**. The old `db.sqlite3` (test data) was deleted
+  on 2026-11-17. PostgreSQL isn't set up for the app yet: create the role and database (README "PostgreSQL"), then
+  `migrate` and create the real users. SQLite stays in the code only for the throwaway test databases.
 - **Tests (on `main`):** `cd tools && npm run check` → all passed (201 backend tests); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
