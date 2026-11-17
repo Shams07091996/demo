@@ -6,13 +6,14 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 ## Where things stand right now
 
 - **Git branches:**
-  - `main` — everything up to and including Master data per port.
-  - `feature/safe-dom-and-checks` — **checked out**, built and tested, **not merged yet** (merge only when the user
-    says so; no migration needed). Piece 1 of 3 of the user's security push (see Next).
+  - `main` — **checked out**; everything built so far, up to and including safe page building + checks (merged
+    2026-11-17). No unmerged work.
+  - `feature/safe-dom-and-checks` — merged; can be deleted (`git branch -d feature/safe-dom-and-checks`) when the
+    user agrees.
 - **The user's own database** (`db.sqlite3`, not in git) is up to date: migrations through `0008` are applied.
   It still has one **shared** agent and one shared hotel from before per-port Master data; an admin can move them to
   a port on the Master data page.
-- **Tests (on the branch):** `cd tools && npm run check` → all passed (152 backend tests); `tools` parser tests pass; the jsdom smoke test
+- **Tests (on `main`):** `cd tools && npm run check` → all passed (152 backend tests); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
@@ -26,7 +27,7 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-15 | ☰ hides / shows the sidebar on wide screens; alerts banner can shrink to one line; dev `runserver` sends static files with `no-cache` | — |
 | 2026-11-16 | 🏨 Hotels and 🚗 Transport pages: bookings for 1–6 crew guests of a vessel (rooms and cars can be shared), entered on their own pages with the guest picked from the vessel's crew change; transfers name which airport / hotel / port (Master data lists) | `2026-11-16-hotels-and-transport-design.md` |
 | 2026-11-16 | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
-| 2026-11-17 (branch, unmerged) | Safe page building: no `innerHTML` / HTML strings anywhere (screens built with `js/dom.js`), browser-enforced by Trusted Types and a CSP with no inline styles; every `eval` removed (PDF.js patched); ruff security rules, ESLint, pip-audit, npm audit and `npm run check` | `2026-11-17-safe-dom-and-checks-design.md` |
+| 2026-11-17 | Safe page building: no `innerHTML` / HTML strings anywhere (screens built with `js/dom.js`), browser-enforced by Trusted Types and a CSP with no inline styles; every `eval` removed (PDF.js patched); ruff security rules, ESLint, pip-audit, npm audit and `npm run check` | `2026-11-17-safe-dom-and-checks-design.md` |
 | 2026-11-17 | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
@@ -54,7 +55,7 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 The user is **selling the app to their company: security comes first** ("no security vulnerability should be there").
 Their security push has three pieces, in this order:
 
-1. **Safe page building + checks** — built on `feature/safe-dom-and-checks`; fresh review, then merge on the user's OK.
+1. **Safe page building + checks** — done and merged (2026-11-17).
 2. **OWASP Top 10 (2025) review** — go through every 2025 category (incl. the new *Software Supply Chain Failures*
    and *Mishandling of Exceptional Conditions*), fix what it finds, rewrite SECURITY.md §2 for the 2025 list.
 3. **Two-step login (MFA)**, at least for admins — the biggest known gap; it changes how people sign in, so design
