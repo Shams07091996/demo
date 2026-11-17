@@ -60,6 +60,7 @@ data loads, but run the test suite against PostgreSQL once before relying on it.
 | Dashboard | Charts and cards per OPR for the same date range, totalled by the server |
 | Master data | Add / remove the OPR, POC, Agent, Hotel, Airport and Port values used in the dropdowns (with "used by N"). Each value belongs to **one port or All ports**: admins choose when adding and can move it later; port users' values are for their port. Every dropdown offers only the item's port plus All-ports values |
 | Exchange rates | Monthly USD → EGP rates (shared by every port, so only admins can change them) |
+| History | **Admins only.** Every create / change / delete (vessels, services, bookings, guests, Master data, rates, user roles) with who, when, from which address and old → new; filter by date, what changed and user. Nobody can edit or delete it |
 
 Each vessel also records its **agent** and its **port-call times** (arrived, berthed, ops started, ops finished, sailed – Cairo
 time) with the time spent at berth / operating / in port. Operations may start before berthing (anchorage work); other
@@ -91,16 +92,17 @@ Port restrictions are enforced on the server for every request, not just hidden 
 ## Security
 
 Short version: role- and port-based access control on every request, CSRF protection, brute-force lock-out (also on the
-admin login), 60-minute idle sessions, 12+ character passwords, strict Content-Security-Policy with no third-party scripts,
-encrypted database connection, audit and security logs, validated input and escaped output.
+admin login), API rate limits, 60-minute idle sessions, 12+ character passwords, `__Host-` cookies, strict
+Content-Security-Policy with no third-party scripts, hash-locked dependencies, encrypted database connection, audit and
+security logs, a tamper-proof change history, alerting, JSON errors with a reference, validated input and escaped output.
 
-**Read `SECURITY.md`** for the answer to "is the data encrypted?", the OWASP Top 10 mapping, the known gaps (no MFA, no
+**Read `SECURITY.md`** for the answer to "is the data encrypted?", the OWASP Top 10 (2025) mapping, the known gaps (no MFA, no
 field-level encryption) and the deployment checklist.
 
 ## Tests
 
 ```bash
-python manage.py test sheet         # 155 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
+python manage.py test sheet         # 194 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
@@ -130,7 +132,8 @@ UI_TEST_PASSWORD="a-long-password" node ui_smoke_test.js alex   # also: viewer, 
 config/                 settings and database setup (all environment-driven), urls
 sheet/
   constants.py          ports, roles, service types
-  models.py             Vessel, Service, ExchangeRate, Option (OPR / POC / Agent), Profile, LoginAttempt
+  models.py             Vessel, Service, ExchangeRate, Option, Profile, bookings, LoginAttempt, RateCounter,
+                        ChangeRecord
   validators.py         cleaning of everything the browser sends
   finance.py            cost / revenue / profit maths
   access.py             who may see / change what
@@ -139,6 +142,10 @@ sheet/
   listing.py            vessel list: date range, search, sorting, paging, totals, alerts, dashboard
   views.py              page, API, CSV
   throttle.py, signals.py   login failure counting and security logging
+  ratelimit.py          API rate limits (writes, CSV export)
+  alerts.py             alert record / e-mail when lock-outs, denials or errors pass a threshold
+  history.py            change history (signals + request context), History API in views.py
+  checks.py             deploy check: proxy without client-IP header
   middleware.py         login lock-out, CSP and other headers
   tests.py
   static/sheet/js/      front end as ES modules (main.js is the entry point)

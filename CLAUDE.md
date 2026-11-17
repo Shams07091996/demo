@@ -35,7 +35,9 @@ cd tools && npm run check                                      # EVERYTHING: ruf
                                                                # check --deploy, backend + parser + dom tests
 ```
 
-Dev tools are in `requirements-dev.txt` (ruff with the security rules `S`, pip-audit) and `tools/package.json`
+`requirements.txt` is a **hash-locked** file generated from `requirements.in` (`pip-compile --generate-hashes
+--strip-extras requirements.in -o requirements.txt`; install with `--require-hashes`); `tests_supply_chain` checks them.
+Dev tools are in `requirements-dev.txt` (ruff with the security rules `S`, pip-audit, pip-tools) and `tools/package.json`
 (ESLint 9, `tools/eslint.config.js`, run from the repo root). `npm run check` must stay green before a merge.
 
 ### Browser smoke test (`tools/ui_smoke_test.js`)
@@ -55,6 +57,8 @@ cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # t
 - A run that fails part-way leaves its test vessels behind and later runs then fail on them: start from a fresh
   database (or delete the leftovers) before trusting a result.
 - `runserver --noreload` caches templates **and Python code**: restart it after editing `index.html` or any `.py`.
+- The smoke test's writes count against the API rate limits (120 writes / 10 min per user, 600 per address): fine for
+  one run of each role; many back-to-back runs on one server may need `DJANGO_RATE_LIMIT_*` raised.
 - `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers and a USD Fresh Water service at
   the month rate 50; the smoke test relies on both.
 - Assertions on anything async (search, date inputs, alerts, duplicate checks) must `waitFor`, not read immediately.
@@ -65,10 +69,21 @@ cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # t
 `script-src 'self'`) forbids inline scripts, so page context goes to the browser through `json_script` tags and is read
 in `static/sheet/js/config.js`. Everything else is fetched from `/api/...` (routes in `sheet/urls.py`).
 
-**Every API view** is wrapped in `api.json_api` (auth check, `request.profile`, maps `errors.ApiError` subclasses to
-JSON errors, logs 403s) and must get vessels through `access.scoped_vessels(profile, port)`, which pins port users to
-their own port whatever `port` they send. Writes call `access.require_edit` / `require_admin` (exchange rates are
-shared by all ports, so admin-only). Changes are recorded with `api.audit(...)`; values go through `api.log_safe`.
+**Every API view** is wrapped in `api.json_api` (auth check, `request.profile`, rate limit via `ratelimit.check`,
+**one `transaction.atomic` per write**, maps `errors.ApiError` subclasses to JSON errors, logs 403s, turns any other
+exception into `{"error", "ref"}` 500 with the ref in the `sheet.security` log) and must get vessels through
+`access.scoped_vessels(profile, port)`, which pins port users to their own port whatever `port` they send. Writes call
+`access.require_edit` / `require_admin` (exchange rates are shared by all ports, so admin-only). Changes are recorded
+with `api.audit(...)`; values go through `api.log_safe`. `handler404` / `handler500` (`views.not_found` /
+`server_error`) answer JSON under `/api/`, plain pages elsewhere.
+
+**Security plumbing:** `ratelimit.py` (writes per user / address, CSV per user, counted in `RateCounter`; a broken
+counter refuses writes, allows reads), `alerts.note(kind)` (threshold → one `sheet.alert` record + `mail_admins`),
+`checks.py` (deploy check `sheet.E001`). **Change history** (`history.py`): model signals on Vessel, Service,
+HotelStay, Transfer, Guest, Option, ExchangeRate, Profile write a `ChangeRecord` (who / when / IP / old → new) in the
+same transaction; `bulk_create` sends no signals, so callers use `history.record_created`. The request comes from
+`HistoryMiddleware` (none → "system"). Append-only (read-only admin; PostgreSQL trigger in migration 0010).
+`GET /api/history/` is admin-only; the History page is `js/pages/history.js`, rendered in the template for admins only.
 
 **Input** is cleaned only in `validators.py` (whitelisted keys, length limits, typed numbers). Services store their
 details as JSON in `Service.data`, whose shape per type is defined by `clean_service_data`.
@@ -115,7 +130,8 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
   `outerHTML`, `insertAdjacentHTML`, `document.write`, `DOMParser`, inline `style=` or `eval` / `new Function`: ESLint
   bans them, the CSP (`require-trusted-types-for 'script'`, `style-src-attr 'none'`) makes the browser refuse them,
   and `sheet/tests_frontend_safety.py` checks the files. Hide/show template elements with the `hidden` attribute.
-  No Trusted Types policy may be created (`trusted-types 'none'`); there is no PDF reader any more.
+  No Trusted Types policy may be created (`trusted-types 'none'`); there is no PDF reader any more (removed for
+  security; crew are added with + Add and pasted text).
 - `bulkParsing.js` (`parseBulk`, `checkRows`) and `crewParsing.js` are pure and unit-tested in `tools/parsing_test.js`.
 
 **Dev server caching:** `sheet/management/commands/runserver.py` overrides `runserver` to send static files with
