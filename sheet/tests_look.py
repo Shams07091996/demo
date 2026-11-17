@@ -110,3 +110,51 @@ class ThemeCookieTests(ApiTestCase):
         for value in ("red", "<b>x</b>", "d" * 500, "Dark"):
             client.cookies["theme"] = value
             self.assertEqual(self.html_tag(client, "/"), '<html lang="en">')
+
+
+# Emoji, pictographs, dingbats, arrows (but the plain → of "old → new" / routes is text) and variation selectors.
+EMOJI = re.compile("[←↑↓-⇿⌀-⏿①-➿⬀-⯿\U0001f000-\U0001ffff️]")
+SPRITE_PATH = BASE / "sheet" / "templates" / "sheet" / "icons.svg"
+DOM_JS = BASE / "sheet" / "static" / "sheet" / "js" / "dom.js"
+
+
+def sprite():
+    return SPRITE_PATH.read_text(encoding="utf-8") if SPRITE_PATH.exists() else ""
+
+
+def icons_list():
+    found = re.search(r"export const ICONS = Object\.freeze\(\[([^\]]*)\]\)", DOM_JS.read_text(encoding="utf-8"))
+    return re.findall(r"'([a-z0-9-]+)'", found.group(1)) if found else []
+
+
+class IconTests(SimpleTestCase):
+    def test_no_emoji_in_templates_or_js(self):
+        offenders = [f"{p.relative_to(BASE)}:{i}" for p in [*TEMPLATES, *JS_FILES]
+                     for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if EMOJI.search(line)]
+        self.assertEqual(offenders, [])
+
+    def test_sprite_matches_icons_list(self):
+        ids = re.findall(r'<symbol id="i-([a-z0-9-]+)"', sprite())
+        self.assertTrue(ids)
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(sorted(ids), sorted(icons_list()))
+
+    def test_every_used_icon_exists(self):
+        known = set(re.findall(r'<symbol id="i-([a-z0-9-]+)"', sprite()))
+        used = {m for p in JS_FILES for m in re.findall(r"\bicon\('([^']*)'", p.read_text(encoding="utf-8"))}
+        used |= {m for p in TEMPLATES for m in re.findall(r'href="#i-([^"]*)"', p.read_text(encoding="utf-8"))}
+        self.assertTrue(used)
+        self.assertEqual(used - known, set())
+
+    def test_sprite_is_plain(self):
+        text = sprite()
+        self.assertTrue(text.startswith("<svg "))
+        for bad in ("<script", "href", "<use", "<image", "<foreignObject", "style", "{%", "{{"):
+            self.assertNotIn(bad, text, bad)
+        self.assertNotRegex(text, r"\son[a-z]+\s*=")
+
+    def test_pages_with_icons_include_the_sprite(self):
+        for page in TEMPLATES:
+            text = page.read_text(encoding="utf-8")
+            if 'href="#i-' in text:
+                self.assertIn('{% include "sheet/icons.svg" %}', text, page.name)

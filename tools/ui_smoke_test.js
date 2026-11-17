@@ -336,6 +336,7 @@ async function login() {
       ok(!shown($(`#${p}-add`)) && /Cost/.test($(`#${p}-head`).textContent) && /Revenue/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button but sees cost and revenue`);
       ok(shown($(`#${p}-port`)), `read-only: ${page} has the port selector`);
     }
+    checkIcons();
     await checkTheme();
     await checkDashboard();
     await checkHistory();
@@ -755,6 +756,7 @@ async function login() {
     ok(await waitFor(() => !/AHMED TEST|LATE TEST|STEP \d/.test($(`#${p}-tbody`).textContent)), `${page}: test bookings deleted`);
   }
 
+  checkIcons();
   await checkTheme();
 
   /* ======== dashboard ======== */
@@ -783,6 +785,14 @@ async function login() {
 
   await checkHistory();
   finish();
+
+  /** Line icons instead of emojis: the sidebar draws them from the page's sprite and no screen text holds an emoji. */
+  function checkIcons() {
+    const uses = $$('#sidebar svg.ic use');
+    ok(uses.length >= 7 && uses.every((u) => w.document.getElementById(u.getAttribute('href').slice(1))), 'icons: sidebar icons point at symbols of the sprite');
+    const emoji = /[←↑↓-⇿⌀-⏿①-➿⬀-⯿\u{1F000}-\u{1FFFF}️]/u;
+    ok(!emoji.test(w.document.body.textContent), 'icons: no emoji in any text on the page');
+  }
 
   /** Dark / light switch in the sidebar: flips the page, relabels itself, sets the cookie; works with storage blocked. */
   async function checkTheme() {

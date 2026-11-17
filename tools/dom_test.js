@@ -15,7 +15,7 @@ const code = buildSync({
 }).outputFiles[0].text;
 const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'dom-')), 'dom.cjs');
 fs.writeFileSync(file, code);
-const { h, frag, setChildren, optionEls } = require(file);
+const { h, frag, setChildren, optionEls, icon, ICONS } = require(file);
 
 let failed = 0;
 const check = (cond, label) => { console.log(`${cond ? 'PASS' : 'FAIL'} ${label}`); if (!cond) failed += 1; };
@@ -72,6 +72,19 @@ check(host.childNodes.length === 0, 'setChildren with nothing empties it');
 const opts = optionEls([['', 'All'], ['x', '<b>']], 'x');
 check(opts.length === 2 && opts[1].selected && !opts[0].selected, 'optionEls selects the current value');
 check(opts[1].textContent === '<b>' && opts[1].value === 'x', 'option label stays text');
+
+// Icons: an <svg> in the SVG namespace that only ever points at a known #i-NAME symbol of the page's sprite.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const ship = icon && icon('ship');
+check(!!ship && ship.namespaceURI === SVG_NS && ship.localName === 'svg' && ship.getAttribute('class') === 'ic'
+  && ship.getAttribute('aria-hidden') === 'true', 'icon() builds an aria-hidden svg.ic');
+check(!!ship && ship.firstChild.namespaceURI === SVG_NS && ship.firstChild.getAttribute('href') === '#i-ship', 'icon() points at its #i- symbol');
+check(!!icon && icon('trash', 'big').getAttribute('class') === 'ic big', 'icon() takes an extra class');
+for (const bad of ['nope', '../x', 'Ship', 'ship" onload="x', '', 'javascript:x', ' ship']) {
+  check(throws(() => icon(bad)), `icon() refuses ${JSON.stringify(bad)}`);
+}
+check(Array.isArray(ICONS) && Object.isFrozen(ICONS) && ICONS.includes('ship'), 'ICONS is a frozen list');
+check(!!ship && h('button', null, ship, ' Ship').firstChild === ship, 'h() takes an icon as a child');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

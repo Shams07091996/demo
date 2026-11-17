@@ -1,12 +1,12 @@
 // Exchange rates page.
 import { ME } from '../config.js';
-import { h, setChildren } from '../dom.js';
+import { h, icon, setChildren } from '../dom.js';
 import { state } from '../state.js';
 import { $, localISO } from '../util.js';
 
 export function renderRatesPage() {
   const chips = state.rates.map((r) => h('span', { class: 'rate-chip' }, `${r.label} `, h('b', null, r.rate),
-    ME.isAdmin ? h('button', { dataset: { act: 'del-rate', id: r.id }, attrs: { title: 'Delete' } }, '✕') : null));
+    ME.isAdmin ? h('button', { dataset: { act: 'del-rate', id: r.id }, attrs: { title: 'Delete', 'aria-label': 'Delete' } }, icon('trash')) : null));
   // Rates are shared by every port, so only admins may change them (the server enforces this too).
   let form = null;
   if (ME.isAdmin) {

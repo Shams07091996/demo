@@ -7,8 +7,9 @@
 <link rel="stylesheet" href="{% static 'sheet/app.css' %}">
 </head>
 <body class="login-body">
+{% include "sheet/icons.svg" %}
   <div class="login-card">
-    <div class="login-logo"><span class="anchor">⚓</span><h1>MARINE <span>SERVICE SHEET</span></h1></div>
+    <div class="login-logo"><span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><h1>MARINE <span>SERVICE SHEET</span></h1></div>
     <div class="login-error">This page does not exist.</div>
     <a class="btn primary wide center" href="/">Back to the sheet</a>
   </div>

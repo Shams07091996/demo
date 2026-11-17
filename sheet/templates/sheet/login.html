@@ -7,10 +7,11 @@
 <link rel="stylesheet" href="{% static 'sheet/app.css' %}">
 </head>
 <body class="login-body">
+{% include "sheet/icons.svg" %}
   <form method="post" class="login-card">
     {% csrf_token %}
     <div class="login-logo">
-      <span class="anchor">⚓</span>
+      <span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span>
       <h1>MARINE <span>SERVICE SHEET</span></h1>
       <p>Sign in to continue</p>
     </div>

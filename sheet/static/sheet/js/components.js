@@ -1,6 +1,6 @@
 // Small building blocks shared by several screens. They return elements (built with h()), never HTML strings.
 import { PORTS, PORT_LABEL, STATUS_LABEL, TIME_FIELDS } from './config.js';
-import { h, optionEls } from './dom.js';
+import { h, icon, optionEls } from './dom.js';
 import { optionValues } from './state.js';
 import { dmy, fmt, fmtDuration, fmtStamp, oprClass, sign } from './util.js';
 
@@ -23,21 +23,27 @@ export function optionChoicesEl(kind, current = '', port = null) {
   return [h('option', { value: '' }, '—'), ...all.map((v) => h('option', { value: v, selected: v === current }, v))];
 }
 
-/** Port <option>s; with `all`, a first "🌐 All ports" option (value ALL). */
+/** Sort marker of a table heading: which column sorts, and which way. */
+export const sortIcon = (active, dir) => {
+  if (!active) return icon('sort');
+  return dir === 'asc' ? icon('chevron-up') : icon('chevron-down');
+};
+
+/** Port <option>s; with `all`, a first "All ports" option (value ALL). */
 export const portOptionEls = ({ all = false, selected = '' } = {}) =>
-  optionEls([...(all ? [['ALL', '🌐 All ports']] : []), ...PORTS.map((p) => [p.key, p.label])], selected);
+  optionEls([...(all ? [['ALL', 'All ports']] : []), ...PORTS.map((p) => [p.key, p.label])], selected);
 
 /** Dialog header: title, optional meta line (nodes or text), close button. */
 export const headEl = (title, meta = null) =>
   h('div', { class: 'm-head' },
     h('div', null, h('h2', null, title), meta ? h('div', { class: 'm-meta' }, meta) : null),
-    h('button', { class: 'x', dataset: { act: 'close' }, attrs: { 'aria-label': 'Close' } }, '✕'));
+    h('button', { class: 'x', dataset: { act: 'close' }, attrs: { 'aria-label': 'Close' } }, icon('x')));
 
 export const metaBadgesEl = (v) => [
   h('span', { class: `badge opr-${oprClass(v.opr)}` }, v.opr || '—'), ' ',
   h('span', { class: 'badge poc' }, v.poc || '—'), ' ',
-  h('span', null, `📅 ${dmy(v.date)}`), ' ',
-  h('span', null, `⚓ ${PORT_LABEL[v.port] || v.port}`),
+  h('span', { class: 'meta-item' }, icon('calendar'), ` ${dmy(v.date)}`), ' ',
+  h('span', { class: 'meta-item' }, icon('anchor'), ` ${PORT_LABEL[v.port] || v.port}`),
 ];
 
 /** A label / value pill; both are inserted as text (or nodes). */

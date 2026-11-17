@@ -3,7 +3,7 @@ import {
   headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass, statusChipEl,
 } from '../components.js';
 import { ME, MULTI, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
-import { h, setChildren } from '../dom.js';
+import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { ensureVessel } from '../data.js';
 import { state } from '../state.js';
@@ -44,7 +44,7 @@ function serviceSummary(service) {
 
 function serviceCard(service) {
   const actions = ME.canEdit
-    ? [btn('ghost small', 'edit-service', '✏ Edit', { id: service.id }), ' ', btn('danger small', 'del-service', '✕', { id: service.id })]
+    ? [btn('ghost small', 'edit-service', [icon('pencil'), ' Edit'], { id: service.id }), ' ', btn('danger small', 'del-service', [icon('trash'), ' Delete'], { id: service.id })]
     : null;
   return h('div', { class: 'svc-card' },
     h('div', { class: 'svc-top' }, h('strong', null, service.type), h('div', { class: 'svc-actions' }, actions)),
@@ -71,11 +71,11 @@ export async function openVessel(id) {
         ? h('div', { class: 'warn' }, `No exchange rate set for ${month}. USD amounts are counted 1:1 until you add one. `,
           h('a', { href: '#rates', dataset: { act: 'goto', page: 'rates' } }, 'Set rates'))
         : null,
-      h('div', { class: 'section-title' }, h('span', null, '🕒 Port call'),
-        ME.canEdit ? btn('ghost small', 'edit-vessel', '✏ Edit times & agents') : null),
+      h('div', { class: 'section-title' }, h('span', null, 'Port call'),
+        ME.canEdit ? btn('ghost small', 'edit-vessel', [icon('pencil'), ' Edit times & agents']) : null),
       portCallBlockEl(vessel),
       h('div', { class: 'section-title', style: { marginTop: '20px' } }, h('span', null, 'Services'),
-        h('span', null, btn('ghost small btn-green', 'summary', '📋 Summary of services', { id: vessel.id }), ' ',
+        h('span', null, btn('ghost small btn-green', 'summary', [icon('file'), ' Summary of services'], { id: vessel.id }), ' ',
           ME.canEdit ? btn('primary small', 'add-service', '+ Add service') : null)),
       totals,
       vessel.services.length ? vessel.services.map(serviceCard) : h('div', { class: 'hint' }, 'No services recorded for this vessel yet.')),
@@ -132,11 +132,11 @@ export function openVesselForm(vessel) {
         h('div', { class: 'field' }, h('label', null, 'Date'), h('input', { attrs: { type: 'date', name: 'date' }, value: vessel ? vessel.date : today() })),
         portField),
       h('div', { class: 'section-title', style: { marginTop: '6px' } },
-        h('span', null, '🕒 Port call times ',
+        h('span', null, 'Port call times ',
           h('small', { class: 'none', style: { textTransform: 'none', letterSpacing: '0' } }, '(Cairo time, all optional)'))),
       h('div', { class: 'row two' }, TIME_FIELDS.map((f) => timeField(f, vessel))),
       h('details', { class: 'fold', open: Object.keys(summary).length > 0 },
-        h('summary', null, '💰 Financial summary (optional)'),
+        h('summary', null, 'Financial summary (optional)'),
         h('div', { class: 'row two' }, SUMMARY_FIELDS.map((key) => h('div', { class: 'field' }, h('label', null, key),
           h('input', { dataset: { sum: key }, attrs: { maxlength: 80 }, value: summary[key] })))),
         h('div', { class: 'hint' }, 'Total Cost LE is worked out automatically from the services.'))),

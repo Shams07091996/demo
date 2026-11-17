@@ -3,7 +3,7 @@ import {
   headEl, metaBadgesEl, pillEl, portCallBlockEl, profitClass, serviceCountsEl, statusChipEl, tagLabel,
 } from '../components.js';
 import { MULTI, NO_AGENT, SINGLE_EXTRA } from '../config.js';
-import { h } from '../dom.js';
+import { h, icon } from '../dom.js';
 import { openModal } from '../modal.js';
 import { api } from '../api.js';
 import { ensureVessel } from '../data.js';
@@ -84,17 +84,17 @@ function serviceBlock(service) {
   else if (MULTI.includes(service.type)) inner = multiEntryBlock(service);
   else if (service.type === 'Cash to Master') inner = cashToMasterBlock(service);
   else inner = singleBlock(service);
-  return h('div', { class: 'sum-block' }, h('h4', null, `⚙ ${service.type}`), inner);
+  return h('div', { class: 'sum-block' }, h('h4', null, service.type), inner);
 }
 
 function crewBlock(service) {
   const on = service.data.onSigners || [];
   const off = service.data.offSigners || [];
   return h('div', { class: 'crew-box' },
-    h('h4', { class: 'crew-title' }, '👥 Crew Change ', h('span', { class: 'tag' }, `↑ ${on.length} On`), ' ',
-      h('span', { class: 'tag' }, `↓ ${off.length} Off`)),
-    h('div', { class: 'section-title', style: { marginTop: '10px', color: 'var(--success)' } }, '↑ On-signers'), crewTable(on, 'on'),
-    h('div', { class: 'section-title', style: { color: 'var(--warning)' } }, '↓ Off-signers'), crewTable(off, 'off'),
+    h('h4', { class: 'crew-title' }, icon('users'), ' Crew Change ', h('span', { class: 'tag' }, `${on.length} On`), ' ',
+      h('span', { class: 'tag' }, `${off.length} Off`)),
+    h('div', { class: 'section-title', style: { marginTop: '10px', color: 'var(--success)' } }, 'On-signers'), crewTable(on, 'on'),
+    h('div', { class: 'section-title', style: { color: 'var(--warning)' } }, 'Off-signers'), crewTable(off, 'off'),
     hasMoney(service) ? singleBlock(service) : null);
 }
 
@@ -121,14 +121,14 @@ export async function openSummary(id) {
   openModal(
     headEl(vessel.name, [...metaBadgesEl(vessel), statusChipEl(vessel.status)]),
     h('div', { class: 'm-body' },
-      sectionTitle('🕒 Port call'), portCallBlockEl(vessel),
-      sectionTitle('📋 Services on this vessel', { marginTop: '20px' }),
+      sectionTitle('Port call'), portCallBlockEl(vessel),
+      sectionTitle('Services on this vessel', { marginTop: '20px' }),
       h('div', { style: { marginBottom: '14px' } }, serviceCountsEl(vessel)),
-      sectionTitle('⚙ Service details'), body,
-      sectionTitle('💰 Financial summary', { marginTop: '20px' }),
+      sectionTitle('Service details'), body,
+      sectionTitle('Financial summary', { marginTop: '20px' }),
       h('div', { class: 'sum-grid' }, summaryCards)),
     h('div', { class: 'm-foot' }, h('span'), h('div', { class: 'right' },
-      h('button', { class: 'btn ghost', dataset: { act: 'print' } }, '🖨 Print'), ' ',
+      h('button', { class: 'btn ghost', dataset: { act: 'print' } }, icon('printer'), ' Print'), ' ',
       h('button', { class: 'btn ghost', dataset: { act: 'open-vessel', id: vessel.id } }, 'Open details'), ' ',
       closeButton())),
   );
@@ -180,12 +180,12 @@ export async function openOprSummary(opr) {
   const countPills = Object.entries(counts).map(([k, n]) => pillEl(k, n, 'good'));
 
   openModal(
-    headEl(`📋 ${opr} — Services summary`, `${figures.vessels} vessels · ${figures.services} services · LE ${fmt(figures.cost_egp)}`),
+    headEl(`${opr} — Services summary`, `${figures.vessels} vessels · ${figures.services} services · LE ${fmt(figures.cost_egp)}`),
     h('div', { class: 'm-body' },
       list.count > list.vessels.length ? h('div', { class: 'hint' }, `Showing the first ${list.vessels.length} of ${list.count} vessels.`) : null,
-      sectionTitle('⚙ All services (combined)'),
+      sectionTitle('All services (combined)'),
       h('div', { class: 'pills', style: { marginBottom: '22px' } }, countPills.length ? countPills : h('span', { class: 'none' }, 'None')),
-      sectionTitle('🚢 Per vessel breakdown'), perVessel),
+      sectionTitle('Per vessel breakdown'), perVessel),
     h('div', { class: 'm-foot' }, h('span'), h('div', { class: 'right' }, closeButton())),
   );
 }

@@ -55,7 +55,7 @@ el.modal.addEventListener('change', onBookingInput);
 
 /* ---- top bar and sidebar ---- */
 $('#bell').addEventListener('click', (event) => { event.stopPropagation(); togglePanel(); });
-// ☰: on a small screen the sidebar slides in over the page; on a wide screen it hides / shows (remembered).
+// The menu button: on a small screen the sidebar slides in over the page; on a wide screen it hides / shows (remembered).
 const NAV_KEY = 'sheet.navCollapsed';
 const isNarrow = () => window.matchMedia?.('(max-width: 900px)').matches;
 try {

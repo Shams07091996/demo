@@ -56,13 +56,13 @@ export const newCrewMember = () => ({
 
 const flightNote = (m) => {
   const count = ((m.flightStructured || {}).segments || []).length;
-  return count ? `✓ ${count} flight${count > 1 ? 's' : ''} recognised` : '';
+  return count ? `${count} flight${count > 1 ? 's' : ''} recognised` : '';
 };
 
 const personalNote = (m) => {
   const p = m.personalStructured || {};
   const parts = [p.rank && `Rank: ${p.rank}`, p.nationality && `Nationality: ${p.nationality}`].filter(Boolean);
-  return parts.length ? `✓ ${parts.join(' · ')}` : '';
+  return parts.length ? parts.join(' · ') : '';
 };
 
 function crewGroupEl(group, label, color) {
@@ -89,8 +89,8 @@ function crewGroupEl(group, label, color) {
 
 export function renderCrewEditor() {
   setChildren($('#crew-editor'),
-    crewGroupEl('onSigners', '↑ On-signers', 'var(--success)'),
-    crewGroupEl('offSigners', '↓ Off-signers', 'var(--warning)'));
+    crewGroupEl('onSigners', 'On-signers', 'var(--success)'),
+    crewGroupEl('offSigners', 'Off-signers', 'var(--warning)'));
 }
 
 /* ---------- screens ---------- */

@@ -1,7 +1,7 @@
 // The bell and the banner: vessels with a date of today or tomorrow, and past vessels missing an agent
 // (state.alerts, from the server).
 import { state } from '../state.js';
-import { h, setChildren } from '../dom.js';
+import { h, icon, setChildren } from '../dom.js';
 import { $, dayISO, dmy, limitRows, today } from '../util.js';  // today / dayISO only label the groups
 
 const BANNER_MISSING_MAX = 20; // more than this: "+ N more" opens the bell panel, which lists them all
@@ -44,38 +44,38 @@ export function buildNotifications() {
 
   const bannerRow = (v, kind, label) =>
     h('div', { class: `notif-row ${kind}`, dataset: { act: 'summary', id: v.id } },
-      h('b', null, label), h('span', null, `🚢 ${v.name}`), serviceTags(v));
+      h('span', { class: `dot ${kind}` }), h('b', null, label), h('span', null, v.name), serviceTags(v));
   const missingRow = (v, cls) => h('div', { class: cls, dataset: { act: 'summary', id: v.id } },
-    h('b', null, 'Missing agent'), h('span', null, `🚢 ${v.name}`), h('span', { class: 'none' }, `${dmy(v.date)} · ${v.missing.join(', ')}`));
+    h('span', { class: 'dot missing' }), h('b', null, 'Missing agent'), h('span', null, v.name), h('span', { class: 'none' }, `${dmy(v.date)} · ${v.missing.join(', ')}`));
   const { shown: missingShown, more } = limitRows(missing, BANNER_MISSING_MAX);
   const banner = $('#notifBanner');
   const collapsed = alertsCollapsed();
   banner.hidden = !total;
   banner.classList.toggle('collapsed', collapsed);
   const head = h('div', { class: 'notif-head' },
-    h('span', null, '🔴 ', h('b', null, todays.length), ' today · 🟡 ', h('b', null, tomorrows.length), ' tomorrow',
+    h('span', null, h('span', { class: 'dot today' }), ' ', h('b', null, todays.length), ' today · ', h('span', { class: 'dot tomorrow' }), ' ', h('b', null, tomorrows.length), ' tomorrow',
       missing.length ? [' · ', h('b', null, missing.length), ' missing an agent'] : null),
     h('span', { class: 'spacer' }),
     h('button', { class: 'btn ghost small', dataset: { act: 'toggle-alerts' }, attrs: { 'aria-expanded': String(!collapsed) } },
-      collapsed ? 'Show ▾' : 'Hide ▴'));
+      collapsed ? ['Show ', icon('chevron-down')] : ['Hide ', icon('chevron-up')]));
   setChildren(banner, head, collapsed ? null : [
-    todays.map((v) => bannerRow(v, 'today', '🔴 Today')),
-    tomorrows.map((v) => bannerRow(v, 'tomorrow', '🟡 Tomorrow')),
+    todays.map((v) => bannerRow(v, 'today', 'Today')),
+    tomorrows.map((v) => bannerRow(v, 'tomorrow', 'Tomorrow')),
     missingShown.map((v) => missingRow(v, 'notif-row missing')),
     more ? h('button', { class: 'btn ghost small', dataset: { act: 'show-alerts-panel' } }, `+ ${more} more`) : null,
   ]);
 
   const panelItem = (v) => h('div', { class: 'notif-item', dataset: { act: 'summary', id: v.id } },
-    h('b', null, `🚢 ${v.name}`),
-    h('div', { class: 'none', style: { fontSize: '12px' } }, `📅 ${dmy(v.date)} · ${v.opr}`),
+    h('b', null, v.name),
+    h('div', { class: 'none', style: { fontSize: '12px' } }, `${dmy(v.date)} · ${v.opr}`),
     h('div', { style: { marginTop: '4px' } }, serviceTags(v)));
   const group = (list, color, title) =>
     list.length ? [h('div', { class: 'notif-group', style: { color } }, title), list.map(panelItem)] : null;
   setChildren($('#notifPanel'), total
-    ? [group(todays, 'var(--danger)', `🔴 Today — ${dmy(todayIso)}`), group(tomorrows, 'var(--warning)', `🟡 Tomorrow — ${dmy(tomorrowIso)}`),
+    ? [group(todays, 'var(--danger)', `Today — ${dmy(todayIso)}`), group(tomorrows, 'var(--warning)', `Tomorrow — ${dmy(tomorrowIso)}`),
       missing.length ? [h('div', { class: 'notif-group', style: { color: 'var(--accent)' } }, 'Missing agent'),
         missing.map((v) => missingRow(v, 'notif-item missing'))] : null]
-    : h('div', { class: 'empty' }, '✅ No vessels today or tomorrow.'));
+    : h('div', { class: 'empty' }, 'No vessels today or tomorrow.'));
 }
 
 export const closePanel = () => $('#notifPanel').classList.remove('open');

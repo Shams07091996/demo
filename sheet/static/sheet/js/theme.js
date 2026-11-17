@@ -1,5 +1,6 @@
 // Dark / light mode. The page follows the computer until the user picks; the pick is kept in a cookie (so the server
 // renders it at once, no flash) and in localStorage (kept if the cookie is cleared).
+import { icon, setChildren } from './dom.js';
 import { $ } from './util.js';
 
 const KEY = 'theme';
@@ -13,8 +14,11 @@ export function currentTheme() {
 }
 
 function labelButton() {
+  const dark = currentTheme() === 'dark';
   const label = $('#themeBtn .label');
-  if (label) label.textContent = currentTheme() === 'dark' ? 'Light mode' : 'Dark mode';
+  if (label) label.textContent = dark ? 'Light mode' : 'Dark mode';
+  const ico = $('#themeBtn .ico');
+  if (ico) setChildren(ico, dark ? icon('sun') : icon('moon'));
 }
 
 function apply(theme, { remember }) {

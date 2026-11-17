@@ -1,7 +1,7 @@
 // The Hotels and Transport pages: one list module, configured twice. The server filters, sorts and pages
 // (/api/hotels/, /api/transfers/); read-only users get no prices and no Add button.
 import { api } from '../api.js';
-import { portOptionEls } from '../components.js';
+import { portOptionEls, sortIcon } from '../components.js';
 import { ME } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
@@ -77,7 +77,7 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
 
   function renderHead() {
     setChildren($(id('head')), h('tr', null, cols.map((c) => h('th', { dataset: { bsort: c.sort } }, c.title,
-      c.sort ? [' ', h('span', { class: 'arrow' }, filter.sort === c.sort ? (filter.dir === 'asc' ? '↑' : '↓') : '↕')] : null))));
+      c.sort ? [' ', h('span', { class: 'arrow' }, sortIcon(filter.sort === c.sort, filter.dir))] : null))));
   }
 
   function render() {
