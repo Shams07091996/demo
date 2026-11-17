@@ -130,6 +130,35 @@ async function login() {
       ok($('#vessel-form [name=agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: changing the port keeps the chosen values');
     }
     closeModal();
+
+    // Services with markup-like texts: a remark and a crew member.
+    const addHostileService = async (type, fill) => {
+      click(row().querySelector('td'));
+      await waitFor(() => $('#modal [data-act="add-service"]'));
+      click($('#modal [data-act="add-service"]'));
+      await waitFor(() => $(`#modal [data-act="pick-type"][data-type="${type}"]`));
+      click($(`#modal [data-act="pick-type"][data-type="${type}"]`));
+      await waitFor(() => $('#svc-form'));
+      await fill();
+      click($('[data-act="save-service"]'));
+      return waitFor(() => $('#modal .svc-card') && !$('#svc-form'));
+    };
+    ok(await addHostileService('Others / Remarks', () => type($('#svc-form [name=note]'), '<b>R</b>')), 'remark with markup-like text saved');
+    ok(modalText().includes('<b>R</b>') && noMarkup($('#modal')), 'vessel details: remark shows literally');
+    click($('#modal [data-act="edit-service"]'));
+    ok(await waitFor(() => $('#svc-form [name=note]')?.value === '<b>R</b>'), 'service form: remark textarea holds the exact text');
+    closeModal();
+    ok(await addHostileService('Crew Change', async () => {
+      click($('#crew-editor [data-act="add-crew"][data-group="onSigners"]'));
+      await waitFor(() => $('#crew-editor [data-crew="name"]'));
+      type($('#crew-editor [data-crew="name"]'), '<b>R</b> crew');
+      ok($('#crew-editor .crew-name').textContent === '<b>R</b> crew' && noMarkup($('#crew-editor')), 'crew editor: typed name shows literally');
+    }), 'crew change with markup-like name saved');
+    ok(modalText().includes('<b>R</b> crew') && noMarkup($('#modal')), 'vessel details: crew name shows literally');
+    closeModal();
+    click(row().querySelector('[data-act="summary"]'));
+    ok(await waitFor(() => modalText().includes('<b>R</b> crew')) && modalText().includes('<b>R</b>') && noMarkup($('#modal')), 'summary: remark and crew name literal');
+    closeModal();
   }
 
   // A port user outside Alexandria (run: node ui_smoke_test.js suez): their own Master-data values are offered in the

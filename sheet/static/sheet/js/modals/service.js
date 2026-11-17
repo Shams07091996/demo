@@ -1,45 +1,49 @@
 // Adding / editing a service: the type picker, the per-type forms, the live profit preview and the crew editor.
 import { calcLocal } from '../calc.js';
-import { head } from '../components.js';
+import { headEl } from '../components.js';
 import { MULTI, SINGLE_EXTRA, TYPES } from '../config.js';
 import { parseFlightText, parsePdfText, parsePersonal } from '../crewParsing.js';
-import { openModalHtml } from '../modal.js';
+import { h, optionEls, setChildren } from '../dom.js';
+import { openModal } from '../modal.js';
 import { extractPdfText } from '../pdfReader.js';
 import { getVessel, state } from '../state.js';
-import { $, $$, esc, fmt, formValues, sign, val } from '../util.js';
+import { $, $$, fmt, formValues, sign } from '../util.js';
 
 /* ---------- form field builders ---------- */
 
-const currencyOptions = (selected) => ['EGP', 'USD'].map((c) => `<option ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
+const currencySelect = (props, selected) => h('select', props, optionEls([['EGP', 'EGP'], ['USD', 'USD']], selected));
+const numberInput = (props, value, extra = {}) =>
+  h('input', { ...props, attrs: { type: 'number', step: 'any', min: 0, ...extra, ...(props.attrs || {}) }, value });
+const field = (label, ...control) => h('div', { class: 'field' }, h('label', null, label), control);
 
-const moneyField = (label, amountName, currencyName, data, defaultCurrency) => `
-  <div class="field"><label>${label}</label><div class="row money">
-    <input type="number" step="any" min="0" name="${amountName}" value="${val(data[amountName])}" placeholder="0.00">
-    <select name="${currencyName}">${currencyOptions(data[currencyName] || defaultCurrency)}</select></div></div>`;
+const moneyField = (label, amountName, currencyName, data, defaultCurrency) =>
+  field(label, h('div', { class: 'row money' },
+    numberInput({ attrs: { name: amountName, placeholder: '0.00' } }, data[amountName]),
+    currencySelect({ attrs: { name: currencyName } }, data[currencyName] || defaultCurrency)));
 
-const rateField = (vessel, data) => `
-  <div class="field"><label>Exchange rate override (USD → EGP)</label>
-    <input type="number" step="any" min="0" name="exchangeRate" value="${val(data.exchangeRate)}" placeholder="Leave blank to use the monthly rate">
-    <div class="hint" style="margin:6px 0 0">Monthly rate for ${vessel.date.slice(5, 7)}.${vessel.date.slice(0, 4)}: <b>${vessel.rate ?? 'not set'}</b></div></div>`;
+const rateField = (vessel, data) =>
+  field('Exchange rate override (USD → EGP)',
+    numberInput({ attrs: { name: 'exchangeRate', placeholder: 'Leave blank to use the monthly rate' } }, data.exchangeRate),
+    h('div', { class: 'hint', style: { margin: '6px 0 0' } },
+      `Monthly rate for ${vessel.date.slice(5, 7)}.${vessel.date.slice(0, 4)}: `, h('b', null, vessel.rate ?? 'not set')));
 
-const previewBox = '<div id="preview" class="preview"></div>';
+const previewBox = () => h('div', { id: 'preview', class: 'preview' });
 
-export function entryRowHtml(type, entry = {}) {
+export function entryRowEl(type, entry = {}) {
   const isParcel = type === 'Delivery Parcels';
-  return `<div class="entry">
-    <div class="entry-head"><span class="entry-no"></span><button class="btn danger small" data-act="rm-entry">Remove</button></div>
-    <div class="row ${isParcel ? 'two' : ''}">
-      <div class="field"><label>AWB No.</label><input data-f="awb" value="${val(entry.awb)}" placeholder="e.g. 123-45678901"></div>
-      ${isParcel ? `<div class="field"><label>Weight (kg)</label><input type="number" step="any" min="0" data-f="weight" value="${val(entry.weight)}"></div>` : ''}
-    </div>
-    <div class="row two">
-      <div class="field"><label>Revenue</label><div class="row money">
-        <input type="number" step="any" min="0" data-f="revenue" value="${val(entry.revenue)}">
-        <select data-f="revenueCurrency">${currencyOptions(entry.revenueCurrency || 'USD')}</select></div></div>
-      <div class="field"><label>Cost</label><div class="row money">
-        <input type="number" step="any" min="0" data-f="cost" value="${val(entry.cost)}">
-        <select data-f="costCurrency">${currencyOptions(entry.costCurrency || 'EGP')}</select></div></div>
-    </div></div>`;
+  return h('div', { class: 'entry' },
+    h('div', { class: 'entry-head' }, h('span', { class: 'entry-no' }),
+      h('button', { class: 'btn danger small', dataset: { act: 'rm-entry' } }, 'Remove')),
+    h('div', { class: `row ${isParcel ? 'two' : ''}`.trim() },
+      field('AWB No.', h('input', { dataset: { f: 'awb' }, attrs: { placeholder: 'e.g. 123-45678901' }, value: entry.awb })),
+      isParcel ? field('Weight (kg)', numberInput({ dataset: { f: 'weight' } }, entry.weight)) : null),
+    h('div', { class: 'row two' },
+      field('Revenue', h('div', { class: 'row money' },
+        numberInput({ dataset: { f: 'revenue' } }, entry.revenue),
+        currencySelect({ dataset: { f: 'revenueCurrency' } }, entry.revenueCurrency || 'USD'))),
+      field('Cost', h('div', { class: 'row money' },
+        numberInput({ dataset: { f: 'cost' } }, entry.cost),
+        currencySelect({ dataset: { f: 'costCurrency' } }, entry.costCurrency || 'EGP')))));
 }
 
 export const renumberEntries = () =>
@@ -58,34 +62,38 @@ const flightNote = (m) => {
 
 const personalNote = (m) => {
   const p = m.personalStructured || {};
-  const parts = [p.rank && `Rank: ${esc(p.rank)}`, p.nationality && `Nationality: ${esc(p.nationality)}`].filter(Boolean);
+  const parts = [p.rank && `Rank: ${p.rank}`, p.nationality && `Nationality: ${p.nationality}`].filter(Boolean);
   return parts.length ? `✓ ${parts.join(' · ')}` : '';
 };
 
-function crewGroupHtml(group, label, color) {
+function crewGroupEl(group, label, color) {
   const isOff = group === 'offSigners';
-  const cards = state.crew[group].map((m, i) => `
-    <div class="crew-card ${m._open ? 'open' : ''}" data-group="${group}" data-i="${i}">
-      <div class="crew-head" data-act="toggle-crew"><span class="crew-name">${esc(m.name || `Crew member ${i + 1}`)}</span>
-        <button class="btn danger small" data-act="rm-crew">Remove</button></div>
-      <div class="crew-body">
-        <div class="field"><label>Full name</label><input data-crew="name" value="${val(m.name)}"></div>
-        <div class="field"><label>Flight details</label><textarea data-crew="flightData">${val(m.flightData)}</textarea>
-          <div class="parsed" data-parsed="flight">${flightNote(m)}</div></div>
-        <div class="field"><label>Personal data</label><textarea data-crew="personalData">${val(m.personalData)}</textarea>
-          <div class="parsed" data-parsed="personal">${personalNote(m)}</div></div>
-      </div></div>`);
-  return `<div class="section-title" style="${isOff ? 'margin-top:16px;' : ''}color:${color}">
-      <span>${label} (${state.crew[group].length})</span>
-      <span>${isOff ? '<button class="btn ghost small" data-act="pdf-pick">📄 Import flight PDFs</button> ' : ''}
-        <button class="btn ghost small" data-act="add-crew" data-group="${group}">+ Add</button></span></div>${cards.join('')}`;
+  const cards = state.crew[group].map((m, i) =>
+    h('div', { class: `crew-card ${m._open ? 'open' : ''}`.trim(), dataset: { group, i } },
+      h('div', { class: 'crew-head', dataset: { act: 'toggle-crew' } },
+        h('span', { class: 'crew-name' }, m.name || `Crew member ${i + 1}`),
+        h('button', { class: 'btn danger small', dataset: { act: 'rm-crew' } }, 'Remove')),
+      h('div', { class: 'crew-body' },
+        field('Full name', h('input', { dataset: { crew: 'name' }, value: m.name })),
+        field('Flight details', h('textarea', { dataset: { crew: 'flightData' }, value: m.flightData }),
+          h('div', { class: 'parsed', dataset: { parsed: 'flight' } }, flightNote(m))),
+        field('Personal data', h('textarea', { dataset: { crew: 'personalData' }, value: m.personalData }),
+          h('div', { class: 'parsed', dataset: { parsed: 'personal' } }, personalNote(m))))));
+  return [
+    h('div', { class: 'section-title', style: { ...(isOff ? { marginTop: '16px' } : {}), color } },
+      h('span', null, `${label} (${state.crew[group].length})`),
+      h('span', null,
+        isOff ? [h('button', { class: 'btn ghost small', dataset: { act: 'pdf-pick' } }, '📄 Import flight PDFs'), ' '] : null,
+        h('button', { class: 'btn ghost small', dataset: { act: 'add-crew', group } }, '+ Add'))),
+    cards,
+  ];
 }
 
 export function renderCrewEditor() {
-  $('#crew-editor').innerHTML =
-    crewGroupHtml('onSigners', '↑ On-signers', 'var(--success)') +
-    crewGroupHtml('offSigners', '↓ Off-signers', 'var(--gold)') +
-    '<input type="file" id="pdf-input" accept="application/pdf" multiple style="display:none">';
+  setChildren($('#crew-editor'),
+    crewGroupEl('onSigners', '↑ On-signers', 'var(--success)'),
+    crewGroupEl('offSigners', '↓ Off-signers', 'var(--gold)'),
+    h('input', { id: 'pdf-input', attrs: { type: 'file', accept: 'application/pdf', multiple: true }, style: { display: 'none' } }));
 }
 
 export async function importPdfs(input) {
@@ -109,49 +117,61 @@ export async function importPdfs(input) {
 
 /* ---------- screens ---------- */
 
+const footer = (...right) => h('div', { class: 'm-foot' },
+  h('button', { class: 'btn ghost', dataset: { act: 'back' } }, right.length ? 'Cancel' : '‹ Back'),
+  right.length ? h('div', { class: 'right' }, right) : h('span'));
+
 export function openTypePicker() {
   state.ctx.view = 'type-picker';
-  const buttons = TYPES.map((t) => `<button class="type-btn" data-act="pick-type" data-type="${esc(t)}">${esc(t)}</button>`);
-  openModalHtml(`${head('Add service', esc(getVessel(state.ctx.vesselId).name))}
-    <div class="m-body"><div class="type-grid">${buttons.join('')}</div></div>
-    <div class="m-foot"><button class="btn ghost" data-act="back">‹ Back</button><span></span></div>`);
+  openModal(
+    headEl('Add service', getVessel(state.ctx.vesselId).name),
+    h('div', { class: 'm-body' }, h('div', { class: 'type-grid' },
+      TYPES.map((t) => h('button', { class: 'type-btn', dataset: { act: 'pick-type', type: t } }, t)))),
+    footer(),
+  );
 }
 
 function cashToMasterFields(vessel, d) {
   const fixed = d.shareMode === 'fixed';
-  return `${moneyField('Amount given to the master', 'amount', 'amountCurrency', d, 'USD')}
-    <div class="row two">
-      <div class="field"><label>Our share is</label><select name="shareMode">
-        <option value="percent" ${fixed ? '' : 'selected'}>a percentage of the amount</option>
-        <option value="fixed" ${fixed ? 'selected' : ''}>a fixed figure</option></select></div>
-      <div class="field" id="pct-wrap" style="${fixed ? 'display:none' : ''}"><label>Percentage (%)</label>
-        <input type="number" step="any" min="0" max="100" name="percentage" value="${val(d.percentage)}"></div>
-      <div class="field" id="fixed-wrap" style="${fixed ? '' : 'display:none'}"><label>Revenue (same currency)</label>
-        <input type="number" step="any" min="0" name="fixedRevenue" value="${val(d.fixedRevenue)}"></div>
-    </div>
-    <div class="hint">Our revenue is a part of the amount, not on top of it. It updates as you type; the rest goes to the master.</div>
-    ${rateField(vessel, d)}${previewBox}`;
+  return [
+    moneyField('Amount given to the master', 'amount', 'amountCurrency', d, 'USD'),
+    h('div', { class: 'row two' },
+      field('Our share is', h('select', { attrs: { name: 'shareMode' } },
+        optionEls([['percent', 'a percentage of the amount'], ['fixed', 'a fixed figure']], fixed ? 'fixed' : 'percent'))),
+      h('div', { class: 'field', id: 'pct-wrap', style: { display: fixed ? 'none' : '' } }, h('label', null, 'Percentage (%)'),
+        numberInput({ attrs: { name: 'percentage' } }, d.percentage, { max: 100 })),
+      h('div', { class: 'field', id: 'fixed-wrap', style: { display: fixed ? '' : 'none' } }, h('label', null, 'Revenue (same currency)'),
+        numberInput({ attrs: { name: 'fixedRevenue' } }, d.fixedRevenue))),
+    h('div', { class: 'hint' }, 'Our revenue is a part of the amount, not on top of it. It updates as you type; the rest goes to the master.'),
+    rateField(vessel, d), previewBox(),
+  ];
 }
 
 function formFields(type, vessel, d) {
   // Every service has a cost and a revenue (Crew Change and Others / Remarks too).
-  const money = () => moneyField('Revenue', 'revenue', 'revenueCurrency', d, 'USD') +
-    moneyField('Cost', 'cost', 'costCurrency', d, 'EGP') + rateField(vessel, d) + previewBox;
+  const money = () => [
+    moneyField('Revenue', 'revenue', 'revenueCurrency', d, 'USD'), moneyField('Cost', 'cost', 'costCurrency', d, 'EGP'),
+    rateField(vessel, d), previewBox(),
+  ];
   if (type === 'Others / Remarks') {
-    return `<div class="field"><label>Notes</label><textarea name="note" maxlength="1000">${val(d.note)}</textarea></div>${money()}`;
+    return [field('Notes', h('textarea', { attrs: { name: 'note', maxlength: 1000 }, value: d.note })), money()];
   }
-  if (type === 'Crew Change') return `<div id="crew-editor"></div>${money()}`;
+  if (type === 'Crew Change') return [h('div', { id: 'crew-editor' }), money()];
   if (MULTI.includes(type)) {
-    return `<div id="entries">${(d.entries || []).map((e) => entryRowHtml(type, e)).join('')}</div>
-      <button class="btn ghost wide" data-act="add-entry" style="margin:0 0 12px">+ Add entry</button>${rateField(vessel, d)}${previewBox}`;
+    return [
+      h('div', { id: 'entries' }, (d.entries || []).map((e) => entryRowEl(type, e))),
+      h('button', { class: 'btn ghost wide', dataset: { act: 'add-entry' }, style: { margin: '0 0 12px' } }, '+ Add entry'),
+      rateField(vessel, d), previewBox(),
+    ];
   }
   if (type === 'Cash to Master') return cashToMasterFields(vessel, d);
   const extra = SINGLE_EXTRA[type];
   const extraField = extra
-    ? `<div class="field"><label>${extra.label}</label><input type="${extra.type}" ${extra.type === 'number' ? 'step="any" min="0"' : ''} name="${extra.name}" value="${val(d[extra.name])}"></div>`
-    : '';
-  return extraField + moneyField('Revenue', 'revenue', 'revenueCurrency', d, 'USD') +
-    moneyField('Cost', 'cost', 'costCurrency', d, 'EGP') + rateField(vessel, d) + previewBox;
+    ? field(extra.label, extra.type === 'number'
+      ? numberInput({ attrs: { name: extra.name } }, d[extra.name])
+      : h('input', { attrs: { type: extra.type, name: extra.name }, value: d[extra.name] }))
+    : null;
+  return [extraField, money()];
 }
 
 export function openServiceForm(type, service) {
@@ -161,10 +181,11 @@ export function openServiceForm(type, service) {
   if (type === 'Crew Change') {
     state.crew = JSON.parse(JSON.stringify({ onSigners: data.onSigners || [], offSigners: data.offSigners || [] }));
   }
-  openModalHtml(`${head(type, esc(vessel.name))}
-    <div class="m-body" id="svc-form">${formFields(type, vessel, data)}</div>
-    <div class="m-foot"><button class="btn ghost" data-act="back">Cancel</button>
-      <div class="right"><button class="btn primary" data-act="save-service">Save</button></div></div>`);
+  openModal(
+    headEl(type, vessel.name),
+    h('div', { class: 'm-body', id: 'svc-form' }, formFields(type, vessel, data)),
+    footer(h('button', { class: 'btn primary', dataset: { act: 'save-service' } }, 'Save')),
+  );
   if (type === 'Crew Change') renderCrewEditor();
   renumberEntries();
   updatePreview();
@@ -202,11 +223,12 @@ export function updatePreview() {
   if (!box || state.ctx.view !== 'service-form') return;
   const calc = calcLocal(state.ctx.type, readServiceForm(), getVessel(state.ctx.vesselId).rate);
   const profitClass = calc.profit_egp >= 0 ? 'good' : 'bad';
-  const profit = `Profit <b class="${profitClass}">LE ${sign(calc.profit_egp)}</b>`;
-  box.innerHTML = (state.ctx.type === 'Cash to Master'
-    ? `Our revenue <b class="good">LE ${fmt(calc.revenue_egp)}</b> · Paid to master <b>LE ${fmt(calc.to_master_egp)}</b> · ${profit}`
-    : `Cost <b>LE ${fmt(calc.cost_egp)}</b> · Revenue <b>LE ${fmt(calc.revenue_egp)}</b> · ${profit}`) +
-    (calc.rate_missing ? '<div class="warn-text">No exchange rate for this month — USD is counted 1:1.</div>' : '');
+  const profit = ['Profit ', h('b', { class: profitClass }, `LE ${sign(calc.profit_egp)}`)];
+  setChildren(box,
+    state.ctx.type === 'Cash to Master'
+      ? ['Our revenue ', h('b', { class: 'good' }, `LE ${fmt(calc.revenue_egp)}`), ' · Paid to master ', h('b', null, `LE ${fmt(calc.to_master_egp)}`), ' · ', profit]
+      : ['Cost ', h('b', null, `LE ${fmt(calc.cost_egp)}`), ' · Revenue ', h('b', null, `LE ${fmt(calc.revenue_egp)}`), ' · ', profit],
+    calc.rate_missing ? h('div', { class: 'warn-text' }, 'No exchange rate for this month — USD is counted 1:1.') : null);
 }
 
 /* ---------- live updates (bound once on the modal) ---------- */

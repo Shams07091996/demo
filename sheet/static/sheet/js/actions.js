@@ -4,7 +4,7 @@ import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from '.
 import { closeModal } from './modal.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import {
-  entryRowHtml, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
+  entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
   renumberEntries, updatePreview,
 } from './modals/service.js';
 import {
@@ -117,7 +117,7 @@ export const actions = {
   },
   'save-service': saveService,
   'del-service': deleteService,
-  'add-entry': () => { $('#entries').insertAdjacentHTML('beforeend', entryRowHtml(state.ctx.type)); renumberEntries(); updatePreview(); },
+  'add-entry': () => { $('#entries').append(entryRowEl(state.ctx.type)); renumberEntries(); updatePreview(); },
   'rm-entry': (b) => { b.closest('.entry').remove(); renumberEntries(); updatePreview(); },
 
   'add-crew': (b) => { state.crew[b.dataset.group].push(newCrewMember()); renderCrewEditor(); },
