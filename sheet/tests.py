@@ -440,7 +440,7 @@ class PortCallTests(ApiTestCase):
         alex = self.login("alex")
         status, vessel = self.create(
             alex,
-            agent="NILE AGENCY",
+            arrival_agent="NILE AGENCY",
             arrival_at="2026-11-13T06:00",
             berthing_at="2026-11-13T08:30",
             ops_start_at="2026-11-13T09:00",
@@ -448,7 +448,7 @@ class PortCallTests(ApiTestCase):
             sailing_at="2026-11-13T18:00",
         )
         self.assertEqual(status, 201)
-        self.assertEqual(vessel["agent"], "NILE AGENCY")
+        self.assertEqual(vessel["arrival_agent"], "NILE AGENCY")
         self.assertEqual(vessel["berthing_at"], "2026-11-13T08:30")
         self.assertEqual(vessel["durations"], {"ops_hours": 6.0, "berth_hours": 9.5, "port_hours": 12.0})
         self.assertEqual(vessel["status"], "sailed")
@@ -492,58 +492,12 @@ class PortCallTests(ApiTestCase):
         self.assertIsNone(updated["arrival_at"])
 
 
-class BulkAddTests(ApiTestCase):
-    ROWS = [
-        {"name": "BULK ONE", "date": "2026-11-13", "opr": "ARK", "poc": "ALY", "agent": "NILE"},
-        {"name": "BULK TWO", "date": "2026-11-14"},
-    ]
-
-    def test_creates_every_row(self):
-        alex = self.login("alex")
-        status, data = self.call(alex, "post", "/api/vessels/bulk/", {"rows": self.ROWS})
-        self.assertEqual(status, 201)
-        self.assertEqual([v["name"] for v in data["vessels"]], ["BULK ONE", "BULK TWO"])
-        self.assertEqual(data["vessels"][0]["agent"], "NILE")
-
-    def test_port_user_cannot_choose_another_port(self):
-        alex = self.login("alex")
-        rows = [{**self.ROWS[0], "port": "suez"}]
-        _, data = self.call(alex, "post", "/api/vessels/bulk/", {"rows": rows, "port": "suez"})
-        self.assertEqual(data["vessels"][0]["port"], "alexandria")
-
-    def test_admin_chooses_the_port(self):
-        admin = self.login("admin")
-        _, data = self.call(admin, "post", "/api/vessels/bulk/", {"rows": self.ROWS, "port": "damietta"})
-        self.assertEqual({v["port"] for v in data["vessels"]}, {"damietta"})
-
-    def test_one_bad_row_saves_nothing(self):
-        alex = self.login("alex")
-        before = Vessel.objects.count()
-        rows = [self.ROWS[0], {"name": "", "date": "2026-11-13"}, {"name": "X", "date": "bad"}]
-        status, data = self.call(alex, "post", "/api/vessels/bulk/", {"rows": rows})
-        self.assertEqual(status, 400)
-        self.assertEqual(set(data["rows"]), {"2", "3"})
-        self.assertIn("Nothing was saved", data["error"])
-        self.assertEqual(Vessel.objects.count(), before)
-
-    def test_limits_and_shapes(self):
-        alex = self.login("alex")
-        self.assertEqual(self.call(alex, "post", "/api/vessels/bulk/", {"rows": []})[0], 400)
-        self.assertEqual(self.call(alex, "post", "/api/vessels/bulk/", {"rows": "nope"})[0], 400)
-        self.assertEqual(self.call(alex, "post", "/api/vessels/bulk/", {"rows": ["junk"]})[0], 400)
-        too_many = [{"name": f"V{i}", "date": "2026-11-13"} for i in range(201)]
-        self.assertEqual(self.call(alex, "post", "/api/vessels/bulk/", {"rows": too_many})[0], 400)
-
-    def test_read_only_cannot_bulk_add(self):
-        self.assertEqual(self.call(self.login("viewer"), "post", "/api/vessels/bulk/", {"rows": self.ROWS})[0], 403)
-
-
 class AgentMasterDataTests(ApiTestCase):
     def test_agents_are_a_master_data_kind_with_usage_counts(self):
         admin = self.login("admin")
         self.call(admin, "post", "/api/options/", {"kind": "agent", "value": "NILE AGENCY"})
-        Vessel.objects.create(name="A", date=date(2026, 11, 13), port="alexandria", agent="NILE AGENCY")
-        Vessel.objects.create(name="B", date=date(2026, 11, 13), port="suez", agent="NILE AGENCY")
+        Vessel.objects.create(name="A", date=date(2026, 11, 13), port="alexandria", arrival_agent="NILE AGENCY")
+        Vessel.objects.create(name="B", date=date(2026, 11, 13), port="suez", arrival_agent="NILE AGENCY")
         _, data = self.call(admin, "get", "/api/options/")
         agent = next(o for o in data["options"] if o["kind"] == "agent")
         self.assertEqual((agent["value"], agent["used"]), ("NILE AGENCY", 2))
@@ -551,8 +505,8 @@ class AgentMasterDataTests(ApiTestCase):
     def test_usage_counts_only_cover_vessels_the_user_can_see(self):
         admin, alex = self.login("admin"), self.login("alex")
         self.call(admin, "post", "/api/options/", {"kind": "agent", "value": "NILE AGENCY"})
-        Vessel.objects.create(name="A", date=date(2026, 11, 13), port="alexandria", agent="NILE AGENCY")
-        Vessel.objects.create(name="B", date=date(2026, 11, 13), port="suez", agent="NILE AGENCY")
+        Vessel.objects.create(name="A", date=date(2026, 11, 13), port="alexandria", arrival_agent="NILE AGENCY")
+        Vessel.objects.create(name="B", date=date(2026, 11, 13), port="suez", arrival_agent="NILE AGENCY")
         _, data = self.call(alex, "get", "/api/options/")
         self.assertEqual(next(o for o in data["options"] if o["kind"] == "agent")["used"], 1)
 
@@ -671,10 +625,10 @@ class SessionAndHeaderTests(ApiTestCase):
 
     def test_csv_has_agent_and_milestones(self):
         Vessel.objects.create(
-            name="CSV SHIP", date=date(2026, 11, 13), port="alexandria", agent="NILE", arrival_at="2026-11-13T04:30:00Z"
+            name="CSV SHIP", date=date(2026, 11, 13), port="alexandria", arrival_agent="NILE", arrival_at="2026-11-13T04:30:00Z"
         )
         header, *rows = self.login("admin").get("/export.csv").content.decode("utf-8-sig").splitlines()
-        self.assertIn("Agent", header)
+        self.assertIn("Arrival agent", header)
         self.assertIn("Sailed", header)
         row = next(r for r in rows if "CSV SHIP" in r)
         self.assertIn("NILE", row)
@@ -728,3 +682,19 @@ class DebugDefaultTests(SimpleTestCase):
         result = self.load_settings(DJANGO_DEBUG="1")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("DEBUG=True", result.stdout)
+
+
+class BulkAddRemovedTests(ApiTestCase):
+    """Bulk add was removed (2026-11-18): no routes, no page."""
+
+    def test_bulk_endpoints_are_gone(self):
+        client = self.login("admin")
+        for url in ("/api/vessels/bulk/", "/api/vessels/bulk/check/"):
+            status, _ = self.call(client, "post", url, {"rows": []})
+            self.assertEqual(status, 404, url)
+
+    def test_page_has_no_bulk_add(self):
+        html = self.login("admin").get("/").content.decode()
+        self.assertNotIn("page-bulk", html)
+        self.assertNotIn("nav-bulk", html)
+        self.assertNotIn("qa-bulk", html)

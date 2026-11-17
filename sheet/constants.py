@@ -58,8 +58,6 @@ TIME_FIELDS = [
 TIME_KEYS = [key for key, _ in TIME_FIELDS]
 TIME_LABELS = dict(TIME_FIELDS)
 
-BULK_MAX_ROWS = 200
-
 # Hotels and Transport: a booking is one room / one car trip shared by 1..MAX_GUESTS guests of one vessel.
 PLACES = [("airport", "Airport"), ("hotel", "Hotel"), ("port", "Port")]
 PLACE_KEYS = [key for key, _ in PLACES]

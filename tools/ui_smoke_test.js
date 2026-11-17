@@ -47,21 +47,13 @@ async function login() {
   const w = dom.window;
   let listCalls = 0;          // how many vessel-list requests the page made
   let slowAlertsFor = null;   // a query fragment whose alerts response is held back (to test late answers)
-  let holdBulkCheck = null;   // a promise the bulk duplicate check waits for (to deliver its answer late)
-  let failBulkCheck = false;  // make the bulk duplicate check fail
-  let bulkCreates = 0;        // how many bulk-create requests the page sent
   let stayPosts = 0;          // how many "create hotel stay" requests the page sent
   let holdStay = null;        // {id, until}: hold back the answer for opening that stay
   w.fetch = async (url, opts = {}) => {
     if (url.startsWith('/api/vessels/?')) listCalls += 1;
-    if (url === '/api/vessels/bulk/') bulkCreates += 1;
     if (url === '/api/hotels/' && opts.method === 'POST') stayPosts += 1;
     if (holdStay && url === `/api/hotels/${holdStay.id}/` && (opts.method || 'GET') === 'GET') await holdStay.until;
     if (slowAlertsFor && url.startsWith('/api/vessels/alerts/') && url.includes(slowAlertsFor)) await sleep(600);
-    if (url === '/api/vessels/bulk/check/') {
-      if (failBulkCheck) return new Response(JSON.stringify({ error: 'Server unavailable.' }), { status: 503 });
-      if (holdBulkCheck) await holdBulkCheck;
-    }
     return fetch(BASE + url, { ...opts, headers: { ...(opts.headers || {}), Cookie: cookies() } });
   };
   w.confirm = () => true;
@@ -99,7 +91,7 @@ async function login() {
   if (ROLE === 'alex' || ROLE === 'admin') {
     const res = await w.fetch('/api/vessels/', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
-      body: JSON.stringify({ name: HOSTILE, agent: HOSTILE_AGENT, opr: '<i>O</i>', port: 'alexandria', date: localNow() }),
+      body: JSON.stringify({ name: HOSTILE, arrival_agent: HOSTILE_AGENT, opr: '<i>O</i>', port: 'alexandria', date: localNow() }),
     });
     hostileId = (await res.json()).id;
     ok(res.status === 201 || res.status === 200, `hostile-text vessel created (HTTP ${res.status})`);
@@ -125,10 +117,10 @@ async function login() {
     ok(await waitFor(() => $('#modal h2')?.textContent === HOSTILE) && modalText().includes(HOSTILE_AGENT) && noMarkup($('#modal')), 'vessel details: texts literal, no markup');
     click($('#modal [data-act="edit-vessel"]'));
     ok(await waitFor(() => $('#vessel-form [name=name]')?.value === HOSTILE), 'vessel form: name input holds the exact text');
-    ok($('#vessel-form [name=agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: agent / OPR kept as exact values');
+    ok($('#vessel-form [name=arrival_agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: agent / OPR kept as exact values');
     if (ROLE === 'admin') {
       type($('#vessel-form [name=port]'), 'suez');
-      ok($('#vessel-form [name=agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: changing the port keeps the chosen values');
+      ok($('#vessel-form [name=arrival_agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: changing the port keeps the chosen values');
     }
     closeModal();
 
@@ -188,7 +180,7 @@ async function login() {
     const own = { id: ownRow().querySelector('[data-act="del-option"]').dataset.id };
     await go('vessels');
     click($('#addVesselBtn'));
-    ok(await waitFor(() => $('#vessel-form [name=agent]')) && [...$('#vessel-form [name=agent]').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: the Add vessel form offers their own agent');
+    ok(await waitFor(() => $('#vessel-form [name=arrival_agent]')) && [...$('#vessel-form [name=sailing_agent]').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: the Add vessel form offers their own agent');
     closeModal();
     ok([...$('#qa-agent').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: quick add offers their own agent');
     await w.fetch(`/api/options/${own.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
@@ -198,8 +190,8 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === ({ viewer: 7, admin: 9 }[ROLE] || 8), 'sidebar lists the pages (read-only users have no Bulk add, admins have History)');
-  const pageOrder = 'vessels,bulk,hotels,transport,calculations,dashboard,master,rates' + (ROLE === 'admin' ? ',history' : '');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 8 : 7), 'sidebar lists the pages (admins also have History; no Bulk add)');
+  const pageOrder = 'vessels,hotels,transport,calculations,dashboard,master,rates' + (ROLE === 'admin' ? ',history' : '');
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Calculations sits after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
@@ -259,7 +251,8 @@ async function login() {
   await go('vessels');
   ok($$('#tbody tr').length > 0, 'vessel table renders');
   ok(!$('#stats') && !$('#exportBtn'), 'no stat cards and no CSV button on the Vessels page');
-  ok($$('#tbody tr')[0].children.length === 9 && !$('th[data-sort="total_cost_egp"]') && !/Total Cost/.test($('thead').textContent), 'table has an Agent column and no Total Cost column');
+  ok($$('#tbody tr')[0].children.length === 10 && !$('th[data-sort="total_cost_egp"]') && !/Total Cost/.test($('thead').textContent), 'table has arrival / sailing agent columns and no Total Cost column');
+  ok($('th[data-sort="arrival_agent"]')?.textContent.includes('Arrival agent') && $('th[data-sort="sailing_agent"]')?.textContent.includes('Sailing agent'), 'the two agent columns are sortable');
 
   // The ☰ button: on a wide screen it hides / shows the sidebar (remembered); jsdom counts as wide.
   click($('#menuBtn'));
@@ -267,8 +260,7 @@ async function login() {
   click($('#menuBtn'));
   ok(!w.document.body.classList.contains('nav-collapsed') && w.localStorage.getItem('sheet.navCollapsed') === '0', '☰ shows it again');
 
-  // Bulk add: no help paragraph and no placeholders.
-  ok(!$('#page-bulk .help') && !$$('#page-bulk [placeholder]').length, 'bulk add has no help text and no placeholders');
+  ok(!$('#page-bulk') && !$('[href="#bulk"]'), 'there is no Bulk add page');
   ok(!$('#tbody [data-act="open-vessel"]') && $('#tbody [data-act="summary"]'), 'rows have Summary but no separate Edit button');
   ok(ROLE === 'viewer' ? !$('#tbody [data-act="del-vessel-row"]') : !!$('#tbody [data-act="del-vessel-row"]'), 'rows have a Delete button only for users who can edit');
 
@@ -328,8 +320,6 @@ async function login() {
   if (ROLE === 'viewer') {
     ok($('#addVesselBtn').style.display === 'none' && $('#quickAdd').style.display === 'none', 'read-only: add controls hidden');
     ok(shown($('#portSelect')), 'read-only: sees the port selector');
-    await go('bulk');
-    ok($('#page-bulk').hidden && !$('#page-vessels').hidden, 'read-only: opening #bulk lands back on Vessels');
     click($$('#tbody tr')[0]);
     await waitFor(() => $('#modal [data-act="summary"]')); // the dialog opens once the vessel is at hand
     ok(!$('[data-act="add-service"]') && !$('[data-act="del-vessel"]') && !$('[data-act="edit-vessel"]'), 'read-only: no edit buttons in the dialog');
@@ -396,15 +386,13 @@ async function login() {
     const optionRow = (value) => $$('.opt-row').find((r) => r.textContent.includes(value));
     ok(optionRow('SMOKE SUEZ AGENT')?.querySelector('select[data-option-port]')?.value === 'suez', 'admin: the new agent belongs to Suez');
     ok($('select[data-new-port="agent"]').value === 'suez', 'admin: the port chosen for a list is remembered for the next value');
-    await go('bulk'); // first visit: the default lists follow the bulk port (Alexandria)
-    ok(![...$('#bk-agent').options].some((o) => o.textContent === 'SMOKE SUEZ AGENT'), 'bulk add: default lists follow the target port on the first visit');
     await go('vessels');
     type($('#portSelect'), 'suez');
     ok(await waitFor(() => $('#qa-port').value === 'suez' && [...$('#qa-agent').options].some((o) => o.textContent === 'SMOKE SUEZ AGENT')), 'quick add follows the header port selector');
     type($('#portSelect'), 'ALL');
     await waitFor(() => $('#portSelect').value === 'ALL');
     await go('master');
-    const agentChoices = () => [...$('#vessel-form [name=agent]').options].map((o) => o.textContent);
+    const agentChoices = () => [...$('#vessel-form [name=arrival_agent]').options].map((o) => o.textContent);
     await go('vessels');
     click($('#addVesselBtn'));
     type($('#vessel-form [name=port]'), 'alexandria');
@@ -445,7 +433,8 @@ async function login() {
 
   /* ======== add-vessel form (+ XSS) ======== */
   click($('#addVesselBtn'));
-  ok($('#vessel-form select[name=opr]') && $('#vessel-form select[name=poc]') && $('#vessel-form select[name=agent]'), 'vessel form uses master-data dropdowns');
+  ok($('#vessel-form select[name=opr]') && $('#vessel-form select[name=poc]') && $('#vessel-form select[name=arrival_agent]') && $('#vessel-form select[name=sailing_agent]'), 'vessel form uses master-data dropdowns');
+  ok($('#vessel-form [name=arrival_agent]').value === '' && $('#vessel-form [name=sailing_agent]').value === '', 'a new vessel starts with no agents');
   ok($$('#vessel-form [type=datetime-local]').length === 5, 'vessel form has the five port-call time fields');
   type($('#vessel-form [name=name]'), '<img src=x onerror=window.__xss=1>');
   type($('#vessel-form [name=opr]'), 'MSK');
@@ -474,7 +463,8 @@ async function login() {
   /* ======== port-call times and agent ======== */
   await openRow(NAME);
   click($('#modal [data-act="edit-vessel"]'));
-  ok($('#vessel-form [name=agent]').value === 'SMOKE AGENT', 'edit form shows the saved agent');
+  ok($('#vessel-form [name=arrival_agent]').value === 'SMOKE AGENT' && $('#vessel-form [name=sailing_agent]').value === '', 'quick add set only the arrival agent');
+  ok(modalText().includes('Arrival agent') && modalText().includes('Sailing agent'), 'the dialog lists both agents');
   click($('[data-act="time-now"][data-target="arrival_at"]'));
   ok(/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test($('[name=arrival_at]').value), '"Now" fills a time');
   const times = { arrival_at: '2020-01-15T06:00', berthing_at: '2020-01-15T08:30', ops_start_at: '2020-01-15T09:00', ops_end_at: '2020-01-15T15:00', sailing_at: '2020-01-15T05:00' };
@@ -493,12 +483,15 @@ async function login() {
   await openRow(NAME);
   click($('[data-act="add-service"]'));
   click($('[data-type="Fresh Water"]'));
+  ok($('#svc-form select[name=agent]') && $('#svc-form [name=agent]').value === '', 'a new service starts with no agent');
+  type($('#svc-form [name=agent]'), 'SMOKE AGENT');
   type($('[name=quantity]'), '40'); type($('[name=revenue]'), '100'); type($('[name=revenueCurrency]'), 'USD'); type($('[name=cost]'), '2000');
   ok($('#preview').textContent.includes('No exchange rate'), 'preview warns when the month has no rate');
   type($('[name=exchangeRate]'), '50');
   ok($('#preview').textContent.includes('5,000.00') && $('#preview').textContent.includes('3,000.00'), 'preview: 100 USD at 50 = 5,000 revenue, 3,000 profit');
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => modalText().includes('Quantity (tons): 40')), 'Fresh Water saved');
+  ok($$('.svc-card').some((c) => c.textContent.includes('Fresh Water') && c.textContent.includes('Agent: SMOKE AGENT')), 'the service card shows its agent');
 
   /* ======== Cash to Master ======== */
   click($('[data-act="add-service"]'));
@@ -563,106 +556,6 @@ async function login() {
   ok(await waitFor(() => $$('.svc-card').length === before - 1), 'service deleted');
   closeModal();
 
-  /* ======== bulk add ======== */
-  await go('bulk');
-  ok($('#bk-opr') && $$('#bk-agent option').some((o) => o.textContent === 'SMOKE AGENT'), 'bulk page: dropdowns come from master data');
-  if (ROLE === 'admin') ok(shown($('#bk-port-wrap')), 'bulk page: admin can choose the port');
-  type($('#bk-date'), '2026-11-20');
-  type($('#bk-text'), 'SMOKE <i>B</i> & "Q"\t13.11.2026\t<b>O</b>');
-  click($('[data-act="bulk-preview"]'));
-  ok(await waitFor(() => $('#bk-preview [data-f=name]')), 'bulk: markup-like row previewed');
-  ok($('#bk-preview [data-f=name]').value === 'SMOKE <I>B</I> & "Q"' && $('#bk-preview [data-f=opr]').value === '<b>O</b>' && noMarkup($('#bk-preview')),
-    'bulk: markup-like name and OPR stay exact values, no markup');
-  ok($('#bk-preview .bk-check').textContent.includes('<b>O</b>') && noMarkup($('#bk-preview .bk-check')), 'bulk: check message quotes the value literally');
-  click($('[data-act="bulk-clear"]'));
-  type($('#bk-agent'), 'SMOKE AGENT');
-  type($('#bk-text'), ['Vessel\tDate\tOPR\tPOC\tAgent', 'BULK A\t13.11.2026\tSMOKE-OPR\tALY\tSMOKE AGENT', 'bulk b\t14/11/2026', 'BULK C\tnot-a-date', 'BULK A\t13.11.2026'].join('\n'));
-  click($('[data-act="bulk-preview"]'));
-  ok(await waitFor(() => $('#bk-preview .bulk-table')) && $('#bk-preview .bulk-table tbody').children.length === 4, 'bulk: four lines previewed (header ignored)');
-  ok($('#bk-preview').textContent.includes('1 with errors') && $('[data-act="bulk-create"]').disabled, 'bulk: a bad row blocks creation');
-  ok($('#bk-preview').textContent.includes('1 duplicate'), 'bulk: duplicate line is flagged and skipped');
-  // Editable preview: fix things in the table instead of the pasted text.
-  type($('#bk-text'), ['BULK A\t13.11.2026\tSMOKE-OPR\tALY\tSMOKE AGENT', 'bulk b\t31.02.2026', 'BULK C\t14.11.2026'].join('\n'));
-  click($('[data-act="bulk-preview"]'));
-  ok(await waitFor(() => $('#bk-preview tr[data-i="1"] [data-f=date]')), 'bulk: preview rows are editable');
-  const cell = (i, f) => $(`#bk-preview tr[data-i="${i}"] [data-f=${f}]`);
-  ok($('[data-act="bulk-create"]').disabled && /not a valid date/.test($('#bk-preview tr[data-i="1"] .bk-check').textContent), 'bulk: a bad pasted date shows ✗');
-  const nameInput = cell(2, 'name'); nameInput.focus(); type(nameInput, 'BULK C2');
-  ok(w.document.activeElement === nameInput && nameInput.value === 'BULK C2', 'bulk: typing in a cell keeps focus');
-  type(cell(1, 'date'), '2026-11-14');
-  ok(await waitFor(() => !$('[data-act="bulk-create"]').disabled && $('[data-act="bulk-create"]').textContent.includes('Create 3')), 'bulk: fixing the date enables Create 3');
-  type(cell(2, 'date'), '');
-  ok($('[data-act="bulk-create"]').disabled && /Date is missing/.test($('#bk-preview tr[data-i="2"] .bk-check').textContent), 'bulk: clearing a date blocks Create');
-  click($('#bk-preview tr[data-i="2"] [data-act="bulk-del-row"]'));
-  ok(await waitFor(() => $('[data-act="bulk-create"]').textContent.includes('Create 2') && !$('[data-act="bulk-create"]').disabled), 'bulk: removing the bad row enables Create 2');
-  type($('#bk-all-agent'), 'SMOKE AGENT'); click($('[data-act="bulk-apply-all"]'));
-  ok(cell(1, 'agent').value === 'SMOKE AGENT' && cell(0, 'agent').value === 'SMOKE AGENT', '"Set on all rows" fills the agent');
-  click($('[data-act="bulk-add-row"]'));
-  ok($$('#bk-preview tbody tr').length === 3 && /name is missing/.test($('#bk-preview tr[data-i="2"] .bk-check').textContent), 'bulk: + Add row adds a blank row');
-  click($('#bk-preview tr[data-i="2"] [data-act="bulk-del-row"]'));
-  w.confirm = () => false;
-  click($('[data-act="bulk-preview"]'));
-  ok($$('#bk-preview tbody tr').length === 2 && cell(1, 'agent').value === 'SMOKE AGENT', 'bulk: re-Preview asks before replacing edited rows');
-  w.confirm = () => true;
-  const createBtn = () => $('[data-act="bulk-create"]');
-  await waitFor(() => createBtn()?.disabled === false);
-
-  // Leaving a cell (the browser fires "change" on blur) must not disable Create when nothing changed.
-  cell(0, 'name').dispatchEvent(new w.Event('change', { bubbles: true }));
-  ok(createBtn() && !createBtn().disabled, 'bulk: leaving a cell without changing it keeps Create enabled');
-
-  // A late answer to an older duplicate check must not enable Create while a newer check is still due.
-  let release;
-  holdBulkCheck = new Promise((r) => { release = r; });
-  type(cell(0, 'name'), 'BULK A TEMP');
-  await sleep(400);                      // that check is now waiting at the server
-  type(cell(0, 'name'), 'BULK A');       // a newer edit: its check fires 300 ms later
-  release(); holdBulkCheck = null;
-  await sleep(80);                       // the old answer has arrived
-  ok(createBtn().disabled, 'bulk: a late answer to an older check does not enable Create');
-  await waitFor(() => createBtn()?.disabled === false);
-
-  // If the duplicate check fails, Create stays off until a check succeeds.
-  failBulkCheck = true;
-  type(cell(0, 'name'), 'BULK A TEMP');
-  await sleep(600);
-  ok(createBtn().disabled && /couldn't check for duplicates/i.test($('#bk-preview').textContent), 'bulk: a failed duplicate check keeps Create off and says so');
-  failBulkCheck = false;
-  type(cell(0, 'name'), 'BULK A');
-  ok(await waitFor(() => createBtn()?.disabled === false), 'bulk: the next successful check enables Create again');
-
-  ok(createBtn() && !createBtn().disabled && createBtn().textContent.includes('Create 2'), 'bulk: "Create 2 vessels" is ready');
-  const createsBefore = bulkCreates;
-  click(createBtn()); click(createBtn()); // a double click
-  ok(await waitFor(() => $('#bk-preview').textContent.includes('Added 2 vessels')), 'bulk: vessels created');
-  ok(bulkCreates - createsBefore === 1, `bulk: a double click creates the vessels once (sent ${bulkCreates - createsBefore} times)`);
-  click($('[data-act="bulk-view"]'));
-  ok(await waitFor(() => !$('#page-vessels').hidden), 'bulk: "View them" opens the Vessels page');
-  await go('bulk');
-  type($('#bk-text'), 'BULK A\t13.11.2026');
-  click($('[data-act="bulk-preview"]'));
-  ok(await waitFor(() => $('#bk-preview').textContent.includes('1 duplicate')), 'bulk: a vessel already saved is flagged by the server');
-  type(cell(0, 'name'), 'BULK A NEW');
-  ok(await waitFor(() => !$('#bk-preview').textContent.includes('1 duplicate')), 'bulk: the duplicate check re-runs after an edit');
-  type(cell(0, 'name'), 'BULK A');
-  await waitFor(() => $('#bk-preview').textContent.includes('1 duplicate'));
-  if (ROLE === 'admin') {
-    const createdIn = $('#bk-port').value;
-    type($('#bk-port'), createdIn === 'suez' ? 'damietta' : 'suez');
-    ok(await waitFor(() => !$('#bk-preview').textContent.includes('1 duplicate')), 'bulk: changing the port re-checks duplicates');
-    type($('#bk-port'), createdIn);
-  }
-  click($('[data-act="bulk-clear"]'));
-  type($('#bk-text'), Array.from({ length: 200 }, (_, i) => `LIMIT ${i + 1}\t13.11.2026`).join('\n'));
-  click($('[data-act="bulk-preview"]'));
-  await waitFor(() => $$('#bk-preview tbody tr').length === 200);
-  click($('[data-act="bulk-add-row"]'));
-  ok($$('#bk-preview tbody tr').length === 200 && /limit is 200/.test($('#bk-error').textContent), 'bulk: + Add row stops at 200 rows');
-  click($('[data-act="bulk-clear"]'));
-  await go('vessels');
-  ok(await waitFor(() => rowFor('BULK A') && rowFor('BULK B')), 'bulk: new vessels appear in the table');
-  ok(rowFor('BULK A').textContent.includes('SMOKE AGENT') && rowFor('BULK B').textContent.includes('SMOKE AGENT'), 'bulk: default agent applied to rows that left it out');
-
   /* ======== exchange rates page ======== */
   await go('rates');
   if (ROLE === 'admin') {
@@ -690,6 +583,30 @@ async function login() {
   click($('#notifPanel [data-act="summary"]'));
   ok(await waitFor(() => $('#modal h2')?.textContent.includes('SMOKE TODAY')), 'clicking a notification opens its summary');
   closeModal();
+  // Past vessels missing an agent (seed_demo: SEA BREEZE, Alexandria, yesterday — no sailing agent, Landing without agent).
+  if (ROLE !== 'suez') {
+    ok(await waitFor(() => /\d+ missing an agent/.test($('#notifBanner').textContent) && $('#notifBanner').textContent.includes('SEA BREEZE')), 'banner shows vessels missing an agent');
+    const missRow = $$('#notifBanner .notif-row.missing').find((r) => r.textContent.includes('SEA BREEZE'));
+    ok(missRow && missRow.textContent.includes('Sailing') && missRow.textContent.includes('Landing'), 'the row says what is missing');
+    click($('#bell'));
+    ok($('#notifPanel').textContent.includes('Missing agent') && $('#notifPanel').textContent.includes('SEA BREEZE'), 'bell panel has a Missing agent group');
+    click($('#bell'));
+    if (ROLE === 'alex') {
+      // More than 20 vessels missing an agent: the banner stops at 20 and "+ N more" opens the full list.
+      const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': meta() };
+      const extra = [];
+      for (let i = 1; i <= 21; i += 1) {
+        const res = await w.fetch('/api/vessels/', { method: 'POST', headers, body: JSON.stringify({ name: `SMOKE GAP ${i}`, date: '2019-03-01' }) });
+        extra.push((await res.json()).id);
+      }
+      type($('#qa-name'), 'smoke gap trigger'); type($('#qa-date'), localNow()); click($('#qa-add')); // a save reloads the alerts
+      ok(await waitFor(() => $$('#notifBanner .notif-row.missing').length === 20 && /\+ \d+ more/.test($('#notifBanner').textContent)), 'banner caps missing-agent rows at 20 with "+ N more"');
+      click($('#notifBanner [data-act="show-alerts-panel"]'));
+      ok($('#notifPanel').classList.contains('open') && $$('#notifPanel .notif-item.missing').length >= 22, '"+ N more" opens the bell panel with every vessel missing an agent');
+      click($('#bell'));
+      for (const id of extra) await w.fetch(`/api/vessels/${id}/`, { method: 'DELETE', headers });
+    }
+  }
 
   /* ======== hotels and transport ======== */
   const dmyOf = (iso) => iso.split('-').reverse().join('.');
@@ -855,13 +772,13 @@ async function login() {
 
   /* ======== clean up ======== */
   await go('vessels');
-  for (const name of [NAME, '<img', 'SMOKE TODAY', 'BULK A', 'BULK B', 'PORT MOVE']) {
+  for (const name of [NAME, '<img', 'SMOKE TODAY', 'SMOKE GAP TRIGGER', 'PORT MOVE']) {
     const row = $$('#tbody tr').find((t) => t.textContent.includes(name));
     if (!row) continue;
     click(row.querySelector('[data-act="del-vessel-row"]')); // the Delete button in the table row
     await waitFor(() => !$$('#tbody tr').some((t) => t.dataset.id === row.dataset.id));
   }
-  ok(await waitFor(() => !$$('#tbody tr').some((t) => /UI SMOKE|SMOKE TODAY|<img|BULK|PORT MOVE/.test(t.textContent))), 'test vessels deleted (the list reloads after the dialog closes)');
+  ok(await waitFor(() => !$$('#tbody tr').some((t) => /UI SMOKE|SMOKE TODAY|SMOKE GAP|<img|PORT MOVE/.test(t.textContent))), 'test vessels deleted (the list reloads after the dialog closes)');
   await go('master');
   for (const value of ['SMOKE AGENT', 'SMOKE-OPR', 'SMOKE HOTEL', 'SMOKE ALEXANDRIA AIRPORT', 'SMOKE ALEXANDRIA PORT', 'SMOKE SUEZ AGENT', 'SMOKE SUEZ HOTEL']) {
     const row = $$('.opt-row').find((r) => r.textContent.includes(value));

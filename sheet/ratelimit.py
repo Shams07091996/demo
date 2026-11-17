@@ -1,6 +1,6 @@
 """API rate limits (A06): writes per user and per address, CSV exports per user, counted in the database.
 
-Requests are counted, not rows (a 200-row bulk add is one request). If the counter table fails, writes are refused
+Requests are counted, not rows (one request however much it changes). If the counter table fails, writes are refused
 (fail closed) and reads go through (fail open)."""
 
 import logging

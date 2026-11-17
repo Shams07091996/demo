@@ -19,7 +19,7 @@ async function addVessel({ thenOpen }) {
     date: $('#qa-date').value || today(),
     opr: $('#qa-opr').value,
     poc: $('#qa-poc').value,
-    agent: $('#qa-agent').value,
+    arrival_agent: $('#qa-agent').value, // the sailing agent stays empty until someone chooses it
   };
   if (ME.isAdmin) payload.port = $('#qa-port').value;
 

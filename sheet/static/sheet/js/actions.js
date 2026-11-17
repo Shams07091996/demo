@@ -14,13 +14,10 @@ import { openVessel, openVesselForm, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { historyPage } from './pages/history.js';
-import {
-  addBulkRow, applyToAllRows, clearBulk, createBulk, previewBulk, removeBulkRow, viewCreated,
-} from './pages/bulk.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
 import { fillQuickSelects } from './render/list.js';
-import { closePanel, toggleAlerts } from './render/notifications.js';
+import { closePanel, openPanel, toggleAlerts } from './render/notifications.js';
 import { hideRangeNotice } from './render/rangeNotice.js';
 import { navigate } from './router.js';
 import { getVessel, rememberVessels, state } from './state.js';
@@ -31,7 +28,7 @@ const vesselId = () => state.ctx.vesselId;
 /** Save a service, then show the vessel with its refreshed totals (the list and totals reload from the server). */
 async function saveService() {
   const { type, serviceId } = state.ctx;
-  const payload = { type, data: readServiceForm() };
+  const payload = { type, agent: $('#svc-form [name=agent]').value, data: readServiceForm() };
   const vessel = await mutate(() => (serviceId
     ? api(`/api/services/${serviceId}/`, 'PUT', payload)
     : api(`/api/vessels/${vesselId()}/services/`, 'POST', payload)));
@@ -106,6 +103,7 @@ export const actions = {
   summary: (b) => { closePanel(); openSummary(Number(b.dataset.id)); },
   'opr-summary': (b) => openOprSummary(b.dataset.opr),
   'toggle-alerts': toggleAlerts,
+  'show-alerts-panel': openPanel,
   'show-outside': async (b) => { await widenRangeTo(b.dataset.date); hideRangeNotice(); },
   'page-prev': () => setFilter({ page: Math.max(1, state.filter.page - 1) }),
   'page-next': () => setFilter({ page: state.filter.page + 1 }),
@@ -149,13 +147,6 @@ export const actions = {
   },
   'del-option': removeOption,
 
-  'bulk-preview': previewBulk,
-  'bulk-create': createBulk,
-  'bulk-clear': clearBulk,
-  'bulk-view': viewCreated,
-  'bulk-add-row': addBulkRow,
-  'bulk-del-row': (b) => removeBulkRow(Number(b.dataset.i)),
-  'bulk-apply-all': applyToAllRows,
 
   'booking-new': (b) => openBookingDialog(b.dataset.kind),
   'booking-open': (b) => openBookingDialog(b.dataset.kind, Number(b.dataset.id)),

@@ -9,14 +9,16 @@ import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 
 from .access import scoped_vessels
-from .constants import BULK_MAX_ROWS, PORT_KEYS
+from .constants import SERVICE_TYPES
 from .errors import BadRequest
+from .models import Service, Vessel
 from .serializers import month_rates, vessel_to_dict
 
-SORT_KEYS = ("name", "opr", "poc", "agent", "port", "date", "total_cost_egp")
+SORT_KEYS = ("name", "opr", "poc", "arrival_agent", "sailing_agent", "port", "date", "total_cost_egp")
 BUCKETS = ("ALL", "ARK", "MSK", "OTH", "SERVICES")
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
@@ -107,7 +109,8 @@ def range_rows(profile, f):
 
 
 def _matches_query(row, needle):
-    fields = [row["name"], row["opr"], row["poc"], row["agent"], *(s["type"] for s in row["services"])]
+    fields = [row["name"], row["opr"], row["poc"], row["arrival_agent"], row["sailing_agent"]]
+    fields += [part for s in row["services"] for part in (s["type"], s["agent"])]
     return any(needle in (field or "").casefold() for field in fields)
 
 
@@ -163,7 +166,8 @@ def list_response(profile, params):
 
 
 def alerts_response(profile, params):
-    """Vessels dated today or tomorrow (Cairo date), whatever range or search the list shows."""
+    """Vessels dated today or tomorrow (Cairo date), whatever range or search the list shows, and past vessels missing
+    an agent."""
     today = timezone.localdate()
     tomorrow = today + timedelta(days=1)
     vessels = scoped_vessels(profile, params.get("port") or None).filter(date__in=[today, tomorrow])
@@ -171,7 +175,35 @@ def alerts_response(profile, params):
     return {
         "today": [r for r in rows if r["date"] == today.isoformat()],
         "tomorrow": [r for r in rows if r["date"] == tomorrow.isoformat()],
+        "missing_agent": missing_agents(profile, params.get("port") or None, today),
     }
+
+
+def missing_agents(profile, port, today):
+    """Vessels dated before today (Cairo) that miss an agent, oldest first. Every service type needs one.
+
+    `missing` names what is missing: "Arrival", "Sailing", then each service type without an agent (once, in
+    SERVICE_TYPES order). Only these four fields are sent, so the list stays light however long it grows."""
+    order = {name: i for i, name in enumerate(SERVICE_TYPES)}
+    found = []
+    # No look-back limit, so keep the query light: only vessels with a gap, and only the columns needed.
+    gaps = Q(arrival_agent="") | Q(sailing_agent="") | Q(services__agent="")
+    light_services = Service.objects.only("id", "vessel_id", "service_type", "agent")
+    vessels = (
+        scoped_vessels(profile, port, prefetch=False)
+        .filter(date__lt=today)
+        .filter(pk__in=Vessel.objects.filter(gaps).values("pk"))
+        .only("id", "name", "date", "arrival_agent", "sailing_agent")
+        .prefetch_related(Prefetch("services", queryset=light_services))
+    )
+    for vessel in vessels.order_by("date", "id"):
+        missing = [label for label, agent in (("Arrival", vessel.arrival_agent), ("Sailing", vessel.sailing_agent))
+                   if not agent]
+        types = {s.service_type for s in vessel.services.all() if not s.agent}
+        missing += sorted(types, key=lambda name: order.get(name, len(order)))
+        if missing:
+            found.append({"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "missing": missing})
+    return found
 
 
 def _service_counts(rows):
@@ -208,32 +240,3 @@ def dashboard_response(profile, params):
         for opr, group in sorted(by_opr.items())
     ]
     return {"count": len(rows), "oprs": oprs}
-
-
-def existing_rows(profile, rows, port=None):
-    """Indexes of pasted rows that already exist: same name (trimmed, upper-cased) and date in the target port.
-
-    The target port is the port user's own port, otherwise the admin's choice (Alexandria when none is given,
-    the same default bulk create uses). A row that isn't a {name, date} pair with a valid date is never a match."""
-    if not isinstance(rows, list):
-        raise BadRequest("Add at least one vessel.")
-    if len(rows) > BULK_MAX_ROWS:
-        raise BadRequest(f"Add at most {BULK_MAX_ROWS} vessels at a time.")
-    target = profile.port or port or "alexandria"
-    if target not in PORT_KEYS:
-        raise BadRequest("Unknown port.")
-    wanted = {}
-    for index, row in enumerate(rows):
-        if not isinstance(row, dict):
-            continue
-        try:
-            day = date.fromisoformat(str(row.get("date", "")))
-        except ValueError:
-            continue
-        wanted.setdefault((str(row.get("name", "")).strip().upper(), day), []).append(index)
-    if not wanted:
-        return []
-    days = {day for _, day in wanted}
-    taken = scoped_vessels(profile, target, prefetch=False).filter(date__in=days).values_list("name", "date")
-    found = {(name.strip().upper(), day) for name, day in taken}
-    return sorted(i for key, indexes in wanted.items() if key in found for i in indexes)

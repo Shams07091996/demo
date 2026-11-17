@@ -9,7 +9,6 @@ import { closeModal, isModalOpen } from './modal.js';
 import { onBookingInput } from './modals/booking.js';
 import { onModalChange, onModalInput } from './modals/service.js';
 import { onVesselFormChange, openVessel, openVesselForm } from './modals/vessel.js';
-import { onBulkPortChange, onPreviewEdit } from './pages/bulk.js';
 import { setupQuickAdd } from './quickAdd.js';
 import { fillQuickSelects, renderFilterInputs } from './render/list.js';
 import { closePanel, togglePanel } from './render/notifications.js';
@@ -77,10 +76,6 @@ $('#menuBtn').addEventListener('click', () => {
 });
 $('#scrim').addEventListener('click', () => document.body.classList.remove('nav-open'));
 $('#roleLabel').textContent = ME.port ? `${ME.role} port` : ME.role;
-if (!ME.canEdit) {
-  $('#nav-bulk').style.display = 'none';
-  $('#qa-bulk').style.display = 'none';
-}
 
 /* ---- vessels page: date range, chips, search, sorting, paging, add (the server does the filtering) ---- */
 $('#filters').addEventListener('click', (event) => {
@@ -137,10 +132,6 @@ $('#pager').addEventListener('change', (event) => {
   if (event.target.id === 'page-size') setFilter({ pageSize: Number(event.target.value) });
 });
 
-/* ---- bulk add: the preview table is editable ---- */
-$('#bk-preview').addEventListener('input', onPreviewEdit);
-$('#bk-preview').addEventListener('change', onPreviewEdit);
-$('#bk-port').addEventListener('change', onBulkPortChange);
 $('#qa-port').addEventListener('change', fillQuickSelects); // quick-add lists follow the chosen port
 $('#master-grid').addEventListener('change', (event) => {
   if (event.target.matches('select[data-option-port]')) moveOption(event.target);

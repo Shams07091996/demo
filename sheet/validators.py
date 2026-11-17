@@ -8,7 +8,6 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 
 from .constants import (
-    BULK_MAX_ROWS,
     GUEST_GROUPS,
     MAX_GUESTS,
     MAX_NIGHTS,
@@ -197,6 +196,11 @@ def _check_time_order(times):
             raise BadRequest(f"{TIME_LABELS[later]} cannot be before {TIME_LABELS[earlier].lower()}.")
 
 
+def clean_agent(value):
+    """An agent from the Master data Agent list: trimmed text, at most 100 characters, may be empty."""
+    return _text(value, 100)
+
+
 def clean_vessel(data, profile, existing=None):
     """Validate vessel input. Port users are always pinned to their own port."""
     name = _text(data.get("name"), 120)
@@ -221,32 +225,13 @@ def clean_vessel(data, profile, existing=None):
         "name": name,
         "opr": _text(data.get("opr"), 100),
         "poc": _text(data.get("poc"), 100),
-        "agent": _text(data.get("agent"), 100),
+        "arrival_agent": clean_agent(data.get("arrival_agent")),
+        "sailing_agent": clean_agent(data.get("sailing_agent")),
         "date": when,
         "port": port,
         "summary": clean_summary(data.get("summary")),
         **times,
     }
-
-
-def clean_bulk(rows, profile, default_port=None):
-    """Validate many new vessels at once. Nothing is saved unless every row is valid."""
-    if not isinstance(rows, list) or not rows:
-        raise BadRequest("Add at least one vessel.")
-    if len(rows) > BULK_MAX_ROWS:
-        raise BadRequest(f"Add at most {BULK_MAX_ROWS} vessels at a time.")
-    cleaned, problems = [], {}
-    for number, raw in enumerate(rows, start=1):
-        try:
-            if not isinstance(raw, dict):
-                raise BadRequest("Invalid row.")
-            cleaned.append(clean_vessel({"port": default_port, **raw} if default_port else raw, profile))
-        except BadRequest as error:
-            problems[number] = str(error)
-    if problems:
-        shown = "; ".join(f"row {number}: {message}" for number, message in list(problems.items())[:5])
-        raise BadRequest(f"Nothing was saved. {shown}", rows=problems)
-    return cleaned
 
 
 # ---- hotels and transport ---------------------------------------------------------------------

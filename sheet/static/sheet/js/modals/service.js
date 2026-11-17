@@ -1,6 +1,6 @@
 // Adding / editing a service: the type picker, the per-type forms, the live profit preview and the crew editor.
 import { calcLocal } from '../calc.js';
-import { headEl } from '../components.js';
+import { headEl, optionChoicesEl } from '../components.js';
 import { MULTI, SINGLE_EXTRA, TYPES } from '../config.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
@@ -161,7 +161,9 @@ export function openServiceForm(type, service) {
   }
   openModal(
     headEl(type, vessel.name),
-    h('div', { class: 'm-body', id: 'svc-form' }, formFields(type, vessel, data)),
+    h('div', { class: 'm-body', id: 'svc-form' },
+      field('Agent', h('select', { attrs: { name: 'agent' } }, optionChoicesEl('agent', service?.agent || '', vessel.port))),
+      formFields(type, vessel, data)),
     footer(h('button', { class: 'btn primary', dataset: { act: 'save-service' } }, 'Save')),
   );
   if (type === 'Crew Change') renderCrewEditor();
@@ -173,7 +175,7 @@ export function openServiceForm(type, service) {
 export function readServiceForm() {
   const root = $('#svc-form');
   const { type } = state.ctx;
-  const values = formValues(root);
+  const { agent: _agent, ...values } = formValues(root); // the agent is sent beside the data, not in it
   const money = {
     cost: values.cost, costCurrency: values.costCurrency, revenue: values.revenue,
     revenueCurrency: values.revenueCurrency, exchangeRate: values.exchangeRate,

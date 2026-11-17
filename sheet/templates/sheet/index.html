@@ -18,7 +18,6 @@
     </div>
     <nav class="nav" id="nav" aria-label="Pages">
       <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico">🚢</span><span>Vessels</span></a>
-      <a class="nav-item" data-page="bulk" href="#bulk" id="nav-bulk"><span class="ico">📥</span><span>Bulk add</span></a>
       <a class="nav-item" data-page="hotels" href="#hotels"><span class="ico">🏨</span><span>Hotels</span></a>
       <a class="nav-item" data-page="transport" href="#transport"><span class="ico">🚗</span><span>Transport</span></a>
       <a class="nav-item" data-page="calculations" href="#calculations"><span class="ico">💰</span><span>Calculations</span></a>
@@ -44,7 +43,7 @@
       <span class="spacer"></span>
       <span id="status" class="status"><span class="dot"></span><span id="status-text">Loading…</span></span>
       <div class="bell-wrap">
-        <button class="btn ghost bell" id="bell" title="Vessels due today and tomorrow">🔔<span class="badge-dot" id="bellBadge" hidden>0</span></button>
+        <button class="btn ghost bell" id="bell" title="Vessels due today and tomorrow, and past vessels missing an agent">🔔<span class="badge-dot" id="bellBadge" hidden>0</span></button>
         <div class="notif-panel" id="notifPanel"></div>
       </div>
     </header>
@@ -59,11 +58,10 @@
         <input class="input" id="qa-date" type="date">
         <select class="select" id="qa-opr" title="OPR"></select>
         <select class="select" id="qa-poc" title="POC"></select>
-        <select class="select" id="qa-agent" title="Agent"></select>
+        <select class="select" id="qa-agent" title="Arrival agent"></select>
         <select class="select" id="qa-port" title="Port" hidden></select>
         <button class="btn primary" id="qa-add">Add</button>
         <button class="btn ghost" id="qa-edit">+ Add &amp; edit</button>
-        <a class="btn ghost" href="#bulk" id="qa-bulk">📥 Bulk add…</a>
       </div>
       <div class="date-range" role="group" aria-label="Date range">
         <label>From <input class="input" type="date" id="f-from"></label>
@@ -92,7 +90,8 @@
               <th data-sort="name">Vessel <span class="arrow">↕</span></th>
               <th data-sort="opr">OPR <span class="arrow">↕</span></th>
               <th data-sort="poc">POC <span class="arrow">↕</span></th>
-              <th data-sort="agent">Agent <span class="arrow">↕</span></th>
+              <th data-sort="arrival_agent">Arrival agent <span class="arrow">↕</span></th>
+              <th data-sort="sailing_agent">Sailing agent <span class="arrow">↕</span></th>
               <th data-sort="port" class="col-port">Port <span class="arrow">↕</span></th>
               <th data-sort="date">Date <span class="arrow">↕</span></th>
               <th>Services</th>
@@ -105,30 +104,6 @@
         <div class="empty" id="empty" hidden>No vessels found.</div>
       </div>
       <div class="pager" id="pager"></div>
-    </main>
-
-    <!-- ===== Bulk add ===== -->
-    <main class="page" id="page-bulk" hidden>
-      <div class="panel">
-        <h3>Paste vessels from Excel</h3>
-        <div class="row three">
-          <div class="field"><label>Default date</label><input class="input" type="date" id="bk-date"></div>
-          <div class="field"><label>Default OPR</label><select class="select" id="bk-opr"></select></div>
-          <div class="field"><label>Default POC</label><select class="select" id="bk-poc"></select></div>
-        </div>
-        <div class="row three">
-          <div class="field"><label>Default agent</label><select class="select" id="bk-agent"></select></div>
-          <div class="field" id="bk-port-wrap" hidden><label>Port</label><select class="select" id="bk-port"></select></div>
-        </div>
-        <div class="field"><label>Vessels</label>
-          <textarea class="input mono" id="bk-text" rows="9" spellcheck="false"></textarea></div>
-        <div class="actions-row">
-          <button class="btn primary" data-act="bulk-preview">Preview</button>
-          <button class="btn ghost" data-act="bulk-clear">Clear</button>
-        </div>
-        <div id="bk-error" class="error" hidden></div>
-        <div id="bk-preview"></div>
-      </div>
     </main>
 
     <!-- ===== Hotels and Transport (lists drawn by js/pages/bookings.js) ===== -->

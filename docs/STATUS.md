@@ -1,13 +1,17 @@
 # Project status
 
-Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each feature has a design
+Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each feature has a design
 (`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
 
 ## Where things stand right now
 
-- **Git branches:** only `main` (the merged feature branches were deleted 2026-11-17).
-  - `main` — **checked out**; everything built so far, up to and including the OWASP 2025 hardening and the PostgreSQL 17 setup (merged
-    2026-11-17).
+- **Git branches:**
+  - `main` — **checked out** in the project folder; everything merged so far, up to and including the OWASP 2025
+    hardening and the PostgreSQL 17 setup (merged 2026-11-17), plus the three designs of 2026-11-18.
+  - `feature/agents-per-job` — **not merged, waiting for the user**: arrival / sailing agent per vessel, an agent per
+    service, the "Missing agent" alert, Bulk add removed. Built in a git worktree at
+    `.superpowers/worktrees/agents` (git-ignored; `venv` and `tools/node_modules` there are links to the main ones).
+    Needs migration **`0011_agents_per_job`** on the user's database after merging.
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
   `%APPDATA%\postgresql\pgpass.conf`, never in the project). All migrations through `0010` applied; no users yet.
@@ -15,6 +19,8 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
   superuser, and a stronger `postgres` password.
   App settings for it: `DJANGO_DB_NAME=marine_sheet DJANGO_DB_USER=postgres DJANGO_DB_HOST=localhost
   DJANGO_DB_PORT=5432 DJANGO_DB_SSLMODE=disable` (the local server has SSL off and accepts local connections only).
+- **Tests (on `feature/agents-per-job`):** `npm run check` green with 218 backend tests; smoke test passes for
+  `alex`, `admin`, `viewer` and `suez` (not yet run on PostgreSQL).
 - **Tests (on `main`):** `cd tools && npm run check` → all passed (204 backend tests; the backend suite also passes on PostgreSQL 17); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
@@ -32,6 +38,7 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-17 | Safe page building: no `innerHTML` / HTML strings anywhere (screens built with `js/dom.js`), browser-enforced by Trusted Types and a CSP with no inline styles; every `eval` removed (PDF.js patched); ruff security rules, ESLint, pip-audit, npm audit and `npm run check` | `2026-11-17-safe-dom-and-checks-design.md` |
 | 2026-11-17 | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
 | 2026-11-17 | OWASP Top 10 (2025) hardening: PDF reader removed (CSP `trusted-types 'none'`); hash-locked `requirements.txt` from `requirements.in`; API rate limits (writes per user / address, CSV per user, 429; broken counter refuses writes); every API error JSON, unexpected ones with an 8-hex `ref` in the log; alerting (`sheet.alert` + optional e-mail); append-only change history of every tracked model incl. user accounts, with an admin-only 🕘 History page; `__Host-` cookies in production; deploy check `sheet.E001`; SECURITY.md rewritten for 2025 | `2026-11-17-owasp-2025-design.md` |
+| 2026-11-18 | **Agents per job** (branch `feature/agents-per-job`, not merged): Arrival agent (was Agent) and Sailing agent on each vessel, an Agent on every service (all from the Master data Agent list, empty until chosen); search / sort / CSV / "used by N" cover them; a **Missing agent** alert (bell + banner, max 20 rows + "+ N more") for vessels dated before today that miss any agent; **Bulk add removed** | `2026-11-18-agents-per-job-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -52,8 +59,21 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
   (no `innerHTML`, no `eval`, no inline styles) and the browser enforces it; keep it that way.
 - **UI taste:** lean screens — no help paragraphs, no placeholders, no stat cards; compact controls.
 - **Process:** the user chooses **Native** execution (built in-session, one fresh reviewer at the end).
+- **Agents (2026-11-18):** an arrival agent and a sailing agent per vessel and an agent per service; **no defaults** (the sailing agent is never copied from the arrival agent, a service never gets the vessel's agent); **every** service type needs an agent, Others / Remarks too; the alert starts the day after the vessel date (agents are known only after the job) and has no look-back limit.
+- **Bulk add removed** (2026-11-18, "not needed").
+- **Order (2026-11-18):** agents → dashboards → new look, **before** two-step login (which will then be built in the new look).
+- **Dashboards (designed 2026-11-18):** jobs per agent (arrival = 1 job, sailing = 1, each service = 1), services per month, money per month as a **separate** table; chart **and** figures; filters date / port / OPR / agent / service type.
+- **New look (designed 2026-11-18):** look B (neutral grey, one blue accent), dark and light mode, system font, line icons drawn for the app; **no third-party dependency**.
+- **Field encryption** of crew personal data: **not now** — revisit when getting ready for production (disk / backup encryption is the production setup step).
 
 ## Next
+
+Agreed order (2026-11-18), each on its own branch, designed and approved:
+
+1. **Agents per job** — built on `feature/agents-per-job`, waiting for the user to merge.
+2. **Dashboards** — `2026-11-18-dashboards-design.md` (branch from `main` after 1 is merged).
+3. **New look** — `2026-11-18-new-look-design.md` (after 2).
+4. Then two-step login (below).
 
 The user is **selling the app to their company: security comes first** ("no security vulnerability should be there").
 Their security push has three pieces, in this order:
@@ -94,12 +114,6 @@ Vessel list:
 - Sorting by Port uses the port key, not its label.
 - The vessel cache can show figures another user changed, until reload.
 
-Bulk add:
-- The 200-row limit message is above the table, out of view of "+ Add row".
-- Server error row numbers count only the rows sent, not the table's numbering.
-- Removing the last row hides "+ Add row" until Preview.
-- "Date is missing." no longer hints at the default date.
-
 Hotels and Transport:
 - An EGP booking keeps a hidden exchange rate if one was typed while USD was selected.
 - A crafted `nights` value (e.g. "²") gives a 500; the dialog never sends one.
@@ -114,8 +128,6 @@ Master data per port:
 - A PATCH without a `port` key moves the value to All ports (the page always sends one).
 - Two admins moving the same value at once could hit the unique rule (500 instead of the duplicate message).
 - The audit line for a move records the new port only.
-- Changing the bulk-add port redraws the table, dropping any unapplied "Set on all rows" choices.
-- Bulk add's "not in Master data" warning counts values of any port.
 - The server does not check that a vessel's OPR / POC / Agent belongs to its port (only the dropdowns filter).
 
 Calculations:

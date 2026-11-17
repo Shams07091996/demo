@@ -54,7 +54,7 @@ export function moneyPillsEl(type, calc) {
   return h('div', { class: 'pills' }, pillEl('Cost', `LE ${fmt(calc.cost_egp)}`), pillEl('Revenue', `LE ${fmt(calc.revenue_egp)}`), profit);
 }
 
-/** Agent, the five port-call times and how long each stage took. */
+/** The arrival and sailing agents, the five port-call times and how long each stage took. */
 export function portCallBlockEl(vessel) {
   const card = (label, value) => h('div', { class: 'sum-card' }, h('span', null, label), h('b', null, value || '—'));
   const d = vessel.durations || {};
@@ -62,7 +62,8 @@ export function portCallBlockEl(vessel) {
     .filter(([, hours]) => hours !== null && hours !== undefined)
     .map(([label, hours]) => pillEl(label, fmtDuration(hours)));
   return [
-    h('div', { class: 'sum-grid' }, card('Agent', vessel.agent), TIME_FIELDS.map(({ key, label }) => card(label, fmtStamp(vessel[key])))),
+    h('div', { class: 'sum-grid' }, card('Arrival agent', vessel.arrival_agent), card('Sailing agent', vessel.sailing_agent),
+      TIME_FIELDS.map(({ key, label }) => card(label, fmtStamp(vessel[key])))),
     durations.length ? h('div', { class: 'pills' }, durations) : null,
   ];
 }

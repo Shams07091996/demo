@@ -43,7 +43,8 @@ function rowEl(v) {
     h('td', null, h('span', { class: 'vessel-name' }, v.name), v.status && v.status !== 'scheduled' ? statusChipEl(v.status) : null),
     h('td', null, h('span', { class: `badge opr-${oprClass(v.opr)}` }, v.opr || '—')),
     h('td', null, h('span', { class: 'badge poc' }, v.poc || '—')),
-    h('td', null, v.agent || '—'),
+    h('td', null, v.arrival_agent || '—'),
+    h('td', null, v.sailing_agent || '—'),
     h('td', { class: 'col-port' }, PORT_LABEL[v.port] || v.port),
     h('td', null, dmy(v.date)),
     h('td', null, tags),
@@ -60,13 +61,11 @@ export function renderTable() {
   setChildren($('#tbody'), state.vessels.map(rowEl));
 }
 
-/** Refill every OPR / POC / Agent dropdown outside dialogs (quick-add bar and bulk-add defaults), each for its port. */
+/** Refill every OPR / POC / Agent dropdown outside dialogs (the quick-add bar), for its port. */
 export function fillQuickSelects() {
-  const portOf = (selector) => (ME.isAdmin ? $(selector)?.value || null : ME.port);
-  for (const [prefix, port] of [['#qa', portOf('#qa-port')], ['#bk', portOf('#bk-port')]]) {
-    for (const kind of ['opr', 'poc', 'agent']) {
-      const select = $(`${prefix}-${kind}`);
-      setChildren(select, optionChoicesEl(kind, select.value, port));
-    }
+  const port = ME.isAdmin ? $('#qa-port')?.value || null : ME.port;
+  for (const kind of ['opr', 'poc', 'agent']) {
+    const select = $(`#qa-${kind}`);
+    setChildren(select, optionChoicesEl(kind, select.value, port));
   }
 }

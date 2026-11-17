@@ -40,6 +40,7 @@ def service_to_dict(service, month_rate):
     return {
         "id": service.id,
         "type": service.service_type,
+        "agent": service.agent,
         "data": service.data,
         "calc": compute(service.service_type, service.data, month_rate),
     }
@@ -53,7 +54,8 @@ def vessel_to_dict(vessel, rates):
         "name": vessel.name,
         "opr": vessel.opr,
         "poc": vessel.poc,
-        "agent": vessel.agent,
+        "arrival_agent": vessel.arrival_agent,
+        "sailing_agent": vessel.sailing_agent,
         "port": vessel.port,
         "port_label": PORT_LABELS.get(vessel.port, vessel.port),
         "date": vessel.date.isoformat(),

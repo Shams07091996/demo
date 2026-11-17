@@ -35,7 +35,7 @@ CREATE DATABASE marine_sheet OWNER marine_app;
 
 The connection is encrypted by default (`sslmode=require`); use `verify-full` with a CA file when you can. **PostgreSQL
 does not encrypt the data on disk by itself** – see `SECURITY.md` §1 for what is and isn't encrypted and what to do about it.
-This version was tested on PostgreSQL 17 (all 204 tests; the older suite also on 16). A local PostgreSQL without a certificate needs `DJANGO_DB_SSLMODE=disable`.
+The backend suite was tested on PostgreSQL 17 (204 tests on 2026-11-17, before the agents work; the older suite also on 16). A local PostgreSQL without a certificate needs `DJANGO_DB_SSLMODE=disable`.
 
 **Moving existing data from SQLite to PostgreSQL** (Django's own export / import; users keep their hashed passwords):
 
@@ -53,7 +53,6 @@ data loads, but run the test suite against PostgreSQL once before relying on it.
 | Page | What it is for |
 |---|---|
 | Vessels | The vessel table for a **From – To date range** (this month by default), quick-add bar, search / ARK–MSK filters, sorting and paging (10 / 25 / 50 / 100 rows) – all done by the server – a *Summary of services* button on every vessel, CSV export of everything matching |
-| Bulk add | Paste many vessels from Excel (name, date, OPR, POC, agent), preview, then edit the rows in the table (names, dates, OPR, POC, agent), add / remove rows or set one value on all rows, and create them all at once |
 | Hotels | Every hotel stay (one room, 1–6 crew guests, check-in, nights, hotel from Master data) with guest and vessel, for a date range and port; cost and revenue per night; editors add / edit / delete, read-only users only see |
 | Transport | Every transfer between an airport, a hotel and a port — saying which one of each, from Master data — with date and time, 1–6 guests, flight and vessel; same rules as Hotels |
 | Calculations | Every money line — each service (each entry of Parcels / Courier / Landing), hotel stay and transfer — for a vessel-date range, OPR and port, showing its working (amount × rate = EGP) and one totals line (revenue, cost, profit, lines without an exchange rate). Every role can see it |
@@ -62,7 +61,7 @@ data loads, but run the test suite against PostgreSQL once before relying on it.
 | Exchange rates | Monthly USD → EGP rates (shared by every port, so only admins can change them) |
 | History | **Admins only.** Every create / change / delete (vessels, services, bookings, guests, Master data, rates, user roles) with who, when, from which address and old → new; filter by date, what changed and user. Nobody can edit or delete it |
 
-Each vessel also records its **agent** and its **port-call times** (arrived, berthed, ops started, ops finished, sailed – Cairo
+Each vessel also records its **arrival agent** (who entered it), its **sailing agent** (who sailed it) and its **port-call times** (arrived, berthed, ops started, ops finished, sailed – Cairo
 time) with the time spent at berth / operating / in port. Operations may start before berthing (anchorage work); other
 out-of-order times are rejected.
 
@@ -70,8 +69,8 @@ out-of-order times are rejected.
 
 | Area | Details |
 |---|---|
-| Vessels | Quick-add bar (with agent), bulk paste from Excel, add / edit / delete, date range, search, ARK / MSK / Other filters, sorting, paging, status chip, CSV export. A vessel saved outside the range shows a notice with **Show it** |
-| Port call | Agent plus arrival, berthing, operations start / end and sailing times, with durations |
+| Vessels | Quick-add bar (with arrival agent), add / edit / delete, date range, search, ARK / MSK / Other filters, sorting, paging, status chip, CSV export. A vessel saved outside the range shows a notice with **Show it** |
+| Port call | Arrival and sailing agents plus arrival, berthing, operations start / end and sailing times, with durations |
 | Services | Crew Change, Delivery Parcels, Delivery Courier, Medical Treatment, Landing, Certificates, Fresh Water, Cash to Master, Others / Remarks. A vessel can have several of one type |
 | Money | Cost / revenue / profit in EGP, live preview while typing, USD converted with the vessel's monthly rate or a per-service override |
 | Cash to Master | Our revenue is a share **of** the amount (a percentage or a fixed figure), never on top of it; the remainder is "paid to master" and is not our cost |
@@ -102,7 +101,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 204 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
+python manage.py test sheet         # 218 backend tests: maths, validation, permissions, CSRF, throttling, times, agents...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)

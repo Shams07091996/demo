@@ -33,7 +33,8 @@ class Vessel(models.Model):
     name = models.CharField(max_length=120)
     opr = models.CharField("OPR", max_length=100, blank=True)
     poc = models.CharField("POC", max_length=100, blank=True)
-    agent = models.CharField(max_length=100, blank=True)
+    arrival_agent = models.CharField("Arrival agent", max_length=100, blank=True)  # who entered the vessel
+    sailing_agent = models.CharField("Sailing agent", max_length=100, blank=True)  # who sailed it
     date = models.DateField(db_index=True)
     # Port-call milestones (see constants.TIME_FIELDS); all optional.
     arrival_at = models.DateTimeField(null=True, blank=True)
@@ -57,6 +58,7 @@ class Service(models.Model):
 
     vessel = models.ForeignKey(Vessel, on_delete=models.CASCADE, related_name="services")
     service_type = models.CharField(max_length=40, choices=[(t, t) for t in SERVICE_TYPES])
+    agent = models.CharField("Agent", max_length=100, blank=True)  # who did this service
     data = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

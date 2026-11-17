@@ -49,6 +49,7 @@ function serviceCard(service) {
   return h('div', { class: 'svc-card' },
     h('div', { class: 'svc-top' }, h('strong', null, service.type), h('div', { class: 'svc-actions' }, actions)),
     h('div', { class: 'svc-detail' }, serviceSummary(service)),
+    h('div', { class: 'svc-agent' }, `Agent: ${service.agent || '—'}`),
     moneyPillsEl(service.type, service.calc));
 }
 
@@ -71,7 +72,7 @@ export async function openVessel(id) {
           h('a', { href: '#rates', dataset: { act: 'goto', page: 'rates' } }, 'Set rates'))
         : null,
       h('div', { class: 'section-title' }, h('span', null, '🕒 Port call'),
-        ME.canEdit ? btn('ghost small', 'edit-vessel', '✏ Edit times & agent') : null),
+        ME.canEdit ? btn('ghost small', 'edit-vessel', '✏ Edit times & agents') : null),
       portCallBlockEl(vessel),
       h('div', { class: 'section-title', style: { marginTop: '20px' } }, h('span', null, 'Services'),
         h('span', null, btn('ghost small btn-green', 'summary', '📋 Summary of services', { id: vessel.id }), ' ',
@@ -86,14 +87,17 @@ export async function openVessel(id) {
   );
 }
 
-const selectField = (kind, label, current, port) =>
-  h('div', { class: 'field' }, h('label', null, label), h('select', { attrs: { name: kind } }, optionChoicesEl(kind, current, port)));
+// `name` is the form field; `kind` the Master-data list it offers (both agents use the Agent list).
+const selectField = (name, label, current, port, kind = name) =>
+  h('div', { class: 'field' }, h('label', null, label), h('select', { attrs: { name } }, optionChoicesEl(kind, current, port)));
 
-/** Admin changed the vessel's port in the form: offer that port's OPR / POC / Agent values (keeping the chosen ones). */
+const FORM_LISTS = [['opr', 'opr'], ['poc', 'poc'], ['arrival_agent', 'agent'], ['sailing_agent', 'agent']];
+
+/** Admin changed the vessel's port in the form: offer that port's OPR / POC / agent values (keeping the chosen ones). */
 export function onVesselFormChange(event) {
   if (state.ctx.view !== 'vessel-form' || event.target.name !== 'port') return;
-  for (const kind of ['opr', 'poc', 'agent']) {
-    const select = $(`#vessel-form [name="${kind}"]`);
+  for (const [name, kind] of FORM_LISTS) {
+    const select = $(`#vessel-form [name="${name}"]`);
     if (select) setChildren(select, optionChoicesEl(kind, select.value, event.target.value));
   }
 }
@@ -117,9 +121,11 @@ export function openVesselForm(vessel) {
     h('div', { class: 'm-body', id: 'vessel-form' },
       h('div', { class: 'field' }, h('label', null, 'Vessel name'),
         h('input', { attrs: { name: 'name', maxlength: 120, autofocus: true }, value: vessel?.name })),
-      h('div', { class: 'row three' },
-        selectField('opr', 'OPR', vessel?.opr, selectedPort), selectField('poc', 'POC', vessel?.poc, selectedPort),
-        selectField('agent', 'Agent', vessel?.agent, selectedPort)),
+      h('div', { class: 'row two' },
+        selectField('opr', 'OPR', vessel?.opr, selectedPort), selectField('poc', 'POC', vessel?.poc, selectedPort)),
+      h('div', { class: 'row two' },
+        selectField('arrival_agent', 'Arrival agent', vessel?.arrival_agent, selectedPort, 'agent'),
+        selectField('sailing_agent', 'Sailing agent', vessel?.sailing_agent, selectedPort, 'agent')),
       h('div', { class: 'hint' }, 'Missing an OPR, POC or agent? Add it under ',
         h('a', { href: '#master', dataset: { act: 'goto', page: 'master' }, style: { color: 'var(--teal)' } }, 'Master data'), '.'),
       h('div', { class: 'row two' },
