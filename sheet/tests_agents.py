@@ -3,7 +3,9 @@
 from datetime import date, timedelta
 from unittest import mock
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from .models import ChangeRecord, Service, Vessel
 from .tests import FAST_HASHER, ApiTestCase
@@ -195,3 +197,16 @@ class MissingAgentTests(ApiTestCase):
         suez = self.vessel("SUEZ GAP", TODAY - DAY, port="suez", sailing="")
         self.assertEqual(len(self.missing("viewer")), 2)
         self.assertEqual([m["id"] for m in self.missing("viewer", "?port=suez")], [suez.id])
+
+    def test_the_alert_reads_only_the_columns_it_needs(self, _):
+        # No look-back limit: the query must stay light as the history grows (no service data, no complete vessels).
+        done = self.vessel("DONE", TODAY - DAY)
+        Service.objects.create(vessel=done, service_type="Landing", agent="NILE", data={"entries": [{"awb": "X"}]})
+        gap = self.vessel("GAP", TODAY - DAY, sailing="")
+        Service.objects.create(vessel=gap, service_type="Landing", data={"entries": [{"awb": "Y"}]})
+        client = self.login("admin")
+        with CaptureQueriesContext(connection) as queries:
+            status, data = self.call(client, "get", "/api/vessels/alerts/")
+        self.assertEqual([m["name"] for m in data["missing_agent"]], ["GAP"])
+        sql = " ".join(q["sql"] for q in queries.captured_queries)
+        self.assertNotIn('"sheet_service"."data"', sql)

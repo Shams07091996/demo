@@ -9,11 +9,13 @@ import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 
 from .access import scoped_vessels
 from .constants import SERVICE_TYPES
 from .errors import BadRequest
+from .models import Service, Vessel
 from .serializers import month_rates, vessel_to_dict
 
 SORT_KEYS = ("name", "opr", "poc", "arrival_agent", "sailing_agent", "port", "date", "total_cost_egp")
@@ -164,7 +166,8 @@ def list_response(profile, params):
 
 
 def alerts_response(profile, params):
-    """Vessels dated today or tomorrow (Cairo date), whatever range or search the list shows."""
+    """Vessels dated today or tomorrow (Cairo date), whatever range or search the list shows, and past vessels missing
+    an agent."""
     today = timezone.localdate()
     tomorrow = today + timedelta(days=1)
     vessels = scoped_vessels(profile, params.get("port") or None).filter(date__in=[today, tomorrow])
@@ -183,7 +186,16 @@ def missing_agents(profile, port, today):
     SERVICE_TYPES order). Only these four fields are sent, so the list stays light however long it grows."""
     order = {name: i for i, name in enumerate(SERVICE_TYPES)}
     found = []
-    vessels = scoped_vessels(profile, port, prefetch=False).filter(date__lt=today).prefetch_related("services")
+    # No look-back limit, so keep the query light: only vessels with a gap, and only the columns needed.
+    gaps = Q(arrival_agent="") | Q(sailing_agent="") | Q(services__agent="")
+    light_services = Service.objects.only("id", "vessel_id", "service_type", "agent")
+    vessels = (
+        scoped_vessels(profile, port, prefetch=False)
+        .filter(date__lt=today)
+        .filter(pk__in=Vessel.objects.filter(gaps).values("pk"))
+        .only("id", "name", "date", "arrival_agent", "sailing_agent")
+        .prefetch_related(Prefetch("services", queryset=light_services))
+    )
     for vessel in vessels.order_by("date", "id"):
         missing = [label for label, agent in (("Arrival", vessel.arrival_agent), ("Sailing", vessel.sailing_agent))
                    if not agent]
