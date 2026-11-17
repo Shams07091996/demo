@@ -5,12 +5,9 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Git branches:**
-  - `main` — **checked out**; everything built so far, up to and including the OWASP 2025 hardening (merged
+- **Git branches:** only `main` (the merged feature branches were deleted 2026-11-17).
+  - `main` — **checked out**; everything built so far, up to and including the OWASP 2025 hardening and the PostgreSQL 17 setup (merged
     2026-11-17).
-  - `feature/owasp-2025` — merged into `main` 2026-11-17; can be deleted when the user agrees.
-  - `feature/safe-dom-and-checks` — merged; can be deleted (`git branch -d feature/safe-dom-and-checks`) when the
-    user agrees.
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
   `%APPDATA%\postgresql\pgpass.conf`, never in the project). All migrations through `0010` applied; no users yet.
@@ -34,7 +31,7 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-16 | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
 | 2026-11-17 | Safe page building: no `innerHTML` / HTML strings anywhere (screens built with `js/dom.js`), browser-enforced by Trusted Types and a CSP with no inline styles; every `eval` removed (PDF.js patched); ruff security rules, ESLint, pip-audit, npm audit and `npm run check` | `2026-11-17-safe-dom-and-checks-design.md` |
 | 2026-11-17 | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
-| 2026-11-17 | OWASP Top 10 (2025) hardening (branch `feature/owasp-2025`): PDF reader removed (CSP `trusted-types 'none'`); hash-locked `requirements.txt` from `requirements.in`; API rate limits (writes per user / address, CSV per user, 429; broken counter refuses writes); every API error JSON, unexpected ones with an 8-hex `ref` in the log; alerting (`sheet.alert` + optional e-mail); append-only change history of every tracked model incl. user accounts, with an admin-only 🕘 History page; `__Host-` cookies in production; deploy check `sheet.E001`; SECURITY.md rewritten for 2025 | `2026-11-17-owasp-2025-design.md` |
+| 2026-11-17 | OWASP Top 10 (2025) hardening: PDF reader removed (CSP `trusted-types 'none'`); hash-locked `requirements.txt` from `requirements.in`; API rate limits (writes per user / address, CSV per user, 429; broken counter refuses writes); every API error JSON, unexpected ones with an 8-hex `ref` in the log; alerting (`sheet.alert` + optional e-mail); append-only change history of every tracked model incl. user accounts, with an admin-only 🕘 History page; `__Host-` cookies in production; deploy check `sheet.E001`; SECURITY.md rewritten for 2025 | `2026-11-17-owasp-2025-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
