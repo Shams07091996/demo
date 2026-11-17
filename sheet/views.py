@@ -15,9 +15,11 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from . import calculations, listing, logistics, ratelimit
+from . import dashboard as dashboard_figures
 from .access import profile_of, require_admin, require_edit, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
 from .constants import (
+    NO_AGENT,
     OPTION_KIND_KEYS,
     OPTION_KINDS,
     PORT_KEYS,
@@ -52,6 +54,7 @@ def index(request):
         },
         "ports": [{"key": key, "label": label} for key, label in PORTS],
         "service_types": SERVICE_TYPES,
+        "no_agent": NO_AGENT,
         "summary_fields": list(SUMMARY_FIELDS),
         "option_kinds": [{"key": key, "label": label} for key, label in OPTION_KINDS],
         "time_fields": [{"key": key, "label": label} for key, label in TIME_FIELDS],
@@ -94,7 +97,13 @@ def vessel_alerts(request):
 @json_api
 @require_http_methods(["GET"])
 def dashboard(request):
-    return JsonResponse(listing.dashboard_response(request.profile, request.GET))
+    return JsonResponse(dashboard_figures.response(request.profile, request.GET))
+
+
+@json_api
+@require_http_methods(["GET"])
+def dashboard_jobs(request):
+    return JsonResponse(dashboard_figures.jobs_response(request.profile, request.GET))
 
 
 @json_api
