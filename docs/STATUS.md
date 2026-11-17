@@ -175,3 +175,10 @@ Agents per job (final review, minor, for the user to decide):
   server now sends `no-cache`, so this is only needed once after upgrading from an old version.
 - Moving data from SQLite to PostgreSQL: see README "PostgreSQL" (`dumpdata` → `migrate` → `loaddata`).
 - Git commits made by Claude end with a `Co-Authored-By: Claude …` line.
+
+Dashboards (final review, minor, for the user to decide):
+
+- The agent-jobs list (`/api/dashboard/jobs/`) works out every vessel's money though it only needs names, dates and agents; with "All dates" each click recomputes the whole range.
+- An agent named exactly `__none__` would be read as "(no agent)".
+- Two quick clicks on different agent rows can open the slower answer last.
+- Vessels still in port (no sailing agent yet) count as "(no agent)" sailings, as the design says.
