@@ -42,9 +42,7 @@ Each row: what the app does, which tests prove it, and what is left to the peopl
    no longer allowed: `style-src-attr 'none'`.)
 4. **Login throttling and API rate limits use the database**, which is fine for a small team; very high traffic
    would want a proxy-level limiter too.
-5. The PostgreSQL trigger that keeps the history append-only has not yet been run against a real PostgreSQL server
-   in this project's tests (the suite runs on SQLite); check it on the first PostgreSQL deployment.
-6. **Password change** requires the old password but isn't throttled separately (needs an authenticated session).
+5. **Password change** requires the old password but isn't throttled separately (needs an authenticated session).
 
 ## 4. Deployment checklist
 
@@ -71,8 +69,8 @@ Each row: what the app does, which tests prove it, and what is left to the peopl
 
 ## 5. What is tested
 
-`python manage.py test sheet` (201 tests; the suite has run on SQLite, and the older part of it also against
-PostgreSQL 16): access control for every endpoint and role, port isolation, CSRF, malformed / hostile JSON,
+`python manage.py test sheet` (204 tests, run on SQLite and on PostgreSQL 17; three of them check the
+history's append-only trigger and run on PostgreSQL only): access control for every endpoint and role, port isolation, CSRF, malformed / hostile JSON,
 validation limits, money maths, login throttling (user, IP, admin login, proxy header spoofing), password change
 rules, audit / security logging without secrets, headers and CSP, CSV injection, bulk all-or-nothing, port-call time
 rules, database settings, the dependency lock, API rate limits, JSON errors with references, alerting, the change
