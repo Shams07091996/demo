@@ -143,7 +143,7 @@ async function login() {
       click($('[data-act="save-service"]'));
       return waitFor(() => $('#modal .svc-card') && !$('#svc-form'));
     };
-    ok(await addHostileService('Others / Remarks', () => type($('#svc-form [name=note]'), '<b>R</b>')), 'remark with markup-like text saved');
+    ok(await addHostileService('Others / Remarks', () => { type($('#svc-form [name=note]'), '<b>R</b>'); type($('#svc-form [name=cost]'), '10'); }), 'remark with markup-like text saved');
     ok(modalText().includes('<b>R</b>') && noMarkup($('#modal')), 'vessel details: remark shows literally');
     click($('#modal [data-act="edit-service"]'));
     ok(await waitFor(() => $('#svc-form [name=note]')?.value === '<b>R</b>'), 'service form: remark textarea holds the exact text');
@@ -159,6 +159,21 @@ async function login() {
     click(row().querySelector('[data-act="summary"]'));
     ok(await waitFor(() => modalText().includes('<b>R</b> crew')) && modalText().includes('<b>R</b>') && noMarkup($('#modal')), 'summary: remark and crew name literal');
     closeModal();
+
+    await go('calculations');
+    const calcRows = () => $$('#c-tbody tr').filter((t) => t.textContent.includes(HOSTILE));
+    ok(await waitFor(() => calcRows().length > 0), 'calculations: lines of the markup-like vessel are listed');
+    ok(calcRows()[0].textContent.includes('<i>O</i>') && noMarkup($('#c-tbody')), 'calculations: vessel name and OPR show literally');
+    ok([...$('#c-opr').options].some((o) => o.textContent === '<i>O</i>'), 'calculations: OPR filter lists the markup-like OPR as text');
+
+    await go('master');
+    type($('[data-new="agent"]'), 'SMOKE <i>M</i>');
+    click($('[data-act="add-option"][data-kind="agent"]'));
+    const optRow = () => $$('.opt-row').find((r) => r.querySelector('.val')?.textContent === 'SMOKE <i>M</i>');
+    ok(await waitFor(() => optRow()), 'master data: markup-like value is listed literally');
+    ok(noMarkup($('#master-grid')) && optRow().querySelector('[data-act="del-option"]').dataset.value === 'SMOKE <i>M</i>', 'master data: no markup, exact value on the Remove button');
+    await w.fetch(`/api/options/${optRow().querySelector('[data-act="del-option"]').dataset.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
+    await go('vessels');
   }
 
   // A port user outside Alexandria (run: node ui_smoke_test.js suez): their own Master-data values are offered in the

@@ -10,13 +10,6 @@ export function openModal(...content) {
   el.modal.scrollTop = 0;
 }
 
-/** TEMPORARY (removed in Task 8): dialogs not yet converted still pass an HTML string. */
-export function openModalHtml(html) {
-  el.modal.innerHTML = html;
-  el.overlay.classList.add('open');
-  el.modal.scrollTop = 0;
-}
-
 export function closeModal() {
   el.overlay.classList.remove('open');
   setChildren(el.modal);

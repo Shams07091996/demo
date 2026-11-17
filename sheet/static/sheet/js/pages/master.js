@@ -1,11 +1,12 @@
 // Master data page: the OPR, POC, Agent, Hotel, Airport and Port lists.
 import { ME, OPTION_KINDS, PORTS, PORT_LABEL } from '../config.js';
+import { h, optionEls, setChildren } from '../dom.js';
 import { state } from '../state.js';
-import { $, esc } from '../util.js';
+import { $ } from '../util.js';
 
 // A port choice for admins: '' = All ports, else one port.
-const portSelect = (attrs, current) => `<select class="select port-pick" ${attrs}>${[['', 'All ports'], ...PORTS.map((p) => [p.key, p.label])]
-  .map(([key, label]) => `<option value="${key}" ${key === current ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select>`;
+const portSelect = (props, current) =>
+  h('select', { class: 'select port-pick', ...props }, optionEls([['', 'All ports'], ...PORTS.map((p) => [p.key, p.label])], current));
 
 /** The port an admin last chose when adding to each list (kept while the page is open). */
 export const newValuePort = {};
@@ -16,31 +17,41 @@ export const usageUnit = (kind, n) => `${BOOKING_KINDS.includes(kind) ? 'booking
 
 function optionRow(option) {
   const canRemove = ME.canEdit && option.editable;
-  const used = `${option.used} ${usageUnit(option.kind, option.used)}`;
-  return `<div class="opt-row">
-    <span class="val">${esc(option.value)}</span>
-    ${ME.isAdmin
-    ? portSelect(`data-option-port data-id="${option.id}" aria-label="Port of ${esc(option.value)}"`, option.port)
-    : option.port ? `<span class="scope">${esc(PORT_LABEL[option.port] || option.port)}</span>` : ''}
-    <small>${used}</small>
-    ${canRemove ? `<button class="btn danger small" data-act="del-option" data-id="${option.id}" data-used="${option.used}" data-kind="${option.kind}" data-value="${esc(option.value)}">Remove</button>` : ''}
-  </div>`;
+  let scope = null;
+  if (ME.isAdmin) {
+    scope = portSelect({ dataset: { optionPort: '', id: option.id }, attrs: { 'aria-label': `Port of ${option.value}` } }, option.port);
+  } else if (option.port) {
+    scope = h('span', { class: 'scope' }, PORT_LABEL[option.port] || option.port);
+  }
+  return h('div', { class: 'opt-row' },
+    h('span', { class: 'val' }, option.value), ' ',
+    scope, ' ',
+    h('small', null, `${option.used} ${usageUnit(option.kind, option.used)}`), ' ',
+    canRemove
+      ? h('button', {
+        class: 'btn danger small',
+        dataset: { act: 'del-option', id: option.id, used: option.used, kind: option.kind, value: option.value },
+      }, 'Remove')
+      : null);
 }
 
 function listPanel({ key, label }) {
   const rows = state.options.filter((o) => o.kind === key).map(optionRow);
   const adder = ME.canEdit
-    ? `<div class="add-row"><input class="input" data-new="${key}" maxlength="100" placeholder="New ${esc(label)}…">
-       ${ME.isAdmin ? portSelect(`data-new-port="${key}" aria-label="Port for a new ${esc(label)}"`, newValuePort[key] || '') : ''}
-       <button class="btn primary" data-act="add-option" data-kind="${key}">Add</button></div>`
-    : '';
-  return `<section class="panel"><h3>${esc(label)}</h3>${rows.join('') || '<div class="none">None yet.</div>'}${adder}</section>`;
+    ? h('div', { class: 'add-row' },
+      h('input', { class: 'input', dataset: { new: key }, attrs: { maxlength: 100, placeholder: `New ${label}…` } }), ' ',
+      ME.isAdmin
+        ? portSelect({ dataset: { newPort: key }, attrs: { 'aria-label': `Port for a new ${label}` } }, newValuePort[key] || '')
+        : null, ' ',
+      h('button', { class: 'btn primary', dataset: { act: 'add-option', kind: key } }, 'Add'))
+    : null;
+  return h('section', { class: 'panel' }, h('h3', null, label), rows.length ? rows : h('div', { class: 'none' }, 'None yet.'), adder);
 }
 
 export function renderMasterPage() {
   const note = ME.port
-    ? `Values you add are for ${esc(PORT_LABEL[ME.port])} only; shared values are managed by an admin.`
+    ? `Values you add are for ${PORT_LABEL[ME.port]} only; shared values are managed by an admin.`
     : 'Choose a port for each value, or All ports to offer it everywhere.';
-  $('#master-grid').innerHTML = OPTION_KINDS.map(listPanel).join('') +
-    `<p class="help" style="grid-column:1/-1;margin:0">${note}</p>`;
+  setChildren($('#master-grid'), OPTION_KINDS.map(listPanel),
+    h('p', { class: 'help', style: { gridColumn: '1/-1', margin: '0' } }, note));
 }

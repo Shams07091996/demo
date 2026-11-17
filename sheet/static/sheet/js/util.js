@@ -1,15 +1,7 @@
-// Small pure helpers: DOM lookups, escaping, number / date formatting.
+// Small pure helpers: DOM lookups, number / date formatting. (No escaping: screens are built with dom.js.)
 
 export const $ = (selector, root = document) => root.querySelector(selector);
 export const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-
-const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-
-/** Escape text for safe use in HTML content or attribute values. Use it on EVERY dynamic value. */
-export const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
-
-/** Escaped value for an input; null / undefined become an empty string. */
-export const val = (x) => (x === null || x === undefined ? '' : esc(x));
 
 export const num = (x) => {
   const n = parseFloat(x);

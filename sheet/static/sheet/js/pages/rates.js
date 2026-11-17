@@ -1,18 +1,25 @@
 // Exchange rates page.
 import { ME } from '../config.js';
+import { h, setChildren } from '../dom.js';
 import { state } from '../state.js';
 import { $, localISO } from '../util.js';
 
 export function renderRatesPage() {
-  const chips = state.rates.map((r) =>
-    `<span class="rate-chip">${r.label} <b>${r.rate}</b>${ME.isAdmin ? `<button data-act="del-rate" data-id="${r.id}" title="Delete">✕</button>` : ''}</span>`);
+  const chips = state.rates.map((r) => h('span', { class: 'rate-chip' }, `${r.label} `, h('b', null, r.rate),
+    ME.isAdmin ? h('button', { dataset: { act: 'del-rate', id: r.id }, attrs: { title: 'Delete' } }, '✕') : null));
   // Rates are shared by every port, so only admins may change them (the server enforces this too).
-  const form = ME.isAdmin
-    ? `<div class="section-title" style="margin-top:18px"><span>Add or update a rate</span></div>
-       <div class="row three" id="rate-form" style="max-width:640px;align-items:end">
-         <div class="field"><label>Month</label><input type="month" name="month" value="${localISO().slice(0, 7)}"></div>
-         <div class="field"><label>Rate (EGP per USD)</label><input type="number" step="any" min="0" name="rate" placeholder="e.g. 50.25"></div>
-         <div class="field"><button class="btn primary" data-act="save-rate">Save rate</button></div></div>`
-    : ME.canEdit ? '<p class="help">Exchange rates are shared by every port; ask an admin to add or change one.</p>' : '';
-  $('#rates-panel').innerHTML = (chips.join('') || '<div class="none">No rates set yet.</div>') + form;
+  let form = null;
+  if (ME.isAdmin) {
+    const field = (label, ...control) => h('div', { class: 'field' }, label ? h('label', null, label) : null, control);
+    form = [
+      h('div', { class: 'section-title', style: { marginTop: '18px' } }, h('span', null, 'Add or update a rate')),
+      h('div', { class: 'row three', id: 'rate-form', style: { maxWidth: '640px', alignItems: 'end' } },
+        field('Month', h('input', { attrs: { type: 'month', name: 'month' }, value: localISO().slice(0, 7) })),
+        field('Rate (EGP per USD)', h('input', { attrs: { type: 'number', step: 'any', min: 0, name: 'rate', placeholder: 'e.g. 50.25' } })),
+        field(null, h('button', { class: 'btn primary', dataset: { act: 'save-rate' } }, 'Save rate'))),
+    ];
+  } else if (ME.canEdit) {
+    form = h('p', { class: 'help' }, 'Exchange rates are shared by every port; ask an admin to add or change one.');
+  }
+  setChildren($('#rates-panel'), chips.length ? chips : h('div', { class: 'none' }, 'No rates set yet.'), form);
 }
