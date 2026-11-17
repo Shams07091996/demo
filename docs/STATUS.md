@@ -109,6 +109,18 @@ Calculations:
 - Migration 0008 updates bookings one at a time (fine for the few rows that exist).
 - Bookings migrated from a single price show only a cost, so they appear as a loss until a revenue is entered.
 
+Safe page building (from the final review, all minor):
+
+- `tools/check.js`: when a tool is missing (no venv, ruff not installed) it says only "FAILED: ruff"; print the
+  error too. `pip-audit` and `npm audit` need the network, so the check fails offline.
+- `tools/dom_test.js` / `parsing_test.js` / `pdf_reader_test.js` leave a temp folder behind on every run.
+- The smoke test doesn't check a markup-like OPR on the Dashboard bars / cards or the OPR summary title (safe by
+  construction today).
+- `dom.js` accepts `style: { cssText }`; nothing passes user data into `style`, but refusing `cssText` would close it.
+- ESLint doesn't flag direct `el.href = …` / `.src = …` assignments (none exist).
+- SECURITY.md A05 still mentions "the deliberate HSTS-preload note"; `check --deploy` is now simply clean.
+- `requirements-dev.txt` doesn't pin ruff / pip-audit versions.
+
 Development database:
 
 - SQLite (development only) can answer **"database is locked" (500)** when two requests write at once (every

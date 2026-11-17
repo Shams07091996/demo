@@ -1,7 +1,6 @@
 // Every check and test in one go: npm run check (from tools/). Stops at the first failure and says which.
 const { spawnSync } = require('child_process');
 const crypto = require('crypto');
-const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
@@ -25,7 +24,8 @@ const steps = [
   ['backend tests', venv('python'), ['manage.py', 'test', 'sheet'], ROOT, cleanEnv],
   ['parser tests', process.execPath, ['parsing_test.js'], __dirname],
 ];
-if (fs.existsSync(path.join(__dirname, 'dom_test.js'))) steps.push(['element builder tests', process.execPath, ['dom_test.js'], __dirname]);
+steps.push(['element builder tests', process.execPath, ['dom_test.js'], __dirname]);
+steps.push(['PDF reader tests', process.execPath, ['pdf_reader_test.js'], __dirname]);
 
 for (const [label, command, args, cwd, env = process.env] of steps) {
   console.log(`\n=== ${label} ===`);
