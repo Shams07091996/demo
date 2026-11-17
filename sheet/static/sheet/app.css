@@ -1,9 +1,9 @@
 /* ===== Marine Service Sheet ===== */
 /* Theme tokens: light by default, dark when the computer prefers it (unless light was chosen) or when chosen.
    Colours appear nowhere else in this file (sheet/tests_look.py). */
-:root{--bg:#f6f7f8;--surface:#fff;--surface2:#eef0f2;--line:#e1e3e6;--text:#1b1d20;--muted:#646a73;--accent:#2563eb;--accent-text:#fff;--danger:#c62828;--warning:#9a5b00;--success:#1b7a43;--ark:#0e7490;--msk:#c2410c;--oth:#475569;--shadow:#000;--c1:#2563eb;--c2:#d97706;--c3:#059669;--c4:#dc2626;--c5:#7c3aed;--c6:#0891b2;--c7:#db2777;--c8:#4d7c0f}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#141517;--surface:#1c1e21;--surface2:#232529;--line:#2c2f34;--text:#e8e9eb;--muted:#9a9ea6;--accent:#4c8dff;--accent-text:#0b1220;--danger:#ff6b6b;--warning:#f0b45b;--success:#4cc38a;--ark:#38bdf8;--msk:#fb923c;--oth:#a8b3c2;--shadow:#000;--c1:#4c8dff;--c2:#f0a04b;--c3:#3fbf87;--c4:#ef5f5f;--c5:#a78bfa;--c6:#38bdf8;--c7:#f472b6;--c8:#a3e635}}
-:root[data-theme="dark"]{--bg:#141517;--surface:#1c1e21;--surface2:#232529;--line:#2c2f34;--text:#e8e9eb;--muted:#9a9ea6;--accent:#4c8dff;--accent-text:#0b1220;--danger:#ff6b6b;--warning:#f0b45b;--success:#4cc38a;--ark:#38bdf8;--msk:#fb923c;--oth:#a8b3c2;--shadow:#000;--c1:#4c8dff;--c2:#f0a04b;--c3:#3fbf87;--c4:#ef5f5f;--c5:#a78bfa;--c6:#38bdf8;--c7:#f472b6;--c8:#a3e635}
+:root{--bg:#f6f7f8;--surface:#fff;--surface2:#eef0f2;--line:#e1e3e6;--text:#1b1d20;--muted:#646a73;--accent:#2563eb;--accent-text:#fff;--danger:#c62828;--warning:#9a5b00;--success:#1b7a43;--ark:#0e7490;--msk:#c2410c;--oth:#475569;--shadow:#000;--c1:#2563eb;--c2:#b45309;--c3:#047857;--c4:#b91c1c;--c5:#7c3aed;--c6:#0e7490;--c7:#be185d;--c8:#4d7c0f;--c9:#475569;--c10:#9a3412}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#141517;--surface:#1c1e21;--surface2:#232529;--line:#2c2f34;--text:#e8e9eb;--muted:#9a9ea6;--accent:#4c8dff;--accent-text:#0b1220;--danger:#ff6b6b;--warning:#f0b45b;--success:#4cc38a;--ark:#38bdf8;--msk:#fb923c;--oth:#a8b3c2;--shadow:#000;--c1:#4c8dff;--c2:#f0a04b;--c3:#3fbf87;--c4:#ef5f5f;--c5:#a78bfa;--c6:#38bdf8;--c7:#f472b6;--c8:#a3e635;--c9:#cbd5e1;--c10:#fcd34d}}
+:root[data-theme="dark"]{--bg:#141517;--surface:#1c1e21;--surface2:#232529;--line:#2c2f34;--text:#e8e9eb;--muted:#9a9ea6;--accent:#4c8dff;--accent-text:#0b1220;--danger:#ff6b6b;--warning:#f0b45b;--success:#4cc38a;--ark:#38bdf8;--msk:#fb923c;--oth:#a8b3c2;--shadow:#000;--c1:#4c8dff;--c2:#f0a04b;--c3:#3fbf87;--c4:#ef5f5f;--c5:#a78bfa;--c6:#38bdf8;--c7:#f472b6;--c8:#a3e635;--c9:#cbd5e1;--c10:#fcd34d}
 html{color-scheme:light}
 @media (prefers-color-scheme: dark){html:not([data-theme="light"]){color-scheme:dark}}
 html[data-theme="dark"]{color-scheme:dark}
@@ -281,7 +281,8 @@ details.fold{margin-top:6px}details.fold summary{cursor:pointer;font-size:12px;c
 
 /* ----- printing the summary: dark theme off, only the open dialog ----- */
 @media print{
-  :root[data-theme],:root:not([data-theme]){--bg:#fff;--surface:#fff;--surface2:#f3f5f8;--line:#ccc;--text:#111;--muted:#555;--accent:#1d4ed8;--accent-text:#fff;--warning:#8a5300;--success:#1b7a4b;--danger:#b3202b}
+  :root[data-theme],:root:not([data-theme]){--bg:#fff;--surface:#fff;--surface2:#f3f5f8;--line:#ccc;--text:#111;--muted:#555;--accent:#2563eb;--accent-text:#fff;--danger:#c62828;--warning:#9a5b00;--success:#1b7a43;--ark:#0e7490;--msk:#c2410c;--oth:#475569;--shadow:#000;--c1:#2563eb;--c2:#b45309;--c3:#047857;--c4:#b91c1c;--c5:#7c3aed;--c6:#0e7490;--c7:#be185d;--c8:#4d7c0f;--c9:#475569;--c10:#9a3412}
+  html,html[data-theme]{color-scheme:light}
   body{background:var(--bg)}
   .app,.scrim,.m-foot,.x{display:none !important}
   .overlay{position:static;display:block;background:none;padding:0}

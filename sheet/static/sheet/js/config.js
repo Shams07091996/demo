@@ -32,8 +32,11 @@ export const STATUS_LABEL = {
   sailed: 'Sailed',
 };
 
-// One colour per series, per mode (app.css --c1 … --c8).
-export const CHART_COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)', 'var(--c7)', 'var(--c8)'];
+// One colour per series, per mode (app.css --c1 … --c10): at least one per service type.
+export const CHART_COLORS = [
+  'var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)',
+  'var(--c6)', 'var(--c7)', 'var(--c8)', 'var(--c9)', 'var(--c10)',
+];
 
 export const el = {
   overlay: $('#overlay'),

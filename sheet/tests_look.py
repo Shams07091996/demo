@@ -18,7 +18,7 @@ LIGHT = {"--bg": "#f6f7f8", "--surface": "#fff", "--line": "#e1e3e6", "--text": 
 DARK = {"--bg": "#141517", "--surface": "#1c1e21", "--surface2": "#232529", "--line": "#2c2f34", "--text": "#e8e9eb",
         "--muted": "#9a9ea6", "--accent": "#4c8dff"}
 TOKENS = ["--bg", "--surface", "--surface2", "--line", "--text", "--muted", "--accent", "--accent-text", "--danger",
-          "--warning", "--success", *(f"--c{i}" for i in range(1, 9))]
+          "--warning", "--success", *(f"--c{i}" for i in range(1, 11))]
 
 # A token block: a rule whose selector mentions :root and whose body only declares custom properties.
 TOKEN_BLOCK = re.compile(r"(:root[^{}]*)\{((?:\s*--[a-z0-9-]+\s*:[^;{}]+;?)+\s*)\}")
@@ -203,5 +203,25 @@ class TidyTests(SimpleTestCase):
             for fg in ("--danger", "--success", "--warning", "--accent"):
                 self.assertGreaterEqual(contrast(tokens[fg], tokens["--surface"]), 4.5, f"{mode} {fg}")
             self.assertGreaterEqual(contrast(tokens["--accent-text"], tokens["--accent"]), 4.5, f"{mode} button text")
-            for i in range(1, 9):
-                self.assertGreaterEqual(contrast(tokens[f"--c{i}"], tokens["--surface"]), 3, f"{mode} --c{i}")
+            # chart colours also colour text (port banner, OPR card names): AA on both backgrounds
+            for i in range(1, 11):
+                for bg in ("--bg", "--surface"):
+                    self.assertGreaterEqual(contrast(tokens[f"--c{i}"], tokens[bg]), 4.5, f"{mode} --c{i} on {bg}")
+
+
+class PrintAndPaletteTests(SimpleTestCase):
+    def test_print_resets_every_colour_token(self):
+        block = re.search(r"@media print\{(.*?)\n\}", CSS, re.S).group(1)
+        printed = dict(re.findall(r"(--[a-z0-9-]+):([^;}]+)", block))
+        self.assertEqual(set(light_tokens()) - set(printed), set())
+        for name, value in printed.items():
+            if name not in ("--shadow", "--accent-text", "--bg", "--surface", "--surface2", "--line"):
+                self.assertGreaterEqual(contrast(value, "#fff"), 4.5, f"print {name}")
+        self.assertRegex(block, r"html(\[data-theme\])?[^{]*\{color-scheme:light\}")
+
+    def test_one_chart_colour_per_service_type(self):
+        from .constants import SERVICE_TYPES
+
+        config = (BASE / "sheet" / "static" / "sheet" / "js" / "config.js").read_text(encoding="utf-8")
+        colours = re.findall(r"'var\(--c\d+\)'", re.search(r"CHART_COLORS = \[([^\]]*)\]", config).group(1))
+        self.assertGreaterEqual(len(set(colours)), len(SERVICE_TYPES))

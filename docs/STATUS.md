@@ -7,7 +7,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 - **Git branches:** `main` (checked out) and **`feature/new-look`** (built in the worktree `.superpowers/worktrees/look`,
   waiting for the user to merge). Agents per job and Dashboards merged 2026-11-18 (branches deleted).
-- **Tests (on `feature/new-look`):** `npm run check` green with 255 backend tests; smoke test passes for `alex`,
+- **Tests (on `feature/new-look`):** `npm run check` green with 257 backend tests; smoke test passes for `alex`,
   `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
@@ -183,3 +183,14 @@ Dashboards (final review, minor, for the user to decide):
 - An agent named exactly `__none__` would be read as "(no agent)".
 - Two quick clicks on different agent rows can open the slower answer last.
 - Vessels still in port (no sailing agent yet) count as "(no agent)" sailings, as the design says.
+
+New look (final review, minor, for the user to decide):
+
+- The 404 and 500 pages follow the computer's light / dark setting only (they are rendered without the request, so the theme cookie is not read).
+- In light mode a few tinted boxes (yellow notices, the OPR badges) are just under the 4.5:1 contrast guideline (about 4.2–4.4:1).
+- The dialog header's top-right corner is rounder (16px) than the rest (6px).
+- Screen readers: the "rate missing" warning icon on Calculations and the sort direction of table headings are not read out.
+- If no mode was chosen and the computer switches mode while the page is open, the sidebar button's label is not updated until reload.
+- The chosen mode belongs to the browser, not the user account (on a shared PC it carries over to the next person).
+- OPR cards no longer say "Click for details" (they are still clickable).
+- Tints and borders use CSS `color-mix()` (Chrome 111+, Edge 111+, Firefox 113+, Safari 16.2+).
