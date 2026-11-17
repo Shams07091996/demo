@@ -2,7 +2,7 @@
 import {
   headEl, metaBadgesEl, pillEl, portCallBlockEl, profitClass, serviceCountsEl, statusChipEl, tagLabel,
 } from '../components.js';
-import { MULTI, SINGLE_EXTRA } from '../config.js';
+import { MULTI, NO_AGENT, SINGLE_EXTRA } from '../config.js';
 import { h } from '../dom.js';
 import { openModal } from '../modal.js';
 import { api } from '../api.js';
@@ -136,6 +136,23 @@ export async function openSummary(id) {
 
 const OPR_SUMMARY_LIMIT = 200;
 
+/** Under the Dashboard's agent / service filters: the vessels with a counted job, each with its counted services
+ * only (the same rule as the server's OPR cards, sheet/dashboard.py). Without them the list is unchanged. */
+function dashboardFiltered(vessels) {
+  const { agent, service } = state.dashboardFilter;
+  if (!agent && !service) return vessels;
+  const who = agent === NO_AGENT ? '' : agent;
+  const counted = (s) => (!service || s.type === service) && (!agent || s.agent === who);
+  const portCall = (v) => !service && agent && (v.arrival_agent === who || v.sailing_agent === who);
+  return vessels
+    .map((v) => {
+      const services = v.services.filter(counted);
+      const cost = services.reduce((n, s) => n + s.calc.cost_egp, 0);
+      return { ...v, services, total_cost_egp: Math.round(cost * 100) / 100, keep: services.length > 0 || portCall(v) };
+    })
+    .filter((v) => v.keep);
+}
+
 /** Combined summary of one OPR for the current date range and port (figures from the server). */
 export async function openOprSummary(opr) {
   const figures = state.dashboard.oprs.find((o) => o.opr === opr);
@@ -148,8 +165,8 @@ export async function openOprSummary(opr) {
     setStatus('error', error.message);
     return;
   }
-  const vessels = list.vessels;
-  rememberVessels(vessels);
+  rememberVessels(list.vessels);
+  const vessels = dashboardFiltered(list.vessels);
   const counts = figures.service_counts;
   state.ctx = { view: 'opr-summary', vesselId: null };
 
@@ -165,7 +182,7 @@ export async function openOprSummary(opr) {
   openModal(
     headEl(`📋 ${opr} — Services summary`, `${figures.vessels} vessels · ${figures.services} services · LE ${fmt(figures.cost_egp)}`),
     h('div', { class: 'm-body' },
-      list.count > vessels.length ? h('div', { class: 'hint' }, `Showing the first ${vessels.length} of ${list.count} vessels.`) : null,
+      list.count > list.vessels.length ? h('div', { class: 'hint' }, `Showing the first ${list.vessels.length} of ${list.count} vessels.`) : null,
       sectionTitle('⚙ All services (combined)'),
       h('div', { class: 'pills', style: { marginBottom: '22px' } }, countPills.length ? countPills : h('span', { class: 'none' }, 'None')),
       sectionTitle('🚢 Per vessel breakdown'), perVessel),

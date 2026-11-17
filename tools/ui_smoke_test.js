@@ -824,6 +824,13 @@ async function login() {
     click($$('#modal [data-act="open-vessel"]').find((b) => b.textContent.includes('MSC AURORA')));
     ok(await waitFor(() => $('#modal h2')?.textContent.includes('MSC AURORA')), 'dashboard: a job opens its vessel');
     closeModal();
+    // NILE AGENCY did a service on MSC AURORA only; SEA BREEZE (also MSK) must not be in the OPR summary then.
+    type($('#d-agent'), 'NILE AGENCY');
+    const msk = () => $$('#opr-cards .opr-card').find((c) => c.textContent.includes('MSK'));
+    ok(await waitFor(() => agentRows().length === 1 && agentRows()[0].textContent.includes('NILE') && msk()), 'dashboard: NILE AGENCY filter applied');
+    click(msk());
+    ok(await waitFor(() => modalText().includes('Services summary') && modalText().includes('MSC AURORA')) && !modalText().includes('SEA BREEZE'), 'dashboard: the OPR summary follows the agent filter');
+    closeModal();
     type($('#d-agent'), '');
     ok(await waitFor(() => agentRows().length > 1), 'dashboard: clearing the agent filter shows every agent');
     if (hostileId) {
