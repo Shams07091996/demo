@@ -6,14 +6,13 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 ## Where things stand right now
 
 - **Git branches:**
-  - `main` — **checked out**; everything built so far, up to and including Master data per port (merged
-    2026-11-17). No unmerged work.
-  - `feature/calculations-page` and `feature/master-data-per-port` — both merged; can be deleted
-    (`git branch -d <name>`) when the user agrees.
+  - `main` — everything up to and including Master data per port.
+  - `feature/safe-dom-and-checks` — **checked out**, built and tested, **not merged yet** (merge only when the user
+    says so; no migration needed). Piece 1 of 3 of the user's security push (see Next).
 - **The user's own database** (`db.sqlite3`, not in git) is up to date: migrations through `0008` are applied.
   It still has one **shared** agent and one shared hotel from before per-port Master data; an admin can move them to
   a port on the Master data page.
-- **Tests (on `main`):** `python manage.py test sheet` → 150 OK; `tools` parser tests pass; the jsdom smoke test
+- **Tests (on the branch):** `cd tools && npm run check` → all passed (152 backend tests); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
@@ -27,6 +26,7 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-15 | ☰ hides / shows the sidebar on wide screens; alerts banner can shrink to one line; dev `runserver` sends static files with `no-cache` | — |
 | 2026-11-16 | 🏨 Hotels and 🚗 Transport pages: bookings for 1–6 crew guests of a vessel (rooms and cars can be shared), entered on their own pages with the guest picked from the vessel's crew change; transfers name which airport / hotel / port (Master data lists) | `2026-11-16-hotels-and-transport-design.md` |
 | 2026-11-16 | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
+| 2026-11-17 (branch, unmerged) | Safe page building: no `innerHTML` / HTML strings anywhere (screens built with `js/dom.js`), browser-enforced by Trusted Types and a CSP with no inline styles; every `eval` removed (PDF.js patched); ruff security rules, ESLint, pip-audit, npm audit and `npm run check` | `2026-11-17-safe-dom-and-checks-design.md` |
 | 2026-11-17 | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
@@ -44,12 +44,23 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
   car trip can hold several guests and is priced once; transfers record which airport / hotel / port; no driver data.
 - **Master data:** every list (OPR, POC, Agent, Hotel, Airport, Port) can be per port; admins choose (default All
   ports) and can move values; port users' values are their port's.
+- **Security first:** the app is being sold to the user's company. The front end never parses HTML strings
+  (no `innerHTML`, no `eval`, no inline styles) and the browser enforces it; keep it that way.
 - **UI taste:** lean screens — no help paragraphs, no placeholders, no stat cards; compact controls.
 - **Process:** the user chooses **Native** execution (built in-session, one fresh reviewer at the end).
 
 ## Next
 
-- Nothing in progress. The user may want to move the old shared agent / hotel to a port (Master data page).
+The user is **selling the app to their company: security comes first** ("no security vulnerability should be there").
+Their security push has three pieces, in this order:
+
+1. **Safe page building + checks** — built on `feature/safe-dom-and-checks`; fresh review, then merge on the user's OK.
+2. **OWASP Top 10 (2025) review** — go through every 2025 category (incl. the new *Software Supply Chain Failures*
+   and *Mishandling of Exceptional Conditions*), fix what it finds, rewrite SECURITY.md §2 for the 2025 list.
+3. **Two-step login (MFA)**, at least for admins — the biggest known gap; it changes how people sign in, so design
+   it with the user first.
+
+Also: the user may want to move the old shared agent / hotel to a port (Master data page).
 
 Ideas raised along the way:
 
@@ -97,6 +108,12 @@ Calculations:
 - The Summary hides the profit banner when no service has money (it used to show 0.00).
 - Migration 0008 updates bookings one at a time (fine for the few rows that exist).
 - Bookings migrated from a single price show only a cost, so they appear as a loss until a revenue is entered.
+
+Development database:
+
+- SQLite (development only) can answer **"database is locked" (500)** when two requests write at once (every
+  request saves the session). Seen in the smoke test; the test now waits. Possible fix: `"transaction_mode": "IMMEDIATE"`
+  in the SQLite `OPTIONS` (`config/database.py`, Django 5.1+). Production uses PostgreSQL, which is not affected.
 
 ## How work has been done here
 

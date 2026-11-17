@@ -31,9 +31,12 @@ python manage.py test sheet.tests_listing.ListingTests         # one class
 python manage.py test sheet.tests.AccessTests.test_read_only_user_can_read_but_not_write   # one test
 DJANGO_DEBUG=1 python manage.py makemigrations sheet
 cd tools && npm run test:parsing                               # front-end parser unit tests (Node, esbuild)
+cd tools && npm run check                                      # EVERYTHING: ruff, ESLint, pip-audit, npm audit,
+                                                               # check --deploy, backend + parser + dom tests
 ```
 
-`ruff` is configured in `pyproject.toml` (line length 120) but is not installed in the venv.
+Dev tools are in `requirements-dev.txt` (ruff with the security rules `S`, pip-audit) and `tools/package.json`
+(ESLint 9, `tools/eslint.config.js`, run from the repo root). `npm run check` must stay green before a merge.
 
 ### Browser smoke test (`tools/ui_smoke_test.js`)
 
@@ -107,7 +110,13 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
   `refreshAfterChange`, `ensureVessel`), dropping out-of-order responses with a request counter.
 - Every button carries `data-act="name"`; `actions.js` maps names to handlers and `main.js` has one document click
   listener that dispatches them.
-- Rendering builds HTML strings: every dynamic value must go through `util.esc()`.
+- **Screens are built only with `dom.js`** (`h(tag, props, ...children)`, `setChildren`, `optionEls`): dynamic values
+  go in as text or as allow-listed attributes / properties; `h()` throws on anything else. **Never** use `innerHTML`,
+  `outerHTML`, `insertAdjacentHTML`, `document.write`, `DOMParser`, inline `style=` or `eval` / `new Function`: ESLint
+  bans them, the CSP (`require-trusted-types-for 'script'`, `style-src-attr 'none'`) makes the browser refuse them,
+  and `sheet/tests_frontend_safety.py` checks the files. Hide/show template elements with the `hidden` attribute.
+  The only Trusted Types policy is `pdfjs-worker` in `pdfReader.js`. PDF.js carries two local patches
+  (`vendor/pdfjs/PATCHES.md`) that must be re-applied after an update.
 - `bulkParsing.js` (`parseBulk`, `checkRows`) and `crewParsing.js` are pure and unit-tested in `tools/parsing_test.js`.
 
 **Dev server caching:** `sheet/management/commands/runserver.py` overrides `runserver` to send static files with

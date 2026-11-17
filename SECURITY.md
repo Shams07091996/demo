@@ -21,7 +21,7 @@ have it penetration-tested before you rely on it for sensitive data.
 |---|---|---|---|
 | A01 | Broken access control | Every API call goes through `json_api` → role check → port-scoped queries. Port users get *404* for other ports' vessels/services, can't widen the port filter, and are pinned to their port on create/update/bulk. Read-only users can't write. Exchange rates are shared by every port, so only admins can change them; only admins can move a Master-data value to another port (port users' values always belong to their port). Hotel stays and transfers are scoped through their vessel (404 across ports); every role may read their cost and revenue (user decision), only editors change them. Unknown users start read-only. Tested for every endpoint. | Give each person the least role they need. |
 | A02 | Cryptographic failures | HTTPS enforced + HSTS + secure cookies in production; DB connection encrypted; PBKDF2 passwords; secret key required. | Certificates, disk/backup encryption (see §1), key management. |
-| A03 | Injection | Django ORM only (no raw SQL). All input whitelisted, typed and length-limited in `validators.py`. Output escaped in the browser (`esc()`), strict CSP, CSV export neutralises formula injection. Tested with script payloads. | – |
+| A03 | Injection | Django ORM only (no raw SQL). All input whitelisted, typed and length-limited in `validators.py`. The browser code never parses HTML strings: screens are built from elements with typed text inserted as text (`js/dom.js`); `innerHTML` & co. are banned by ESLint and refused by the browser through Trusted Types (`require-trusted-types-for 'script'`); no `eval` / `new Function` anywhere (PDF.js patched, see `vendor/pdfjs/PATCHES.md`); strict CSP with no inline scripts or styles, CSV export neutralises formula injection. Tested with script payloads. | – |
 | A04 | Insecure design | Least-privilege roles, all-or-nothing bulk imports, server-side money maths (the browser preview is never trusted), request size limits (1 MB), bulk limit (200 rows), login lock-out. | API-wide rate limiting at the proxy (e.g. nginx `limit_req`). |
 | A05 | Security misconfiguration | Secure defaults: `DEBUG` is **off unless `DJANGO_DEBUG=1` is set** (only `runserver` / `test` switch it on), so a forgotten environment fails closed; strict CSP, `X-Frame-Options: DENY`, `nosniff`, referrer / permissions / cross-origin policies, `no-store` on all private responses; `manage.py check --deploy` is clean (only the deliberate HSTS-*preload* note). | Never set `DJANGO_DEBUG=1` on a server, restrict `ALLOWED_HOSTS`, harden the server and PostgreSQL (§4). |
 | A06 | Vulnerable & outdated components | Few dependencies (Django, psycopg). `pip-audit`: no known vulnerabilities at build time. PDF.js is bundled locally at 4.10.38 (past CVE-2024-4367) and run with `isEvalSupported: false`. No third-party scripts load from CDNs. | Re-run `pip-audit` regularly, update Django on security releases, update the vendored PDF.js when new versions appear. |
@@ -35,9 +35,8 @@ have it penetration-tested before you rely on it for sensitive data.
 1. **No MFA.** Admin and port accounts rely on password + lock-out only. For admins in particular, add TOTP
    (e.g. `django-otp`) or put the site behind your company SSO / VPN.
 2. **No field-level encryption** of crew personal data (see §1).
-3. **Content-Security-Policy allows inline style *attributes*** (`style-src-attr 'unsafe-inline'`) because the
-   screens set colours/sizes that way. Scripts are strict (`script-src 'self'`). Google Fonts are loaded from
-   Google; self-host them if you want zero third-party requests.
+3. **Google Fonts are loaded from Google**; self-host them if you want zero third-party requests. (Inline styles are
+   no longer allowed: `style-src-attr 'none'`.)
 4. **Login throttling uses the database**, which is fine for a small team; very high traffic would want a
    proxy-level limiter too.
 5. **Password change** requires the old password but isn't throttled separately (needs an authenticated session).
@@ -53,13 +52,16 @@ have it penetration-tested before you rely on it for sensitive data.
   * Use `DJANGO_DB_SSLMODE=verify-full` with `DJANGO_DB_SSLROOTCERT`.
   * Encrypt the disk / volume and the backups; test restoring a backup.
 * Delete the demo users; create real ones with long passwords; consider `DJANGO_ADMIN_URL=private-path/`.
-* Run `python manage.py check --deploy` and `pip-audit -r requirements.txt` on every release.
+* Run `cd tools && npm run check` on every release (it includes `check --deploy`, `pip-audit` and `npm audit`).
 * Centralise and monitor the `sheet.audit` and `sheet.security` logs.
 
 ## 5. What is tested
 
-`python manage.py test sheet` (150 tests, also run against PostgreSQL 16): access control for every endpoint and role,
+`python manage.py test sheet` (152 tests, also run against PostgreSQL 16): access control for every endpoint and role,
 port isolation, CSRF, malformed / hostile JSON, validation limits, money maths, login throttling (user, IP, admin login,
 proxy header spoofing), password change rules, audit/security logging without secrets, headers and CSP, CSV injection,
 bulk all-or-nothing, port-call time rules, database settings.
-Front end: `tools/` has parser unit tests and a browser-less end-to-end test that clicks through every page as three roles.
+Front end: `tools/` has parser unit tests, element-builder tests (`dom_test.js`: markup in values stays text, unsafe
+attributes and links are refused) and a browser-less end-to-end test that clicks through every page as each role, with
+markup-like names (`<i>`, `<b>`, `&`, quotes) checked to show literally on every screen. Source checks: no `eval`, no
+inline `style=` in templates (`tests_frontend_safety.py`).

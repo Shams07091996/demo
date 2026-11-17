@@ -100,8 +100,10 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 150 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
-ruff check .                        # lint (config in pyproject.toml)
+python manage.py test sheet         # 152 backend tests: maths, validation, permissions, CSRF, throttling, times, bulk...
+pip install -r requirements-dev.txt # dev tools: ruff (with security rules) and pip-audit
+cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
+                                           # Django's production-settings check, backend and front-end tests)
 ```
 
 Optional front-end tests (need Node 18+):
