@@ -6,17 +6,16 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 ## Where things stand right now
 
 - **Git branches:**
-  - `main` — everything built so far, up to and including safe page building + checks (merged 2026-11-17).
-  - `feature/owasp-2025` — **checked out, built and reviewed, not merged yet**: OWASP 2025 hardening (all 7 plan
-    tasks + the final review's fixes). Merge only on the user's OK. After merging, the user's database needs
-    `migrate` (new migrations `0009` rate counters, `0010` change history).
+  - `main` — **checked out**; everything built so far, up to and including the OWASP 2025 hardening (merged
+    2026-11-17).
+  - `feature/owasp-2025` — merged into `main` 2026-11-17; can be deleted when the user agrees.
   - `feature/safe-dom-and-checks` — merged; can be deleted (`git branch -d feature/safe-dom-and-checks`) when the
     user agrees.
-- **The user's own database** (`db.sqlite3`, not in git): migrations through `0008` are applied; `0009` and `0010`
-  (on `feature/owasp-2025`) are not.
+- **The user's own database** (`db.sqlite3`, not in git): migrations through `0008` are applied; **`0009` (rate
+  counters) and `0010` (change history) still need `migrate`** — the app needs their tables.
   It still has one **shared** agent and one shared hotel from before per-port Master data; an admin can move them to
   a port on the Master data page.
-- **Tests (on `feature/owasp-2025`):** `cd tools && npm run check` → all passed (201 backend tests); `tools` parser tests pass; the jsdom smoke test
+- **Tests (on `main`):** `cd tools && npm run check` → all passed (201 backend tests); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
@@ -60,7 +59,7 @@ The user is **selling the app to their company: security comes first** ("no secu
 Their security push has three pieces, in this order:
 
 1. **Safe page building + checks** — done and merged (2026-11-17).
-2. **OWASP Top 10 (2025) review** — built on `feature/owasp-2025`, reviewed, waiting for the user's OK to merge.
+2. **OWASP Top 10 (2025) review** — done and merged (2026-11-17).
 3. **Two-step login (MFA)**, at least for admins — the biggest known gap; it changes how people sign in, so design
    it with the user first.
 
