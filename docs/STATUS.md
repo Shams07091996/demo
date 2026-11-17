@@ -5,7 +5,10 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Git branches:** only `main` (checked out). Agents per job merged 2026-11-18 (branch deleted).
+- **Git branches:** `main` (checked out) and **`feature/dashboards`** (built in the worktree `.superpowers/worktrees/dash`,
+  waiting for the user to merge). Agents per job merged 2026-11-18 (branch deleted).
+- **Tests (on `feature/dashboards`):** `npm run check` green with 235 backend tests; smoke test passes for `alex`,
+  `admin`, `viewer` and `suez`. No new migration.
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
   `%APPDATA%\postgresql\pgpass.conf`, never in the project). Migrations through `0010` applied; **`0011_agents_per_job` still to apply** (`DJANGO_DEBUG=1 python manage.py migrate` with the settings below); no users yet.
@@ -31,6 +34,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-17 | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
 | 2026-11-17 | OWASP Top 10 (2025) hardening: PDF reader removed (CSP `trusted-types 'none'`); hash-locked `requirements.txt` from `requirements.in`; API rate limits (writes per user / address, CSV per user, 429; broken counter refuses writes); every API error JSON, unexpected ones with an 8-hex `ref` in the log; alerting (`sheet.alert` + optional e-mail); append-only change history of every tracked model incl. user accounts, with an admin-only 🕘 History page; `__Host-` cookies in production; deploy check `sheet.E001`; SECURITY.md rewritten for 2025 | `2026-11-17-owasp-2025-design.md` |
 | 2026-11-18 | **Agents per job** (merged 2026-11-18): Arrival agent (was Agent) and Sailing agent on each vessel, an Agent on every service (all from the Master data Agent list, empty until chosen); search / sort / CSV / "used by N" cover them; a **Missing agent** alert (bell + banner, max 20 rows + "+ N more") for vessels dated before today that miss any agent; **Bulk add removed** | `2026-11-18-agents-per-job-design.md` |
+| 2026-11-18 | **Dashboards** (branch `feature/dashboards`, not merged): one filter bar (dates, port, OPR, agent, service type); jobs per agent (bars + table; a row opens that agent's jobs), services per month (stacked columns + table), money per month (Cost / Revenue / Profit table); OPR charts and cards follow the filters | `2026-11-18-dashboards-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -63,7 +67,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 Agreed order (2026-11-18), each on its own branch, designed and approved:
 
 1. **Agents per job** — done and merged (2026-11-18).
-2. **Dashboards** — `2026-11-18-dashboards-design.md` (next; branch from `main`).
+2. **Dashboards** — built on `feature/dashboards`, waiting for the user to merge.
 3. **New look** — `2026-11-18-new-look-design.md` (after 2).
 4. Then two-step login (below).
 
