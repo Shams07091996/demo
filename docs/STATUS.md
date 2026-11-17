@@ -5,23 +5,15 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Git branches:**
-  - `main` — **checked out** in the project folder; everything merged so far, up to and including the OWASP 2025
-    hardening and the PostgreSQL 17 setup (merged 2026-11-17), plus the three designs of 2026-11-18.
-  - `feature/agents-per-job` — **not merged, waiting for the user**: arrival / sailing agent per vessel, an agent per
-    service, the "Missing agent" alert, Bulk add removed. Built in a git worktree at
-    `.superpowers/worktrees/agents` (git-ignored; `venv` and `tools/node_modules` there are links to the main ones).
-    Needs migration **`0011_agents_per_job`** on the user's database after merging.
+- **Git branches:** only `main` (checked out). Agents per job merged 2026-11-18 (branch deleted).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
-  `%APPDATA%\postgresql\pgpass.conf`, never in the project). All migrations through `0010` applied; no users yet.
+  `%APPDATA%\postgresql\pgpass.conf`, never in the project). Migrations through `0010` applied; **`0011_agents_per_job` still to apply** (`DJANGO_DEBUG=1 python manage.py migrate` with the settings below); no users yet.
   The old `db.sqlite3` (test data) was deleted. Before company data: a dedicated `marine_app` login instead of the
   superuser, and a stronger `postgres` password.
   App settings for it: `DJANGO_DB_NAME=marine_sheet DJANGO_DB_USER=postgres DJANGO_DB_HOST=localhost
   DJANGO_DB_PORT=5432 DJANGO_DB_SSLMODE=disable` (the local server has SSL off and accepts local connections only).
-- **Tests (on `feature/agents-per-job`):** `npm run check` green with 218 backend tests; smoke test passes for
-  `alex`, `admin`, `viewer` and `suez` (not yet run on PostgreSQL).
-- **Tests (on `main`):** `cd tools && npm run check` → all passed (204 backend tests; the backend suite also passes on PostgreSQL 17); `tools` parser tests pass; the jsdom smoke test
+- **Tests (on `main`):** `cd tools && npm run check` → all passed (218 backend tests; the 204 of 2026-11-17 also passed on PostgreSQL 17, the agents tests not yet); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
@@ -38,7 +30,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-17 | Safe page building: no `innerHTML` / HTML strings anywhere (screens built with `js/dom.js`), browser-enforced by Trusted Types and a CSP with no inline styles; every `eval` removed (PDF.js patched); ruff security rules, ESLint, pip-audit, npm audit and `npm run check` | `2026-11-17-safe-dom-and-checks-design.md` |
 | 2026-11-17 | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
 | 2026-11-17 | OWASP Top 10 (2025) hardening: PDF reader removed (CSP `trusted-types 'none'`); hash-locked `requirements.txt` from `requirements.in`; API rate limits (writes per user / address, CSV per user, 429; broken counter refuses writes); every API error JSON, unexpected ones with an 8-hex `ref` in the log; alerting (`sheet.alert` + optional e-mail); append-only change history of every tracked model incl. user accounts, with an admin-only 🕘 History page; `__Host-` cookies in production; deploy check `sheet.E001`; SECURITY.md rewritten for 2025 | `2026-11-17-owasp-2025-design.md` |
-| 2026-11-18 | **Agents per job** (branch `feature/agents-per-job`, not merged): Arrival agent (was Agent) and Sailing agent on each vessel, an Agent on every service (all from the Master data Agent list, empty until chosen); search / sort / CSV / "used by N" cover them; a **Missing agent** alert (bell + banner, max 20 rows + "+ N more") for vessels dated before today that miss any agent; **Bulk add removed** | `2026-11-18-agents-per-job-design.md` |
+| 2026-11-18 | **Agents per job** (merged 2026-11-18): Arrival agent (was Agent) and Sailing agent on each vessel, an Agent on every service (all from the Master data Agent list, empty until chosen); search / sort / CSV / "used by N" cover them; a **Missing agent** alert (bell + banner, max 20 rows + "+ N more") for vessels dated before today that miss any agent; **Bulk add removed** | `2026-11-18-agents-per-job-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -70,8 +62,8 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 Agreed order (2026-11-18), each on its own branch, designed and approved:
 
-1. **Agents per job** — built on `feature/agents-per-job`, waiting for the user to merge.
-2. **Dashboards** — `2026-11-18-dashboards-design.md` (branch from `main` after 1 is merged).
+1. **Agents per job** — done and merged (2026-11-18).
+2. **Dashboards** — `2026-11-18-dashboards-design.md` (next; branch from `main`).
 3. **New look** — `2026-11-18-new-look-design.md` (after 2).
 4. Then two-step login (below).
 
@@ -155,6 +147,13 @@ Development database:
 - SQLite (development only) can answer **"database is locked" (500)** when two requests write at once (every
   request saves the session). Seen in the smoke test; the test now waits. Possible fix: `"transaction_mode": "IMMEDIATE"`
   in the SQLite `OPTIONS` (`config/database.py`, Django 5.1+). Production uses PostgreSQL, which is not affected.
+
+Agents per job (final review, minor, for the user to decide):
+
+- `listing.missing_agents` treats an agent of only spaces as filled; only a raw database write can store one.
+- No automated test runs migration 0011 itself (it is a plain rename).
+- The bell panel's empty text still says "No vessels today or tomorrow." (shown only when nothing is pending).
+- The Master data agent usage count reads one row per service; fine now, watch it if `/api/options/` slows.
 
 ## How work has been done here
 
