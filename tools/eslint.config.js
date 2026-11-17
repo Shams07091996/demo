@@ -1,4 +1,4 @@
-// ESLint for the app's own browser code (not the vendored PDF.js). Run: npm run lint
+// ESLint for the app's own browser code. Run: npm run lint
 const js = require('@eslint/js');
 const globals = require('globals');
 

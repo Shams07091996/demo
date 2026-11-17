@@ -10,7 +10,6 @@ export const SUMMARY_FIELDS = readJson('summary-fields-data');
 export const OPTION_KINDS = readJson('option-kinds-data');   // [{key, label}] OPR / POC / Agent
 export const TIME_FIELDS = readJson('time-fields-data');      // [{key, label}] arrival … sailing
 
-export const PDF = { lib: document.body.dataset.pdfLib, worker: document.body.dataset.pdfWorker };
 
 export const PORT_LABEL = Object.fromEntries(PORTS.map((p) => [p.key, p.label]));
 export const PORT_COLOR = { alexandria: 'var(--teal)', portsaid: 'var(--gold)', damietta: '#a8dadc', suez: '#c77dff' };

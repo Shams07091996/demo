@@ -32,3 +32,11 @@ class NoInlineStyleTests(SimpleTestCase):
         templates = Path(settings.BASE_DIR) / "sheet" / "templates"
         offenders = [str(path.relative_to(settings.BASE_DIR)) for path in templates.rglob("*.html") if "style=" in path.read_text(encoding="utf-8")]
         self.assertEqual(offenders, [])
+
+
+class NoPdfReaderTests(SimpleTestCase):
+    def test_no_pdf_reader_left(self):
+        vendored = Path(settings.BASE_DIR) / "sheet" / "static" / "sheet" / "vendor" / "pdfjs"
+        self.assertEqual([p for p in vendored.rglob("*") if p.is_file()] if vendored.exists() else [], [])
+        page = (Path(settings.BASE_DIR) / "sheet" / "templates" / "sheet" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("pdf", page.lower())

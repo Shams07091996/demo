@@ -74,7 +74,7 @@ out-of-order times are rejected.
 | Services | Crew Change, Delivery Parcels, Delivery Courier, Medical Treatment, Landing, Certificates, Fresh Water, Cash to Master, Others / Remarks. A vessel can have several of one type |
 | Money | Cost / revenue / profit in EGP, live preview while typing, USD converted with the vessel's monthly rate or a per-service override |
 | Cash to Master | Our revenue is a share **of** the amount (a percentage or a fixed figure), never on top of it; the remainder is "paid to master" and is not our cost |
-| Crew | Pasted personal / flight text is parsed (rank, nationality, flights); off-signer flight PDFs can be imported (read in the browser, never uploaded) |
+| Crew | Pasted personal / flight text is parsed (rank, nationality, flights) |
 | Reports | *Summary of services* per vessel (port call, services with counts, details, crew table, total profit, financial summary; printable), OPR summary, Dashboard |
 | Alerts | Bell + banner for vessels dated today or tomorrow |
 

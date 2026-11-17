@@ -128,7 +128,6 @@ export const actions = {
     member._open = !member._open;
     card.classList.toggle('open', member._open);
   },
-  'pdf-pick': () => $('#pdf-input').click(),
 
   'edit-vessel': () => openVesselForm(getVessel(vesselId())),
   'save-vessel': () => saveVessel({ addAnother: false }),

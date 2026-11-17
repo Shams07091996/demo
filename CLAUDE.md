@@ -115,8 +115,7 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
   `outerHTML`, `insertAdjacentHTML`, `document.write`, `DOMParser`, inline `style=` or `eval` / `new Function`: ESLint
   bans them, the CSP (`require-trusted-types-for 'script'`, `style-src-attr 'none'`) makes the browser refuse them,
   and `sheet/tests_frontend_safety.py` checks the files. Hide/show template elements with the `hidden` attribute.
-  The only Trusted Types policy is `pdfjs-worker` in `pdfReader.js`. PDF.js carries two local patches
-  (`vendor/pdfjs/PATCHES.md`) that must be re-applied after an update.
+  No Trusted Types policy may be created (`trusted-types 'none'`); there is no PDF reader any more.
 - `bulkParsing.js` (`parseBulk`, `checkRows`) and `crewParsing.js` are pure and unit-tested in `tools/parsing_test.js`.
 
 **Dev server caching:** `sheet/management/commands/runserver.py` overrides `runserver` to send static files with

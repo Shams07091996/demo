@@ -14,7 +14,7 @@ function load(entry) {
   fs.writeFileSync(file, code);
   return require(file);
 }
-const { parsePersonal, parseFlightText, parsePdfText } = load('crewParsing.js');
+const { parsePersonal, parseFlightText } = load('crewParsing.js');
 const { parseBulk, parseDate, detectDelimiter } = load('bulkParsing.js');
 
 let failed = 0;
@@ -33,19 +33,13 @@ check(seg.departureCity === 'Alexandria, Egypt' && seg.departureTime === '05 APR
 check(seg.arrivalCity === 'Istanbul, Turkey' && seg.arrivalTime === '05 APR 12:30', 'manual arrival');
 check(parseFlightText('nothing useful here').length === 0, 'unrecognised text gives no segments');
 
-const pdf = 'Travel Arrangements for SMITH/JOHN MR Booking Reference ABC123 Travel Details Sunday 05 Apr 2026 RANK: 4/E - APMID: 99 ' +
+const itinerary = 'Travel Details Sunday 05 Apr 2026 ' +
   'Flight Information Airline Booking Ref VBCUSA Airline Turkish Airlines Flight TK689 Origin Alexandria, Borg el Arab Destination Istanbul Airport Departing 08:55 Arriving 12:30 ' +
-  'Flight Information Airline Booking Ref VBCUSA Airline Turkish Airlines Flight TK1 Origin Istanbul Airport Destination London Departing 14:00 ' +
-  'Travel Arrangements for DOE/JANE MS Booking Reference XYZ Travel Details Monday 06 Apr 2026 ' +
-  'Flight Information Airline Booking Ref Q Airline Egyptair Flight MS777 Origin Cairo International Destination Dubai Departing 23:10';
-const members = parsePdfText(pdf);
-check(members.length === 2, 'two crew members found in one PDF');
-check(members[0].name === 'JOHN SMITH' && members[0].personalStructured.rank === '4/E', 'PDF name (SURNAME/GIVEN) and rank');
-const leg = members[0].flightStructured.segments;
-check(leg.length === 1 && leg[0].flightNo === 'TK689', 'only the Egypt departure leg is kept');
-check(leg[0].airline === 'Turkish Airlines' && leg[0].arrivalCity === 'Istanbul Airport', 'PDF airline and destination');
-check(leg[0].departureTime === '05 Apr 2026 08:55', 'PDF departure date and time');
-check(members[1].name === 'JANE DOE' && members[1].flightStructured.segments[0].flightNo === 'MS777', 'second member parsed');
+  'Flight Information Airline Booking Ref VBCUSA Airline Turkish Airlines Flight TK1 Origin Istanbul Airport Destination London Departing 14:00';
+const leg = parseFlightText(itinerary);
+check(leg.length === 1 && leg[0].flightNo === 'TK689', 'pasted itinerary: only the Egypt departure leg is kept');
+check(leg[0].airline === 'Turkish Airlines' && leg[0].arrivalCity === 'Istanbul Airport', 'pasted itinerary airline and destination');
+check(leg[0].departureTime === '05 Apr 2026 08:55', 'pasted itinerary departure date and time');
 
 /* ---------- pasted vessel lists ---------- */
 check(parseDate('13.11.2026') === '2026-11-13' && parseDate('13/11/2026') === '2026-11-13', 'dates: day-first dd.mm.yyyy and dd/mm/yyyy');
