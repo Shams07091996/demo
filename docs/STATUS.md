@@ -6,8 +6,10 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 ## Where things stand right now
 
 - **Git branches:**
-  - `main` — **checked out**; everything built so far, up to and including safe page building + checks (merged
-    2026-11-17). No unmerged work.
+  - `main` — everything built so far, up to and including safe page building + checks (merged 2026-11-17).
+  - `feature/owasp-2025` — **checked out**; holds only the approved design and plan for piece 2 (no code yet).
+    **Resume here:** build `docs/superpowers/plans/2026-11-17-owasp-2025.md` from Task 1, Native execution
+    (superpowers:executing-plans), user already approved design and plan.
   - `feature/safe-dom-and-checks` — merged; can be deleted (`git branch -d feature/safe-dom-and-checks`) when the
     user agrees.
 - **The user's own database** (`db.sqlite3`, not in git) is up to date: migrations through `0008` are applied.
@@ -56,10 +58,15 @@ The user is **selling the app to their company: security comes first** ("no secu
 Their security push has three pieces, in this order:
 
 1. **Safe page building + checks** — done and merged (2026-11-17).
-2. **OWASP Top 10 (2025) review** — go through every 2025 category (incl. the new *Software Supply Chain Failures*
-   and *Mishandling of Exceptional Conditions*), fix what it finds, rewrite SECURITY.md §2 for the 2025 list.
+2. **OWASP Top 10 (2025) review** — design `2026-11-17-owasp-2025-design.md` and plan `2026-11-17-owasp-2025.md`
+   approved (internet-facing assumption; includes removing the PDF reader at the user's request and a change history
+   with an admin History page). Not built yet: start at Task 1.
 3. **Two-step login (MFA)**, at least for admins — the biggest known gap; it changes how people sign in, so design
    it with the user first.
+
+4. **After the security push** (user's top picks from the ARKAS 2027 preview): keep the exchange rate used by each
+   service, service status (completed / in progress / cancelled + reason), billing basis (Cash / Owners' Account),
+   accounts review (Pending / Reviewed, possibly an Accounts role).
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
 
