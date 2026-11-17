@@ -28,6 +28,14 @@ export function savePageSize(size) {
   }
 }
 
+/** The Dashboard before (or after a failed) load: the shape of GET /api/dashboard/. */
+export function emptyDashboard() {
+  return {
+    count: 0, oprs: [], filters: { oprs: [], agents: [] }, service_types: [], agents: [], months: [],
+    totals: { jobs: 0, services: 0, cost_egp: 0, revenue_egp: 0, profit_egp: 0 },
+  };
+}
+
 export const state = {
   // What the vessel list (and Dashboard) asks the server for. `port` is the admin / read-only port selector.
   filter: {
@@ -37,7 +45,8 @@ export const state = {
   list: { count: 0, pages: 1, page: 1, totals: null },
   cache: new Map(),   // every vessel seen so far, by id (dialogs read from here)
   alerts: { today: [], tomorrow: [], missing_agent: [] },
-  dashboard: { count: 0, oprs: [] },
+  dashboard: emptyDashboard(),
+  dashboardFilter: { opr: '', agent: '', service: '' }, // the Dashboard's own filters (not the vessel list's)
   options: [],        // OPR / POC / Agent master data
   rates: [],          // monthly USD -> EGP rates
   page: 'vessels',
@@ -82,3 +91,11 @@ export const optionValues = (kind, port = null) => [...new Set(state.options
   .map((o) => o.value))];
 
 export const resetContext = () => { state.ctx = { view: null, vesselId: null }; };
+
+/** Query parameters for the Dashboard: the shared From / To / port plus its own OPR / agent / service filters. */
+export function dashboardParams(extra = {}) {
+  const all = filterParams();
+  const params = new URLSearchParams(['from', 'to', 'port'].filter((k) => all.has(k)).map((k) => [k, all.get(k)]));
+  for (const [key, value] of Object.entries({ ...state.dashboardFilter, ...extra })) if (value) params.set(key, value);
+  return params;
+}
