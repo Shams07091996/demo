@@ -89,3 +89,51 @@ export function optionChoicesEl(kind, current = '', port = null) {
 /** Port <option>s; with `all`, a first "🌐 All ports" option (value ALL). */
 export const portOptionEls = ({ all = false, selected = '' } = {}) =>
   optionEls([...(all ? [['ALL', '🌐 All ports']] : []), ...PORTS.map((p) => [p.key, p.label])], selected);
+
+/** Dialog header: title, optional meta line (nodes or text), close button. */
+export const headEl = (title, meta = null) =>
+  h('div', { class: 'm-head' },
+    h('div', null, h('h2', null, title), meta ? h('div', { class: 'm-meta' }, meta) : null),
+    h('button', { class: 'x', dataset: { act: 'close' }, attrs: { 'aria-label': 'Close' } }, '✕'));
+
+export const metaBadgesEl = (v) => [
+  h('span', { class: `badge opr-${oprClass(v.opr)}` }, v.opr || '—'), ' ',
+  h('span', { class: 'badge poc' }, v.poc || '—'), ' ',
+  h('span', null, `📅 ${dmy(v.date)}`), ' ',
+  h('span', null, `⚓ ${PORT_LABEL[v.port] || v.port}`),
+];
+
+/** A label / value pill; both are inserted as text (or nodes). */
+export const pillEl = (label, value, cls = '') =>
+  h('div', { class: `pill ${cls}`.trim() }, h('span', null, label), h('b', null, value));
+
+export function moneyPillsEl(type, calc) {
+  if (!calc.cost_egp && !calc.revenue_egp && type !== 'Cash to Master') return null; // no money entered
+  const profit = pillEl('Profit', `LE ${sign(calc.profit_egp)}`, profitClass(calc.profit_egp));
+  if (type === 'Cash to Master') {
+    return h('div', { class: 'pills' },
+      pillEl('Our revenue', `LE ${fmt(calc.revenue_egp)}`, 'good'), pillEl('Paid to master', `LE ${fmt(calc.to_master_egp)}`), profit);
+  }
+  return h('div', { class: 'pills' }, pillEl('Cost', `LE ${fmt(calc.cost_egp)}`), pillEl('Revenue', `LE ${fmt(calc.revenue_egp)}`), profit);
+}
+
+/** Agent, the five port-call times and how long each stage took. */
+export function portCallBlockEl(vessel) {
+  const card = (label, value) => h('div', { class: 'sum-card' }, h('span', null, label), h('b', null, value || '—'));
+  const d = vessel.durations || {};
+  const durations = [['Operations', d.ops_hours], ['At berth', d.berth_hours], ['Total in port', d.port_hours]]
+    .filter(([, hours]) => hours !== null && hours !== undefined)
+    .map(([label, hours]) => pillEl(label, fmtDuration(hours)));
+  return [
+    h('div', { class: 'sum-grid' }, card('Agent', vessel.agent), TIME_FIELDS.map(({ key, label }) => card(label, fmtStamp(vessel[key])))),
+    durations.length ? h('div', { class: 'pills' }, durations) : null,
+  ];
+}
+
+/** "Crew Change ×1 · Fresh Water ×2" as chips. */
+export function serviceCountsEl(vessel) {
+  const counts = {};
+  vessel.services.forEach((s) => { counts[s.type] = (counts[s.type] || 0) + 1; });
+  const chips = Object.entries(counts).map(([type, n]) => h('span', { class: 'svc-chip' }, `${type} ×${n}`));
+  return chips.length ? chips : h('span', { class: 'none' }, h('i', null, 'No services'));
+}

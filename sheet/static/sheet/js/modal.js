@@ -1,8 +1,17 @@
 // The single modal dialog everything opens in.
 import { el } from './config.js';
+import { setChildren } from './dom.js';
 import { resetContext } from './state.js';
 
-export function openModal(html) {
+/** Open the dialog with the given nodes (built with h()). */
+export function openModal(...content) {
+  setChildren(el.modal, ...content);
+  el.overlay.classList.add('open');
+  el.modal.scrollTop = 0;
+}
+
+/** TEMPORARY (removed in Task 8): dialogs not yet converted still pass an HTML string. */
+export function openModalHtml(html) {
   el.modal.innerHTML = html;
   el.overlay.classList.add('open');
   el.modal.scrollTop = 0;
@@ -10,7 +19,7 @@ export function openModal(html) {
 
 export function closeModal() {
   el.overlay.classList.remove('open');
-  el.modal.innerHTML = '';
+  setChildren(el.modal);
   resetContext();
 }
 

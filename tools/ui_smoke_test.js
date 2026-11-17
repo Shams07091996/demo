@@ -116,6 +116,20 @@ async function login() {
     ok(row().querySelector('.vessel-name').textContent === HOSTILE && noMarkup(row()), 'vessels list: markup-like name shows literally');
     ok(row().textContent.includes(HOSTILE_AGENT) && row().textContent.includes('<i>O</i>'), 'vessels list: agent and OPR show literally (no double escaping)');
     ok(await waitFor(() => $('#notifPanel').textContent.includes(HOSTILE)) && noMarkup($('#notifPanel')) && $('#notifBanner').textContent.includes(HOSTILE) && noMarkup($('#notifBanner')), 'alerts: markup-like name shows literally');
+    click(row().querySelector('[data-act="summary"]'));
+    ok(await waitFor(() => $('#modal h2')?.textContent === HOSTILE), 'summary: title shows the name literally');
+    ok(modalText().includes(HOSTILE_AGENT) && modalText().includes('<i>O</i>') && noMarkup($('#modal')), 'summary: agent and OPR literal, no markup');
+    closeModal();
+    click(row().querySelector('td'));
+    ok(await waitFor(() => $('#modal h2')?.textContent === HOSTILE) && modalText().includes(HOSTILE_AGENT) && noMarkup($('#modal')), 'vessel details: texts literal, no markup');
+    click($('#modal [data-act="edit-vessel"]'));
+    ok(await waitFor(() => $('#vessel-form [name=name]')?.value === HOSTILE), 'vessel form: name input holds the exact text');
+    ok($('#vessel-form [name=agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: agent / OPR kept as exact values');
+    if (ROLE === 'admin') {
+      type($('#vessel-form [name=port]'), 'suez');
+      ok($('#vessel-form [name=agent]').value === HOSTILE_AGENT && $('#vessel-form [name=opr]').value === '<i>O</i>', 'vessel form: changing the port keeps the chosen values');
+    }
+    closeModal();
   }
 
   // A port user outside Alexandria (run: node ui_smoke_test.js suez): their own Master-data values are offered in the

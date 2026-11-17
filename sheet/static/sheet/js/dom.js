@@ -5,9 +5,9 @@
 const ATTRS = new Set([
   'id', 'class', 'title', 'type', 'name', 'for', 'colspan', 'rowspan', 'min', 'max', 'step', 'maxlength',
   'placeholder', 'rows', 'role', 'tabindex', 'href', 'target', 'rel', 'autocomplete', 'inputmode', 'readonly',
-  'multiple', 'accept', 'list',
+  'multiple', 'accept', 'list', 'autofocus',
 ]);
-const PROPS = new Set(['value', 'checked', 'selected', 'disabled', 'hidden']);
+const PROPS = new Set(['value', 'checked', 'selected', 'disabled', 'hidden', 'open']);
 const BLOCKED_TAGS = new Set(['script', 'iframe', 'frame', 'object', 'embed', 'style', 'link', 'meta', 'base', 'template']);
 // '#…', relative paths and http(s) only: no javascript:, data:, vbscript: … (control characters and spaces ignored,
 // as browsers do). Two leading slashes / backslashes would mean another host, so they are refused too.

@@ -4,7 +4,7 @@ import { api, mutate } from '../api.js';
 import { head, optionChoices } from '../components.js';
 import { el } from '../config.js';
 import { setStatus } from '../feedback.js';
-import { closeModal, openModal } from '../modal.js';
+import { closeModal, openModalHtml } from '../modal.js';
 import { bookingsPage } from '../pages/bookings.js';
 import { optionValues, state } from '../state.js';
 import { $, $$, dmy, esc } from '../util.js';
@@ -190,7 +190,7 @@ function render({ fresh = false } = {}) {
   const scroll = el.modal.scrollTop;
   const focused = fresh ? null : fieldKey(document.activeElement);
   const title = `${id ? 'Edit' : 'Add'} ${kind === 'hotels' ? 'hotel stay' : 'transfer'}`;
-  openModal(`${head(title)}
+  openModalHtml(`${head(title)}
     <div class="m-body" id="booking-form">${vesselBlock()}${guestsBlock()}${detailsBlock()}</div>
     <div class="m-foot">
       ${id ? '<button class="btn danger" data-act="booking-delete">Delete</button>' : '<span></span>'}

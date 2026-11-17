@@ -1,47 +1,55 @@
 // Vessel details (port call + services) and the add / edit vessel form.
-import { head, metaBadges, moneyPills, optionChoices, pill, portCallBlock, profitClass, statusChip } from '../components.js';
-import { ME, MULTI, PORTS, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
+import {
+  headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass, statusChipEl,
+} from '../components.js';
+import { ME, MULTI, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
+import { h, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { ensureVessel } from '../data.js';
 import { state } from '../state.js';
-import { $, $$, esc, fmt, formValues, sign, today, val } from '../util.js';
+import { $, $$, fmt, formValues, sign, today } from '../util.js';
+
+const lines = (parts) => parts.flatMap((part, i) => [i ? h('br') : null, part]);
+const txt = (x) => (x === null || x === undefined ? '' : String(x));
+const btn = (cls, act, label, extra = {}) => h('button', { class: `btn ${cls}`, dataset: { act, ...extra } }, label);
 
 function serviceSummary(service) {
   const d = service.data || {};
   switch (service.type) {
     case 'Others / Remarks':
-      return esc(d.note || '—');
+      return d.note || '—';
     case 'Crew Change': {
-      const names = (group) => (d[group] || []).map((m) => esc(m.name || 'Unnamed')).join(', ') || '—';
-      return `<b>On-signers (${(d.onSigners || []).length}):</b> ${names('onSigners')}<br>
-              <b>Off-signers (${(d.offSigners || []).length}):</b> ${names('offSigners')}`;
+      const names = (group) => (d[group] || []).map((m) => m.name || 'Unnamed').join(', ') || '—';
+      return [
+        h('b', null, `On-signers (${(d.onSigners || []).length}):`), ` ${names('onSigners')}`, h('br'),
+        h('b', null, `Off-signers (${(d.offSigners || []).length}):`), ` ${names('offSigners')}`,
+      ];
     }
     case 'Cash to Master': {
-      const share = d.shareMode === 'fixed' ? `fixed ${val(d.amountCurrency)} ${fmt(d.fixedRevenue)}` : `${val(d.percentage ?? 0)}%`;
-      return `${val(d.amountCurrency)} ${fmt(d.amount)} · our share ${share}`;
+      const share = d.shareMode === 'fixed' ? `fixed ${txt(d.amountCurrency)} ${fmt(d.fixedRevenue)}` : `${txt(d.percentage ?? 0)}%`;
+      return `${txt(d.amountCurrency)} ${fmt(d.amount)} · our share ${share}`;
     }
     default: {
       if (MULTI.includes(service.type)) {
         const entries = d.entries || [];
         return entries.length
-          ? entries.map((e, i) => `#${i + 1} ${esc(e.awb || 'no AWB')}${e.weight ? ` · ${val(e.weight)} kg` : ''}`).join('<br>')
+          ? lines(entries.map((e, i) => `#${i + 1} ${e.awb || 'no AWB'}${e.weight ? ` · ${txt(e.weight)} kg` : ''}`))
           : 'No entries yet';
       }
       const extra = SINGLE_EXTRA[service.type];
-      return extra && d[extra.name] ? `${extra.label}: ${esc(d[extra.name])}` : '';
+      return extra && d[extra.name] ? `${extra.label}: ${d[extra.name]}` : '';
     }
   }
 }
 
 function serviceCard(service) {
   const actions = ME.canEdit
-    ? `<button class="btn ghost small" data-act="edit-service" data-id="${service.id}">✏ Edit</button>
-       <button class="btn danger small" data-act="del-service" data-id="${service.id}">✕</button>`
-    : '';
-  return `<div class="svc-card">
-    <div class="svc-top"><strong>${esc(service.type)}</strong><div class="svc-actions">${actions}</div></div>
-    <div class="svc-detail">${serviceSummary(service)}</div>
-    ${moneyPills(service.type, service.calc)}</div>`;
+    ? [btn('ghost small', 'edit-service', '✏ Edit', { id: service.id }), ' ', btn('danger small', 'del-service', '✕', { id: service.id })]
+    : null;
+  return h('div', { class: 'svc-card' },
+    h('div', { class: 'svc-top' }, h('strong', null, service.type), h('div', { class: 'svc-actions' }, actions)),
+    h('div', { class: 'svc-detail' }, serviceSummary(service)),
+    moneyPillsEl(service.type, service.calc));
 }
 
 export async function openVessel(id) {
@@ -51,82 +59,87 @@ export async function openVessel(id) {
   const rateMissing = vessel.services.some((s) => s.calc.rate_missing);
   const month = `${vessel.date.slice(5, 7)}.${vessel.date.slice(0, 4)}`;
   const totals = vessel.services.length
-    ? `<div class="totals">${pill('Total cost', `LE ${fmt(vessel.total_cost_egp)}`)}
-       ${pill('Total profit', `LE ${sign(vessel.total_profit_egp)}`, profitClass(vessel.total_profit_egp))}</div>`
-    : '';
-  openModal(`${head(vessel.name, metaBadges(vessel) + statusChip(vessel.status))}
-    <div class="m-body">
-      ${rateMissing ? `<div class="warn">No exchange rate set for ${month}. USD amounts are counted 1:1 until you add one. <a href="#rates" data-act="goto" data-page="rates">Set rates</a></div>` : ''}
-      <div class="section-title"><span>🕒 Port call</span>${ME.canEdit ? '<button class="btn ghost small" data-act="edit-vessel">✏ Edit times &amp; agent</button>' : ''}</div>
-      ${portCallBlock(vessel)}
-      <div class="section-title" style="margin-top:20px"><span>Services</span>
-        <span><button class="btn ghost small btn-green" data-act="summary" data-id="${vessel.id}">📋 Summary of services</button>
-        ${ME.canEdit ? '<button class="btn primary small" data-act="add-service">+ Add service</button>' : ''}</span></div>
-      ${totals}
-      ${vessel.services.map(serviceCard).join('') || '<div class="hint">No services recorded for this vessel yet.</div>'}
-    </div>
-    <div class="m-foot">
-      ${ME.canEdit ? '<button class="btn danger" data-act="del-vessel">Delete vessel</button>' : '<span></span>'}
-      <div class="right">
-        ${ME.canEdit ? '<button class="btn ghost" data-act="edit-vessel">Edit vessel info</button>' : ''}
-        <button class="btn ghost" data-act="close">Close</button>
-      </div>
-    </div>`);
+    ? h('div', { class: 'totals' },
+      pillEl('Total cost', `LE ${fmt(vessel.total_cost_egp)}`), ' ',
+      pillEl('Total profit', `LE ${sign(vessel.total_profit_egp)}`, profitClass(vessel.total_profit_egp)))
+    : null;
+  openModal(
+    headEl(vessel.name, [...metaBadgesEl(vessel), statusChipEl(vessel.status)]),
+    h('div', { class: 'm-body' },
+      rateMissing
+        ? h('div', { class: 'warn' }, `No exchange rate set for ${month}. USD amounts are counted 1:1 until you add one. `,
+          h('a', { href: '#rates', dataset: { act: 'goto', page: 'rates' } }, 'Set rates'))
+        : null,
+      h('div', { class: 'section-title' }, h('span', null, '🕒 Port call'),
+        ME.canEdit ? btn('ghost small', 'edit-vessel', '✏ Edit times & agent') : null),
+      portCallBlockEl(vessel),
+      h('div', { class: 'section-title', style: { marginTop: '20px' } }, h('span', null, 'Services'),
+        h('span', null, btn('ghost small btn-green', 'summary', '📋 Summary of services', { id: vessel.id }), ' ',
+          ME.canEdit ? btn('primary small', 'add-service', '+ Add service') : null)),
+      totals,
+      vessel.services.length ? vessel.services.map(serviceCard) : h('div', { class: 'hint' }, 'No services recorded for this vessel yet.')),
+    h('div', { class: 'm-foot' },
+      ME.canEdit ? btn('danger', 'del-vessel', 'Delete vessel') : h('span'),
+      h('div', { class: 'right' },
+        ME.canEdit ? btn('ghost', 'edit-vessel', 'Edit vessel info') : null, ' ',
+        btn('ghost', 'close', 'Close'))),
+  );
 }
 
 const selectField = (kind, label, current, port) =>
-  `<div class="field"><label>${label}</label><select name="${kind}">${optionChoices(kind, current, port)}</select></div>`;
+  h('div', { class: 'field' }, h('label', null, label), h('select', { attrs: { name: kind } }, optionChoicesEl(kind, current, port)));
 
 /** Admin changed the vessel's port in the form: offer that port's OPR / POC / Agent values (keeping the chosen ones). */
 export function onVesselFormChange(event) {
   if (state.ctx.view !== 'vessel-form' || event.target.name !== 'port') return;
   for (const kind of ['opr', 'poc', 'agent']) {
     const select = $(`#vessel-form [name="${kind}"]`);
-    if (select) select.innerHTML = optionChoices(kind, select.value, event.target.value);
+    if (select) setChildren(select, optionChoicesEl(kind, select.value, event.target.value));
   }
 }
 
-const timeField = ({ key, label }, vessel) => `
-  <div class="time-row"><div class="field"><label>${esc(label)}</label>
-    <input type="datetime-local" name="${key}" value="${val(vessel?.[key])}"></div>
-    <button type="button" class="btn ghost small" data-act="time-now" data-target="${key}">Now</button></div>`;
+const timeField = ({ key, label }, vessel) =>
+  h('div', { class: 'time-row' },
+    h('div', { class: 'field' }, h('label', null, label),
+      h('input', { attrs: { type: 'datetime-local', name: key }, value: vessel?.[key] })),
+    h('button', { class: 'btn ghost small', attrs: { type: 'button' }, dataset: { act: 'time-now', target: key } }, 'Now'));
 
 export function openVesselForm(vessel) {
   state.ctx = { view: 'vessel-form', vesselId: vessel ? vessel.id : null };
   const selectedPort = vessel ? vessel.port : ME.port || (state.filter.port !== 'ALL' ? state.filter.port : 'alexandria');
   const summary = (vessel && vessel.summary) || {};
   const portField = ME.isAdmin
-    ? `<div class="field"><label>Port</label><select name="port">${PORTS.map(
-        (p) => `<option value="${p.key}" ${selectedPort === p.key ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>`
-    : '';
+    ? h('div', { class: 'field' }, h('label', null, 'Port'), h('select', { attrs: { name: 'port' } }, portOptionEls({ selected: selectedPort })))
+    : null;
 
-  openModal(`${head(vessel ? 'Edit vessel' : 'Add vessel')}
-    <div class="m-body" id="vessel-form">
-      <div class="field"><label>Vessel name</label><input name="name" value="${val(vessel?.name)}" maxlength="120" autofocus></div>
-      <div class="row three">
-        ${selectField('opr', 'OPR', vessel?.opr, selectedPort)}${selectField('poc', 'POC', vessel?.poc, selectedPort)}${selectField('agent', 'Agent', vessel?.agent, selectedPort)}
-      </div>
-      <div class="hint">Missing an OPR, POC or agent? Add it under <a href="#master" data-act="goto" data-page="master" style="color:var(--teal)">Master data</a>.</div>
-      <div class="row two">
-        <div class="field"><label>Date</label><input type="date" name="date" value="${vessel ? vessel.date : today()}"></div>
-        ${portField}
-      </div>
-      <div class="section-title" style="margin-top:6px"><span>🕒 Port call times <small class="none" style="text-transform:none;letter-spacing:0">(Cairo time, all optional)</small></span></div>
-      <div class="row two">${TIME_FIELDS.map((f) => timeField(f, vessel)).join('')}</div>
-      <details class="fold" ${Object.keys(summary).length ? 'open' : ''}>
-        <summary>💰 Financial summary (optional)</summary>
-        <div class="row two">${SUMMARY_FIELDS.map((key) => `<div class="field"><label>${esc(key)}</label>
-          <input data-sum="${esc(key)}" value="${val(summary[key])}" maxlength="80"></div>`).join('')}</div>
-        <div class="hint">Total Cost LE is worked out automatically from the services.</div>
-      </details>
-    </div>
-    <div class="m-foot">
-      <button class="btn ghost" data-act="${vessel ? 'back' : 'close'}">Cancel</button>
-      <div class="right">
-        ${vessel ? '' : '<button class="btn ghost" data-act="save-vessel-more">Save &amp; add another</button>'}
-        <button class="btn primary" data-act="save-vessel">Save</button>
-      </div>
-    </div>`);
+  openModal(
+    headEl(vessel ? 'Edit vessel' : 'Add vessel'),
+    h('div', { class: 'm-body', id: 'vessel-form' },
+      h('div', { class: 'field' }, h('label', null, 'Vessel name'),
+        h('input', { attrs: { name: 'name', maxlength: 120, autofocus: true }, value: vessel?.name })),
+      h('div', { class: 'row three' },
+        selectField('opr', 'OPR', vessel?.opr, selectedPort), selectField('poc', 'POC', vessel?.poc, selectedPort),
+        selectField('agent', 'Agent', vessel?.agent, selectedPort)),
+      h('div', { class: 'hint' }, 'Missing an OPR, POC or agent? Add it under ',
+        h('a', { href: '#master', dataset: { act: 'goto', page: 'master' }, style: { color: 'var(--teal)' } }, 'Master data'), '.'),
+      h('div', { class: 'row two' },
+        h('div', { class: 'field' }, h('label', null, 'Date'), h('input', { attrs: { type: 'date', name: 'date' }, value: vessel ? vessel.date : today() })),
+        portField),
+      h('div', { class: 'section-title', style: { marginTop: '6px' } },
+        h('span', null, '🕒 Port call times ',
+          h('small', { class: 'none', style: { textTransform: 'none', letterSpacing: '0' } }, '(Cairo time, all optional)'))),
+      h('div', { class: 'row two' }, TIME_FIELDS.map((f) => timeField(f, vessel))),
+      h('details', { class: 'fold', open: Object.keys(summary).length > 0 },
+        h('summary', null, '💰 Financial summary (optional)'),
+        h('div', { class: 'row two' }, SUMMARY_FIELDS.map((key) => h('div', { class: 'field' }, h('label', null, key),
+          h('input', { dataset: { sum: key }, attrs: { maxlength: 80 }, value: summary[key] })))),
+        h('div', { class: 'hint' }, 'Total Cost LE is worked out automatically from the services.'))),
+    h('div', { class: 'm-foot' },
+      btn('ghost', vessel ? 'back' : 'close', 'Cancel'),
+      h('div', { class: 'right' },
+        vessel ? null : btn('ghost', 'save-vessel-more', 'Save & add another'), ' ',
+        btn('primary', 'save-vessel', 'Save'))),
+  );
 }
 
 /** The values typed into the vessel form, ready to send to the server. */

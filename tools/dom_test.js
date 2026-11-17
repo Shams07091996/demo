@@ -51,6 +51,8 @@ const input = h('input', { attrs: { type: 'text' }, value: 'a"b', disabled: true
 check(input.value === 'a"b' && input.disabled === true, 'value and disabled are properties');
 check(h('input', { value: null }).value === '', 'null value becomes empty');
 check(h('input', { attrs: { type: 'checkbox' }, checked: true }).checked === true, 'checked property');
+check(h('details', { open: true }).open === true && h('details', { open: false }).open === false, 'open property');
+check(h('input', { attrs: { autofocus: true } }).hasAttribute('autofocus'), 'autofocus attribute');
 
 const box = h('div', { style: { display: 'none', borderTopColor: 'rgb(1, 2, 3)' } });
 check(box.style.display === 'none' && box.style.borderTopColor === 'rgb(1, 2, 3)', 'style object through el.style');

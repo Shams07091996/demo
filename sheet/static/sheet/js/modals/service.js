@@ -3,7 +3,7 @@ import { calcLocal } from '../calc.js';
 import { head } from '../components.js';
 import { MULTI, SINGLE_EXTRA, TYPES } from '../config.js';
 import { parseFlightText, parsePdfText, parsePersonal } from '../crewParsing.js';
-import { openModal } from '../modal.js';
+import { openModalHtml } from '../modal.js';
 import { extractPdfText } from '../pdfReader.js';
 import { getVessel, state } from '../state.js';
 import { $, $$, esc, fmt, formValues, sign, val } from '../util.js';
@@ -112,7 +112,7 @@ export async function importPdfs(input) {
 export function openTypePicker() {
   state.ctx.view = 'type-picker';
   const buttons = TYPES.map((t) => `<button class="type-btn" data-act="pick-type" data-type="${esc(t)}">${esc(t)}</button>`);
-  openModal(`${head('Add service', esc(getVessel(state.ctx.vesselId).name))}
+  openModalHtml(`${head('Add service', esc(getVessel(state.ctx.vesselId).name))}
     <div class="m-body"><div class="type-grid">${buttons.join('')}</div></div>
     <div class="m-foot"><button class="btn ghost" data-act="back">‹ Back</button><span></span></div>`);
 }
@@ -161,7 +161,7 @@ export function openServiceForm(type, service) {
   if (type === 'Crew Change') {
     state.crew = JSON.parse(JSON.stringify({ onSigners: data.onSigners || [], offSigners: data.offSigners || [] }));
   }
-  openModal(`${head(type, esc(vessel.name))}
+  openModalHtml(`${head(type, esc(vessel.name))}
     <div class="m-body" id="svc-form">${formFields(type, vessel, data)}</div>
     <div class="m-foot"><button class="btn ghost" data-act="back">Cancel</button>
       <div class="right"><button class="btn primary" data-act="save-service">Save</button></div></div>`);
