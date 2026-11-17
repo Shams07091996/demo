@@ -2,22 +2,44 @@
 
 import json
 import logging
+import secrets
 from functools import wraps
 
-from django.http import JsonResponse
+from django.core.exceptions import PermissionDenied, SuspiciousOperation
+from django.http import Http404, JsonResponse
 
-from . import ratelimit
+from . import alerts, ratelimit
 from .access import profile_of
 from .errors import ApiError, BadRequest
 from .netutils import client_ip
 
 audit_log = logging.getLogger("sheet.audit")
+security_log = logging.getLogger("sheet.security")
 
 
 def log_safe(value):
     """Text for a log line: control characters (newlines, tabs...) are escaped, so a value typed by a user
     can never start a fake log line of its own."""
     return "".join(c if c.isprintable() else c.encode("unicode_escape").decode("ascii") for c in str(value))
+
+
+def server_error_response(request, as_json=True):
+    """Log an unexpected exception with a short reference and answer with that reference (never a stack trace)."""
+    ref = secrets.token_hex(4)
+    try:
+        user = str(request.user)
+    except Exception:  # noqa: BLE001 - the user lookup itself may be what failed
+        user = "?"
+    security_log.error(
+        "server error ref=%s user=%s ip=%s path=%s",
+        ref,
+        user,
+        client_ip(request),
+        log_safe(request.path),
+        exc_info=True,
+    )
+    alerts.note("server_error")
+    return ref, JsonResponse({"error": "Something went wrong.", "ref": ref}, status=500) if as_json else None
 
 
 def json_api(view):
@@ -36,7 +58,12 @@ def json_api(view):
                 audit_log.warning(
                     "denied user=%s ip=%s path=%s", request.user, client_ip(request), log_safe(request.path)
                 )
+                alerts.note("denied")
             return JsonResponse({"error": str(error), **error.extra}, status=error.status)
+        except (Http404, PermissionDenied, SuspiciousOperation):
+            raise  # Django answers these itself (handler404 → JSON for /api/)
+        except Exception:  # anything unexpected: JSON with a reference, the details only in the log
+            return server_error_response(request)[1]
 
     return wrapper
 

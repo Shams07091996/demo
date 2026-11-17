@@ -9,12 +9,13 @@ from django.db import transaction
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.template.loader import render_to_string
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from . import calculations, listing, logistics, ratelimit
 from .access import profile_of, require_admin, require_edit, scoped_vessels
-from .api import audit, json_api, read_json
+from .api import audit, json_api, read_json, server_error_response
 from .constants import (
     OPTION_KIND_KEYS,
     OPTION_KINDS,
@@ -410,3 +411,21 @@ def vessel_crew(request, pk):
 def calculations_list(request):
     """Every money line of the vessels in range / OPR / port, with totals. Every role may read it."""
     return JsonResponse(calculations.response(request.profile, request.GET))
+
+
+def _is_api(request):
+    return request.path.startswith("/api/")
+
+
+def not_found(request, exception=None):
+    if _is_api(request):
+        return JsonResponse({"error": "Not found."}, status=404)
+    return HttpResponse(render_to_string("404.html"), status=404)
+
+
+def server_error(request):
+    """handler500: errors outside json_api (pages, CSV export). Logged with a reference, shown without details."""
+    ref, response = server_error_response(request, as_json=_is_api(request))
+    if response is not None:
+        return response
+    return HttpResponse(render_to_string("500.html", {"ref": ref}), status=500)

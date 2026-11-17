@@ -5,7 +5,7 @@ import logging
 from django.conf import settings
 from django.shortcuts import render
 
-from . import throttle
+from . import alerts, throttle
 from .netutils import client_ip
 
 security_log = logging.getLogger("sheet.security")
@@ -44,6 +44,7 @@ class LoginThrottleMiddleware:
             ip = client_ip(request)
             if throttle.is_blocked(ip, request.POST.get("username", "")):
                 security_log.warning("login locked ip=%s path=%s", ip, request.path)
+                alerts.note("login_lockout")
                 return render(request, "sheet/locked.html", status=429)
         return self.get_response(request)
 

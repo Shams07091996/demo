@@ -14,7 +14,10 @@ export async function api(url, method = 'GET', payload) {
     throw new Error('Please log in again.');
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Something went wrong.');
+  if (!response.ok) {
+    const message = data.error || 'Something went wrong.';
+    throw new Error(data.ref ? `${message} (reference ${data.ref})` : message);
+  }
   return data;
 }
 

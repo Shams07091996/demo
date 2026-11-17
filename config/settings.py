@@ -137,14 +137,43 @@ RATE_LIMIT_WRITES_PER_USER = int(os.environ.get("DJANGO_RATE_LIMIT_WRITES_PER_US
 RATE_LIMIT_WRITES_PER_IP = int(os.environ.get("DJANGO_RATE_LIMIT_WRITES_PER_IP", 600))
 RATE_LIMIT_EXPORTS_PER_USER = int(os.environ.get("DJANGO_RATE_LIMIT_EXPORTS_PER_USER", 20))
 
+# Alerting (sheet/alerts.py): ALERT_THRESHOLD lock-outs, denied requests or server errors within the window write one
+# `sheet.alert` ERROR record, and e-mail DJANGO_ALERT_EMAILS (comma-separated) if set (needs Django's EMAIL_* settings).
+ALERT_THRESHOLD = int(os.environ.get("DJANGO_ALERT_THRESHOLD", 10))
+ALERT_WINDOW_SECONDS = int(os.environ.get("DJANGO_ALERT_WINDOW_SECONDS", 600))
+ADMINS = [(address, address) for address in env_list("DJANGO_ALERT_EMAILS")]
+EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", 25))
+EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_TLS", True)
+SERVER_EMAIL = os.environ.get("DJANGO_EMAIL_FROM", "marine-sheet@localhost")
+
+# Logs go to the console, and also to a rotating file when DJANGO_LOG_FILE is set (10 MB x 10 files).
+_log_handlers = ["console"]
+_handlers = {"console": {"class": "logging.StreamHandler", "formatter": "plain"}}
+if os.environ.get("DJANGO_LOG_FILE"):
+    _handlers["file"] = {
+        "class": "logging.handlers.RotatingFileHandler",
+        "filename": os.environ["DJANGO_LOG_FILE"],
+        "maxBytes": 10 * 1024 * 1024,
+        "backupCount": 10,
+        "encoding": "utf-8",
+        "formatter": "plain",
+    }
+    _log_handlers.append("file")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {"plain": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}},
-    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "plain"}},
+    "handlers": _handlers,
     "loggers": {
-        "sheet.audit": {"handlers": ["console"], "level": "INFO", "propagate": False},
-        "sheet.security": {"handlers": ["console"], "level": "INFO", "propagate": False},
-        "django.security": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+        "sheet.audit": {"handlers": _log_handlers, "level": "INFO", "propagate": False},
+        "sheet.security": {"handlers": _log_handlers, "level": "INFO", "propagate": False},
+        "sheet.alert": {"handlers": _log_handlers, "level": "INFO", "propagate": False},
+        "django.security": {"handlers": _log_handlers, "level": "WARNING", "propagate": False},
+        # Not Django's default (which e-mails every error to ADMINS): alerts are e-mailed by sheet/alerts.py only.
+        "django.request": {"handlers": _log_handlers, "level": "ERROR", "propagate": False},
     },
 }
