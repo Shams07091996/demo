@@ -13,6 +13,7 @@ import {
 import { openVessel, openVesselForm, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
+import { historyPage } from './pages/history.js';
 import {
   addBulkRow, applyToAllRows, clearBulk, createBulk, previewBulk, removeBulkRow, viewCreated,
 } from './pages/bulk.js';
@@ -128,7 +129,6 @@ export const actions = {
     member._open = !member._open;
     card.classList.toggle('open', member._open);
   },
-  'pdf-pick': () => $('#pdf-input').click(),
 
   'edit-vessel': () => openVesselForm(getVessel(vesselId())),
   'save-vessel': () => saveVessel({ addAnother: false }),
@@ -161,6 +161,7 @@ export const actions = {
   'booking-open': (b) => openBookingDialog(b.dataset.kind, Number(b.dataset.id)),
   'booking-page': (b) => bookingsPage(b.dataset.kind).step(Number(b.dataset.step)),
   'calc-page': (b) => calculationsPage.step(Number(b.dataset.step)),
+  'history-page': (b) => historyPage.step(Number(b.dataset.step)),
   'booking-pick-vessel': pickVessel,
   'booking-change-vessel': changeVessel,
   'booking-add-guest': addGuest,

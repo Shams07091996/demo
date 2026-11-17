@@ -1,0 +1,4 @@
+# Direct dependencies (ranges). The lock with exact versions and hashes is requirements.txt; regenerate it with
+#   pip-compile --generate-hashes --strip-extras requirements.in -o requirements.txt
+Django>=5.2,<7.0
+psycopg[binary]>=3.2,<4.0

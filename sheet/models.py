@@ -185,3 +185,39 @@ class LoginAttempt(models.Model):
 
     def __str__(self):
         return f"{self.key}: {self.failures}"
+
+
+class RateCounter(models.Model):
+    """Requests counted per key in a time window: API rate limits and alert thresholds (ratelimit.py, alerts.py)."""
+
+    key = models.CharField(max_length=200, unique=True)
+    count = models.PositiveIntegerField(default=0)
+    window_start = models.DateTimeField()
+
+    def __str__(self):
+        return f"{self.key}: {self.count}"
+
+
+class ChangeRecord(models.Model):
+    """One create / update / delete of a tracked object (history.py). Append-only: no edit or delete path in the
+    app or the Django admin; on PostgreSQL a trigger refuses UPDATE and DELETE (migration 0010). Kept forever."""
+
+    ACTIONS = [("create", "Created"), ("update", "Changed"), ("delete", "Deleted")]
+
+    at = models.DateTimeField(auto_now_add=True, db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    username = models.CharField(max_length=150)  # kept if the user is deleted; "system" without a request
+    ip = models.CharField(max_length=45, blank=True)
+    action = models.CharField(max_length=6, choices=ACTIONS)
+    object_type = models.CharField(max_length=30, db_index=True)
+    object_id = models.BigIntegerField()
+    port = models.CharField(max_length=20, blank=True)
+    changes = models.JSONField(default=dict)  # {field: [old, new]}; old is None on create, new is None on delete
+
+    class Meta:
+        ordering = ["-id"]
+
+    def __str__(self):
+        return f"{self.at:%Y-%m-%d %H:%M} {self.username} {self.action} {self.object_type} #{self.object_id}"

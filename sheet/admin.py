@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 
-from .models import ExchangeRate, Guest, HotelStay, Option, Profile, Service, Transfer, Vessel
+from .models import ChangeRecord, ExchangeRate, Guest, HotelStay, Option, Profile, Service, Transfer, Vessel
 
 
 class ServiceInline(admin.TabularInline):
@@ -57,3 +57,21 @@ class HotelStayAdmin(admin.ModelAdmin):
 class TransferAdmin(admin.ModelAdmin):
     list_display = ("at", "from_place", "to_place", "hotel", "vessel")
     inlines = [TransferGuestInline]
+
+
+@admin.register(ChangeRecord)
+class ChangeRecordAdmin(admin.ModelAdmin):
+    """Read-only: the history can be looked at, never added to, changed or deleted by hand."""
+
+    list_display = ("at", "username", "action", "object_type", "object_id", "port", "ip")
+    list_filter = ("action", "object_type", "port")
+    search_fields = ("username", "object_type")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

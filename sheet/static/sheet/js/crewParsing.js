@@ -36,8 +36,8 @@ function parseFlightManual(text) {
   return segments;
 }
 
-/** Itinerary PDFs ("Flight Information … Origin … Destination … Departing"): the Egypt departure leg only. */
-function parseFlightPdfFormat(text) {
+/** Pasted travel-agent itineraries ("Flight Information … Origin … Destination … Departing"): the Egypt departure leg only. */
+function parseItineraryFormat(text) {
   const dateMatch = text.match(/Travel Details\s+\w+\s+(\d{1,2}\s+\w+\s+\d{4})/i);
   const travelDate = dateMatch ? dateMatch[1].trim() : '';
   for (const block of text.split(/Flight Information/i).slice(1)) {
@@ -64,33 +64,5 @@ function parseFlightPdfFormat(text) {
 
 export function parseFlightText(text) {
   const manual = parseFlightManual(text);
-  return manual.length ? manual : parseFlightPdfFormat(text || '');
-}
-
-function parsePdfMember(text) {
-  const member = {
-    name: '',
-    personalData: '',
-    flightData: text.slice(0, 4000),
-    personalStructured: {},
-    flightStructured: { segments: parseFlightPdfFormat(text) },
-  };
-  const nameMatch = text.match(
-    /Travel Arrangements for\s+([A-Z][A-Z\s/]+?)(?:\s+(?:Booking Reference|Travel Office|Ticket|Travel Details)|$)/i,
-  );
-  if (nameMatch) {
-    const raw = nameMatch[1].replace(/\s*(MR|MS|MRS|DR)\s*$/i, '').trim();
-    const [last, first] = raw.split('/');
-    member.name = first ? `${first.trim()} ${last.trim()}` : raw;
-    member.personalStructured.name = member.name;
-  }
-  const rank = text.match(/RANK:\s*([\w/]+)/i);
-  if (rank) member.personalStructured.rank = rank[1].trim();
-  return member;
-}
-
-/** One PDF may hold several "Travel Arrangements for …" blocks, one per crew member. */
-export function parsePdfText(text) {
-  const blocks = text.split(/Travel Arrangements for /i).slice(1);
-  return blocks.length ? blocks.map((b) => parsePdfMember(`Travel Arrangements for ${b}`)) : [parsePdfMember(text)];
+  return manual.length ? manual : parseItineraryFormat(text || '');
 }

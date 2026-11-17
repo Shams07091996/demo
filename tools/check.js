@@ -25,7 +25,6 @@ const steps = [
   ['parser tests', process.execPath, ['parsing_test.js'], __dirname],
 ];
 steps.push(['element builder tests', process.execPath, ['dom_test.js'], __dirname]);
-steps.push(['PDF reader tests', process.execPath, ['pdf_reader_test.js'], __dirname]);
 
 for (const [label, command, args, cwd, env = process.env] of steps) {
   console.log(`\n=== ${label} ===`);

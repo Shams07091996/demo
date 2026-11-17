@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'sheet/app.css' %}">
 </head>
-<body data-pdf-lib="{% static 'sheet/vendor/pdfjs/pdf.min.mjs' %}" data-pdf-worker="{% static 'sheet/vendor/pdfjs/pdf.worker.min.mjs' %}">
+<body>
 <div class="app">
 
   <aside class="sidebar" id="sidebar">
@@ -25,6 +25,7 @@
       <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico">📊</span><span>Dashboard</span></a>
       <a class="nav-item" data-page="master" href="#master"><span class="ico">🗂</span><span>Master data</span></a>
       <a class="nav-item" data-page="rates" href="#rates"><span class="ico">💱</span><span>Exchange rates</span></a>
+      {% if me.isAdmin %}<a class="nav-item" data-page="history" href="#history"><span class="ico">🕘</span><span>History</span></a>{% endif %}
     </nav>
     <div class="sidebar-foot">
       <div class="user-line"><strong>{{ request.user.get_username }}</strong><small id="roleLabel"></small></div>
@@ -169,6 +170,26 @@
       </div>
       <div class="pager" id="c-pager"></div>
     </main>
+
+    {% if me.isAdmin %}
+    <!-- ===== History, admins only (drawn by js/pages/history.js) ===== -->
+    <main class="page" id="page-history" hidden>
+      <div class="date-range" role="group" aria-label="History filters">
+        <label>From <input class="input" type="date" id="hi-from"></label>
+        <label>To <input class="input" type="date" id="hi-to"></label>
+        <select id="hi-type" class="select" aria-label="What changed"></select>
+        <label>User <input class="input" type="text" id="hi-user" maxlength="150" autocomplete="off"></label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>When</th><th>User</th><th>Change</th><th>Port</th><th>Fields: old → new</th><th>Address</th></tr></thead>
+          <tbody id="hi-tbody"></tbody>
+        </table>
+        <div class="empty" id="hi-empty" hidden>No changes in this range.</div>
+      </div>
+      <div class="pager" id="hi-pager"></div>
+    </main>
+    {% endif %}
 
     <!-- ===== Dashboard ===== -->
     <main class="page" id="page-dashboard" hidden>

@@ -2,10 +2,9 @@
 import { calcLocal } from '../calc.js';
 import { headEl } from '../components.js';
 import { MULTI, SINGLE_EXTRA, TYPES } from '../config.js';
-import { parseFlightText, parsePdfText, parsePersonal } from '../crewParsing.js';
+import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
-import { extractPdfText } from '../pdfReader.js';
 import { getVessel, state } from '../state.js';
 import { $, $$, fmt, formValues, sign } from '../util.js';
 
@@ -83,7 +82,6 @@ function crewGroupEl(group, label, color) {
     h('div', { class: 'section-title', style: { ...(isOff ? { marginTop: '16px' } : {}), color } },
       h('span', null, `${label} (${state.crew[group].length})`),
       h('span', null,
-        isOff ? [h('button', { class: 'btn ghost small', dataset: { act: 'pdf-pick' } }, '📄 Import flight PDFs'), ' '] : null,
         h('button', { class: 'btn ghost small', dataset: { act: 'add-crew', group } }, '+ Add'))),
     cards,
   ];
@@ -92,27 +90,7 @@ function crewGroupEl(group, label, color) {
 export function renderCrewEditor() {
   setChildren($('#crew-editor'),
     crewGroupEl('onSigners', '↑ On-signers', 'var(--success)'),
-    crewGroupEl('offSigners', '↓ Off-signers', 'var(--gold)'),
-    h('input', { id: 'pdf-input', attrs: { type: 'file', accept: 'application/pdf', multiple: true }, style: { display: 'none' } }));
-}
-
-export async function importPdfs(input) {
-  const files = [...input.files];
-  if (!files.length) return;
-  let added = 0;
-  try {
-    for (const file of files) {
-      for (const member of parsePdfText(await extractPdfText(file))) {
-        state.crew.offSigners.push({ ...member, _open: true });
-        added += 1;
-      }
-    }
-    renderCrewEditor();
-    alert(`✅ ${added} off-signer${added !== 1 ? 's' : ''} added from ${files.length} PDF${files.length !== 1 ? 's' : ''}.`);
-  } catch (error) {
-    alert(`❌ Failed to read PDF: ${error.message}`);
-  }
-  input.value = '';
+    crewGroupEl('offSigners', '↓ Off-signers', 'var(--gold)'));
 }
 
 /* ---------- screens ---------- */
@@ -268,6 +246,5 @@ export function onModalChange(event) {
     $('#pct-wrap').style.display = fixed ? 'none' : '';
     $('#fixed-wrap').style.display = fixed ? '' : 'none';
   }
-  if (target.id === 'pdf-input') importPdfs(target);
   if (state.ctx.view === 'service-form') updatePreview();
 }

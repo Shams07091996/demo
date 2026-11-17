@@ -6,14 +6,17 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 ## Where things stand right now
 
 - **Git branches:**
-  - `main` — **checked out**; everything built so far, up to and including safe page building + checks (merged
-    2026-11-17). No unmerged work.
+  - `main` — everything built so far, up to and including safe page building + checks (merged 2026-11-17).
+  - `feature/owasp-2025` — **checked out, built and reviewed, not merged yet**: OWASP 2025 hardening (all 7 plan
+    tasks + the final review's fixes). Merge only on the user's OK. After merging, the user's database needs
+    `migrate` (new migrations `0009` rate counters, `0010` change history).
   - `feature/safe-dom-and-checks` — merged; can be deleted (`git branch -d feature/safe-dom-and-checks`) when the
     user agrees.
-- **The user's own database** (`db.sqlite3`, not in git) is up to date: migrations through `0008` are applied.
+- **The user's own database** (`db.sqlite3`, not in git): migrations through `0008` are applied; `0009` and `0010`
+  (on `feature/owasp-2025`) are not.
   It still has one **shared** agent and one shared hotel from before per-port Master data; an admin can move them to
   a port on the Master data page.
-- **Tests (on `main`):** `cd tools && npm run check` → all passed (152 backend tests); `tools` parser tests pass; the jsdom smoke test
+- **Tests (on `feature/owasp-2025`):** `cd tools && npm run check` → all passed (201 backend tests); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
@@ -29,6 +32,7 @@ Last updated: 2026-11-17. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-16 | 💰 Calculations page: every money line with its working (amount × rate = EGP) for a vessel-date range / OPR / port, one totals line; every service (Crew Change and Others too) and every booking has cost and revenue; one money-maths source (`finance.service_lines`), amounts rounded to the cent once | `2026-11-16-calculations-page-design.md` |
 | 2026-11-17 | Safe page building: no `innerHTML` / HTML strings anywhere (screens built with `js/dom.js`), browser-enforced by Trusted Types and a CSP with no inline styles; every `eval` removed (PDF.js patched); ruff security rules, ESLint, pip-audit, npm audit and `npm run check` | `2026-11-17-safe-dom-and-checks-design.md` |
 | 2026-11-17 | Master data per port: every list's values belong to one port or All ports (admins choose and can move them); every dropdown offers the item's port + All-ports values | `2026-11-16-master-data-per-port-design.md` |
+| 2026-11-17 | OWASP Top 10 (2025) hardening (branch `feature/owasp-2025`): PDF reader removed (CSP `trusted-types 'none'`); hash-locked `requirements.txt` from `requirements.in`; API rate limits (writes per user / address, CSV per user, 429; broken counter refuses writes); every API error JSON, unexpected ones with an 8-hex `ref` in the log; alerting (`sheet.alert` + optional e-mail); append-only change history of every tracked model incl. user accounts, with an admin-only 🕘 History page; `__Host-` cookies in production; deploy check `sheet.E001`; SECURITY.md rewritten for 2025 | `2026-11-17-owasp-2025-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -56,10 +60,13 @@ The user is **selling the app to their company: security comes first** ("no secu
 Their security push has three pieces, in this order:
 
 1. **Safe page building + checks** — done and merged (2026-11-17).
-2. **OWASP Top 10 (2025) review** — go through every 2025 category (incl. the new *Software Supply Chain Failures*
-   and *Mishandling of Exceptional Conditions*), fix what it finds, rewrite SECURITY.md §2 for the 2025 list.
+2. **OWASP Top 10 (2025) review** — built on `feature/owasp-2025`, reviewed, waiting for the user's OK to merge.
 3. **Two-step login (MFA)**, at least for admins — the biggest known gap; it changes how people sign in, so design
    it with the user first.
+
+4. **After the security push** (user's top picks from the ARKAS 2027 preview): keep the exchange rate used by each
+   service, service status (completed / in progress / cancelled + reason), billing basis (Cash / Owners' Account),
+   accounts review (Pending / Reviewed, possibly an Accounts role).
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
 
@@ -70,6 +77,21 @@ Ideas raised along the way:
 - Exports of the Calculations page.
 
 ## Left open — small things the user hasn't decided on yet
+
+OWASP 2025 (from the final review, minor / for the user to decide):
+- The change history's PostgreSQL trigger has never run on a real PostgreSQL (suite runs on SQLite): run `migrate`,
+  delete a user who has history, try an UPDATE, before shipping.
+- The history keeps crew personal data (guest names, crew in services) forever and, on PostgreSQL, undeletable:
+  conflicts with right-to-erasure — a policy decision for the company.
+- Splitting the database roles (migrations as owner, app with only SELECT / INSERT on the history) would make the
+  history tamper-proof against someone holding the app's DB password; documented in SECURITY.md, not done.
+- History date filters use `at__date`, which can't use the index; slows down as the table grows (filter on Cairo
+  start / end datetimes instead).
+- Counters use fixed windows: two requests finding an expired window both reset it (one count lost); a burst across a
+  window edge can stay under the alert threshold.
+- `profile_of`'s first-use profile creation and management commands are not atomic with their history record.
+- Every booking edit records a delete + create for each guest (the guests are replaced); noisy but accurate.
+- Front-end display of the error reference (`js/api.js`) has no automated test.
 
 Vessel list:
 - The outside-range notice also shows for edits that didn't change the date.

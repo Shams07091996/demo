@@ -14,7 +14,7 @@ from django.db import transaction
 from django.http import Http404
 from django.utils import timezone
 
-from . import finance
+from . import finance, history
 from .access import scoped_vessels
 from .constants import MAX_NIGHTS, PORT_LABELS
 from .errors import BadRequest
@@ -213,8 +213,10 @@ def save_booking(kind, profile, data, existing=None):
             setattr(obj, field, value)
         obj.save()
         obj.guests.all().delete()
-        Guest.objects.bulk_create(
-            [Guest(**{GUEST_FK[kind]: obj}, position=i, **guest) for i, guest in enumerate(guests)]
+        history.record_created(
+            Guest.objects.bulk_create(
+                [Guest(**{GUEST_FK[kind]: obj}, position=i, **guest) for i, guest in enumerate(guests)]
+            )
         )
     return get_booking(kind, profile, obj.pk)
 

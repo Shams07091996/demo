@@ -5,7 +5,7 @@ import logging
 from django.conf import settings
 from django.shortcuts import render
 
-from . import throttle
+from . import alerts, throttle
 from .netutils import client_ip
 
 security_log = logging.getLogger("sheet.security")
@@ -18,14 +18,12 @@ CSP = "; ".join(
         "style-src 'self' https://fonts.googleapis.com",
         "style-src-elem 'self' https://fonts.googleapis.com",
         "style-src-attr 'none'",
-        # Trusted Types: the browser refuses every HTML-string sink (innerHTML …). The one policy only lets the
-        # bundled PDF.js worker URL through (js/pdfReader.js).
+        # Trusted Types: the browser refuses every HTML-string sink (innerHTML …), and no policy may be created.
         "require-trusted-types-for 'script'",
-        "trusted-types pdfjs-worker",
+        "trusted-types 'none'",
         "font-src https://fonts.gstatic.com",
         "img-src 'self' data:",
         "connect-src 'self'",
-        "worker-src 'self'",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
@@ -46,6 +44,7 @@ class LoginThrottleMiddleware:
             ip = client_ip(request)
             if throttle.is_blocked(ip, request.POST.get("username", "")):
                 security_log.warning("login locked ip=%s path=%s", ip, request.path)
+                alerts.note("login_lockout")
                 return render(request, "sheet/locked.html", status=429)
         return self.get_response(request)
 
