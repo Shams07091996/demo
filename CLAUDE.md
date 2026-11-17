@@ -144,6 +144,14 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
   and `sheet/tests_frontend_safety.py` checks the files. Hide/show template elements with the `hidden` attribute.
   No Trusted Types policy may be created (`trusted-types 'none'`); there is no PDF reader any more (removed for
   security; crew are added with + Add and pasted text).
+- **Icons** are one inline SVG sprite, `templates/sheet/icons.svg`, included once per page; templates use
+  `<svg class="ic" aria-hidden="true"><use href="#i-NAME"></use></svg>` and JS uses `dom.js` `icon(name)`, which only
+  accepts names in `ICONS` (kept equal to the sprite by `tests_look`). No emoji or dingbat anywhere in templates / JS
+  (`tests_look`); the plain → arrow is allowed as text.
+- **Theme:** colours exist only as tokens at the top of `app.css` (light `:root`, dark under `prefers-color-scheme`
+  and `[data-theme="dark"]`, light again for print); everything else uses `var(--…)` (JS charts use `--c1`…`--c8`).
+  The sidebar switch (`js/theme.js`) sets `data-theme`, a `theme` cookie and localStorage; the context processor
+  `sheet.context_processors.theme` renders `data-theme` from a whitelisted cookie. System font, no web fonts.
 - `crewParsing.js` and `util.limitRows` are pure and unit-tested in `tools/parsing_test.js`. (Bulk add was removed
   on 2026-11-18: vessels are added with the quick-add bar and the vessel form.)
 
