@@ -175,9 +175,18 @@
             <label>To <input class="input" type="date" id="d-to"></label>
             <button class="btn ghost small" id="d-clear" title="Show all dates">✕ All dates</button>
           </div>
+          <select class="select" id="d-port" aria-label="Port" hidden></select>
+          <select class="select" id="d-opr" aria-label="OPR"></select>
+          <select class="select" id="d-agent" aria-label="Agent"></select>
+          <select class="select" id="d-service" aria-label="Service type"></select>
         </div>
         <div class="count flush"><strong id="dash-count">0</strong> vessels in selection</div>
       </div>
+      <div class="dash-grid">
+        <section class="panel"><h3>Jobs per agent</h3><div id="chart-agents"></div><div id="tbl-agents"></div></section>
+        <section class="panel"><h3>Services per month</h3><div id="chart-months"></div><div id="tbl-months"></div></section>
+      </div>
+      <section class="panel dash-wide"><h3>Money per month (LE)</h3><div id="tbl-money"></div></section>
       <div class="dash-grid">
         <section class="panel"><h3>Vessels per OPR</h3><div id="chart-vessels"></div></section>
         <section class="panel"><h3>Services per OPR</h3><div id="chart-services"></div></section>
@@ -214,6 +223,7 @@
 {{ summary_fields|json_script:"summary-fields-data" }}
 {{ option_kinds|json_script:"option-kinds-data" }}
 {{ time_fields|json_script:"time-fields-data" }}
+{{ no_agent|json_script:"no-agent-data" }}
 <script type="module" src="{% static 'sheet/js/main.js' %}"></script>
 </body>
 </html>

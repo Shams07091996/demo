@@ -27,6 +27,7 @@ urlpatterns = [
     path("api/vessels/", views.vessels, name="api_vessels"),
     path("api/vessels/alerts/", views.vessel_alerts, name="api_vessel_alerts"),
     path("api/dashboard/", views.dashboard, name="api_dashboard"),
+    path("api/dashboard/jobs/", views.dashboard_jobs, name="api_dashboard_jobs"),
     path("api/vessels/<int:pk>/", views.vessel_detail, name="api_vessel"),
     path("api/vessels/<int:pk>/services/", views.service_create, name="api_service_create"),
     path("api/vessels/<int:pk>/crew/", views.vessel_crew, name="api_vessel_crew"),

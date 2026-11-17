@@ -9,6 +9,7 @@ export const TYPES = readJson('types-data');
 export const SUMMARY_FIELDS = readJson('summary-fields-data');
 export const OPTION_KINDS = readJson('option-kinds-data');   // [{key, label}] OPR / POC / Agent
 export const TIME_FIELDS = readJson('time-fields-data');      // [{key, label}] arrival … sailing
+export const NO_AGENT = readJson('no-agent-data');            // Dashboard agent filter: jobs with no agent
 
 
 export const PORT_LABEL = Object.fromEntries(PORTS.map((p) => [p.key, p.label]));

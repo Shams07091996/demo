@@ -7,7 +7,7 @@ import { renderDashboard } from './render/dashboard.js';
 import { renderAll } from './render/index.js';
 import { fillQuickSelects, renderFilterInputs } from './render/list.js';
 import { hideRangeNotice, noticeIfOutsideRange } from './render/rangeNotice.js';
-import { filterParams, rememberVessels, savePageSize, state } from './state.js';
+import { dashboardParams, emptyDashboard, filterParams, rememberVessels, savePageSize, state } from './state.js';
 
 let latestList = 0;
 
@@ -54,18 +54,22 @@ let latestDashboard = 0;
 
 export async function loadDashboard() {
   const ticket = ++latestDashboard;
-  const all = filterParams();
-  const params = new URLSearchParams(['from', 'to', 'port'].filter((k) => all.has(k)).map((k) => [k, all.get(k)]));
   try {
-    const data = await api(`/api/dashboard/?${params}`);
+    const data = await api(`/api/dashboard/?${dashboardParams()}`);
     if (ticket !== latestDashboard) return;
     state.dashboard = data;
   } catch (error) {
     if (ticket !== latestDashboard) return;
-    state.dashboard = { count: 0, oprs: [] };
+    state.dashboard = emptyDashboard();
     setStatus('error', error.message);
   }
   renderDashboard();
+}
+
+/** Change one of the Dashboard's own filters (OPR / agent / service type) and reload it. */
+export function setDashboardFilter(patch) {
+  Object.assign(state.dashboardFilter, patch);
+  return loadDashboard();
 }
 
 /** Change the filter and reload. Any change except an explicit page goes back to page 1. */

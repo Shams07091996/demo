@@ -56,7 +56,7 @@ data loads, but run the test suite against PostgreSQL once before relying on it.
 | Hotels | Every hotel stay (one room, 1–6 crew guests, check-in, nights, hotel from Master data) with guest and vessel, for a date range and port; cost and revenue per night; editors add / edit / delete, read-only users only see |
 | Transport | Every transfer between an airport, a hotel and a port — saying which one of each, from Master data — with date and time, 1–6 guests, flight and vessel; same rules as Hotels |
 | Calculations | Every money line — each service (each entry of Parcels / Courier / Landing), hotel stay and transfer — for a vessel-date range, OPR and port, showing its working (amount × rate = EGP) and one totals line (revenue, cost, profit, lines without an exchange rate). Every role can see it |
-| Dashboard | Charts and cards per OPR for the same date range, totalled by the server |
+| Dashboard | Filters (dates, port, OPR, agent, service type); jobs per agent (chart + table, a row lists that agent's jobs), services per month (stacked chart + table), money per month (table), then the OPR charts and cards — all totalled by the server |
 | Master data | Add / remove the OPR, POC, Agent, Hotel, Airport and Port values used in the dropdowns (with "used by N"). Each value belongs to **one port or All ports**: admins choose when adding and can move it later; port users' values are for their port. Every dropdown offers only the item's port plus All-ports values |
 | Exchange rates | Monthly USD → EGP rates (shared by every port, so only admins can change them) |
 | History | **Admins only.** Every create / change / delete (vessels, services, bookings, guests, Master data, rates, user roles) with who, when, from which address and old → new; filter by date, what changed and user. Nobody can edit or delete it |
@@ -101,7 +101,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 218 backend tests: maths, validation, permissions, CSRF, throttling, times, agents...
+python manage.py test sheet         # 235 backend tests: maths, validation, permissions, CSRF, throttling, times, agents...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
@@ -138,7 +138,8 @@ sheet/
   access.py             who may see / change what
   serializers.py        model -> JSON
   api.py, errors.py     JSON endpoint plumbing, audit log
-  listing.py            vessel list: date range, search, sorting, paging, totals, alerts, dashboard
+  listing.py            vessel list: date range, search, sorting, paging, totals, alerts
+  dashboard.py          Dashboard: jobs per agent, services / money per month, OPR figures
   views.py              page, API, CSV
   throttle.py, signals.py   login failure counting and security logging
   ratelimit.py          API rate limits (writes, CSV export)

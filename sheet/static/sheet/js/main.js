@@ -2,7 +2,7 @@
 import { actions, moveOption } from './actions.js';
 import { portOptionEls } from './components.js';
 import { ME, el } from './config.js';
-import { loadAlerts, loadOptions, loadVessels, setFilter } from './data.js';
+import { loadAlerts, loadOptions, loadVessels, setDashboardFilter, setFilter } from './data.js';
 import { setChildren } from './dom.js';
 import { setStatus } from './feedback.js';
 import { closeModal, isModalOpen } from './modal.js';
@@ -154,6 +154,19 @@ if (ME.seesAll) {
     }
     setFilter({ port: select.value });
   });
+  // The Dashboard's own port selector drives the same shared port (and the same side effects) as the one above.
+  const dashPort = $('#d-port');
+  setChildren(dashPort, portOptionEls({ all: true }));
+  dashPort.hidden = false;
+  dashPort.addEventListener('change', () => {
+    select.value = dashPort.value;
+    select.dispatchEvent(new Event('change'));
+  });
+}
+
+/* ---- the Dashboard's own filters ---- */
+for (const [selector, key] of [['#d-opr', 'opr'], ['#d-agent', 'agent'], ['#d-service', 'service']]) {
+  $(selector).addEventListener('change', (event) => setDashboardFilter({ [key]: event.target.value }));
 }
 
 renderFilterInputs();

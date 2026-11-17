@@ -336,6 +336,7 @@ async function login() {
       ok(!shown($(`#${p}-add`)) && /Cost/.test($(`#${p}-head`).textContent) && /Revenue/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button but sees cost and revenue`);
       ok(shown($(`#${p}-port`)), `read-only: ${page} has the port selector`);
     }
+    await checkDashboard();
     await checkHistory();
     return finish();
   }
@@ -754,21 +755,7 @@ async function login() {
   }
 
   /* ======== dashboard ======== */
-  await go('dashboard');
-  ok($('#d-from') && !$('#dash-year') && $('#d-from').value === $('#f-from').value, 'dashboard uses the same date range');
-  ok(await waitFor(() => $$('#opr-cards .opr-card').length > 0) && $$('#chart-vessels .bar').length > 0, 'dashboard: charts and OPR cards render');
-  click($('#opr-cards .opr-card'));
-  ok(await waitFor(() => modalText().includes('Services summary')), 'dashboard: OPR card opens the combined summary');
-  closeModal();
-  const keepFrom = $('#d-from').value;
-  const keepTo = $('#d-to').value;
-  type($('#d-from'), '2001-01-01'); type($('#d-to'), '2001-01-31');
-  ok(await waitFor(() => $('#dash-count').textContent === '0' && $('#opr-cards').textContent.includes('No data')), 'dashboard: changing the range reloads its figures');
-  ok($('#f-from').value === '2001-01-01', 'dashboard and vessels share one range');
-  click($('#d-clear'));
-  ok(await waitFor(() => $('#d-from').value === '' && $('#dash-count').textContent !== '0'), '"All dates" clears the range');
-  type($('#d-from'), keepFrom); type($('#d-to'), keepTo);
-  await waitFor(() => $('#f-from').value === keepFrom);
+  await checkDashboard();
 
   /* ======== clean up ======== */
   await go('vessels');
@@ -793,6 +780,74 @@ async function login() {
 
   await checkHistory();
   finish();
+
+  /** The Dashboard: OPR charts and cards, jobs per agent, services and money per month, and its filters. */
+  async function checkDashboard() {
+    await go('dashboard');
+    ok($('#d-from') && !$('#dash-year') && $('#d-from').value === $('#f-from').value, 'dashboard uses the same date range');
+    ok(await waitFor(() => $$('#opr-cards .opr-card').length > 0) && $$('#chart-vessels .bar').length > 0, 'dashboard: charts and OPR cards render');
+    click($('#opr-cards .opr-card'));
+    ok(await waitFor(() => modalText().includes('Services summary')), 'dashboard: OPR card opens the combined summary');
+    closeModal();
+    const keepFrom = $('#d-from').value;
+    const keepTo = $('#d-to').value;
+    type($('#d-from'), '2001-01-01'); type($('#d-to'), '2001-01-31');
+    ok(await waitFor(() => $('#dash-count').textContent === '0' && $('#opr-cards').textContent.includes('No data')), 'dashboard: changing the range reloads its figures');
+    ok($('#f-from').value === '2001-01-01', 'dashboard and vessels share one range');
+    ok(['#chart-agents', '#chart-months', '#tbl-agents', '#tbl-months', '#tbl-money'].every((s) => $(s).textContent.includes('No data.')), 'dashboard: an empty range shows "No data." in every new panel');
+    click($('#d-clear'));
+    ok(await waitFor(() => $('#d-from').value === '' && $('#dash-count').textContent !== '0'), '"All dates" clears the range');
+    type($('#d-from'), keepFrom); type($('#d-to'), keepTo);
+    await waitFor(() => $('#f-from').value === keepFrom);
+
+    // Jobs per agent, services per month and money per month, with the Dashboard's own filters.
+    const agentRows = () => $$('#tbl-agents tbody tr:not(.total)');
+    const agentHeads = () => $$('#tbl-agents thead th').map((t) => t.textContent);
+    ok(await waitFor(() => agentRows().some((r) => r.textContent.includes('DELTA SHIPPING'))), 'dashboard: jobs per agent lists DELTA SHIPPING');
+    ok(agentRows().at(-1).textContent.includes('(no agent)') && agentRows().at(-1).classList.contains('no-agent'), 'dashboard: "(no agent)" row comes last');
+    ok(agentHeads().includes('Arrivals') && agentHeads().includes('Sailings') && agentHeads().at(-1) === 'Total', 'dashboard: agents table has Arrivals, Sailings and Total');
+    ok($$('#chart-agents .hbar').length === agentRows().length && $$('#chart-months .stack-col').length > 0, 'dashboard: agent bars and month columns are drawn');
+    ok($$('#tbl-months tbody tr').at(-1).classList.contains('total') && /[A-Z][a-z]{2} \d{4}/.test($('#tbl-months thead').textContent), 'dashboard: services per month has month columns and a Total row');
+    ok($$('#tbl-money tbody tr').map((r) => r.firstElementChild.textContent).join() === 'Cost,Revenue,Profit', 'dashboard: money per month has Cost, Revenue and Profit rows');
+    ok(shown($('#d-port')) === (ROLE !== 'alex'), 'dashboard: own port selector only for users who see every port');
+    type($('#d-service'), 'Fresh Water');
+    ok(await waitFor(() => !agentHeads().includes('Arrivals') && !agentHeads().includes('Sailings')), 'dashboard: a service filter hides Arrivals and Sailings');
+    type($('#d-service'), '');
+    ok(await waitFor(() => agentHeads().includes('Arrivals')), 'dashboard: clearing the service filter brings them back');
+    type($('#d-opr'), 'MSK');
+    ok(await waitFor(() => $$('#opr-cards .opr-card').length === 1 && $('#opr-cards').textContent.includes('MSK')), 'dashboard: the OPR filter narrows the OPR cards');
+    type($('#d-opr'), '');
+    type($('#d-agent'), 'DELTA SHIPPING');
+    ok(await waitFor(() => agentRows().length === 1 && agentRows()[0].textContent.includes('DELTA SHIPPING')), 'dashboard: the agent filter leaves that agent only');
+    click(agentRows()[0]);
+    ok(await waitFor(() => modalText().includes('MSC AURORA') && modalText().includes('Arrival')), "dashboard: an agent row opens that agent's jobs");
+    click($$('#modal [data-act="open-vessel"]').find((b) => b.textContent.includes('MSC AURORA')));
+    ok(await waitFor(() => $('#modal h2')?.textContent.includes('MSC AURORA')), 'dashboard: a job opens its vessel');
+    closeModal();
+    // NILE AGENCY did a service on MSC AURORA only; SEA BREEZE (also MSK) must not be in the OPR summary then.
+    type($('#d-agent'), 'NILE AGENCY');
+    const msk = () => $$('#opr-cards .opr-card').find((c) => c.textContent.includes('MSK'));
+    ok(await waitFor(() => agentRows().length === 1 && agentRows()[0].textContent.includes('NILE') && msk()), 'dashboard: NILE AGENCY filter applied');
+    click(msk());
+    ok(await waitFor(() => modalText().includes('Services summary') && modalText().includes('MSC AURORA')) && !modalText().includes('SEA BREEZE'), 'dashboard: the OPR summary follows the agent filter');
+    closeModal();
+    type($('#d-agent'), '');
+    ok(await waitFor(() => agentRows().length > 1), 'dashboard: clearing the agent filter shows every agent');
+    if (hostileId) {
+      const row = () => agentRows().find((r) => r.textContent.includes(HOSTILE_AGENT));
+      ok(await waitFor(() => row()) && noMarkup($('#tbl-agents')) && noMarkup($('#chart-agents')) && $('#d-agent').textContent.includes(HOSTILE_AGENT), 'dashboard: markup-like agent shows literally in table, chart and filter');
+      click(row());
+      ok(await waitFor(() => modalText().includes(HOSTILE)) && modalText().includes(HOSTILE_AGENT) && noMarkup($('#modal')), 'dashboard: jobs dialog shows names literally');
+      closeModal();
+    }
+    if (ROLE === 'admin') {
+      const allPorts = $('#dash-count').textContent;
+      type($('#d-port'), 'suez');
+      ok(await waitFor(() => $('#portSelect').value === 'suez' && $('#dash-count').textContent !== allPorts), 'dashboard: its port selector moves the shared port');
+      type($('#d-port'), 'ALL');
+      await waitFor(() => $('#portSelect').value === 'ALL' && $('#dash-count').textContent === allPorts);
+    }
+  }
 
   /** The change history: admins read it on the History page; everyone else gets no page and a 403. */
   async function checkHistory() {

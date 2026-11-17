@@ -1,14 +1,20 @@
-// The dashboard tab: charts and OPR cards for the chosen date range and port, as the server totals them
-// (state.dashboard, loaded by data.loadDashboard).
-import { CHART_COLORS } from '../config.js';
+// The dashboard tab, as the server totals it (state.dashboard, loaded by data.loadDashboard): its own filters, jobs
+// per agent, services and money per month, then the OPR charts and cards. Charts are plain divs (no library).
+import { CHART_COLORS, NO_AGENT, TYPES } from '../config.js';
 import { state } from '../state.js';
-import { h, setChildren } from '../dom.js';
-import { $, fmtShort } from '../util.js';
+import { h, optionEls, setChildren } from '../dom.js';
+import { $, fmt, fmtShort } from '../util.js';
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthLabel = (ym) => `${MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
+const typeColor = (type) => CHART_COLORS[Math.max(0, TYPES.indexOf(type)) % CHART_COLORS.length];
+const agentLabel = (agent) => agent || '(no agent)';
+const noData = () => h('div', { class: 'none' }, 'No data.');
 
 function renderBars(selector, labels, values, format) {
   const container = $(selector);
   if (!labels.length) {
-    setChildren(container, h('div', { class: 'none' }, 'No data.'));
+    setChildren(container, noData());
     return;
   }
   const max = Math.max(...values.map(Math.abs), 1);
@@ -37,9 +43,91 @@ function renderOprCards(oprs) {
     : h('div', { class: 'none' }, 'No data for the selected filters.'));
 }
 
+/** A dropdown's options: "All …", the values present, and the chosen value even when it is no longer present. */
+function fillSelect(selector, allLabel, values, current, extra = []) {
+  const keep = current && !values.includes(current) && !extra.some(([v]) => v === current) ? [current] : [];
+  setChildren($(selector), optionEls([['', allLabel], ...[...values, ...keep].map((v) => [v, v]), ...extra], current));
+}
+
+function renderFilters() {
+  const { filters } = state.dashboard;
+  const f = state.dashboardFilter;
+  fillSelect('#d-opr', 'All OPRs', filters.oprs, f.opr);
+  fillSelect('#d-agent', 'All agents', filters.agents, f.agent, [[NO_AGENT, '(no agent)']]);
+  fillSelect('#d-service', 'All services', TYPES, f.service);
+  $('#d-port').value = state.filter.port;
+}
+
+/** A figures table; `rows` are [cells, props] with the first cell the row label. The last row may be a total. */
+function figTable(headers, rows) {
+  return h('table', { class: 'fig-table' },
+    h('thead', null, h('tr', null, headers.map((text) => h('th', null, text)))),
+    h('tbody', null, rows.map(([cells, props]) => h('tr', props, cells.map((cell) => (cell instanceof Node ? cell : h('td', null, cell)))))));
+}
+
+const agentAct = (agent) => ({ act: 'agent-jobs', agent: agent || NO_AGENT });
+
+function renderAgents({ agents, service_types: types, totals }) {
+  if (!agents.length) {
+    setChildren($('#chart-agents'), noData());
+    setChildren($('#tbl-agents'), noData());
+    return;
+  }
+  const max = Math.max(...agents.map((a) => a.total), 1);
+  setChildren($('#chart-agents'), h('div', { class: 'hbars' }, agents.map((a) => h('div',
+    { class: a.agent ? 'hbar' : 'hbar no-agent', dataset: agentAct(a.agent), attrs: { title: agentLabel(a.agent) } },
+    h('span', { class: 'l' }, agentLabel(a.agent)),
+    h('span', { class: 'track' }, h('span', { class: 'fill', style: { width: `${(a.total / max) * 100}%` } })),
+    h('span', { class: 'v' }, a.total)))));
+
+  const showPortCalls = !state.dashboardFilter.service; // arrivals and sailings are not services
+  const callCols = (a) => (showPortCalls ? [a.arrivals, a.sailings] : []);
+  const sum = (key) => agents.reduce((n, a) => n + a[key], 0);
+  const rows = agents.map((a) => [
+    [agentLabel(a.agent), ...callCols(a), ...types.map((t) => a.by_type[t] || 0), a.total],
+    { class: a.agent ? 'clickable' : 'clickable no-agent', dataset: agentAct(a.agent) },
+  ]);
+  rows.push([['Total', ...(showPortCalls ? [sum('arrivals'), sum('sailings')] : []),
+    ...types.map((t) => agents.reduce((n, a) => n + (a.by_type[t] || 0), 0)), totals.jobs], { class: 'total' }]);
+  setChildren($('#tbl-agents'), figTable(['Agent', ...(showPortCalls ? ['Arrivals', 'Sailings'] : []), ...types, 'Total'], rows));
+}
+
+function renderMonths({ months, service_types: types, totals }) {
+  if (!months.length) {
+    for (const selector of ['#chart-months', '#tbl-months', '#tbl-money']) setChildren($(selector), noData());
+    return;
+  }
+  const max = Math.max(...months.map((m) => m.total), 1);
+  const columns = months.map((m) => h('div', { class: 'stack-col', attrs: { title: `${monthLabel(m.month)}: ${m.total}` } },
+    h('div', { class: 'v' }, m.total),
+    h('div', { class: 'stack' }, types.filter((t) => m.by_type[t]).map((t) => h('div', {
+      class: 'seg', style: { height: `${Math.round((m.by_type[t] / max) * 170)}px`, background: typeColor(t) },
+    }))),
+    h('div', { class: 'l' }, monthLabel(m.month))));
+  const legend = h('div', { class: 'legend' }, types.map((t) => h('span', null,
+    h('span', { class: 'swatch', style: { background: typeColor(t) } }), t)));
+  setChildren($('#chart-months'), h('div', { class: 'stack-cols' }, columns), legend);
+
+  const heads = ['', ...months.map((m) => monthLabel(m.month)), 'Total'];
+  const typeRows = types.map((t) => [[t, ...months.map((m) => m.by_type[t] || 0), months.reduce((n, m) => n + (m.by_type[t] || 0), 0)]]);
+  typeRows.push([['Total', ...months.map((m) => m.total), totals.services], { class: 'total' }]);
+  setChildren($('#tbl-months'), figTable(heads, typeRows));
+
+  const moneyCell = (value, negative) => h('td', { class: negative && value < 0 ? 'num neg' : 'num' }, fmt(value));
+  const moneyRows = [['Cost', 'cost_egp'], ['Revenue', 'revenue_egp'], ['Profit', 'profit_egp']].map(([label, key]) => [
+    [label, ...months.map((m) => moneyCell(m[key], key === 'profit_egp')), moneyCell(totals[key], key === 'profit_egp')],
+    key === 'profit_egp' ? { class: 'total' } : null,
+  ]);
+  setChildren($('#tbl-money'), figTable(heads, moneyRows));
+}
+
 export function renderDashboard() {
-  const { count, oprs } = state.dashboard;
+  const data = state.dashboard;
+  const { count, oprs } = data;
   $('#dash-count').textContent = count;
+  renderFilters();
+  renderAgents(data);
+  renderMonths(data);
   const labels = oprs.map((o) => o.opr);
   const column = (key) => oprs.map((o) => o[key]);
   renderBars('#chart-vessels', labels, column('vessels'), (n) => n);

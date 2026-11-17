@@ -64,3 +64,6 @@ PLACE_KEYS = [key for key, _ in PLACES]
 GUEST_GROUPS = ("on", "off", "")  # on-signer, off-signer, typed by hand
 MAX_GUESTS = 6
 MAX_NIGHTS = 60
+
+# Dashboard filter value meaning "jobs nobody was assigned to" (an empty agent).
+NO_AGENT = "__none__"

@@ -204,39 +204,3 @@ def missing_agents(profile, port, today):
         if missing:
             found.append({"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "missing": missing})
     return found
-
-
-def _service_counts(rows):
-    """Services by type; Crew Change counts the people signing on / off, as the OPR summary shows them."""
-    counts = {}
-    for row in rows:
-        for service in row["services"]:
-            if service["type"] == "Crew Change":
-                data = service["data"] or {}
-                for key, label in (("onSigners", "Crew Change (On)"), ("offSigners", "Crew Change (Off)")):
-                    counts[label] = counts.get(label, 0) + len(data.get(key) or [])
-            else:
-                counts[service["type"]] = counts.get(service["type"], 0) + 1
-    return counts
-
-
-def dashboard_response(profile, params):
-    """Per-OPR figures for the date range and port. Vessels without an OPR count in `count` only."""
-    f = parse_filters(params, paged=False)
-    rows = range_rows(profile, f)
-    by_opr = {}
-    for row in rows:
-        if row["opr"]:
-            by_opr.setdefault(row["opr"], []).append(row)
-    oprs = [
-        {
-            "opr": opr,
-            "vessels": len(group),
-            "services": sum(len(r["services"]) for r in group),
-            "cost_egp": round(sum(r["total_cost_egp"] for r in group), 2),
-            "profit_egp": round(sum(r["total_profit_egp"] for r in group), 2),
-            "service_counts": _service_counts(group),
-        }
-        for opr, group in sorted(by_opr.items())
-    ]
-    return {"count": len(rows), "oprs": oprs}
