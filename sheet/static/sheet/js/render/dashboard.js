@@ -37,8 +37,7 @@ function renderOprCards(oprs) {
         h('div', { class: 'n', style: { color } }, t.opr),
         h('div', { class: 'big' }, t.vessels, ' ', h('small', null, 'vessels')),
         h('div', { class: 'none' }, `${t.services} services`),
-        h('div', { class: 'num', style: { marginTop: '4px' } }, `${fmtShort(t.cost_egp)} LE cost`),
-        h('div', { style: { fontSize: '11px', color, marginTop: '10px', opacity: '.7' } }, 'Click for details →'));
+        h('div', { class: 'num', style: { marginTop: '4px' } }, `${fmtShort(t.cost_egp)} LE cost`));
     })
     : h('div', { class: 'none' }, 'No data for the selected filters.'));
 }

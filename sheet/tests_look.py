@@ -158,3 +158,50 @@ class IconTests(SimpleTestCase):
             text = page.read_text(encoding="utf-8")
             if 'href="#i-' in text:
                 self.assertIn('{% include "sheet/icons.svg" %}', text, page.name)
+
+
+def luminance(hex_colour):
+    h = hex_colour.strip().lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    channels = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    r, g, b = (c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a, b):
+    high, low = sorted((luminance(a), luminance(b)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+class TidyTests(SimpleTestCase):
+    def test_css_has_no_gradients_or_glow(self):
+        self.assertNotIn("gradient(", CSS)
+        self.assertNotIn("text-transform:uppercase", CSS.replace(" ", ""))
+        self.assertNotRegex(CSS, r"letter-spacing:\s*[1-9]")
+        self.assertNotIn("max-width:1500px", CSS)
+        blurs = [int(b) for b in re.findall(r"box-shadow:[^;}]*?\d+px\s+\d+px\s+(\d+)px", CSS)]
+        self.assertTrue(all(b <= 12 for b in blurs), blurs)
+
+    def test_pages_use_the_full_width(self):
+        page = re.search(r"\.page\{([^}]*)\}", CSS).group(1)
+        self.assertNotIn("max-width", page)
+        self.assertIn("padding:18px", page)
+
+    def test_print_uses_light_tokens(self):
+        block = re.search(r"@media print\{(.*?)\n\}", CSS, re.S).group(1)
+        tokens = dict(re.findall(r"(--[a-z0-9-]+):([^;}]+)", block))
+        self.assertGreater(contrast(tokens["--text"], tokens["--bg"]), 7)
+        self.assertGreater(luminance(tokens["--bg"]), 0.9)
+        self.assertGreater(luminance(tokens["--surface"]), 0.9)
+
+    def test_token_contrast(self):
+        for mode, tokens in (("light", light_tokens()), ("dark", dark_tokens())):
+            for fg in ("--text", "--muted"):
+                for bg in ("--bg", "--surface", "--surface2"):
+                    self.assertGreaterEqual(contrast(tokens[fg], tokens[bg]), 4.5, f"{mode} {fg} on {bg}")
+            for fg in ("--danger", "--success", "--warning", "--accent"):
+                self.assertGreaterEqual(contrast(tokens[fg], tokens["--surface"]), 4.5, f"{mode} {fg}")
+            self.assertGreaterEqual(contrast(tokens["--accent-text"], tokens["--accent"]), 4.5, f"{mode} button text")
+            for i in range(1, 9):
+                self.assertGreaterEqual(contrast(tokens[f"--c{i}"], tokens["--surface"]), 3, f"{mode} --c{i}")
