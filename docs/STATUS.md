@@ -74,8 +74,6 @@ Also: the user may want to move the old shared agent / hotel to a port (Master d
 
 Ideas raised along the way:
 
-- Run the test suite on the user's local PostgreSQL 17 (installed at `C:\Program Files\PostgreSQL\17`, not on PATH;
-  the user must create the app's database role first — see README "PostgreSQL"). New tests have only run on SQLite.
 - Exports of the Calculations page.
 
 ## Left open — small things the user hasn't decided on yet
