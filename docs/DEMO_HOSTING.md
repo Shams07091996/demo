@@ -1,13 +1,16 @@
 # Hosting a demo
 
-Two ways to show the app. Pick the one that fits the demo.
+Three ways to show the app. Pick the one that fits the demo.
 
-| | A. From your own PC | B. On a small server |
-|---|---|---|
-| Who can open it | only you (you share your screen or show it in a meeting) | anyone you give the address and a demo password |
-| Time to set up | about 5 minutes | about an hour |
-| Needs | nothing new | a Linux server, a domain name, two programs (gunicorn, Caddy) |
-| Data | made-up demo vessels in a throwaway database | made-up demo vessels on the server |
+| | A. From your own PC | B. On PythonAnywhere | C. On your own server |
+|---|---|---|---|
+| Who can open it | only you (screen share or meeting) | anyone with the link and a demo password | anyone with the link and a demo password |
+| Time to set up | about 5 minutes | about 30 minutes | about an hour |
+| Cost | free | free plan | a server and a domain name |
+| Needs | nothing new | a free PythonAnywhere account | a Linux server, a domain, gunicorn and Caddy |
+| Address | `http://127.0.0.1:8000` | `https://<your-name>.pythonanywhere.com` | `https://demo.yourcompany.com` |
+
+**To show the boss over the internet, use B.** C is the rehearsal for the real production setup.
 
 Never use your real database (`marine_sheet` on PostgreSQL 17) for a demo.
 
@@ -40,11 +43,175 @@ Open http://127.0.0.1:8000/ and sign in as one of the demo users. They all share
 When the demo is over, stop the server with Ctrl+C and delete `marine_demo.sqlite3` from your Temp folder.
 
 Don't open development mode to other computers (`runserver 0.0.0.0`). It is for one person on one machine: it shows
-error details and has no HTTPS. For other people, use B.
+error details and has no HTTPS. For other people, use B or C.
 
 ---
 
-## B. Put it on a small server for others to try
+## B. Put it on PythonAnywhere (free)
+
+PythonAnywhere is a hosting service made for Python apps. It runs Django by itself (no gunicorn or Caddy needed),
+serves the CSS/JS files, and gives you HTTPS on `https://<your-name>.pythonanywhere.com`. The free plan has no
+PostgreSQL, so the demo uses the app's built-in database file (SQLite) with the made-up demo vessels.
+
+In the steps below, replace **`yourname`** with your PythonAnywhere user name everywhere.
+
+### 1. Make the upload file (on your PC)
+
+In the project folder, this packs exactly what is in git (no `venv`, no database, no `node_modules`, no secrets):
+
+```bash
+git archive --format=zip -o marine_sheet.zip HEAD
+```
+
+### 2. Create the account
+
+Sign up at pythonanywhere.com for a free "Beginner" account. Your user name becomes the address
+(`yourname.pythonanywhere.com`), so choose one you're happy for the boss to see.
+
+### 3. Upload and unpack
+
+- Open the **Files** page and upload `marine_sheet.zip` into your home folder (`/home/yourname`).
+- Open the **Consoles** page and start a **Bash** console. In it:
+
+```bash
+unzip marine_sheet.zip -d marine_sheet && rm marine_sheet.zip
+cd ~/marine_sheet
+python3.11 -m venv venv
+venv/bin/pip install --require-hashes -r requirements.txt
+```
+
+If `python3.11` is not found, use the newest one they offer (`python3.12`, `python3.13`).
+
+### 4. The settings file
+
+Make a secret key, then create the settings file with the editor built into the console:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(50))"
+nano ~/marine.env
+```
+
+Paste this, put the secret key in the first line, and save (Ctrl+O, Enter, Ctrl+X):
+
+```ini
+DJANGO_SECRET_KEY=paste-the-secret-key-here
+DJANGO_ALLOWED_HOSTS=yourname.pythonanywhere.com
+DJANGO_CSRF_TRUSTED_ORIGINS=https://yourname.pythonanywhere.com
+DJANGO_ALLOW_SQLITE=1
+DJANGO_DB_PATH=/home/yourname/marine_demo.sqlite3
+DJANGO_BEHIND_PROXY=1
+DJANGO_CLIENT_IP_HEADER=X-Forwarded-For
+DJANGO_ADMIN_URL=private-admin-path/
+DJANGO_HSTS_SECONDS=3600
+```
+
+No quotes and no spaces around `=`. Then lock it so only you can read it:
+
+```bash
+chmod 600 ~/marine.env
+```
+
+### 5. Database, demo users, CSS/JS files
+
+Still in the Bash console:
+
+```bash
+cd ~/marine_sheet
+set -a; . ~/marine.env; set +a
+venv/bin/python manage.py migrate
+venv/bin/python manage.py collectstatic --noinput
+venv/bin/python manage.py seed_demo --force --password "a-long-demo-password"
+venv/bin/python manage.py check --deploy
+```
+
+`check --deploy` should report no issues. `seed_demo` lists the demo users: `admin`, `viewer`, `alex`, `portsaid`,
+`damietta` and `suez`, all with the password you gave.
+
+### 6. The web app
+
+Open the **Web** page and click **Add a new web app**:
+
+1. Confirm the address `yourname.pythonanywhere.com`.
+2. Choose **Manual configuration** (not "Django"), then the same Python version as in step 3.
+
+On the web app's page, set:
+
+- **Virtualenv:** `/home/yourname/marine_sheet/venv`
+- **Source code** and **Working directory:** `/home/yourname/marine_sheet`
+- **Static files:** add one line, URL `/static/`, Directory `/home/yourname/marine_sheet/staticfiles`
+- **Force HTTPS:** on
+
+Then click the **WSGI configuration file** link (`/var/www/yourname_pythonanywhere_com_wsgi.py`), delete everything in
+it, paste this and save:
+
+```python
+import os
+import sys
+from pathlib import Path
+
+APP = "/home/yourname/marine_sheet"
+if APP not in sys.path:
+    sys.path.insert(0, APP)
+
+# The settings live in ~/marine.env (readable only by you), not in this file.
+for line in Path("/home/yourname/marine.env").read_text(encoding="utf-8").splitlines():
+    line = line.strip()
+    if line and not line.startswith("#"):
+        key, _, value = line.partition("=")
+        os.environ[key.strip()] = value.strip()
+os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
+
+from django.core.wsgi import get_wsgi_application  # noqa: E402
+
+application = get_wsgi_application()
+```
+
+Back on the **Web** page, click **Reload**.
+
+### 7. Try it before you send the link
+
+Open `https://yourname.pythonanywhere.com/` and check:
+
+- The sign-in page looks right (colours and icons load). If it looks unstyled, the Static files line in step 6 is
+  wrong.
+- `admin` sees every page, including History. `alex` sees only Alexandria vessels. `viewer` cannot edit.
+- `https://yourname.pythonanywhere.com/admin/` says "not found" (the admin lives at your private path).
+- **Visitors' addresses:** sign in as `admin`, change something, and open **History**. The change should show your own
+  internet address, not one shared by everyone. The sign-in lock-out counts failed attempts by that address.
+
+If something fails, the **Web** page has an **Error log** link. Send me its last lines.
+
+- **"Bad Request (400)":** the address in `DJANGO_ALLOWED_HOSTS` does not match the one in the browser.
+- **The page keeps reloading itself ("too many redirects"):** add `DJANGO_SSL_REDIRECT=0` to `~/marine.env` and click
+  **Reload**. "Force HTTPS" from step 6 still keeps everyone on HTTPS.
+
+### 8. Send it to the boss
+
+Send the link, one user name (for example `admin` or `viewer`) and the password. If you can, send the password a
+different way from the link. Every demo user has the same password, so name only the users you want the boss to try.
+
+### 9. Keep it, update it, remove it
+
+- **Free plan upkeep:** PythonAnywhere e-mails you every three months. Click **Run until 3 months from today** on the
+  Web page or the site switches off.
+- **Update to a newer version:** make a new zip (step 1), upload it, then in a Bash console:
+
+  ```bash
+  rm -rf ~/marine_sheet_old && mv ~/marine_sheet ~/marine_sheet_old
+  unzip marine_sheet.zip -d marine_sheet && rm marine_sheet.zip
+  mv ~/marine_sheet_old/venv ~/marine_sheet/venv
+  cd ~/marine_sheet && venv/bin/pip install --require-hashes -r requirements.txt
+  set -a; . ~/marine.env; set +a
+  venv/bin/python manage.py migrate && venv/bin/python manage.py collectstatic --noinput
+  ```
+
+  Then click **Reload** on the Web page.
+- **When the demo is over:** delete the web app on the Web page, and delete `marine_demo.sqlite3` and `marine.env`.
+- **Demo data only.** No real crew names or passports. Real data waits for the production setup in `SECURITY.md` §4.
+
+---
+
+## C. Put it on your own server
 
 The app is built for production: it refuses to start without HTTPS settings, a secret key and PostgreSQL. A demo
 server follows the same rules, so it is also a rehearsal for the real setup.
