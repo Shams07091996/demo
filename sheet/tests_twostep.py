@@ -2,10 +2,14 @@
 
 import time
 from datetime import timedelta
+from io import StringIO
 
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Permission, User
+from django.core.checks import run_checks
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import Client, TestCase
 from django.utils import timezone
 from django_otp.oath import TOTP
@@ -454,3 +458,125 @@ class ForcedPasswordTests(TestCase):
         self.alex.first_name = "Alex"
         self.alex.save()
         self.assertTrue(Profile.objects.get(user=self.alex).must_change_password)
+
+
+@FAST_HASHER
+class AdminPagesTests(TestCase):
+    def setUp(self):
+        self.alex = make_user("alex", "alexandria")
+        self.device = TOTPDevice.objects.create(user=self.alex, name="Authenticator", confirmed=True)
+        RememberedComputer.objects.create(
+            user=self.alex, token_hash="c" * 64, expires_at=timezone.now() + timedelta(days=30)
+        )
+        make_superuser()
+        self.admin = admin_client()
+
+    def users_url(self, suffix=""):
+        return f"/{settings.ADMIN_URL}auth/user/{suffix}"
+
+    def reset_by_action(self, client):
+        data = {"action": "reset_two_step", "_selected_action": [self.alex.pk]}
+        return client.post(self.users_url(), data)
+
+    def test_reset_action_superuser_only(self):
+        staff = make_user("staff", "readonly")
+        staff.is_staff = True
+        staff.save()
+        staff.user_permissions.add(*Permission.objects.filter(codename__in=["view_user", "change_user"]))
+        staff_client = admin_client("staff")
+        self.assertNotContains(staff_client.get(self.users_url()), "reset_two_step")
+        self.reset_by_action(staff_client)
+        self.assertTrue(TOTPDevice.objects.filter(user=self.alex).exists())
+
+        Profile.objects.filter(user=self.alex).update(setup_until=timezone.now() - timedelta(days=9))
+        self.assertContains(self.admin.get(self.users_url()), "reset_two_step")
+        with self.assertLogs("sheet.security", level="INFO"):
+            self.assertEqual(self.reset_by_action(self.admin).status_code, 302)
+        self.assertFalse(TOTPDevice.objects.filter(user=self.alex).exists())
+        self.assertFalse(RememberedComputer.objects.filter(user=self.alex).exists())
+        self.assertTrue(twostep.setup_open(Profile.objects.get(user=self.alex)))
+        deleted = history("totpdevice", action="delete").pop()
+        self.assertEqual(deleted.username, "boss")
+
+    def test_reset_command(self):
+        Profile.objects.filter(user=self.alex).update(setup_until=timezone.now() - timedelta(days=9))
+        out = StringIO()
+        call_command("reset_two_step", "alex", stdout=out)
+        self.assertIn("alex", out.getvalue())
+        self.assertFalse(TOTPDevice.objects.filter(user=self.alex).exists())
+        self.assertTrue(twostep.setup_open(Profile.objects.get(user=self.alex)))
+        self.assertEqual(history("totpdevice", action="delete").pop().username, "system")
+        with self.assertRaises(CommandError):
+            call_command("reset_two_step", "nobody")
+
+    def test_device_admin_hides_key(self):
+        for url in ("otp_totp/totpdevice/", f"otp_totp/totpdevice/{self.device.pk}/change/"):
+            page = self.admin.get(f"/{settings.ADMIN_URL}{url}")
+            self.assertEqual(page.status_code, 200, url)
+            text = page.content.decode()
+            self.assertNotIn(self.device.key, text)
+            self.assertNotIn(twostep.secret_text(self.device).replace(" ", ""), text)
+            self.assertNotIn("qrcode", text.lower())
+        self.assertEqual(self.admin.get(f"/{settings.ADMIN_URL}otp_totp/totpdevice/add/").status_code, 403)
+        user_page = self.admin.get(self.users_url(f"{self.alex.pk}/change/")).content.decode()
+        self.assertNotIn(self.device.key, user_page)
+
+    def test_staff_cannot_edit_two_step_fields(self):
+        staff = make_user("staff", "readonly")
+        staff.is_staff = True
+        staff.save()
+        staff.user_permissions.add(*Permission.objects.filter(codename__in=["view_user", "change_user"]))
+        page = admin_client("staff").get(self.users_url(f"{self.alex.pk}/change/")).content.decode()
+        self.assertNotIn('name="profile-0-two_step_exempt"', page)
+        self.assertNotIn('name="profile-0-must_change_password"', page)
+        boss_page = self.admin.get(self.users_url(f"{self.alex.pk}/change/")).content.decode()
+        self.assertIn('name="profile-0-two_step_exempt"', boss_page)
+        self.assertNotIn('name="profile-0-setup_until', boss_page)  # only a reset opens a window
+
+    def test_removing_exception_opens_window(self):
+        Profile.objects.filter(user=self.alex).update(
+            two_step_exempt=True, setup_until=timezone.now() - timedelta(days=9)
+        )
+        profile = Profile.objects.get(user=self.alex)
+        profile.two_step_exempt = False
+        profile.save()
+        self.assertTrue(twostep.setup_open(Profile.objects.get(user=self.alex)))
+
+    def test_make_exempt_superuser_refused(self):
+        Profile.objects.filter(user=self.alex).update(two_step_exempt=True)
+        page = self.admin.get(self.users_url(f"{self.alex.pk}/change/"))
+        form = page.context["adminform"].form
+        data = {k: v for k, v in form.initial.items() if v is not None and k not in ("password", "groups", "user_permissions", "last_login", "date_joined")}
+        data.update(
+            {
+                "is_superuser": "on",
+                "is_active": "on",
+                "date_joined_0": "2026-11-18",
+                "date_joined_1": "10:00:00",
+                "profile-TOTAL_FORMS": "1",
+                "profile-INITIAL_FORMS": "1",
+                "profile-MIN_NUM_FORMS": "0",
+                "profile-MAX_NUM_FORMS": "1",
+                "profile-0-id": str(self.alex.profile.pk),
+                "profile-0-user": str(self.alex.pk),
+                "profile-0-role": "alexandria",
+                "profile-0-two_step_exempt": "on",
+            }
+        )
+        response = self.admin.post(self.users_url(f"{self.alex.pk}/change/"), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Remove the two-step exception first.")
+        self.assertFalse(User.objects.get(pk=self.alex.pk).is_superuser)
+
+    def test_deploy_warning_fewer_than_two_superusers(self):
+        def ids():
+            checks = run_checks(include_deployment_checks=True, databases=["default"])
+            return [m.id for m in checks if m.id.startswith("sheet.")]
+
+        self.assertIn("sheet.W002", ids())  # boss has no confirmed Authenticator, and is the only superuser
+        self.assertNotIn("sheet.W002", [m.id for m in run_checks(include_deployment_checks=True)])  # no --database
+        TOTPDevice.objects.create(user=User.objects.get(username="boss"), name="Authenticator", confirmed=True)
+        self.assertIn("sheet.W002", ids())  # one key holder is not enough
+        second = make_superuser("boss2")
+        TOTPDevice.objects.create(user=second, name="Authenticator", confirmed=True)
+        self.assertNotIn("sheet.W002", ids())

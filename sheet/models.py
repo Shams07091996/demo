@@ -7,7 +7,6 @@ from django.utils import timezone
 
 from .constants import OPTION_KINDS, PLACES, PORT_KEYS, PORTS, ROLES, SERVICE_TYPES
 
-
 SETUP_WINDOW = timedelta(hours=72)  # how long after creation / a reset a person may set up their Authenticator
 EXEMPT_REFUSED = "Remove the two-step exception first."
 
@@ -46,6 +45,10 @@ class Profile(models.Model):
 
     def save(self, *args, **kwargs):
         self.clean()
+        if self.pk is not None and not self.two_step_exempt:
+            was_exempt = Profile.objects.filter(pk=self.pk, two_step_exempt=True).exists()
+            if was_exempt:  # the exception is removed: a fresh window to set up an Authenticator, like a reset
+                self.setup_until = default_setup_until()
         super().save(*args, **kwargs)
 
     @property

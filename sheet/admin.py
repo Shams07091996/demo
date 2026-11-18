@@ -1,8 +1,26 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.forms import UserChangeForm
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from .models import ChangeRecord, ExchangeRate, Guest, HotelStay, Option, Profile, Service, Transfer, Vessel
+from . import twostep
+from .models import (
+    EXEMPT_REFUSED,
+    ChangeRecord,
+    ExchangeRate,
+    Guest,
+    HotelStay,
+    Option,
+    Profile,
+    RememberedComputer,
+    Service,
+    Transfer,
+    Vessel,
+)
+
+TWO_STEP_FIELDS = ("two_step_exempt", "must_change_password")
 
 
 class ServiceInline(admin.TabularInline):
@@ -22,9 +40,83 @@ class ProfileInline(admin.StackedInline):
     model = Profile
     can_delete = False
 
+    def get_readonly_fields(self, request, obj=None):
+        """The setup window is opened by a reset only; the two-step settings are for superusers only."""
+        if request.user.is_superuser:
+            return ("setup_until",)
+        return ("setup_until", *TWO_STEP_FIELDS)
+
+
+class UserForm(UserChangeForm):
+    def clean(self):
+        data = super().clean()
+        exempt = Profile.objects.filter(user=self.instance, two_step_exempt=True).exists()
+        if exempt and (data.get("is_staff") or data.get("is_superuser")):
+            raise ValidationError(EXEMPT_REFUSED)
+        return data
+
+
+@admin.action(description="Reset two-step login (lost phone)")
+def reset_two_step(modeladmin, request, queryset):
+    if not request.user.is_superuser:
+        return
+    for user in queryset:
+        twostep.reset(user)
+    modeladmin.message_user(request, f"Two-step login reset for {len(queryset)} person(s).", messages.SUCCESS)
+
 
 class UserWithProfile(UserAdmin):
+    form = UserForm
     inlines = [ProfileInline]
+    actions = [reset_two_step]
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not request.user.is_superuser:
+            actions.pop("reset_two_step", None)
+        return actions
+
+
+admin.site.unregister(TOTPDevice)  # django-otp's own page shows the secret and a QR code
+
+
+@admin.register(TOTPDevice)
+class AuthenticatorAdmin(admin.ModelAdmin):
+    """Read-only, and never the secret: an Authenticator is set up by its owner and removed by a reset."""
+
+    list_display = ("user", "name", "confirmed", "created_at", "last_used_at")
+    list_filter = ("confirmed",)
+    search_fields = ("user__username",)
+    fields = ("user", "name", "confirmed", "created_at", "last_used_at")
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+
+@admin.register(RememberedComputer)
+class RememberedComputerAdmin(admin.ModelAdmin):
+    """Remembered computers can be looked at and removed (a stolen laptop), never added or changed."""
+
+    list_display = ("user", "agent", "ip", "created_at", "expires_at", "last_used_at")
+    search_fields = ("user__username",)
+    fields = ("user", "agent", "ip", "created_at", "expires_at", "last_used_at")
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
 
 
 admin.site.unregister(User)
