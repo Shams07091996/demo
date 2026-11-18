@@ -228,6 +228,7 @@
 {{ option_kinds|json_script:"option-kinds-data" }}
 {{ time_fields|json_script:"time-fields-data" }}
 {{ no_agent|json_script:"no-agent-data" }}
-<script type="module" src="{% static 'sheet/js/main.js' %}"></script>
+{% for module in script_modules %}<link rel="modulepreload" href="{% static module %}">
+{% endfor %}<script type="module" src="{% static 'sheet/js/main.js' %}"></script>
 </body>
 </html>

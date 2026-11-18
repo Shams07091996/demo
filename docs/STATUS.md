@@ -15,7 +15,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
   demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
-- **Tests:** `npm run check` green with 307 backend tests on `feature/two-step-login` (257 on `main`); smoke test
+- **Tests:** `npm run check` green with 311 backend tests on `feature/two-step-login` (261 on `main`); smoke test
   (now signing in with a code) passes for `alex`, `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
@@ -31,6 +31,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
+| 2026-11-18 | Faster first load: the page names all 32 script files up front (`modulepreload`), so they arrive in 1 round instead of 4; vessel toolbar on one line (no big empty gap) | — |
 | 2026-11-15 | Security fixes: exchange rates admin-only; debug mode off unless `DJANGO_DEBUG=1`; audit-log values escaped | — |
 | 2026-11-15 | Vessel list served by the server: From–To date range (this month by default), search, ARK / MSK / Other chips, sorting, paging 10 / 25 / 50 / 100; Dashboard, OPR summary, alerts and CSV from the server; "Saved — … outside the current date range" notice with **Show it** | `2026-11-15-server-side-vessel-list-design.md` |
 | 2026-11-15 | Vessels page trimmed at the user's request: no stat cards, no CSV button, no Total Cost column, smaller chips, a 🗑 Delete button per row (click a row to edit) | — |
