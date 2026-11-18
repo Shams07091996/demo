@@ -459,6 +459,17 @@ class SeedCommandTests(TestCase):
         self.assertNotIn("demo12345", out.getvalue())
         self.assertTrue(Vessel.objects.exists())
 
+    @FAST_HASHER
+    @override_settings(DEBUG=True)
+    def test_seeds_reason_lists_and_closures(self):
+        from .models import PortClosure
+
+        call_command("seed_demo", stdout=StringIO())
+        self.assertIn("PORT CLOSED", Option.objects.filter(kind="delay", port="").values_list("value", flat=True))
+        self.assertIn("WEATHER", Option.objects.filter(kind="closure", port="").values_list("value", flat=True))
+        self.assertEqual(sorted(PortClosure.objects.values_list("port", flat=True)), ["alexandria", "portsaid"])
+        self.assertIsNone(PortClosure.objects.get(port="portsaid").end_at)
+
 
 class PortCallTests(ApiTestCase):
     def create(self, client, **extra):
