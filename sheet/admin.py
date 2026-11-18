@@ -13,6 +13,7 @@ from .models import (
     Guest,
     HotelStay,
     Option,
+    PortClosure,
     Profile,
     RememberedComputer,
     Service,
@@ -157,6 +158,12 @@ class HotelStayAdmin(admin.ModelAdmin):
 class TransferAdmin(admin.ModelAdmin):
     list_display = ("at", "from_place", "to_place", "hotel", "vessel")
     inlines = [TransferGuestInline]
+
+
+@admin.register(PortClosure)
+class PortClosureAdmin(admin.ModelAdmin):
+    list_display = ("port", "start_at", "end_at", "reason")
+    list_filter = ("port",)
 
 
 @admin.register(ChangeRecord)

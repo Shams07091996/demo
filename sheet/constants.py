@@ -1,5 +1,7 @@
 """Fixed business vocabulary shared by models, validation and the front end."""
 
+from datetime import timedelta
+
 PORTS = [
     ("alexandria", "Alexandria"),
     ("portsaid", "Port Said"),
@@ -43,7 +45,8 @@ SUMMARY_FIELDS = (
 
 # Master-data lists. Vessels store the chosen text in the field of the same name.
 OPTION_KINDS = [
-    ("opr", "OPR"), ("poc", "POC"), ("agent", "Agent"), ("hotel", "Hotel"), ("airport", "Airport"), ("port", "Port")
+    ("opr", "OPR"), ("poc", "POC"), ("agent", "Agent"), ("hotel", "Hotel"), ("airport", "Airport"), ("port", "Port"),
+    ("delay", "Delay reason"), ("closure", "Closure reason"),
 ]
 OPTION_KIND_KEYS = [key for key, _ in OPTION_KINDS]
 
@@ -57,6 +60,14 @@ TIME_FIELDS = [
 ]
 TIME_KEYS = [key for key, _ in TIME_FIELDS]
 TIME_LABELS = dict(TIME_FIELDS)
+
+# A vessel is delayed when it berthed more than this long after it arrived; it then needs a delay reason.
+DELAY_LIMIT = timedelta(hours=2)
+
+
+def is_delayed(arrival_at, berthing_at):
+    """Both times known and berthing more than DELAY_LIMIT after arrival (exactly 2:00 is not delayed)."""
+    return bool(arrival_at and berthing_at) and berthing_at - arrival_at > DELAY_LIMIT
 
 # Hotels and Transport: a booking is one room / one car trip shared by 1..MAX_GUESTS guests of one vessel.
 PLACES = [("airport", "Airport"), ("hotel", "Hotel"), ("port", "Port")]
