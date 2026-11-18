@@ -4,6 +4,8 @@
 import logging
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
+from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
@@ -12,6 +14,20 @@ from .access import profile_of
 from .netutils import client_ip
 
 security_log = logging.getLogger("sheet.security")
+
+
+class NewPasswordForm(PasswordChangeForm):
+    """A new password must differ from the current one (so one set by an admin is really replaced)."""
+
+    def clean(self):
+        data = super().clean()
+        new = data.get("new_password2")
+        if new and not self.errors and self.user.check_password(new):
+            self.add_error(
+                "new_password2",
+                ValidationError("Choose a password different from the current one.", code="password_unchanged"),
+            )
+        return data
 
 
 def _locked(request):
@@ -58,8 +74,7 @@ def setup(request):
         if locked:
             return locked
         if twostep.check_code(request, device, request.POST.get("code")):
-            device.confirmed = True
-            device.save()
+            device = twostep.confirm_setup(device)
             security_log.info("two-step setup done user=%s ip=%s", request.user.get_username(), client_ip(request))
             twostep.mark_passed(request, "code", device.pk)
             return redirect("index")

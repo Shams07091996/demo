@@ -48,7 +48,8 @@ def _still_valid(user, state):
     if how == "code":
         return TOTPDevice.objects.filter(pk=ref, user=user, confirmed=True).exists()
     if how == "remembered":
-        return RememberedComputer.objects.filter(pk=ref, user=user, expires_at__gt=timezone.now()).exists()
+        remembered = RememberedComputer.objects.filter(pk=ref, user=user, expires_at__gt=timezone.now()).exists()
+        return remembered and confirmed_device(user) is not None
     if how == "exempt":
         profile = profile_of(user)
         return profile.two_step_exempt and profile.may_be_exempt()
@@ -129,6 +130,19 @@ def check_code(request, device, raw):
         throttle.record_failure(ip, username)
         security_log.warning("two-step code wrong user=%s ip=%s", username, ip)
     return ok
+
+
+def confirm_setup(device):
+    """The first right code: the Authenticator is active and the setup window closes (only a reset reopens it).
+    Saved from a fresh copy, so the code's time step that `check_code` stored (no reuse) is kept."""
+    with transaction.atomic():
+        fresh = TOTPDevice.objects.select_for_update().get(pk=device.pk)
+        fresh.confirmed = True
+        fresh.save()
+        profile = profile_of(device.user)
+        profile.setup_until = None
+        profile.save()
+    return fresh
 
 
 def new_device(user):
@@ -235,12 +249,16 @@ def _password_after(sender, instance, created, raw=False, **kwargs):
     changed = created or (instance._two_step_old_hash not in (None, instance.password))
     if not changed:
         return
+    request = history.current_request()
+    actor = getattr(request, "user", None) if request is not None else None
+    signed_in = actor is not None and actor.is_authenticated
+    update_fields = kwargs.get("update_fields")
+    if not signed_in and update_fields is not None and set(update_fields) == {"password"}:
+        return  # Django re-hashing the same password at sign-in (a stronger hasher), not a new password
     if not created:
         for row in RememberedComputer.objects.filter(user=instance):
             row.delete()
-    request = history.current_request()
-    actor = getattr(request, "user", None) if request is not None else None
-    if actor is None or not actor.is_authenticated:
+    if not signed_in:
         return
     must_change = actor.pk != instance.pk
     if created:

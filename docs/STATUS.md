@@ -15,7 +15,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
   demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
-- **Tests:** `npm run check` green with 311 backend tests on `feature/two-step-login` (261 on `main`); smoke test
+- **Tests:** `npm run check` green with 319 backend tests on `feature/two-step-login` (261 on `main`); smoke test
   (now signing in with a code) passes for `alex`, `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
@@ -171,6 +171,13 @@ Agents per job (final review, minor, for the user to decide):
 - No automated test runs migration 0011 itself (it is a plain rename).
 - The bell panel's empty text still says "No vessels today or tomorrow." (shown only when nothing is pending).
 - The Master data agent usage count reads one row per service; fine now, watch it if `/api/options/` slows.
+
+Two-step login (final review, minor, for the user to decide):
+
+- The "fewer than two superusers with Authenticator" warning (`sheet.W002`) reads the database, so it runs only with
+  `check --deploy --database default` on the server, not in `npm run check`.
+- The "same code twice at once" lock is a database row lock: it works on PostgreSQL (production), not on SQLite.
+- Several people on one browser: "Remember this computer" remembers only the last one who ticked it.
 
 ## How work has been done here
 

@@ -99,6 +99,14 @@ class AuthenticatorAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
 
+    # Removing an Authenticator here is the same as the Reset action: remembered computers go too, a new window opens.
+    def delete_model(self, request, obj):
+        twostep.reset(obj.user)
+
+    def delete_queryset(self, request, queryset):
+        for user in {device.user for device in queryset}:
+            twostep.reset(user)
+
 
 @admin.register(RememberedComputer)
 class RememberedComputerAdmin(admin.ModelAdmin):

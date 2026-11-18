@@ -17,7 +17,9 @@ urlpatterns = [
     path(
         "password/",
         auth_views.PasswordChangeView.as_view(
-            template_name="sheet/password_change.html", success_url=reverse_lazy("password_change_done")
+            form_class=views_twostep.NewPasswordForm,
+            template_name="sheet/password_change.html",
+            success_url=reverse_lazy("password_change_done"),
         ),
         name="password_change",
     ),

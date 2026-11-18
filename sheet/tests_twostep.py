@@ -604,3 +604,105 @@ class SeedDemoTwoStepTests(TestCase):
     def test_seed_demo_without_key_leaves_setup_to_people(self):
         call_command("seed_demo", stdout=StringIO())
         self.assertFalse(TOTPDevice.objects.exists())
+
+
+@FAST_HASHER
+class ReviewFindingsTests(TestCase):
+    """Found by the final review (2026-11-18)."""
+
+    def setUp(self):
+        self.user = make_user("viewer", "readonly")
+
+    def setup_device(self, client):
+        client.get("/login/setup/")
+        device = TOTPDevice.objects.get(user=self.user)
+        code = current_code(device)
+        client.post("/login/setup/", {"code": code})
+        return device, code
+
+    def test_setup_code_cannot_be_used_again(self):
+        first = Client()
+        first.login(username="viewer", password=PASSWORD)
+        _, code = self.setup_device(first)
+        self.assertEqual(first.get("/api/vessels/").status_code, 200)
+        second = Client()
+        second.login(username="viewer", password=PASSWORD)
+        second.post("/login/code/", {"code": code})
+        self.assertEqual(second.get("/api/vessels/").status_code, 401)
+
+    def test_setup_closes_the_window(self):
+        client = Client()
+        client.login(username="viewer", password=PASSWORD)
+        self.setup_device(client)
+        self.assertIsNone(Profile.objects.get(user=self.user).setup_until)
+        TOTPDevice.objects.filter(user=self.user).delete()  # a device gone without a reset: no new setup
+        other = Client()
+        other.login(username="viewer", password=PASSWORD)
+        self.assertRedirects(other.get("/"), "/login/blocked/", fetch_redirect_response=False)
+
+    def test_deleting_a_device_in_admin_is_a_full_reset(self):
+        device = TOTPDevice.objects.create(user=self.user, name="Authenticator", confirmed=True)
+        RememberedComputer.objects.create(
+            user=self.user, token_hash="d" * 64, expires_at=timezone.now() + timedelta(days=30)
+        )
+        Profile.objects.filter(user=self.user).update(setup_until=None)
+        make_superuser()
+        admin = admin_client()
+        url = f"/{settings.ADMIN_URL}otp_totp/totpdevice/{device.pk}/delete/"
+        self.assertEqual(admin.post(url, {"post": "yes"}).status_code, 302)
+        self.assertFalse(RememberedComputer.objects.filter(user=self.user).exists())
+        self.assertTrue(twostep.setup_open(Profile.objects.get(user=self.user)))
+
+    def test_remembered_needs_a_device(self):
+        device = TOTPDevice.objects.create(user=self.user, name="Authenticator", confirmed=True)
+        client = Client()
+        client.login(username="viewer", password=PASSWORD)
+        client.post("/login/code/", {"code": current_code(device), "remember": "on"})
+        client.post("/logout/")
+        client.login(username="viewer", password=PASSWORD)
+        self.assertEqual(client.get("/api/vessels/").status_code, 200)  # remembered
+        TOTPDevice.objects.filter(pk=device.pk).delete()  # removed behind the app's back
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)
+
+    def test_password_rehash_at_sign_in_keeps_remembered_computers(self):
+        RememberedComputer.objects.create(
+            user=self.user, token_hash="e" * 64, expires_at=timezone.now() + timedelta(days=30)
+        )
+        with override_settings(
+            PASSWORD_HASHERS=[
+                "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",  # forces a re-hash of the MD5 hash
+                "django.contrib.auth.hashers.MD5PasswordHasher",
+            ]
+        ):
+            self.assertTrue(Client().login(username="viewer", password=PASSWORD))
+        self.assertTrue(User.objects.get(pk=self.user.pk).password.startswith("pbkdf2_sha1$"))  # it was re-hashed
+        self.assertTrue(RememberedComputer.objects.filter(user=self.user).exists())
+
+    def test_forced_change_refuses_the_same_password(self):
+        Profile.objects.filter(user=self.user).update(must_change_password=True)
+        client = Client()
+        client.login(username="viewer", password=PASSWORD)
+        data = {"old_password": PASSWORD, "new_password1": PASSWORD, "new_password2": PASSWORD}
+        page = client.post("/password/", data)
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Choose a password different from the current one.")
+        self.assertTrue(Profile.objects.get(user=self.user).must_change_password)
+
+    def test_must_change_reachable_when_window_is_over(self):
+        Profile.objects.filter(user=self.user).update(
+            must_change_password=True, setup_until=timezone.now() - timedelta(days=1)
+        )
+        client = Client()
+        client.login(username="viewer", password=PASSWORD)
+        self.assertRedirects(client.get("/"), "/password/", fetch_redirect_response=False)
+        self.assertEqual(client.get("/password/").status_code, 200)
+
+    def test_staff_direct_post_of_reset_does_nothing(self):
+        device = TOTPDevice.objects.create(user=self.user, name="Authenticator", confirmed=True)
+        staff = make_user("staff", "readonly")
+        staff.is_staff = True
+        staff.save()
+        staff.user_permissions.add(*Permission.objects.filter(codename__in=["view_user", "change_user"]))
+        data = {"action": "reset_two_step", "_selected_action": [self.user.pk]}
+        admin_client("staff").post(f"/{settings.ADMIN_URL}auth/user/", data)
+        self.assertTrue(TOTPDevice.objects.filter(pk=device.pk).exists())
