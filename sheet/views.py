@@ -3,6 +3,8 @@
 import csv
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from functools import cache
+from pathlib import Path
 
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import Count
@@ -38,6 +40,14 @@ from .validators import clean_agent, clean_service_data, clean_vessel
 # ---- page -----------------------------------------------------------------------------------
 
 
+@cache
+def script_modules():
+    """Every script file of the page ("sheet/js/....js"). The page lists them all as modulepreload links, so the
+    browser fetches them at the same time instead of discovering them one import at a time."""
+    js_dir = Path(__file__).resolve().parent / "static" / "sheet" / "js"
+    return tuple(sorted("sheet/" + path.relative_to(js_dir.parent).as_posix() for path in js_dir.rglob("*.js")))
+
+
 @ensure_csrf_cookie
 def index(request):
     if not request.user.is_authenticated:
@@ -63,6 +73,7 @@ def index(request):
             ("h", "hotels", "hotels", "+ Add hotel stay", "No hotel stays in this range."),
             ("t", "transport", "transfers", "+ Add transfer", "No transfers in this range."),
         ],
+        "script_modules": script_modules(),
     }
     return render(request, "sheet/index.html", context)
 
