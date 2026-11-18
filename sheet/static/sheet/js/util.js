@@ -69,3 +69,15 @@ export const nowLocalInput = () => {
   const d = new Date();
   return `${localISO(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
+
+// Mirrors constants.DELAY_LIMIT: berthing more than 2 hours after arrival needs a delay reason (the server decides).
+const DELAY_LIMIT_MS = 2 * 60 * 60 * 1000;
+// Read the wall-clock times as UTC so a clock change in the browser's own zone never shifts the gap.
+const wallClockMs = (local) => Date.parse(`${local}:00Z`);
+
+/** Two datetime-local values ('2026-11-13T08:30'): did the vessel berth more than 2 hours after it arrived? */
+export const isDelayed = (arrival, berthing) => {
+  if (!arrival || !berthing) return false;
+  const gap = wallClockMs(berthing) - wallClockMs(arrival);
+  return Number.isFinite(gap) && gap > DELAY_LIMIT_MS;
+};

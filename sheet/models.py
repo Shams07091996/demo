@@ -78,6 +78,8 @@ class Vessel(models.Model):
     ops_start_at = models.DateTimeField(null=True, blank=True)
     ops_end_at = models.DateTimeField(null=True, blank=True)
     sailing_at = models.DateTimeField(null=True, blank=True)
+    # From the Master data "delay" list; required when berthing is more than 2 hours after arrival (validators).
+    delay_reason = models.CharField("Delay reason", max_length=100, blank=True)
     port = models.CharField(max_length=20, choices=PORTS, default="alexandria", db_index=True)
     summary = models.JSONField(default=dict, blank=True)  # optional vendor / invoice notes
     created_at = models.DateTimeField(auto_now_add=True)
@@ -132,6 +134,23 @@ class Option(models.Model):
 
     def __str__(self):
         return f"{self.kind}: {self.value}" + (f" ({self.port})" if self.port else "")
+
+
+class PortClosure(models.Model):
+    """A port closed from start_at until end_at (empty while still closed). Not linked to vessels."""
+
+    port = models.CharField(max_length=20, choices=PORTS, db_index=True)
+    start_at = models.DateTimeField("Closed from")
+    end_at = models.DateTimeField("Reopened", null=True, blank=True)
+    reason = models.CharField(max_length=100)  # from the Master data "closure" list
+    notes = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-start_at", "-id"]
+
+    def __str__(self):
+        return f"{self.get_port_display()} closed {timezone.localtime(self.start_at):%d.%m.%Y %H:%M} ({self.reason})"
 
 
 CURRENCIES = [("EGP", "EGP"), ("USD", "USD")]

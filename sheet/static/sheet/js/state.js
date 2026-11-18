@@ -44,7 +44,7 @@ export const state = {
   vessels: [],        // the current page only
   list: { count: 0, pages: 1, page: 1, totals: null },
   cache: new Map(),   // every vessel seen so far, by id (dialogs read from here)
-  alerts: { today: [], tomorrow: [], missing_agent: [] },
+  alerts: { today: [], tomorrow: [], missing: [] },
   dashboard: emptyDashboard(),
   dashboardFilter: { opr: '', agent: '', service: '' }, // the Dashboard's own filters (not the vessel list's)
   options: [],        // OPR / POC / Agent master data

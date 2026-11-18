@@ -8,6 +8,7 @@ import { setChildren } from './dom.js';
 import { setStatus } from './feedback.js';
 import { closeModal, isModalOpen } from './modal.js';
 import { onBookingInput } from './modals/booking.js';
+import { onClosureFormChange } from './modals/closure.js';
 import { onModalChange, onModalInput } from './modals/service.js';
 import { onVesselFormChange, openVessel, openVesselForm } from './modals/vessel.js';
 import { setupQuickAdd } from './quickAdd.js';
@@ -49,9 +50,11 @@ document.addEventListener('keydown', (event) => {
 });
 el.modal.addEventListener('input', onModalInput);
 el.modal.addEventListener('change', onModalChange);
-el.modal.addEventListener('change', onVesselFormChange); // admin switches a vessel's port
+el.modal.addEventListener('change', onVesselFormChange); // admin switches a vessel's port, times change
+el.modal.addEventListener('input', onVesselFormChange);  // times typed: show / hide the delay reason
 el.modal.addEventListener('input', onBookingInput);  // hotel stay / transfer dialog
 el.modal.addEventListener('change', onBookingInput);
+el.modal.addEventListener('change', onClosureFormChange); // admin switches a closure's port
 
 /* ---- top bar and sidebar ---- */
 $('#bell').addEventListener('click', (event) => { event.stopPropagation(); togglePanel(); });

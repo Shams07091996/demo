@@ -1,14 +1,15 @@
 import binascii
 from base64 import b32decode
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from sheet.models import ExchangeRate, Option, Profile, Service, Vessel
+from sheet.models import ExchangeRate, Option, PortClosure, Profile, Service, Vessel
 
 DEMO_USERS = [
     ("admin", "admin"),
@@ -75,8 +76,20 @@ class Command(BaseCommand):
     def _create_vessels(self):
         today = date.today()
         ExchangeRate.objects.get_or_create(month=today.replace(day=1), defaults={"rate": "50.00"})
+        for kind, values in (("delay", ("WAITING FOR BERTH", "PORT CLOSED", "WEATHER", "PILOT DELAY", "OTHER")),
+                             ("closure", ("WEATHER", "FOG", "STRIKE", "OTHER"))):
+            for value in values:
+                Option.objects.get_or_create(kind=kind, value=value, port="")
         if Vessel.objects.exists():
             return
+        # Port closures: yesterday's weather closure in Alexandria, and Port Said still closed by fog.
+        def at(day, hour):
+            return timezone.make_aware(datetime.combine(day, time(hour)))
+
+        yesterday = today - timedelta(days=1)
+        PortClosure.objects.create(port="alexandria", start_at=at(yesterday, 6), end_at=at(yesterday, 14),
+                                   reason="WEATHER", notes="Strong wind")
+        PortClosure.objects.create(port="portsaid", start_at=at(today, 5), reason="FOG")
         for agent in ("DELTA SHIPPING", "NILE AGENCY"):
             Option.objects.get_or_create(kind="agent", value=agent, port="")
         v1 = Vessel.objects.create(
@@ -126,7 +139,8 @@ class Command(BaseCommand):
             name="NORTHERN LIGHT", opr="Other", poc="ACT", date=today - timedelta(days=3), port="suez",
             arrival_agent="DELTA SHIPPING",
         )
-        # A past Alexandria call that still misses its sailing agent and a service agent: the "Missing agent" alert.
+        # A past Alexandria call with no times that still misses its sailing agent and a service agent: the "Missing
+        # details" alert.
         v4 = Vessel.objects.create(
             name="SEA BREEZE", opr="MSK", poc="ALY", date=today - timedelta(days=1), port="alexandria",
             arrival_agent="DELTA SHIPPING",

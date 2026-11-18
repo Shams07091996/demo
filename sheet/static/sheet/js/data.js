@@ -42,7 +42,7 @@ export async function loadAlerts() {
     const port = state.filter.port === 'ALL' ? '' : `?port=${encodeURIComponent(state.filter.port)}`;
     alerts = await api(`/api/vessels/alerts/${port}`);
   } catch {
-    alerts = { today: [], tomorrow: [], missing_agent: [] };
+    alerts = { today: [], tomorrow: [], missing: [] };
   }
   if (ticket !== latestAlerts) return;
   state.alerts = alerts;

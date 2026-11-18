@@ -3,6 +3,7 @@ import { api, mutate } from './api.js';
 import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from './data.js';
 import { closeModal } from './modal.js';
 import { openAgentJobs } from './modals/agentJobs.js';
+import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import {
@@ -12,7 +13,7 @@ import {
 import {
   addGuest, changeVessel, deleteBooking, openBookingDialog, pickVessel, removeGuest, saveBooking,
 } from './modals/booking.js';
-import { openVessel, openVesselForm, vesselPayload } from './modals/vessel.js';
+import { openVessel, openVesselForm, updateDelayRow, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { historyPage } from './pages/history.js';
@@ -137,7 +138,10 @@ export const actions = {
   'save-vessel-more': () => saveVessel({ addAnother: true }),
   'del-vessel': () => deleteVessel(),
   'del-vessel-row': (b) => deleteVessel(Number(b.dataset.id)),
-  'time-now': (b) => { $(`#vessel-form [name="${b.dataset.target}"]`).value = nowLocalInput(); },
+  'time-now': (b) => {
+    $(`#vessel-form [name="${b.dataset.target}"]`).value = nowLocalInput();
+    updateDelayRow();
+  },
 
   'save-rate': () => changeRate(() => api('/api/rates/', 'POST', formValues($('#rate-form')))),
   'del-rate': (b) => changeRate(() => api(`/api/rates/${b.dataset.id}/`, 'DELETE')),
@@ -163,4 +167,10 @@ export const actions = {
   'booking-del-guest': removeGuest,
   'booking-save': saveBooking,
   'booking-delete': deleteBooking,
+
+  'closure-new': () => openClosureDialog(),
+  'closure-open': (b) => openClosureDialog(Number(b.dataset.id)),
+  'closure-save': saveClosure,
+  'closure-del': removeClosure,
+  'closure-now': closureNow,
 };

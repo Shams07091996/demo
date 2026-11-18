@@ -223,18 +223,22 @@ async function login() {
     closeModal();
     ok([...$('#qa-agent').options].some((o) => o.textContent === 'SMOKE SUEZ OWN AGENT'), 'suez user: quick add offers their own agent');
     await w.fetch(`/api/options/${own.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
+    // Port closures: seed_demo has an Alexandria and a Port Said closure; a Suez user sees neither.
+    await go('closures');
+    click($('#pc-clear'));
+    ok(await waitFor(() => shown($('#pc-empty'))) && !$('#pc-tbody tr') && !!$('[data-act="closure-new"]'), "suez user: no other port's closures, and + Add closure");
     await checkHistory();
     return finish();
   }
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 8 : 7), 'sidebar lists the pages (admins also have History; no Bulk add)');
-  const pageOrder = 'vessels,hotels,transport,calculations,dashboard,master,rates' + (ROLE === 'admin' ? ',history' : '');
-  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Calculations sits after Transport; History (admins) last');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 9 : 8), 'sidebar lists the pages (admins also have History; no Bulk add)');
+  const pageOrder = 'vessels,hotels,transport,closures,calculations,dashboard,master,rates' + (ROLE === 'admin' ? ',history' : '');
+  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Port closures and Calculations sit after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
-  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
+  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
     await go(page);
     ok($$('.page').filter((p) => !p.hidden).length === 1 && $('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).classList.contains('active'), `sidebar opens "${title}"`);
   }
@@ -366,7 +370,7 @@ async function login() {
     ok(await waitFor(() => modalText().includes('Port call') && modalText().includes('Services on this vessel')), 'read-only: summary of services opens');
     closeModal();
     await go('master');
-    ok($$('#master-grid .panel').length === 6 && !$('[data-act="add-option"]') && !$('[data-act="del-option"]'), 'read-only: master data is view-only');
+    ok($$('#master-grid .panel').length === 8 && !$('[data-act="add-option"]') && !$('[data-act="del-option"]'), 'read-only: master data is view-only');
     await go('rates');
     ok(!$('#rate-form'), 'read-only: cannot edit exchange rates');
     for (const [page, p] of [['hotels', 'h'], ['transport', 't']]) {
@@ -375,6 +379,14 @@ async function login() {
       ok(!shown($(`#${p}-add`)) && /Cost/.test($(`#${p}-head`).textContent) && /Revenue/.test($(`#${p}-head`).textContent), `read-only: ${page} has no Add button but sees cost and revenue`);
       ok(shown($(`#${p}-port`)), `read-only: ${page} has the port selector`);
     }
+    // Port closures: every port, nothing to add, edit or remove (seed_demo: Alexandria WEATHER, Port Said FOG open).
+    await go('closures');
+    click($('#pc-clear'));
+    const vClosure = (text) => $$('#pc-tbody tr').find((t) => t.textContent.includes(text));
+    ok(await waitFor(() => vClosure('Strong wind') && vClosure('Still closed')?.textContent.includes('Port Said')) && shown($('#pc-port')), 'read-only: closures of every port, with a port filter');
+    ok(!$('[data-act="closure-new"]') && !$('#pc-tbody [data-act="closure-del"]') && !$('#pc-tbody tr.clickable'), 'read-only: closures cannot be added, edited or removed');
+    await go('vessels');
+    ok(await waitFor(() => /\d+ missing details/.test($('#notifBanner').textContent) && $('#notifBanner').textContent.includes('SEA BREEZE')), 'read-only: banner shows vessels missing details');
     checkIcons();
     await checkTheme();
     await checkDashboard();
@@ -396,7 +408,7 @@ async function login() {
 
   /* ======== master data page ======== */
   await go('master');
-  ok($$('#master-grid .panel h3').map((h) => h.textContent).join() === 'OPR,POC,Agent,Hotel,Airport,Port', 'master data has OPR, POC, Agent, Hotel, Airport and Port lists');
+  ok($$('#master-grid .panel h3').map((h) => h.textContent).join() === 'OPR,POC,Agent,Hotel,Airport,Port,Delay reason,Closure reason', 'master data has OPR, POC, Agent, Hotel, Airport, Port, Delay reason and Closure reason lists');
   type($('[data-new="agent"]'), 'SMOKE AGENT');
   click($('[data-act="add-option"][data-kind="agent"]'));
   ok(await waitFor(() => $('#master-grid').textContent.includes('SMOKE AGENT')), 'master data: agent added');
@@ -418,7 +430,7 @@ async function login() {
   }
   if (ROLE === 'admin') {
     const portChoices = (sel) => [...sel.options].map((o) => o.value).join();
-    ok($$('select[data-new-port]').length === 6 && portChoices($('select[data-new-port="agent"]')) === ',alexandria,portsaid,damietta,suez', 'admin: every list has a port choice (All ports + each port)');
+    ok($$('select[data-new-port]').length === 8 && portChoices($('select[data-new-port="agent"]')) === ',alexandria,portsaid,damietta,suez', 'admin: every list has a port choice (All ports + each port)');
     for (const [kind, value] of [['agent', 'SMOKE SUEZ AGENT'], ['hotel', 'SMOKE SUEZ HOTEL']]) {
       type($(`[data-new="${kind}"]`), value);
       type($(`select[data-new-port="${kind}"]`), 'suez');
@@ -514,8 +526,17 @@ async function login() {
   click($('[data-act="save-vessel"]'));
   ok(await waitFor(() => /cannot be before/.test($('#modal .error')?.textContent || '')), 'impossible times are rejected with a clear message');
   type($('[name=sailing_at]'), '2020-01-15T18:00');
+  // Berthed 2h30 after arrival: the delay reason shows and is required.
+  ok(shown($('#delay-row')) && [...$('#vessel-form [name=delay_reason]').options].some((o) => o.value === 'PORT CLOSED'), 'berthing more than 2 hours after arrival shows the delay reason (from Master data)');
+  type($('[name=berthing_at]'), '2020-01-15T08:00');
+  ok(!shown($('#delay-row')), 'exactly 2 hours: no delay reason');
+  type($('[name=berthing_at]'), '2020-01-15T08:30');
+  click($('[data-act="save-vessel"]'));
+  ok(await waitFor(() => /Choose a delay reason/.test($('#modal .error')?.textContent || '')), 'a delayed vessel without a reason is refused');
+  type($('#vessel-form [name=delay_reason]'), 'PORT CLOSED');
   click($('[data-act="save-vessel"]'));
   ok(await waitFor(() => modalText().includes('15.01.2020 08:30') && modalText().includes('SMOKE AGENT')), 'times and agent saved and shown in the Port call block');
+  ok(modalText().includes('Delay reason') && modalText().includes('PORT CLOSED'), 'the delay reason is shown with the times');
   ok(modalText().includes('9h 30m') && modalText().includes('6h') && modalText().includes('12h'), 'durations: 9h 30m at berth, 6h operations, 12h in port');
   ok($('#modal .status-chip')?.textContent === 'Sailed', 'status chip shows "Sailed"');
   closeModal();
@@ -625,16 +646,17 @@ async function login() {
   click($('#notifPanel [data-act="summary"]'));
   ok(await waitFor(() => $('#modal h2')?.textContent.includes('SMOKE TODAY')), 'clicking a notification opens its summary');
   closeModal();
-  // Past vessels missing an agent (seed_demo: SEA BREEZE, Alexandria, yesterday — no sailing agent, Landing without agent).
+  // Past vessels missing details (seed_demo: SEA BREEZE, Alexandria, yesterday — no times, no sailing agent, Landing
+  // without agent).
   if (ROLE !== 'suez') {
-    ok(await waitFor(() => /\d+ missing an agent/.test($('#notifBanner').textContent) && $('#notifBanner').textContent.includes('SEA BREEZE')), 'banner shows vessels missing an agent');
+    ok(await waitFor(() => /\d+ missing details/.test($('#notifBanner').textContent) && $('#notifBanner').textContent.includes('SEA BREEZE')), 'banner shows vessels missing details');
     const missRow = $$('#notifBanner .notif-row.missing').find((r) => r.textContent.includes('SEA BREEZE'));
-    ok(missRow && missRow.textContent.includes('Sailing') && missRow.textContent.includes('Landing'), 'the row says what is missing');
+    ok(missRow && ['Arrived', 'Berthed', 'Sailed', 'Sailing agent', 'Landing agent'].every((x) => missRow.textContent.includes(x)) && !missRow.textContent.includes('Arrival agent'), 'the row says what is missing (times and agents)');
     click($('#bell'));
-    ok($('#notifPanel').textContent.includes('Missing agent') && $('#notifPanel').textContent.includes('SEA BREEZE'), 'bell panel has a Missing agent group');
+    ok($('#notifPanel').textContent.includes('Missing details') && $('#notifPanel').textContent.includes('SEA BREEZE'), 'bell panel has a Missing details group');
     click($('#bell'));
     if (ROLE === 'alex') {
-      // More than 20 vessels missing an agent: the banner stops at 20 and "+ N more" opens the full list.
+      // More than 20 vessels missing details: the banner stops at 20 and "+ N more" opens the full list.
       const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': meta() };
       const extra = [];
       for (let i = 1; i <= 21; i += 1) {
@@ -642,12 +664,44 @@ async function login() {
         extra.push((await res.json()).id);
       }
       type($('#qa-name'), 'smoke gap trigger'); type($('#qa-date'), localNow()); click($('#qa-add')); // a save reloads the alerts
-      ok(await waitFor(() => $$('#notifBanner .notif-row.missing').length === 20 && /\+ \d+ more/.test($('#notifBanner').textContent)), 'banner caps missing-agent rows at 20 with "+ N more"');
+      ok(await waitFor(() => $$('#notifBanner .notif-row.missing').length === 20 && /\+ \d+ more/.test($('#notifBanner').textContent)), 'banner caps missing-details rows at 20 with "+ N more"');
       click($('#notifBanner [data-act="show-alerts-panel"]'));
-      ok($('#notifPanel').classList.contains('open') && $$('#notifPanel .notif-item.missing').length >= 22, '"+ N more" opens the bell panel with every vessel missing an agent');
+      ok($('#notifPanel').classList.contains('open') && $$('#notifPanel .notif-item.missing').length >= 22, '"+ N more" opens the bell panel with every vessel missing details');
       click($('#bell'));
       for (const id of extra) await w.fetch(`/api/vessels/${id}/`, { method: 'DELETE', headers });
     }
+  }
+
+  /* ======== port closures (seed_demo: Alexandria WEATHER yesterday 06:00-14:00, Port Said FOG still closed) ======== */
+  await go('closures');
+  click($('#pc-clear'));
+  const closureRow = (text) => $$('#pc-tbody tr').find((t) => t.textContent.includes(text));
+  ok(await waitFor(() => closureRow('Strong wind')), 'closures: the Alexandria closure is listed');
+  ok(closureRow('Strong wind').textContent.includes('8.0') && closureRow('Strong wind').textContent.includes('WEATHER'), 'closures: hours and reason shown');
+  if (ROLE === 'alex') ok(!closureRow('Still closed') && !/Port/.test($('#pc-head').textContent), 'port user: only their own port, no Port column');
+  else ok(closureRow('Still closed')?.textContent.includes('Port Said') && shown($('#pc-port')), 'admin / read-only: every port, with a port filter');
+  if (ROLE === 'viewer') {
+    ok(!$('[data-act="closure-new"]') && !$('#pc-tbody [data-act="closure-del"]') && !$('#pc-tbody tr.clickable'), 'read-only: closures cannot be added, edited or removed');
+  } else {
+    click($('[data-act="closure-new"]'));
+    ok(await waitFor(() => $('#closure-form')), 'closures: + Add closure opens the dialog');
+    ok(ROLE === 'admin' ? !!$('#closure-form [name=port]') : !$('#closure-form [name=port]'), 'closures: only admins choose the port');
+    ok([...$('#closure-form [name=reason]').options].some((o) => o.value === 'FOG'), 'closures: reasons come from the Closure reason list');
+    type($('#closure-form [name=start_at]'), '2020-02-01T06:00');
+    type($('#closure-form [name=end_at]'), '2020-02-01T05:00');
+    type($('#closure-form [name=reason]'), 'FOG');
+    click($('[data-act="closure-save"]'));
+    ok(await waitFor(() => /Reopened cannot be before closed from/.test($('#modal .error')?.textContent || '')), 'closures: reopened before closed is refused');
+    type($('#closure-form [name=end_at]'), '2020-02-01T09:30');
+    click($('[data-act="closure-save"]'));
+    ok(await waitFor(() => !$('#overlay').classList.contains('open') && closureRow('01.02.2020 06:00')?.textContent.includes('3.5')), 'closures: saved and listed with its hours');
+    click(closureRow('01.02.2020 06:00').querySelector('td'));
+    ok(await waitFor(() => $('#closure-form [name=start_at]')?.value === '2020-02-01T06:00'), 'closures: a row opens its closure');
+    type($('#closure-form [name=notes]'), 'SMOKE CLOSURE');
+    click($('[data-act="closure-save"]'));
+    ok(await waitFor(() => closureRow('SMOKE CLOSURE')), 'closures: edited');
+    click(closureRow('SMOKE CLOSURE').querySelector('[data-act="closure-del"]'));
+    ok(await waitFor(() => !closureRow('SMOKE CLOSURE')), 'closures: removed from its row');
   }
 
   /* ======== hotels and transport ======== */

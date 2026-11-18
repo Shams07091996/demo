@@ -16,9 +16,9 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, listing, logistics, ratelimit, twostep
+from . import calculations, closures, listing, logistics, ratelimit, twostep
 from . import dashboard as dashboard_figures
-from .access import profile_of, require_admin, require_edit, scoped_vessels
+from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
 from .constants import (
     NO_AGENT,
@@ -221,13 +221,19 @@ def rate_delete(request, pk):
 
 
 def _usage_counts(profile):
-    """{kind: {value: how many visible vessels (OPR / POC / Agent) or bookings (Hotel / Airport / Port) use it}}"""
+    """{kind: {value: how many visible vessels (OPR / POC / Agent / Delay reason), bookings (Hotel / Airport / Port) or
+    port closures (Closure reason) use it}}"""
     vessels = scoped_vessels(profile, prefetch=False)
     counts = {
         kind: {row[kind]: row["n"] for row in vessels.values(kind).annotate(n=Count("id")).order_by()}
         for kind in OPTION_KIND_KEYS
-        if kind not in BOOKING_KINDS and kind != "agent"
+        if kind not in BOOKING_KINDS and kind not in ("agent", "delay", "closure")
     }
+    # Delay reasons are used by vessels, closure reasons by port closures (fields not named after the kind).
+    delays = vessels.exclude(delay_reason="").values("delay_reason").annotate(n=Count("id")).order_by()
+    counts["delay"] = {row["delay_reason"]: row["n"] for row in delays}
+    closures_in_scope = scoped_closures(profile).values("reason").annotate(n=Count("id")).order_by()
+    counts["closure"] = {row["reason"]: row["n"] for row in closures_in_scope}
     # An agent is used by a vessel when it entered it, sailed it or did any of its services (each vessel once).
     agent_vessels = {}
     for field in ("arrival_agent", "sailing_agent", "services__agent"):
@@ -349,7 +355,7 @@ def export_csv(request):
     writer.writerow(
         ["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Date", "Status"]
         + [label for _, label in TIME_FIELDS]
-        + ["Services", "Total Cost LE", "Total Profit LE"]
+        + ["Delay reason", "Services", "Total Cost LE", "Total Profit LE"]
     )
     for data in rows:
         writer.writerow(
@@ -363,6 +369,7 @@ def export_csv(request):
                 date.fromisoformat(data["date"]).strftime("%d.%m.%Y"),
                 data["status"],
                 *[_display_time(data[key]) for key in TIME_KEYS],
+                _csv_safe(data["delay_reason"]),
                 _csv_safe(", ".join(s["type"] for s in data["services"])),
                 data["total_cost_egp"],
                 data["total_profit_egp"],
@@ -370,6 +377,36 @@ def export_csv(request):
         )
     audit(request, "export.csv")
     return response
+
+
+# ---- port closures (see closures.py) -----------------------------------------------------------
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def closures_list(request):
+    profile = request.profile
+    if request.method == "GET":
+        return JsonResponse(closures.list_response(profile, request.GET))
+    require_edit(profile)
+    closure = closures.save_closure(profile, read_json(request))
+    audit(request, "closure.create", id=closure.id, port=closure.port)
+    return JsonResponse(closures.closure_to_dict(closure, profile), status=201)
+
+
+@json_api
+@require_http_methods(["PUT", "DELETE"])
+def closure_detail(request, pk):
+    profile = request.profile
+    require_edit(profile)
+    closure = closures.get_closure(profile, pk)
+    if request.method == "DELETE":
+        closure.delete()
+        audit(request, "closure.delete", id=pk)
+        return JsonResponse({"ok": True})
+    closure = closures.save_closure(profile, read_json(request), existing=closure)
+    audit(request, "closure.update", id=closure.id)
+    return JsonResponse(closures.closure_to_dict(closure, profile))
 
 
 # ---- hotels and transport (see logistics.py) ---------------------------------------------------

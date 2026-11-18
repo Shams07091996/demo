@@ -60,8 +60,9 @@ cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_sm
 - The smoke test's writes count against the API rate limits (120 writes / 10 min per user, 600 per address): fine for
   one run of each role; many back-to-back runs on one server may need `DJANGO_RATE_LIMIT_*` raised.
 - `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers and a USD Fresh Water service at
-  the month rate 50, and SEA BREEZE (Alexandria, yesterday) a missing sailing agent and a Landing without agent (the
-  "Missing agent" alert); the smoke test relies on all of these.
+  the month rate 50, and SEA BREEZE (Alexandria, yesterday) no times, a missing sailing agent and a Landing without agent (the
+  "Missing details" alert); it also adds Delay / Closure reasons, a WEATHER closure in Alexandria (yesterday 06:00-14:00,
+  "Strong wind") and an open FOG closure in Port Said; the smoke test relies on all of these.
 - `<KEY>` is 32+ base32 characters (e.g. `python -c "import base64,secrets;print(base64.b32encode(secrets.token_bytes(20)).decode())"`):
   `seed_demo` gives every demo user a confirmed Authenticator with it and the smoke test computes the code. A code
   is accepted once per user per 30 seconds, so don't run the same role twice within 30 seconds.
@@ -84,7 +85,7 @@ with `api.audit(...)`; values go through `api.log_safe`. `handler404` / `handler
 **Security plumbing:** `ratelimit.py` (writes per user / address, CSV per user, counted in `RateCounter`; a broken
 counter refuses writes, allows reads), `alerts.note(kind)` (threshold → one `sheet.alert` record + `mail_admins`),
 `checks.py` (deploy check `sheet.E001`). **Change history** (`history.py`): model signals on Vessel, Service,
-HotelStay, Transfer, Guest, Option, ExchangeRate, Profile and auth `User` (no password hash, no last_login) write a `ChangeRecord` (who / when / IP / old → new) in the
+HotelStay, Transfer, Guest, Option, ExchangeRate, PortClosure, Profile and auth `User` (no password hash, no last_login) write a `ChangeRecord` (who / when / IP / old → new) in the
 same transaction; `bulk_create` sends no signals, so callers use `history.record_created`. The request comes from
 `HistoryMiddleware` (none → "system"). Append-only (read-only admin; PostgreSQL trigger in migration 0010).
 `GET /api/history/` is admin-only; the History page is `js/pages/history.js`, rendered in the template for admins only.
@@ -116,7 +117,7 @@ maths for the live preview (`js/calc.js`, same rounding), but the server's numbe
 **Vessel list** (`listing.py`): the database narrows by date range and port; every vessel in that range gets its
 figures computed once; then search (literal, case-insensitive), OPR bucket (ARK / MSK / other / with services), exact
 OPR, sorting (ties by newest id) and paging run in Python. `totals` cover range + port only. The same module serves
-the alerts (today / tomorrow in Cairo time, and past vessels missing an agent) and the CSV export.
+the alerts (today / tomorrow in Cairo time, and past vessels missing details) and the CSV export.
 
 **Dashboard** (`dashboard.py`, `GET /api/dashboard/` and `/api/dashboard/jobs/`): vessels in date range + port (+ exact
 OPR) → jobs (arrival = 1 for the arrival agent, sailing = 1 for the sailing agent, each service = 1 for its agent; a
@@ -140,10 +141,22 @@ filtered rows, and the OPRs present in the range for the page's dropdown. Comput
 Every role may read it.
 
 **Agents:** `Vessel.arrival_agent` (who entered it), `Vessel.sailing_agent` (who sailed it) and `Service.agent` (who
-did that service), all plain text from the Agent list, empty until chosen. `listing.missing_agents` feeds the
-"Missing agent" alert: vessels dated before today (Cairo) missing any of them (every service type needs one).
+did that service), all plain text from the Agent list, empty until chosen. `listing.missing_details` feeds the
+"Missing details" alert (key `missing`): vessels dated before today (Cairo) missing any of the five times, a needed
+delay reason, or any agent (every service type needs one).
 
-**Master data** (`Option`: kind, value, `port`): six lists (OPR, POC, Agent, Hotel, Airport, Port). `port` is `""`
+**Delay reason:** `Vessel.delay_reason` (Master data "Delay reason" list) is required when berthing is more than 2
+hours after arrival (`constants.is_delayed`, exactly 2:00 is not delayed) and refused otherwise
+(`validators.clean_delay_reason`; a PUT without the key keeps the stored reason). The vessel form shows it while the
+times say delayed or a reason is set (`util.isDelayed`).
+
+**Port closures** (`closures.py`, `GET/POST /api/closures/`, `PUT/DELETE /api/closures/<id>/`): `PortClosure` (port,
+closed from, reopened or empty = still closed, reason from the "Closure reason" list, notes), not linked to vessels.
+Scoped by its own port with `access.scoped_closures`; the list shows closures overlapping a date range. Page
+`js/pages/closures.js`, dialog `js/modals/closure.js`.
+
+**Master data** (`Option`: kind, value, `port`): eight lists (OPR, POC, Agent, Hotel, Airport, Port, Delay reason,
+Closure reason). `port` is `""`
 for All ports or one port key. Port users only ever create values for their port and see All-ports + their own;
 admins choose the port when adding and move values with `PATCH /api/options/<id>/` (admin only). Every dropdown is
 built with `optionChoices(kind, current, port)` → only that port's + All-ports values, always keeping `current`.

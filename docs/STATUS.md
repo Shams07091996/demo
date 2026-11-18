@@ -1,10 +1,15 @@
 # Project status
 
-Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each feature has a design
+Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each feature has a design
 (`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
 
 ## Where things stand right now
 
+- **Port closures, delay reason, Missing details (2026-11-19):** built on branch `feature/port-closures-delays`,
+  **not merged yet** (waiting for the user's OK). Needs migration **`0013_port_closures_and_delays`** after merging.
+  **Right after migrating, an admin fills Master data → Delay reason and Closure reason** (at least All-ports values):
+  while they are empty, no closure can be added and a vessel that berthed more than 2 hours after arrival cannot be
+  saved. Smoke test passes for alex / admin / viewer / suez; fresh review done (fixes in).
 - **Two-step login (2026-11-18):** merged into `main` (branch deleted).
   Needs migration **`0012_two_step_login`** and `pip install --require-hashes -r requirements.txt` (new packages
   django-otp, segno). After merging, on the user's PostgreSQL database: `migrate`, create the superusers, each sets up
@@ -15,7 +20,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
   demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
-- **Tests:** `npm run check` green with 347 backend tests on `main`; smoke test
+- **Tests:** `npm run check` green with 396 backend tests on `feature/port-closures-delays` (347 on `main`); smoke test
   (now signing in with a code) passes for `alex`, `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
@@ -31,6 +36,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
+| 2026-11-19 | **Port closures, delay reason, Missing details** (branch `feature/port-closures-delays`): a Port closures page (port, closed from, reopened or still closed, reason from the new Closure reason list, notes; port users their port, admins all, read-only view; change history); a **Delay reason** (new Master data list) required when a vessel berthed more than 2 hours after arrival and refused otherwise; the past-vessel alert is now **Missing details** (the five times, a needed delay reason, arrival / sailing agent, service agents) | `2026-11-19-port-closures-and-delays-design.md` |
 | 2026-11-19 | Tighter input rules: OPR / POC / agents / booking hotel, airport and port must be in Master data for the vessel's port (a value already saved stays allowed); service numbers must be real numbers, amounts never negative (user's decision), exchange rate above 0, percentage 0-100; too-long text refused with a message instead of cut (pasted crew-change details still trimmed); exchange rate 0 = empty; more than 100 lines refused | — |
 | 2026-11-18 | Faster first load: the page names all 32 script files up front (`modulepreload`), so they arrive in 1 round instead of 4; vessel toolbar on one line (no big empty gap) | — |
 | 2026-11-15 | Security fixes: exchange rates admin-only; debug mode off unless `DJANGO_DEBUG=1`; audit-log values escaped | — |
@@ -69,6 +75,11 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 - **Process:** the user chooses **Native** execution (built in-session, one fresh reviewer at the end).
 - **Agents (2026-11-18):** an arrival agent and a sailing agent per vessel and an agent per service; **no defaults** (the sailing agent is never copied from the arrival agent, a service never gets the vessel's agent); **every** service type needs an agent, Others / Remarks too; the alert starts the day after the vessel date (agents are known only after the job) and has no look-back limit.
 - **Bulk add removed** (2026-11-18, "not needed").
+- **Port closures / delays (2026-11-19):** closures are a **separate record** (not linked to vessels; the agent picks
+  e.g. "Port closed" as the delay reason); closure reasons have **their own list**; delayed = berthed **more than 2
+  hours** after arrival, and a delayed vessel **cannot be saved without a reason**; once a vessel's date has passed
+  **all five times** are required; closures on **their own page**; one **Missing details** alert group, one line per
+  vessel.
 - **Order (2026-11-18):** agents → dashboards → new look, **before** two-step login (which will then be built in the new look).
 - **Dashboards (designed 2026-11-18):** jobs per agent (arrival = 1 job, sailing = 1, each service = 1), services per month, money per month as a **separate** table; chart **and** figures; filters date / port / OPR / agent / service type.
 - **New look (designed 2026-11-18):** look B (neutral grey, one blue accent), dark and light mode, system font, line icons drawn for the app; **no third-party dependency**.
@@ -172,6 +183,16 @@ Agents per job (final review, minor, for the user to decide):
 - No automated test runs migration 0011 itself (it is a plain rename).
 - The bell panel's empty text still says "No vessels today or tomorrow." (shown only when nothing is pending).
 - The Master data agent usage count reads one row per service; fine now, watch it if `/api/options/` slows.
+
+Port closures / delays (final review, minor, for the user to decide):
+
+- The vessel form decides "delayed" from the wall clock; the server from real time in Cairo. On the night Cairo moves
+  its clocks (April / October) the two can disagree: the server may ask for a delay reason while the form hides it
+  (change a time, or the reason appears once the times show more than 2 hours).
+- A closure that reopened at exactly 00:00 on the From day is still listed for that range.
+- The vessel form rebuilds its dropdowns twice when an admin changes the port (harmless).
+- The Django admin page for closures doesn't check the reason list or the time order (like the other admin pages).
+- No starter values for the Delay / Closure reason lists on a real database (only `seed_demo` adds them).
 
 Two-step login (final review, minor, for the user to decide):
 

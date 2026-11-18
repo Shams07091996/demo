@@ -459,6 +459,17 @@ class SeedCommandTests(TestCase):
         self.assertNotIn("demo12345", out.getvalue())
         self.assertTrue(Vessel.objects.exists())
 
+    @FAST_HASHER
+    @override_settings(DEBUG=True)
+    def test_seeds_reason_lists_and_closures(self):
+        from .models import PortClosure
+
+        call_command("seed_demo", stdout=StringIO())
+        self.assertIn("PORT CLOSED", Option.objects.filter(kind="delay", port="").values_list("value", flat=True))
+        self.assertIn("WEATHER", Option.objects.filter(kind="closure", port="").values_list("value", flat=True))
+        self.assertEqual(sorted(PortClosure.objects.values_list("port", flat=True)), ["alexandria", "portsaid"])
+        self.assertIsNone(PortClosure.objects.get(port="portsaid").end_at)
+
 
 class PortCallTests(ApiTestCase):
     def create(self, client, **extra):
@@ -467,10 +478,12 @@ class PortCallTests(ApiTestCase):
 
     def test_times_and_agent_round_trip_in_cairo_time(self):
         allow("agent", "NILE AGENCY")
+        allow("delay", "WEATHER")
         alex = self.login("alex")
         status, vessel = self.create(
             alex,
             arrival_agent="NILE AGENCY",
+            delay_reason="WEATHER",  # berthed 2.5 hours after arrival
             arrival_at="2026-11-13T06:00",
             berthing_at="2026-11-13T08:30",
             ops_start_at="2026-11-13T09:00",
