@@ -46,6 +46,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "sheet.middleware.LoginThrottleMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -91,8 +92,17 @@ TIME_ZONE = "Africa/Cairo"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 ADMIN_URL = os.environ.get("DJANGO_ADMIN_URL", "admin/")  # move it with DJANGO_ADMIN_URL=private-path/
