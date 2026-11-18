@@ -3,6 +3,7 @@ import { ME } from './config.js';
 import { loadDashboard, loadOptions, loadRates } from './data.js';
 import { hotelsPage, transportPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
+import { closuresPage } from './pages/closures.js';
 import { historyPage } from './pages/history.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
@@ -13,6 +14,7 @@ const TITLES = {
   vessels: 'Vessels',
   hotels: 'Hotels',
   transport: 'Transport',
+  closures: 'Port closures',
   calculations: 'Calculations',
   dashboard: 'Dashboard',
   master: 'Master data',
@@ -37,6 +39,7 @@ export async function showPage(requested) {
   if (name === 'dashboard') await loadDashboard();
   if (name === 'hotels') await hotelsPage.load();
   if (name === 'transport') await transportPage.load();
+  if (name === 'closures') await closuresPage.load();
   if (name === 'calculations') await calculationsPage.load();
   if (name === 'history') await historyPage.load();
   if (name === 'master') {

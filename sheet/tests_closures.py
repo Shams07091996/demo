@@ -154,3 +154,17 @@ class ClosureApiTests(ApiTestCase):
         _, closure = self.post(self.alex)
         Option.objects.filter(kind="closure").delete()
         self.assertEqual(self.call(self.alex, "put", f"/api/closures/{closure['id']}/", closure)[0], 200)
+
+
+@FAST_HASHER
+class ClosurePageTests(ApiTestCase):
+    def test_page_has_closures_nav_and_page(self):
+        page = self.login("alex").get("/").content.decode()
+        self.assertIn('data-page="closures"', page)
+        self.assertIn('id="page-closures"', page)
+        self.assertIn('data-act="closure-new"', page)
+
+    def test_viewer_page_has_no_add_button(self):
+        page = self.login("viewer").get("/").content.decode()
+        self.assertIn('id="page-closures"', page)
+        self.assertNotIn('data-act="closure-new"', page)

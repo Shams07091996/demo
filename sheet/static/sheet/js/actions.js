@@ -3,6 +3,7 @@ import { api, mutate } from './api.js';
 import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from './data.js';
 import { closeModal } from './modal.js';
 import { openAgentJobs } from './modals/agentJobs.js';
+import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import {
@@ -166,4 +167,10 @@ export const actions = {
   'booking-del-guest': removeGuest,
   'booking-save': saveBooking,
   'booking-delete': deleteBooking,
+
+  'closure-new': () => openClosureDialog(),
+  'closure-open': (b) => openClosureDialog(Number(b.dataset.id)),
+  'closure-save': saveClosure,
+  'closure-del': removeClosure,
+  'closure-now': closureNow,
 };

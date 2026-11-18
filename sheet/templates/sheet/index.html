@@ -20,6 +20,7 @@
       <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessels</span></a>
       <a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>
       <a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>
+      <a class="nav-item" data-page="closures" href="#closures"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ban"></use></svg></span><span>Port closures</span></a>
       <a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>
       <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>
       <a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>
@@ -132,6 +133,23 @@
       <div class="pager" id="{{ p }}-pager"></div>
     </main>
     {% endfor %}
+
+    <!-- ===== Port closures (drawn by js/pages/closures.js) ===== -->
+    <main class="page" id="page-closures" hidden>
+      <div class="date-range" role="group" aria-label="Date range">
+        <label>From <input class="input" type="date" id="pc-from"></label>
+        <label>To <input class="input" type="date" id="pc-to"></label>
+        <button class="btn ghost small" id="pc-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
+      </div>
+      <div class="toolbar">
+        <div class="tools"><select id="pc-port" class="select" hidden aria-label="Port"></select></div>
+        {% if me.canEdit %}<div class="tools"><button class="btn primary" data-act="closure-new">+ Add closure</button></div>{% endif %}
+      </div>
+      <div class="table-wrap">
+        <table><thead id="pc-head"></thead><tbody id="pc-tbody"></tbody></table>
+        <div class="empty" id="pc-empty" hidden>No closures.</div>
+      </div>
+    </main>
 
     <!-- ===== Calculations (drawn by js/pages/calculations.js) ===== -->
     <main class="page" id="page-calculations" hidden>
