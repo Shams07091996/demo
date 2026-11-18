@@ -5,7 +5,12 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Git branches:** only `main`. Agents per job, Dashboards and New look merged 2026-11-18 (branches deleted).
+- **Git branches:** `main`, plus `chore/pythonanywhere-demo` (not merged: puts back the hash-locked
+  `requirements.txt` and the settings that the user's Render commits on `main` had replaced). Agents per job, Dashboards and New look merged 2026-11-18 (branches deleted).
+- **Online demo (2026-11-18):** https://shams1996.pythonanywhere.com (PythonAnywhere free plan, the user's account,
+  demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
+  remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
+  GitHub repo `Shams07091996/demo` (public).
 - **Tests (on `main`):** `npm run check` green with 257 backend tests; smoke test passes for `alex`,
   `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
