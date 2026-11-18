@@ -13,7 +13,7 @@ export const newValuePort = {};
 
 // Hotel / Airport / Port values are used by hotel stays and transfers, not by vessels.
 const BOOKING_KINDS = ['hotel', 'airport', 'port'];
-export const usageUnit = (kind, n) => `${BOOKING_KINDS.includes(kind) ? 'booking' : 'vessel'}${n === 1 ? '' : 's'}`;
+export const usageUnit = (kind, n) => `${kind === 'closure' ? 'closure' : BOOKING_KINDS.includes(kind) ? 'booking' : 'vessel'}${n === 1 ? '' : 's'}`;
 
 function optionRow(option) {
   const canRemove = ME.canEdit && option.editable;

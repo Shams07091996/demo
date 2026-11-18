@@ -18,7 +18,7 @@ from django.views.decorators.http import require_http_methods
 
 from . import calculations, closures, listing, logistics, ratelimit, twostep
 from . import dashboard as dashboard_figures
-from .access import profile_of, require_admin, require_edit, scoped_vessels
+from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
 from .constants import (
     NO_AGENT,
@@ -221,15 +221,19 @@ def rate_delete(request, pk):
 
 
 def _usage_counts(profile):
-    """{kind: {value: how many visible vessels (OPR / POC / Agent) or bookings (Hotel / Airport / Port) use it}}"""
+    """{kind: {value: how many visible vessels (OPR / POC / Agent / Delay reason), bookings (Hotel / Airport / Port) or
+    port closures (Closure reason) use it}}"""
     vessels = scoped_vessels(profile, prefetch=False)
     counts = {
         kind: {row[kind]: row["n"] for row in vessels.values(kind).annotate(n=Count("id")).order_by()}
         for kind in OPTION_KIND_KEYS
         if kind not in BOOKING_KINDS and kind not in ("agent", "delay", "closure")
     }
-    counts["delay"] = {}
-    counts["closure"] = {}
+    # Delay reasons are used by vessels, closure reasons by port closures (fields not named after the kind).
+    delays = vessels.exclude(delay_reason="").values("delay_reason").annotate(n=Count("id")).order_by()
+    counts["delay"] = {row["delay_reason"]: row["n"] for row in delays}
+    closures_in_scope = scoped_closures(profile).values("reason").annotate(n=Count("id")).order_by()
+    counts["closure"] = {row["reason"]: row["n"] for row in closures_in_scope}
     # An agent is used by a vessel when it entered it, sailed it or did any of its services (each vessel once).
     agent_vessels = {}
     for field in ("arrival_agent", "sailing_agent", "services__agent"):
