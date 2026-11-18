@@ -7,7 +7,7 @@ from django.db import DatabaseError, connection, transaction
 from django.test import Client, TestCase
 
 from .models import ChangeRecord, Guest, HotelStay, Option, Service, Vessel
-from .tests import FAST_HASHER, ApiTestCase
+from .tests import FAST_HASHER, ApiTestCase, allow
 
 
 def records(**filters):
@@ -57,6 +57,7 @@ class HistoryRecordingTests(ApiTestCase):
         self.assertEqual({r.port for r in records(action="delete")}, {"alexandria"})
 
     def test_booking_guests_are_recorded(self):
+        allow("hotel", "NILE")
         alex = self.login("alex")
         payload = {
             "vessel": self.alex_vessel.id, "hotel": "NILE", "check_in": "2026-11-13", "nights": 2,

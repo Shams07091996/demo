@@ -12,6 +12,7 @@ from .constants import (
     MAX_GUESTS,
     MAX_NIGHTS,
     MULTI_TYPES,
+    OPTION_KINDS,
     PLACE_KEYS,
     PORT_KEYS,
     SINGLE_EXTRAS,
@@ -20,14 +21,73 @@ from .constants import (
     TIME_LABELS,
 )
 from .errors import BadRequest
+from .models import Option
 
 MAX_ENTRIES = 100
 MAX_CREW = 60
 MAX_SEGMENTS = 12
+MAX_AMOUNT = 1e10  # same ceiling as booking money
+MAX_RATE = 1_000_000
+KIND_LABELS = dict(OPTION_KINDS)
 
 
 def _text(value, limit=200):
     return str(value if value is not None else "").strip()[:limit]
+
+
+def _short(value, limit, label):
+    """Trimmed text; refused (not cut) when longer than `limit` characters."""
+    text = str(value if value is not None else "").strip()
+    if len(text) > limit:
+        raise BadRequest(f"{label} is too long (at most {limit} characters).")
+    return text
+
+
+def _parse_number(value, label):
+    """None when empty; a finite float otherwise, refused when it is not a number."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, bool):
+        raise BadRequest(f"{label} must be a number.")
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        raise BadRequest(f"{label} must be a number.") from None
+    if not math.isfinite(result):
+        raise BadRequest(f"{label} must be a number.")
+    return result
+
+
+def _amount(value, label):
+    """An optional amount, quantity or weight: a number of 0 or more."""
+    result = _parse_number(value, label)
+    if result is None:
+        return None
+    if result < 0:
+        raise BadRequest(f"{label} must be 0 or more.")
+    if result >= MAX_AMOUNT:
+        raise BadRequest(f"{label} is too large.")
+    return result
+
+
+def _rate(value):
+    """An optional exchange rate: above 0."""
+    result = _parse_number(value, "Exchange rate")
+    if result is not None and not 0 < result < MAX_RATE:
+        raise BadRequest("Exchange rate must be a number above 0.")
+    return result
+
+
+def listed(kind, value, port, current=""):
+    """A value from the Master data list `kind` for `port` (that port's or All ports'), or empty.
+    The value already saved on the record (`current`) stays allowed even if it left the list."""
+    label = KIND_LABELS[kind]
+    text = _short(value, 100, label)
+    if not text or text == (current or ""):
+        return text
+    if not Option.objects.filter(kind=kind, value=text, port__in=("", port or "")).exists():
+        raise BadRequest(f"{label}: choose a value from the Master data {label} list for this port.")
+    return text
 
 
 def _number(value):
@@ -91,41 +151,42 @@ def _clean_multi(service_type, raw):
     for entry in _as_list(raw.get("entries"))[:MAX_ENTRIES]:
         if not isinstance(entry, dict):
             continue
+        line = f" (line {len(entries) + 1})"
         item = {
-            "awb": _text(entry.get("awb"), 60),
-            "cost": _number(entry.get("cost")),
+            "awb": _short(entry.get("awb"), 60, "AWB" + line),
+            "cost": _amount(entry.get("cost"), "Cost" + line),
             "costCurrency": _currency(entry.get("costCurrency")),
-            "revenue": _number(entry.get("revenue")),
+            "revenue": _amount(entry.get("revenue"), "Revenue" + line),
             "revenueCurrency": _currency(entry.get("revenueCurrency")),
         }
         if service_type == "Delivery Parcels":
-            item["weight"] = _number(entry.get("weight"))
+            item["weight"] = _amount(entry.get("weight"), "Weight" + line)
         entries.append(item)
-    return {"entries": entries, "exchangeRate": _number(raw.get("exchangeRate"))}
+    return {"entries": entries, "exchangeRate": _rate(raw.get("exchangeRate"))}
 
 
 def _clean_cash_to_master(raw):
-    percentage = _number(raw.get("percentage"))
-    if percentage is not None:
-        percentage = max(0.0, min(100.0, percentage))
+    percentage = _parse_number(raw.get("percentage"), "Percentage")
+    if percentage is not None and not 0 <= percentage <= 100:
+        raise BadRequest("Percentage must be from 0 to 100.")
     return {
-        "amount": _number(raw.get("amount")),
+        "amount": _amount(raw.get("amount"), "Amount"),
         "amountCurrency": _currency(raw.get("amountCurrency")),
         "shareMode": "fixed" if raw.get("shareMode") == "fixed" else "percent",
         "percentage": percentage,
-        "fixedRevenue": _number(raw.get("fixedRevenue")),
-        "exchangeRate": _number(raw.get("exchangeRate")),
+        "fixedRevenue": _amount(raw.get("fixedRevenue"), "Fixed revenue"),
+        "exchangeRate": _rate(raw.get("exchangeRate")),
     }
 
 
 def _service_money(raw):
     """The cost / revenue fields every single-priced service has (Crew Change and Others / Remarks too)."""
     return {
-        "cost": _number(raw.get("cost")),
+        "cost": _amount(raw.get("cost"), "Cost"),
         "costCurrency": _currency(raw.get("costCurrency")),
-        "revenue": _number(raw.get("revenue")),
+        "revenue": _amount(raw.get("revenue"), "Revenue"),
         "revenueCurrency": _currency(raw.get("revenueCurrency")),
-        "exchangeRate": _number(raw.get("exchangeRate")),
+        "exchangeRate": _rate(raw.get("exchangeRate")),
     }
 
 
@@ -133,9 +194,9 @@ def _clean_single(service_type, raw):
     cleaned = _service_money(raw)
     extra = SINGLE_EXTRAS.get(service_type)
     if extra == "quantity":
-        cleaned["quantity"] = _number(raw.get("quantity"))
+        cleaned["quantity"] = _amount(raw.get("quantity"), "Quantity")
     elif extra:
-        cleaned[extra] = _text(raw.get(extra), 160)
+        cleaned[extra] = _short(raw.get(extra), 160, "Name")
     return cleaned
 
 
@@ -143,7 +204,7 @@ def clean_service_data(service_type, raw):
     """Return a sanitised copy of a service's data for its type; unknown keys are dropped."""
     raw = _as_dict(raw)
     if service_type == "Others / Remarks":
-        return {"note": _text(raw.get("note"), 1000), **_service_money(raw)}
+        return {"note": _short(raw.get("note"), 1000, "Note"), **_service_money(raw)}
     if service_type == "Crew Change":
         return {**_clean_crew_change(raw), **_service_money(raw)}
     if service_type in MULTI_TYPES:
@@ -159,7 +220,8 @@ def clean_service_data(service_type, raw):
 def clean_summary(raw):
     """Optional vendor / invoice notes: only the known fields, each trimmed."""
     raw = _as_dict(raw)
-    return {key: _text(raw[key], 80) for key in SUMMARY_FIELDS if _text(raw.get(key), 80)}
+    cleaned = {key: _short(raw.get(key), 80, key) for key in SUMMARY_FIELDS}
+    return {key: value for key, value in cleaned.items() if value}
 
 
 def _local_datetime(value, label):
@@ -196,14 +258,14 @@ def _check_time_order(times):
             raise BadRequest(f"{TIME_LABELS[later]} cannot be before {TIME_LABELS[earlier].lower()}.")
 
 
-def clean_agent(value):
-    """An agent from the Master data Agent list: trimmed text, at most 100 characters, may be empty."""
-    return _text(value, 100)
+def clean_agent(value, port, current=""):
+    """An agent from the Master data Agent list of `port` (or All ports), or empty."""
+    return listed("agent", value, port, current)
 
 
 def clean_vessel(data, profile, existing=None):
     """Validate vessel input. Port users are always pinned to their own port."""
-    name = _text(data.get("name"), 120)
+    name = _short(data.get("name"), 120, "Vessel name")
     if not name:
         raise BadRequest("Vessel name is required.")
     try:
@@ -223,10 +285,10 @@ def clean_vessel(data, profile, existing=None):
 
     return {
         "name": name,
-        "opr": _text(data.get("opr"), 100),
-        "poc": _text(data.get("poc"), 100),
-        "arrival_agent": clean_agent(data.get("arrival_agent")),
-        "sailing_agent": clean_agent(data.get("sailing_agent")),
+        "opr": listed("opr", data.get("opr"), port, getattr(existing, "opr", "")),
+        "poc": listed("poc", data.get("poc"), port, getattr(existing, "poc", "")),
+        "arrival_agent": clean_agent(data.get("arrival_agent"), port, getattr(existing, "arrival_agent", "")),
+        "sailing_agent": clean_agent(data.get("sailing_agent"), port, getattr(existing, "sailing_agent", "")),
         "date": when,
         "port": port,
         "summary": clean_summary(data.get("summary")),
@@ -235,6 +297,16 @@ def clean_vessel(data, profile, existing=None):
 
 
 # ---- hotels and transport ---------------------------------------------------------------------
+
+# Booking field -> Master data list it must come from (checked once the vessel, and so the port, is known).
+BOOKING_LISTS = {"hotel": "hotel", "airport": "airport", "port_name": "port"}
+
+
+def check_booking_lists(cleaned, port, existing=None):
+    """Hotel / airport / port of a cleaned booking must be in Master data for the vessel's port (or saved already)."""
+    for field, kind in BOOKING_LISTS.items():
+        if cleaned.get(field):
+            listed(kind, cleaned[field], port, getattr(existing, field, ""))
 
 
 def clean_guests(raw):
@@ -246,7 +318,7 @@ def clean_guests(raw):
     guests = []
     for item in raw:
         item = _as_dict(item)
-        name = _text(item.get("name"), 120).upper()
+        name = _short(item.get("name"), 120, "Guest name").upper()
         if not name:
             raise BadRequest("Every guest needs a name.")
         group = item.get("group")

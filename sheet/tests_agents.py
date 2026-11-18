@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
 from .models import ChangeRecord, Service, Vessel
-from .tests import FAST_HASHER, ApiTestCase
+from .tests import FAST_HASHER, ApiTestCase, allow
 
 
 class AgentFieldTests(TestCase):
@@ -43,6 +43,11 @@ WATER = {"cost": 10, "costCurrency": "EGP"}
 
 @FAST_HASHER
 class AgentApiTests(ApiTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        allow("agent", "DELTA", "NILE", "X")
+
     def new_vessel(self, client, **fields):
         return self.call(client, "post", "/api/vessels/", {"name": "AG", "date": "2026-11-13", **fields})
 
@@ -52,9 +57,10 @@ class AgentApiTests(ApiTestCase):
         self.assertEqual((vessel["arrival_agent"], vessel["sailing_agent"]), ("DELTA", ""))
         self.assertNotIn("agent", vessel)
 
-    def test_agent_is_cut_to_100_characters(self):
-        _, vessel = self.new_vessel(self.login("alex"), arrival_agent="A" * 150, sailing_agent="B" * 150)
-        self.assertEqual((len(vessel["arrival_agent"]), len(vessel["sailing_agent"])), (100, 100))
+    def test_too_long_agent_is_refused(self):
+        status, body = self.new_vessel(self.login("alex"), arrival_agent="A" * 150)
+        self.assertEqual(status, 400)
+        self.assertIn("at most 100", body["error"])
 
     def test_update_keeps_or_clears_agents(self):
         alex = self.login("alex")
@@ -158,6 +164,7 @@ class MissingAgentTests(ApiTestCase):
         self.assertEqual(self.missing(), [{"id": v.id, "name": "NO SAIL", "date": "2026-11-17", "missing": ["Sailing"]}])
 
     def test_blank_arrival_agent_sent_by_the_api_counts_as_missing(self, _):
+        allow("agent", "NILE")
         alex = self.login("alex")
         _, sent = self.call(alex, "post", "/api/vessels/",
                             {"name": "BLANK", "date": "2026-11-17", "arrival_agent": "   ", "sailing_agent": "NILE"})

@@ -109,7 +109,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 319 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents...
+python manage.py test sheet         # 340 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
