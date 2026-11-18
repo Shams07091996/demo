@@ -69,7 +69,7 @@ Each row: what the app does, which tests prove it, and what is left to the peopl
 
 ## 5. What is tested
 
-`python manage.py test sheet` (257 tests on SQLite; the 204 of 2026-11-17 also ran on PostgreSQL 17; three of them check the
+`python manage.py test sheet` (261 tests on SQLite; the 204 of 2026-11-17 also ran on PostgreSQL 17; three of them check the
 history's append-only trigger and run on PostgreSQL only): access control for every endpoint and role, port isolation, CSRF, malformed / hostile JSON,
 validation limits, money maths, login throttling (user, IP, admin login, proxy header spoofing), password change
 rules, audit / security logging without secrets, headers and CSP, CSV injection, port-call time

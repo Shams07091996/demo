@@ -152,6 +152,9 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
   and `[data-theme="dark"]`, light again for print); everything else uses `var(--…)` (JS charts use `--c1`…`--c8`).
   The sidebar switch (`js/theme.js`) sets `data-theme`, a `theme` cookie and localStorage; the context processor
   `sheet.context_processors.theme` renders `data-theme` from a whitelisted cookie. System font, no web fonts.
+- **Script loading:** `views.script_modules()` lists every file under `static/sheet/js/` and `index.html` names them
+  as `<link rel="modulepreload">` before `main.js`, so the browser fetches all modules at once instead of in 4
+  import rounds (`tests_speed`). New files are picked up automatically.
 - `crewParsing.js` and `util.limitRows` are pure and unit-tested in `tools/parsing_test.js`. (Bulk add was removed
   on 2026-11-18: vessels are added with the quick-add bar and the vessel form.)
 
