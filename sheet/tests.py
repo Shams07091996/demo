@@ -16,6 +16,7 @@ from django.test import Client, SimpleTestCase, TestCase, override_settings
 from config.database import build_database_settings
 
 from . import finance, throttle
+from .errors import BadRequest
 from .models import ExchangeRate, LoginAttempt, Option, Profile, Service, Vessel
 from .validators import clean_service_data, clean_summary
 
@@ -36,6 +37,12 @@ def pass_two_step(client, username):
     session[SESSION_KEY] = {"how": "code", "ref": device.pk}
     session.save()
     return client
+
+
+def allow(kind, *values, port=""):
+    """Put values in a Master data list (the API only accepts listed OPR / POC / agent / hotel / airport / port)."""
+    for value in values:
+        Option.objects.get_or_create(kind=kind, value=value, port=port)
 
 
 def make_user(username, role):
@@ -129,21 +136,25 @@ class FinanceTests(SimpleTestCase):
 
 
 class ValidatorTests(SimpleTestCase):
-    def test_numbers_and_currencies_are_sanitised(self):
-        cleaned = clean_service_data(
-            "Fresh Water", {"cost": "abc", "revenue": "1e999", "costCurrency": "BTC", "evil": 1}
-        )
-        self.assertIsNone(cleaned["cost"])
-        self.assertIsNone(cleaned["revenue"])
-        self.assertEqual(cleaned["costCurrency"], "EGP")
+    def test_currencies_are_sanitised_and_unknown_keys_dropped(self):
+        cleaned = clean_service_data("Fresh Water", {"cost": "12.5", "revenue": "", "costCurrency": "BTC", "evil": 1})
+        self.assertEqual((cleaned["cost"], cleaned["revenue"], cleaned["costCurrency"]), (12.5, None, "EGP"))
         self.assertNotIn("evil", cleaned)
 
-    def test_cash_percentage_is_clamped(self):
-        self.assertEqual(clean_service_data("Cash to Master", {"percentage": "500"})["percentage"], 100.0)
+    def test_bad_numbers_are_refused_not_dropped(self):
+        for raw in ({"cost": "abc"}, {"revenue": "1e999"}, {"cost": -1}):
+            with self.subTest(raw=raw), self.assertRaises(BadRequest):
+                clean_service_data("Fresh Water", raw)
 
-    def test_entries_are_capped_and_non_dicts_dropped(self):
-        cleaned = clean_service_data("Landing", {"entries": [{"awb": "x"}] * 500 + ["junk"]})
-        self.assertEqual(len(cleaned["entries"]), 100)
+    def test_cash_percentage_outside_0_to_100_is_refused(self):
+        with self.assertRaises(BadRequest):
+            clean_service_data("Cash to Master", {"percentage": "500"})
+
+    def test_too_many_entries_refused_and_non_dicts_dropped(self):
+        with self.assertRaises(BadRequest):
+            clean_service_data("Landing", {"entries": [{"awb": "x"}] * 101})
+        cleaned = clean_service_data("Landing", {"entries": [{"awb": "x"}] * 99 + ["junk"]})
+        self.assertEqual(len(cleaned["entries"]), 99)
 
     def test_crew_structured_data_is_kept_but_trimmed(self):
         raw = {
@@ -455,6 +466,7 @@ class PortCallTests(ApiTestCase):
         return self.call(client, "post", "/api/vessels/", payload)
 
     def test_times_and_agent_round_trip_in_cairo_time(self):
+        allow("agent", "NILE AGENCY")
         alex = self.login("alex")
         status, vessel = self.create(
             alex,

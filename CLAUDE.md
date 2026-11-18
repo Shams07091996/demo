@@ -98,7 +98,12 @@ cleared on every password sign-in. Profile has `two_step_exempt` (never admin / 
 (72-hour window). History tracks devices and remembered computers without the key / token hash. Tests sign in with
 `tests.pass_two_step(client, username)` after `client.login`; the real code path is in `tests_twostep`.
 
-**Input** is cleaned only in `validators.py` (whitelisted keys, length limits, typed numbers). Services store their
+**Input** is cleaned only in `validators.py` (whitelisted keys, length limits, typed numbers) and **refused, never
+silently fixed**: too-long text (`_short`), non-numbers and negative amounts (`_amount`; amounts are never negative,
+the user's decision), exchange rates <= 0 (`_rate`), percentages outside 0-100. OPR / POC / agents and booking
+hotel / airport / port must be in Master data for the vessel's port or All ports (`listed`, `check_booking_lists`);
+the value already saved on the record stays allowed. Tests add list values with `tests.allow(kind, *values)`;
+pasted crew-change details are still trimmed. Services store their
 details as JSON in `Service.data`, whose shape per type is defined by `clean_service_data`.
 
 **Money** is worked out only in `finance.py`: `service_lines` gives each service's money lines with their working

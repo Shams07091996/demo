@@ -21,7 +21,7 @@ from .errors import BadRequest
 from .listing import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MAX_QUERY, date_param, int_param
 from .models import Guest, HotelStay, Transfer, Vessel
 from .serializers import local_iso
-from .validators import clean_hotel_stay, clean_transfer
+from .validators import check_booking_lists, clean_hotel_stay, clean_transfer
 
 KINDS = {"hotels": HotelStay, "transfers": Transfer}
 SORTS = {
@@ -209,6 +209,7 @@ def save_booking(kind, profile, data, existing=None):
     guests = cleaned.pop("guests")
     with transaction.atomic():
         obj = existing or KINDS[kind](vessel=_vessel_for(profile, data.get("vessel")))
+        check_booking_lists(cleaned, obj.vessel.port, existing)
         for field, value in cleaned.items():
             setattr(obj, field, value)
         obj.save()

@@ -10,7 +10,7 @@ from django.utils import timezone
 from .errors import BadRequest
 from .logistics import parse_flight_time
 from .models import Guest, HotelStay, Option, Service, Transfer
-from .tests import ApiTestCase
+from .tests import ApiTestCase, allow
 from .validators import clean_guests, clean_hotel_stay, clean_transfer
 
 G = [{"name": "ahmed test", "rank": "2/E", "nationality": "Egyptian", "group": "on", "flight": "TK689"}]
@@ -31,6 +31,9 @@ class BookingData(ApiTestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
+        allow("hotel", "HILTON")
+        allow("airport", "BORG EL ARAB")
+        allow("port", "DEKHEILA")
         cls.stay = HotelStay.objects.create(
             vessel=cls.alex_vessel, hotel="HILTON", check_in=date(2026, 11, 14), nights=3,
             cost_per_night=Decimal("80"), cost_currency="USD",
@@ -287,8 +290,7 @@ class AirportAndPortTests(BookingData):
         self.assertEqual(self.list("viewer", "transfers", q="borg")["count"], 1)
 
     def test_airport_and_port_are_master_data_kinds_counted_by_transfers(self):
-        Option.objects.create(kind="airport", value="BORG EL ARAB")
-        Option.objects.create(kind="port", value="DEKHEILA")
+        # BORG EL ARAB and DEKHEILA are in Master data from BookingData
         _, data = self.call(self.login("admin"), "get", "/api/options/")
         used = {o["kind"]: o["used"] for o in data["options"] if o["kind"] in ("airport", "port")}
         self.assertEqual(used, {"airport": 1, "port": 0})

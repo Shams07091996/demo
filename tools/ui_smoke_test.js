@@ -120,6 +120,14 @@ async function login() {
     && ![...root.querySelectorAll('i, b')].some((e) => ['X', 'A', 'O', 'R', 'G', 'M', 'B'].includes(e.textContent.trim()));
   let hostileId = null;
   if (ROLE === 'alex' || ROLE === 'admin') {
+    // List values must come from Master data, so the markup-like agent / OPR are added there first.
+    for (const [kind, value] of [['agent', HOSTILE_AGENT], ['opr', '<i>O</i>'], ['hotel', '<b>G</b> hotel']]) {
+      const added = await w.fetch('/api/options/', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
+        body: JSON.stringify({ kind, value, port: 'alexandria' }),
+      });
+      ok(added.status === 201 || added.status === 200, `markup-like ${kind} added to Master data (HTTP ${added.status})`);
+    }
     const res = await w.fetch('/api/vessels/', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
       body: JSON.stringify({ name: HOSTILE, arrival_agent: HOSTILE_AGENT, opr: '<i>O</i>', port: 'alexandria', date: localNow() }),
