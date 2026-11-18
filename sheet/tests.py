@@ -150,9 +150,11 @@ class ValidatorTests(SimpleTestCase):
         with self.assertRaises(BadRequest):
             clean_service_data("Cash to Master", {"percentage": "500"})
 
-    def test_entries_are_capped_and_non_dicts_dropped(self):
-        cleaned = clean_service_data("Landing", {"entries": [{"awb": "x"}] * 500 + ["junk"]})
-        self.assertEqual(len(cleaned["entries"]), 100)
+    def test_too_many_entries_refused_and_non_dicts_dropped(self):
+        with self.assertRaises(BadRequest):
+            clean_service_data("Landing", {"entries": [{"awb": "x"}] * 101})
+        cleaned = clean_service_data("Landing", {"entries": [{"awb": "x"}] * 99 + ["junk"]})
+        self.assertEqual(len(cleaned["entries"]), 99)
 
     def test_crew_structured_data_is_kept_but_trimmed(self):
         raw = {

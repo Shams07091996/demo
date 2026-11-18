@@ -116,8 +116,7 @@ class ServiceNumberTests(InputRulesData):
         self.assert_refused({"cost": "NaN"}, words="number")
         self.assert_refused({"cost": 1e12}, words="too large")
 
-    def test_exchange_rate_must_be_above_zero(self):
-        self.assert_refused({"cost": 1, "exchangeRate": 0}, words="Exchange rate")
+    def test_negative_exchange_rate_is_refused(self):
         self.assert_refused({"cost": 1, "exchangeRate": -50}, words="Exchange rate")
 
     def test_percentage_must_be_0_to_100(self):
@@ -158,3 +157,52 @@ class TooLongTextTests(InputRulesData):
         self.assertEqual(status, 400)
         self.assertIn("at most 100", body["error"])
         self.assertEqual(self.call(self.admin, "post", "/api/options/", {"kind": "agent", "value": "A" * 100})[0], 200)
+
+
+class ReviewFollowUpTests(InputRulesData):
+    def test_exchange_rate_zero_means_empty(self):
+        self.assertEqual(self.service({"cost": 1, "exchangeRate": 0})[0], 201)
+        data = Service.objects.filter(vessel=self.alex_vessel).latest("id").data
+        self.assertIsNone(data["exchangeRate"])
+
+    def test_admin_moving_a_vessel_checks_the_new_ports_list(self):
+        Option.objects.get_or_create(kind="opr", value="ALEX ONLY", port="alexandria")
+        Option.objects.get_or_create(kind="opr", value="SUEZ ONLY", port="suez")
+        vessel = Vessel.objects.create(name="MOVER", date=date(2026, 11, 13), port="alexandria", opr="ARK")
+        url = f"/api/vessels/{vessel.id}/"
+        base = {"name": "MOVER", "date": "2026-11-13", "port": "suez"}
+        self.assertEqual(self.call(self.admin, "put", url, {**base, "opr": "ALEX ONLY"})[0], 400)
+        self.assertEqual(self.call(self.admin, "put", url, {**base, "opr": "SUEZ ONLY"})[0], 200)
+
+    def test_transfer_keeps_its_saved_airport_and_port(self):
+        guests = [{"name": "ahmed"}]
+        trip = {"vessel": self.alex_vessel.id, "from_place": "airport", "to_place": "port", "at": "2026-11-14T10:00",
+                "airport": "BORG EL ARAB", "port_name": "DEKHEILA", "guests": guests}
+        status, row = self.call(self.alex, "post", "/api/transfers/", trip)
+        self.assertEqual(status, 201)
+        Option.objects.filter(kind__in=("airport", "port")).delete()  # both values leave the lists
+        self.assertEqual(self.call(self.alex, "put", f"/api/transfers/{row['id']}/", trip)[0], 200)
+
+    def test_too_long_booking_place_names_are_refused_not_cut(self):
+        stay = {"vessel": self.alex_vessel.id, "check_in": "2026-11-14", "nights": 1, "guests": [{"name": "ahmed"}]}
+        status, body = self.call(self.alex, "post", "/api/hotels/", {**stay, "hotel": "HILTON" + "X" * 150})
+        self.assertEqual(status, 400)
+        self.assertIn("at most 100", body["error"])
+
+    def test_too_long_guest_details_are_refused(self):
+        stay = {"vessel": self.alex_vessel.id, "hotel": "HILTON", "check_in": "2026-11-14", "nights": 1}
+        for guest in ({"name": "a", "rank": "R" * 61}, {"name": "a", "nationality": "N" * 61},
+                      {"name": "a", "flight": "F" * 21}):
+            with self.subTest(guest=guest):
+                self.assertEqual(self.call(self.alex, "post", "/api/hotels/", {**stay, "guests": [guest]})[0], 400)
+
+    def test_guest_name_is_checked_after_upper_casing(self):
+        stay = {"vessel": self.alex_vessel.id, "hotel": "HILTON", "check_in": "2026-11-14", "nights": 1}
+        name = "ß" + "a" * 119  # 120 characters, 121 once upper-cased ("SS")
+        self.assertEqual(self.call(self.alex, "post", "/api/hotels/", {**stay, "guests": [{"name": name}]})[0], 400)
+
+    def test_more_than_100_lines_is_refused_not_dropped(self):
+        status, body = self.service({"entries": [{"awb": "x"}] * 101}, service_type="Landing")
+        self.assertEqual(status, 400)
+        self.assertIn("100", body["error"])
+        self.assertEqual(self.service({"entries": [{"awb": "x"}] * 100}, service_type="Landing")[0], 201)

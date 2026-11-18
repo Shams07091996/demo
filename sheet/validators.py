@@ -71,8 +71,10 @@ def _amount(value, label):
 
 
 def _rate(value):
-    """An optional exchange rate: above 0."""
+    """An optional exchange rate: above 0. 0 means empty (use the month rate), as the money maths already treats it."""
     result = _parse_number(value, "Exchange rate")
+    if result == 0:
+        return None
     if result is not None and not 0 < result < MAX_RATE:
         raise BadRequest("Exchange rate must be a number above 0.")
     return result
@@ -88,17 +90,6 @@ def listed(kind, value, port, current=""):
     if not Option.objects.filter(kind=kind, value=text, port__in=("", port or "")).exists():
         raise BadRequest(f"{label}: choose a value from the Master data {label} list for this port.")
     return text
-
-
-def _number(value):
-    """A finite float, or None when the field is empty or not a number."""
-    if value in (None, ""):
-        return None
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return None
-    return result if math.isfinite(result) else None
 
 
 def _currency(value):
@@ -148,7 +139,10 @@ def _clean_crew_change(raw):
 
 def _clean_multi(service_type, raw):
     entries = []
-    for entry in _as_list(raw.get("entries"))[:MAX_ENTRIES]:
+    raw_entries = _as_list(raw.get("entries"))
+    if len(raw_entries) > MAX_ENTRIES:
+        raise BadRequest(f"At most {MAX_ENTRIES} lines per service.")
+    for entry in raw_entries:
         if not isinstance(entry, dict):
             continue
         line = f" (line {len(entries) + 1})"
@@ -318,17 +312,17 @@ def clean_guests(raw):
     guests = []
     for item in raw:
         item = _as_dict(item)
-        name = _short(item.get("name"), 120, "Guest name").upper()
+        name = _short(str(item.get("name") or "").upper(), 120, "Guest name")
         if not name:
             raise BadRequest("Every guest needs a name.")
         group = item.get("group")
         guests.append(
             {
                 "name": name,
-                "rank": _text(item.get("rank"), 60),
-                "nationality": _text(item.get("nationality"), 60),
+                "rank": _short(item.get("rank"), 60, "Guest rank"),
+                "nationality": _short(item.get("nationality"), 60, "Guest nationality"),
                 "group": group if group in GUEST_GROUPS else "",
-                "flight": _text(item.get("flight"), 20),
+                "flight": _short(item.get("flight"), 20, "Guest flight"),
             }
         )
     return guests
@@ -371,7 +365,7 @@ def _price_fields(data, cost_key, revenue_key):
 def clean_hotel_stay(data):
     """One room: hotel, check-in, nights (1..MAX_NIGHTS), optional cost / revenue per room per night, guests."""
     guests = clean_guests(data.get("guests"))  # first: the guests are the first part of the form
-    hotel = _text(data.get("hotel"), 100)
+    hotel = _short(data.get("hotel"), 100, "Hotel")
     if not hotel:
         raise BadRequest("Choose a hotel.")
     try:
@@ -409,7 +403,7 @@ def clean_transfer(data):
     named = {}  # which hotel / airport / port, required only when that end is used
     for place, key, message in (("hotel", "hotel", "Choose a hotel."), ("airport", "airport", "Choose an airport."),
                                 ("port", "port_name", "Choose a port.")):
-        named[key] = _text(data.get(key), 100) if place in ends else ""
+        named[key] = _short(data.get(key), 100, place.capitalize()) if place in ends else ""
         if place in ends and not named[key]:
             raise BadRequest(message)
     text = _text(data.get("at"), 40)
