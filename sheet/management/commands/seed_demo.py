@@ -1,9 +1,12 @@
+import binascii
+from base64 import b32decode
 from datetime import date, timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.crypto import get_random_string
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from sheet.models import ExchangeRate, Option, Profile, Service, Vessel
 
@@ -23,14 +26,40 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--password", help="Use this password for the demo users (default: a random one each).")
         parser.add_argument("--force", action="store_true", help="Allow running with DJANGO_DEBUG=0.")
+        parser.add_argument(
+            "--two-step-key",
+            help="Give every demo user a ready Authenticator with this base32 key (for the smoke test). "
+            "Without it, each demo user sets up their own at the first sign-in.",
+        )
 
     def handle(self, *args, **options):
         if not settings.DEBUG and not options["force"]:
             raise CommandError(
                 "Refusing to create demo accounts while DEBUG is off. Use --force if you really mean it."
             )
+        key = self._hex_key(options["two_step_key"]) if options["two_step_key"] else None
         self._create_users(options["password"])
+        if key:
+            self._give_devices(key)
         self._create_vessels()
+
+    @staticmethod
+    def _hex_key(text):
+        cleaned = "".join(text.split()).upper()
+        try:
+            raw = b32decode(cleaned + "=" * (-len(cleaned) % 8))
+        except (binascii.Error, ValueError):
+            raise CommandError("--two-step-key must be base32 (letters A-Z and digits 2-7).") from None
+        if len(raw) < 20:
+            raise CommandError("--two-step-key must be at least 32 base32 characters (160 bits).")
+        return raw.hex()
+
+    @staticmethod
+    def _give_devices(key):
+        for username, _ in DEMO_USERS:
+            user = User.objects.get(username=username)
+            TOTPDevice.objects.filter(user=user).delete()
+            TOTPDevice.objects.create(user=user, name="Authenticator", key=key, confirmed=True)
 
     def _create_users(self, shared_password):
         for username, role in DEMO_USERS:

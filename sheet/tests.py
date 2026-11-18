@@ -23,6 +23,21 @@ PASSWORD = "correct-horse-battery"
 FAST_HASHER = override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])  # tests only
 
 
+def pass_two_step(client, username):
+    """Tests only: this signed-in client has passed the code step (as if it had typed a right code)."""
+    from django_otp.plugins.otp_totp.models import TOTPDevice
+
+    from .twostep import SESSION_KEY
+
+    user = User.objects.get(username=username)
+    device = TOTPDevice.objects.filter(user=user, confirmed=True).first()
+    device = device or TOTPDevice.objects.create(user=user, name="Authenticator", confirmed=True)
+    session = client.session
+    session[SESSION_KEY] = {"how": "code", "ref": device.pk}
+    session.save()
+    return client
+
+
 def make_user(username, role):
     user = User.objects.create_user(username, password=PASSWORD)
     Profile.objects.create(user=user, role=role)
@@ -46,6 +61,7 @@ class ApiTestCase(TestCase):
     def login(self, username):
         client = Client(enforce_csrf_checks=True)
         self.assertTrue(client.login(username=username, password=PASSWORD))
+        pass_two_step(client, username)
         client.get("/")  # sets the CSRF cookie
         return client
 
@@ -218,6 +234,7 @@ class AccessTests(ApiTestCase):
         user = User.objects.create_user("fresh", password=PASSWORD)
         client = Client(enforce_csrf_checks=True)
         client.login(username="fresh", password=PASSWORD)
+        pass_two_step(client, "fresh")
         client.get("/")
         self.assertEqual(self.call(client, "post", "/api/vessels/", {"name": "X", "date": "2026-11-13"})[0], 403)
         self.assertEqual(user.profile.role, "readonly")
@@ -227,6 +244,7 @@ class RequestHardeningTests(ApiTestCase):
     def test_csrf_token_is_required_for_writes(self):
         client = Client(enforce_csrf_checks=True)
         client.login(username="alex", password=PASSWORD)
+        pass_two_step(client, "alex")
         response = client.post("/api/vessels/", data="{}", content_type="application/json")
         self.assertEqual(response.status_code, 403)
 
@@ -569,6 +587,7 @@ class SecurityLogTests(TestCase):
         make_user("alex", "alexandria")
         client = Client(enforce_csrf_checks=True)
         client.login(username="alex", password=PASSWORD)
+        pass_two_step(client, "alex")
         client.get("/")
         with self.assertLogs("sheet.audit", level="INFO") as logs:
             client.post(
@@ -585,6 +604,7 @@ class SecurityLogTests(TestCase):
         make_user("alex", "alexandria")
         client = Client(enforce_csrf_checks=True)
         client.login(username="alex", password=PASSWORD)
+        pass_two_step(client, "alex")
         client.get("/")
         with self.assertLogs("sheet.audit", level="INFO") as logs:
             token = client.cookies["csrftoken"].value

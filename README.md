@@ -23,6 +23,14 @@ commands (`migrate`, `seed_demo`, `createsuperuser`) need the `DJANGO_DEBUG=1` l
 Open http://127.0.0.1:8000/ and sign in. For real accounts use `python manage.py createsuperuser`, then give each
 user a role in the admin (`/admin/` -> Users -> Profile). **New users start read-only.**
 
+**Two-step login:** after the password everyone types a six-digit code from **Microsoft Authenticator** (any
+authenticator app works). At the first sign-in the person scans a QR code; this is only possible within 72 hours of
+the account being created or reset. "Remember this computer" skips the code on that browser for 30 days (Forget this
+computer in the sidebar). A person whose password was set by someone else must choose their own first. A lost phone:
+a superuser picks the person in `/admin/` -> Users -> action "Reset two-step login", or on the server
+`python manage.py reset_two_step <username>`. A superuser can make a non-admin an exception (password only). Keep at
+least two superusers with Authenticator set up (`check --deploy --database default` warns, `sheet.W002`).
+
 ## PostgreSQL
 
 Production runs on PostgreSQL (the app refuses to start in production on SQLite). Create a role and database, then set
@@ -92,16 +100,16 @@ Port restrictions are enforced on the server for every request, not just hidden 
 
 Short version: role- and port-based access control on every request, CSRF protection, brute-force lock-out (also on the
 admin login), API rate limits, 60-minute idle sessions, 12+ character passwords, `__Host-` cookies, strict
-Content-Security-Policy with no third-party scripts, hash-locked dependencies, encrypted database connection, audit and
+Content-Security-Policy with no third-party scripts, **two-step login (Authenticator codes) for everyone**, hash-locked dependencies, encrypted database connection, audit and
 security logs, a tamper-proof change history, alerting, JSON errors with a reference, validated input and escaped output.
 
-**Read `SECURITY.md`** for the answer to "is the data encrypted?", the OWASP Top 10 (2025) mapping, the known gaps (no MFA, no
+**Read `SECURITY.md`** for the answer to "is the data encrypted?", the OWASP Top 10 (2025) mapping, the known gaps (no
 field-level encryption) and the deployment checklist.
 
 ## Tests
 
 ```bash
-python manage.py test sheet         # 261 backend tests: maths, validation, permissions, CSRF, throttling, times, agents...
+python manage.py test sheet         # 319 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
@@ -120,9 +128,9 @@ Optional front-end tests (need Node 18+):
 ```bash
 cd tools && npm install
 npm run test:parsing                                  # crew / flight parsers
-DJANGO_DEBUG=1 python ../manage.py seed_demo --password "a-long-password"      # in another terminal, then:
+DJANGO_DEBUG=1 python ../manage.py seed_demo --password "a-long-password" --two-step-key <32 base32 chars>  # then:
 python ../manage.py runserver 8765
-UI_TEST_PASSWORD="a-long-password" node ui_smoke_test.js alex   # also: viewer, admin
+UI_TEST_PASSWORD="a-long-password" UI_TEST_TOTP_KEY=<same key> node ui_smoke_test.js alex   # also: viewer, admin
 ```
 
 ## Layout

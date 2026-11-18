@@ -6,7 +6,7 @@ from unittest import mock
 from django.core import mail
 from django.test import Client, override_settings
 
-from .tests import FAST_HASHER, ApiTestCase
+from .tests import FAST_HASHER, ApiTestCase, pass_two_step
 
 
 @FAST_HASHER
@@ -43,6 +43,7 @@ class ErrorResponseTests(ApiTestCase):
     def test_unexpected_exception_outside_the_api_answers_plain_html_500_with_a_ref(self):
         client = Client(raise_request_exception=False)
         self.assertTrue(client.login(username="alex", password="correct-horse-battery"))
+        pass_two_step(client, "alex")
         with (
             mock.patch("sheet.listing.parse_filters", side_effect=RuntimeError("boom")),
             self.assertLogs("sheet.security", level="ERROR") as logs,

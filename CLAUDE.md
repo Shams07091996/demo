@@ -47,9 +47,9 @@ Loads the real page in jsdom, signs in over HTTP and clicks through every page; 
 
 ```bash
 DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py migrate
-DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py seed_demo --password "<long password>"
+DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py seed_demo --password "<long password>" --two-step-key <KEY>
 DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py runserver 8765 --noreload   # background
-cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # then admin, viewer, suez
+cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_smoke_test.js alex    # then admin, viewer, suez
 ```
 
 - `suez` is a short separate run (a port user outside Alexandria); the full script is written for alex / admin / viewer.
@@ -62,6 +62,9 @@ cd tools && UI_TEST_PASSWORD="<long password>" node ui_smoke_test.js alex    # t
 - `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers and a USD Fresh Water service at
   the month rate 50, and SEA BREEZE (Alexandria, yesterday) a missing sailing agent and a Landing without agent (the
   "Missing agent" alert); the smoke test relies on all of these.
+- `<KEY>` is 32+ base32 characters (e.g. `python -c "import base64,secrets;print(base64.b32encode(secrets.token_bytes(20)).decode())"`):
+  `seed_demo` gives every demo user a confirmed Authenticator with it and the smoke test computes the code. A code
+  is accepted once per user per 30 seconds, so don't run the same role twice within 30 seconds.
 - Assertions on anything async (search, date inputs, alerts, duplicate checks) must `waitFor`, not read immediately.
 
 ## Architecture
@@ -85,6 +88,15 @@ HotelStay, Transfer, Guest, Option, ExchangeRate, Profile and auth `User` (no pa
 same transaction; `bulk_create` sends no signals, so callers use `history.record_created`. The request comes from
 `HistoryMiddleware` (none → "system"). Append-only (read-only admin; PostgreSQL trigger in migration 0010).
 `GET /api/history/` is admin-only; the History page is `js/pages/history.js`, rendered in the template for admins only.
+
+**Two-step login** (`twostep.py`, `views_twostep.py`, django-otp's `TOTPDevice`, `RememberedComputer`): after the
+password, `TwoStepMiddleware` sends a signed-in person to the step they are on (`twostep.next_step`: code →
+forced password change → setup / blocked) and lets nothing else through (API 401, admin pages redirected). The passed
+state is `session["two_step"] = {"how": "code" | "remembered" | "exempt", "ref": id}`, re-checked every request,
+cleared on every password sign-in. Profile has `two_step_exempt` (never admin / superuser / staff),
+`must_change_password` (set when someone else sets the password, via `history.current_request()`), `setup_until`
+(72-hour window). History tracks devices and remembered computers without the key / token hash. Tests sign in with
+`tests.pass_two_step(client, username)` after `client.login`; the real code path is in `tests_twostep`.
 
 **Input** is cleaned only in `validators.py` (whitelisted keys, length limits, typed numbers). Services store their
 details as JSON in `Service.data`, whose shape per type is defined by `clean_service_data`.

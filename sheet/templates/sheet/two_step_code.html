@@ -1,0 +1,24 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enter code · Marine Service Sheet</title>
+<link rel="stylesheet" href="{% static 'sheet/app.css' %}">
+</head>
+<body class="login-body">
+{% include "sheet/icons.svg" %}
+  <div class="login-card">
+    <form method="post">
+      {% csrf_token %}
+      <div class="login-logo"><span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-phone"></use></svg></span><h1>ENTER <span>CODE</span></h1>
+        <p>The six-digit code in Microsoft Authenticator</p></div>
+      {% if error %}<div class="login-error">{{ error }}</div>{% endif %}
+      <div class="field"><label for="id_code">Code</label><input id="id_code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required autofocus></div>
+      <label class="check"><input type="checkbox" name="remember"{% if remember %} checked{% endif %}> Remember this computer for 30 days</label>
+      <button class="btn primary wide" type="submit">Sign in</button>
+    </form>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost wide" type="submit">Log out</button></form>
+  </div>
+</body>
+</html>

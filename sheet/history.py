@@ -11,13 +11,50 @@ from contextvars import ContextVar
 from django.contrib.auth.models import User
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models.signals import post_save, pre_delete, pre_save
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from .models import ChangeRecord, ExchangeRate, Guest, HotelStay, Option, Profile, Service, Transfer, Vessel
+from .models import (
+    ChangeRecord,
+    ExchangeRate,
+    Guest,
+    HotelStay,
+    Option,
+    Profile,
+    RememberedComputer,
+    Service,
+    Transfer,
+    Vessel,
+)
 from .netutils import client_ip
 
-TRACKED = (Vessel, Service, HotelStay, Transfer, Guest, Option, ExchangeRate, Profile, User)
+TRACKED = (
+    Vessel,
+    Service,
+    HotelStay,
+    Transfer,
+    Guest,
+    Option,
+    ExchangeRate,
+    Profile,
+    User,
+    TOTPDevice,
+    RememberedComputer,
+)
 # last_login changes on every sign-in (not a change to record); date_joined never changes.
 SKIPPED_FIELDS = {"id", "created_at", "last_login", "date_joined"}
+# Secrets never go into the history (the Authenticator key, the remembered-computer token hash), nor fields that
+# change on every sign-in or wrong code (so a wrong code writes no record).
+SECRET_FIELDS = {
+    TOTPDevice: {
+        "key",
+        "drift",
+        "last_t",
+        "throttling_failure_count",
+        "throttling_failure_timestamp",
+        "last_used_at",
+    },
+    RememberedComputer: {"token_hash", "last_used_at"},
+}
 HIDDEN = "(changed)"  # the password hash is never copied into the history, only the fact that it changed
 
 _request = ContextVar("history_request", default=None)
@@ -37,9 +74,15 @@ class HistoryMiddleware:
             _request.reset(token)
 
 
+def current_request():
+    """The request being served, or None (management commands, shell)."""
+    return _request.get()
+
+
 def _values(instance):
+    skipped = SKIPPED_FIELDS | SECRET_FIELDS.get(type(instance), set())
     fields = instance._meta.concrete_fields
-    values = {f.attname: getattr(instance, f.attname) for f in fields if f.attname not in SKIPPED_FIELDS}
+    values = {f.attname: getattr(instance, f.attname) for f in fields if f.attname not in skipped}
     if isinstance(instance, User):
         values.pop("password")
     return values

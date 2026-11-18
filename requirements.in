@@ -2,3 +2,5 @@
 #   pip-compile --generate-hashes --strip-extras requirements.in -o requirements.txt
 Django>=5.2,<7.0
 psycopg[binary]>=3.2,<4.0
+django-otp>=1.7,<2.0
+segno>=1.6,<2.0

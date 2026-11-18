@@ -1,6 +1,6 @@
 # Two-step login (Microsoft Authenticator)
 
-Date: 2026-11-17 · Size: project · Status: draft for approval
+Date: 2026-11-17, updated 2026-11-18 for the new look, agents and dashboards · Size: project · Status: draft for approval
 
 ## Why
 The user is selling the app to their company and security comes first. This is piece 3 of 3 of the security push
@@ -44,7 +44,9 @@ but the user can't get access to Entra ID, so "Sign in with Microsoft" is out. C
 
 ## Non-goals
 Backup codes; SMS or e-mail codes; Microsoft Entra ID / SSO; passkeys / security keys (WebAuthn); a self-service
-"forgot password"; a user-management page inside the sheet (users stay in the Django admin pages).
+"forgot password"; a user-management page inside the sheet (users stay in the Django admin pages). **The online
+demo** (PythonAnywhere): nothing special is planned for it (user's answer 2026-11-18: "no need for the demo right
+now"); updating it stays out of scope until the user asks.
 
 ## Anti-goals
 - A way around the code: any page, API call or admin page usable after the password alone by someone who isn't an
@@ -141,6 +143,70 @@ setup → confirm → verified; wrong / reused codes refused; exceptions work bu
 remember-this-computer accepted for 30 days, rejected for another user, after a password change, after a reset and
 after Forget; setup refused outside the 72-hour window and before the forced password change; forced password change; the reset command; the secret never appears in history, logs or responses. The smoke test
 signs in with a code (see below); `npm run check` green.
+
+## Updated 2026-11-18 for the current code (my calls, shown to the user)
+- **Look:** the new screens use the sign-in card of `login.html` (light and dark tokens in `app.css`, no new
+  colours). One new line icon, `phone`, is drawn in `icons.svg` and added to `ICONS` in `dom.js` (`tests_look` keeps
+  them equal). **Forget this computer** is a sidebar item under Change password (icon `x`), a small POST form like
+  Log out.
+- **QR code:** always dark modules on a white square with a quiet zone, in light and dark mode (phones read inverted
+  QR codes badly). It is drawn by `segno` as SVG and put in an `<img src="data:image/svg+xml;base64,…">`; the CSP
+  already allows `img-src 'self' data:`.
+- **One central gate:** a middleware decides for every request, so the Agents and Dashboards pages
+  (`/api/dashboard/`, `/api/dashboard/jobs/`), the CSV export, the History page and any page added later are
+  covered without listing them.
+
+## How it is built (my calls as the builder, after reading the code)
+- **Packages:** `django-otp` (1.7.x, its `otp_totp` plugin only) for the device, code check, reuse refusal and
+  throttling; `segno` (1.6.x) for the QR. Both go into `requirements.in` and the hash-locked `requirements.txt`.
+  django-otp's own admin page for TOTP devices is **unregistered** (it shows the secret and a QR); ours is read-only
+  and shows user, name, confirmed and created, never the key.
+- **Verified state is ours:** a session value says how this session passed the second step (`code`, `remembered` or
+  `exempt`). It is cleared on every password sign-in (`user_logged_in`), and the session key is cycled when it is
+  set. django-otp is used for the device only, not for its `is_verified` / `OTPAdminSite` (our gate covers the admin).
+- **URLs:** `/login/code/` (enter code), `/login/setup/` (QR + confirm), `/login/blocked/` (window over: "Ask an
+  administrator to reset your two-step login" + Log out), `/login/forget/` (POST, Forget this computer).
+  `/password/` stays the forced-password-change page.
+- **The gate (`TwoStepMiddleware`, after authentication):** for a signed-in user not yet through the step (or with a
+  forced password change pending), only the step pages, `/password/`, `/logout/`, the admin logout and static files
+  answer; `/api/…` gets 401 `{"error": "Please log in again."}`, `/export.csv` 401, everything else (admin pages
+  included, wherever `DJANGO_ADMIN_URL` puts them) is redirected to the right step.
+- **Profile fields:** `two_step_exempt` (refused for role admin and for superusers, in `clean()` and `save()`),
+  `must_change_password`, `setup_until` (end of the 72-hour window). The migration sets `setup_until` to 72 hours
+  after it runs for every existing profile; a new profile gets 72 hours from creation.
+- **Forced password change, how it is switched on:** when a password changes and the person making the change (the
+  request's user) is someone else, `must_change_password` is switched on; when they change their own, it is switched
+  off. Changes with no request (`createsuperuser`, `changepassword`, `seed_demo`) don't switch it on: whoever runs
+  them is at the server and typed the password themselves.
+- **Setup:** the first visit to `/login/setup/` creates an unconfirmed device with a fresh secret; reloading shows
+  the same one until a correct code confirms it, or a reset removes it.
+- **Wrong codes:** django-otp's throttle (growing wait after each wrong code), plus each wrong code counts in the
+  existing lock-out (`throttle.record_failure`), so 5 wrong codes lock that person from that address for 15 minutes
+  and feed the `login_lockout` alert like wrong passwords do.
+- **Remember this computer:** a `RememberedComputer` row (user, SHA-256 of a 32-byte random token, created, expires,
+  last used, address, browser name cut to 200 characters) and a cookie `remember` (`__Host-remember` in production;
+  HttpOnly, Secure in production, SameSite=Lax, 30 days). One cookie per browser: the last person who ticked the box
+  on that browser is the one remembered. The rows are removed when the password changes or the setup is reset.
+- **Reset:** an admin action "Reset two-step login" on the Users list, for superusers only; `manage.py
+  reset_two_step <username>` does the same. Both: delete the device(s) and remembered computers, set `setup_until`
+  to 72 hours from now.
+- **Deploy check:** `sheet.W002` (a warning) in `check --deploy` when fewer than two active superusers have a
+  confirmed Authenticator; it is skipped quietly when the database can't be reached.
+- **History:** TOTP devices and remembered computers are tracked, leaving out the key, the token hash, and the
+  fields that change on every sign-in (throttle counters, last used, drift), so a wrong code never writes history.
+- **Admin pages, who may change two-step settings (after the builder check):** only superusers. For staff who
+  aren't superusers, the exception, forced-password and setup-window fields are read-only and the reset action is
+  not offered. "Admin accounts can never be exceptions" covers role `admin`, superusers and any staff account (anyone
+  who can open the admin pages).
+- **Removing an exception** opens a fresh 72-hour setup window, like a reset (a superuser's deliberate act, recorded
+  in the history as the Profile change), so that person isn't stuck on the "ask an administrator" screen.
+- **Making an exception an admin / superuser / staff:** refused with "Remove the two-step exception first." (model
+  and admin form), never cleared silently, so nobody becomes an admin without a code.
+- **A superuser may reset their own two-step login** (they are already signed in with a code; their next sign-in
+  starts at setup within the new window).
+- **Smoke test and `seed_demo`:** `seed_demo --two-step-key <base32>` gives the demo users a confirmed device with
+  that key; the smoke test computes the code itself (Node `crypto` HMAC) and signs in through `/login/code/`, so the
+  real path is exercised. Without the option the demo users set up their own, like real users.
 
 ## Left to the builder
 - How the smoke test and `seed_demo` sign in: for example, `seed_demo` gives the demo users a confirmed device with a

@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path, reverse_lazy
 
-from . import views
+from . import views, views_twostep
 
 urlpatterns = [
     path(
@@ -10,10 +10,16 @@ urlpatterns = [
         name="login",
     ),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("login/code/", views_twostep.code, name="two_step_code"),
+    path("login/setup/", views_twostep.setup, name="two_step_setup"),
+    path("login/blocked/", views_twostep.blocked, name="two_step_blocked"),
+    path("login/forget/", views_twostep.forget, name="two_step_forget"),
     path(
         "password/",
         auth_views.PasswordChangeView.as_view(
-            template_name="sheet/password_change.html", success_url=reverse_lazy("password_change_done")
+            form_class=views_twostep.NewPasswordForm,
+            template_name="sheet/password_change.html",
+            success_url=reverse_lazy("password_change_done"),
         ),
         name="password_change",
     ),

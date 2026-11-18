@@ -41,6 +41,8 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "django_otp",  # two-step login: the Authenticator device and the code check (sheet/twostep.py)
+    "django_otp.plugins.otp_totp",
     "sheet",  # before staticfiles, so sheet's runserver (no-cache static files) is the one used
     "django.contrib.staticfiles",
 ]
@@ -53,6 +55,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "sheet.history.HistoryMiddleware",
+    "sheet.middleware.TwoStepMiddleware",  # after authentication: nothing past the password alone
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "sheet.middleware.SecurityHeadersMiddleware",
@@ -98,6 +101,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 ADMIN_URL = os.environ.get("DJANGO_ADMIN_URL", "admin/")  # move it with DJANGO_ADMIN_URL=private-path/
 
 LOGIN_URL = "/login/"
+OTP_TOTP_ISSUER = "Marine Service Sheet"  # the name shown in Microsoft Authenticator
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 
@@ -107,6 +111,7 @@ SESSION_COOKIE_AGE = int(os.environ.get("DJANGO_SESSION_IDLE_MINUTES", 60)) * 60
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_NAME = "sessionid"  # "__Host-" prefixed in production, below
 CSRF_COOKIE_NAME = "csrftoken"
+REMEMBER_COOKIE_NAME = "remember"  # "Remember this computer" (sheet/twostep.py); "__Host-" prefixed in production
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = True  # the page reads the token from a <meta> tag instead
 CSRF_COOKIE_SAMESITE = "Lax"
@@ -127,6 +132,7 @@ if not DEBUG:
     # or other path can set or overwrite them. The app must be served from the root of its own host.
     SESSION_COOKIE_NAME = "__Host-sessionid"
     CSRF_COOKIE_NAME = "__Host-csrftoken"
+    REMEMBER_COOKIE_NAME = "__Host-remember"
     SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", 31536000))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     # Preloading commits the whole domain to HTTPS in every browser for months; the domain owner decides.

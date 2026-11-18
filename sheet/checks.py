@@ -1,7 +1,8 @@
 """Deployment checks (`manage.py check --deploy`) for settings Django itself does not know about."""
 
 from django.conf import settings
-from django.core.checks import Error, register
+from django.core.checks import Error, Tags, Warning, register
+from django.db import DatabaseError
 
 
 @register(deploy=True)
@@ -18,3 +19,31 @@ def proxy_client_ip_header(app_configs, **kwargs):
             )
         ]
     return []
+
+
+@register(Tags.database, deploy=True)
+def two_step_key_holders(app_configs, databases=None, **kwargs):
+    """Superusers reset each other's two-step login: with fewer than two who can sign in, one lost phone leaves only
+    the server command. Reads the database, so it runs with `check --deploy --database default`."""
+    if not databases:
+        return []
+    from django.contrib.auth.models import User
+    from django_otp.plugins.otp_totp.models import TOTPDevice
+
+    try:
+        holders = (
+            User.objects.filter(is_superuser=True, is_active=True)
+            .filter(pk__in=TOTPDevice.objects.filter(confirmed=True).values("user_id"))
+            .count()
+        )
+    except DatabaseError:
+        return []  # no database (yet): nothing to check
+    if holders >= 2:
+        return []
+    return [
+        Warning(
+            f"Only {holders} active superuser(s) with a confirmed Authenticator.",
+            hint="Keep at least two, so one can reset the other's two-step login after a lost phone.",
+            id="sheet.W002",
+        )
+    ]

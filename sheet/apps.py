@@ -6,6 +6,6 @@ class SheetConfig(AppConfig):
     name = "sheet"
 
     def ready(self):
-        from . import checks, history, signals  # noqa: F401  (checks / signals register themselves on import)
+        from . import checks, history, signals, twostep  # noqa: F401  (checks / signals register themselves on import)
 
         history.connect()
