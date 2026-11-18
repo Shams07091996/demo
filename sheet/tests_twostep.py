@@ -10,7 +10,7 @@ from django.core.checks import run_checks
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 from django_otp.oath import TOTP
 from django_otp.plugins.otp_totp.models import TOTPDevice
@@ -580,3 +580,27 @@ class AdminPagesTests(TestCase):
         second = make_superuser("boss2")
         TOTPDevice.objects.create(user=second, name="Authenticator", confirmed=True)
         self.assertNotIn("sheet.W002", ids())
+
+
+KEY = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"  # base32, 20 bytes
+
+
+@FAST_HASHER
+@override_settings(DEBUG=True)
+class SeedDemoTwoStepTests(TestCase):
+    def test_seed_demo_two_step_key(self):
+        call_command("seed_demo", "--password", NEW_PASSWORD, "--two-step-key", KEY, stdout=StringIO())
+        devices = TOTPDevice.objects.filter(confirmed=True)
+        self.assertEqual(devices.count(), User.objects.count())
+        self.assertTrue(all(twostep.secret_text(d).replace(" ", "") == KEY for d in devices))
+        call_command("seed_demo", "--two-step-key", KEY, stdout=StringIO())  # again: no second device
+        self.assertEqual(TOTPDevice.objects.count(), User.objects.count())
+
+    def test_seed_demo_refuses_a_short_or_bad_key(self):
+        for bad in ("JBSWY3DP", "not base32 at all!!"):
+            with self.assertRaises(CommandError):
+                call_command("seed_demo", "--two-step-key", bad, stdout=StringIO())
+
+    def test_seed_demo_without_key_leaves_setup_to_people(self):
+        call_command("seed_demo", stdout=StringIO())
+        self.assertFalse(TOTPDevice.objects.exists())

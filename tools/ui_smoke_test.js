@@ -1,10 +1,11 @@
 // End-to-end smoke test: loads the real page in jsdom, logs in over HTTP and clicks through the app.
 //
-//   python manage.py seed_demo --password "some-long-password"
+//   python manage.py seed_demo --password "some-long-password" --two-step-key <32 base32 characters>
 //   python manage.py runserver 8765          (in another terminal)
-//   UI_TEST_PASSWORD="some-long-password" node ui_smoke_test.js [alex|admin|viewer]
+//   UI_TEST_PASSWORD="some-long-password" UI_TEST_TOTP_KEY=<the same key> node ui_smoke_test.js [alex|admin|viewer]
 //
 // It creates and removes its own vessels, master-data values and a January-2020 exchange rate.
+const crypto = require('crypto');
 const path = require('path');
 const { buildSync } = require('esbuild');
 const { JSDOM } = require('jsdom');
@@ -13,6 +14,21 @@ const BASE = process.env.UI_TEST_URL || 'http://localhost:8765';
 const PASSWORD = process.env.UI_TEST_PASSWORD;
 const ROLE = process.argv[2] || 'alex';
 if (!PASSWORD) { console.error('Set UI_TEST_PASSWORD to the password given to seed_demo.'); process.exit(2); }
+const TOTP_KEY = process.env.UI_TEST_TOTP_KEY;
+if (!TOTP_KEY) { console.error('Set UI_TEST_TOTP_KEY to the key given to seed_demo --two-step-key.'); process.exit(2); }
+
+// The six-digit code Authenticator would show (RFC 6238: HMAC-SHA1, 30-second steps).
+function totp(base32) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const ch of base32.replace(/[\s=]/g, '').toUpperCase()) bits += alphabet.indexOf(ch).toString(2).padStart(5, '0');
+  const key = Buffer.from(bits.match(/.{8}/g).map((b) => parseInt(b, 2)));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 1000 / 30)));
+  const mac = crypto.createHmac('sha1', key).update(counter).digest();
+  const offset = mac[mac.length - 1] & 0xf;
+  return String((mac.readUInt32BE(offset) & 0x7fffffff) % 1000000).padStart(6, '0');
+}
 
 const bundle = buildSync({
   entryPoints: [path.join(__dirname, '../sheet/static/sheet/js/main.js')],
@@ -36,6 +52,21 @@ async function login() {
   });
   remember(res);
   if (res.status !== 302) throw new Error(`Login failed (HTTP ${res.status}) - wrong UI_TEST_PASSWORD?`);
+  // Two-step login: nothing works on the password alone; the code page takes the current code.
+  res = await fetch(`${BASE}/api/vessels/`, { headers: { Cookie: cookies() } });
+  ok(res.status === 401, 'two-step: the API answers 401 after the password alone');
+  res = await fetch(`${BASE}/`, { headers: { Cookie: cookies() }, redirect: 'manual' });
+  ok(res.status === 302 && res.headers.get('location') === '/login/code/', 'two-step: the page sends you to Enter code');
+  res = await fetch(`${BASE}/login/code/`, { headers: { Cookie: cookies() } }); remember(res);
+  ok((await res.text()).includes('Remember this computer for 30 days'), 'two-step: Enter code page shown');
+  res = await fetch(`${BASE}/login/code/`, {
+    method: 'POST', redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookies(), Referer: `${BASE}/login/code/` },
+    body: new URLSearchParams({ code: totp(TOTP_KEY), csrfmiddlewaretoken: jar.csrftoken }),
+  });
+  remember(res);
+  if (res.status !== 302) throw new Error(`Code step failed (HTTP ${res.status}) - wrong UI_TEST_TOTP_KEY, or the same code used twice within 30 seconds?`);
+  ok(!jar.remember, 'two-step: unticked box remembers nothing');
   res = await fetch(`${BASE}/`, { headers: { Cookie: cookies() } });
   remember(res);
   return res.text();
