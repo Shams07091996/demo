@@ -1,12 +1,13 @@
 """Agents per job: arrival / sailing agent on a vessel, an agent on every service, the missing-agent alert."""
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest import mock
 
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
+from .constants import TIME_FIELDS, TIME_KEYS
 from .models import ChangeRecord, Service, Vessel
 from .tests import FAST_HASHER, ApiTestCase, allow
 
@@ -137,6 +138,10 @@ class AgentApiTests(ApiTestCase):
 
 TODAY = date(2026, 11, 18)
 DAY = timedelta(days=1)
+# A complete, not delayed port call (aware datetimes; the exact day doesn't matter to the alert).
+_START = datetime(2026, 11, 10, 6, 0, tzinfo=UTC)
+ALL_TIMES = {key: _START + timedelta(hours=i) for i, key in enumerate(TIME_KEYS)}
+TIME_NAMES = [label for _, label in TIME_FIELDS]
 
 
 @FAST_HASHER
@@ -144,16 +149,19 @@ DAY = timedelta(days=1)
 class MissingAgentTests(ApiTestCase):
     def setUp(self):
         # The shared fixture vessels (13.11.2026, past) are complete, so each test sees only its own gaps.
-        Vessel.objects.update(arrival_agent="BASE", sailing_agent="BASE")
+        # Their port-call times are filled in too (the alert also asks for those: tests_alerts_details).
+        Vessel.objects.update(arrival_agent="BASE", sailing_agent="BASE", **ALL_TIMES)
         Service.objects.update(agent="BASE")
 
     def vessel(self, name, when, port="alexandria", arrival="DELTA", sailing="NILE"):
-        return Vessel.objects.create(name=name, date=when, port=port, arrival_agent=arrival, sailing_agent=sailing)
+        return Vessel.objects.create(
+            name=name, date=when, port=port, arrival_agent=arrival, sailing_agent=sailing, **ALL_TIMES
+        )
 
     def missing(self, user="admin", query=""):
         status, data = self.call(self.login(user), "get", f"/api/vessels/alerts/{query}")
         self.assertEqual(status, 200)
-        return data["missing_agent"]
+        return data["missing"]
 
     def test_past_vessel_with_every_agent_and_no_services_is_fine(self, _):
         self.vessel("COMPLETE", TODAY - DAY)
@@ -161,14 +169,14 @@ class MissingAgentTests(ApiTestCase):
 
     def test_missing_sailing_agent(self, _):
         v = self.vessel("NO SAIL", TODAY - DAY, sailing="")
-        self.assertEqual(self.missing(), [{"id": v.id, "name": "NO SAIL", "date": "2026-11-17", "missing": ["Sailing"]}])
+        self.assertEqual(self.missing(), [{"id": v.id, "name": "NO SAIL", "date": "2026-11-17", "missing": ["Sailing agent"]}])
 
     def test_blank_arrival_agent_sent_by_the_api_counts_as_missing(self, _):
         allow("agent", "NILE")
         alex = self.login("alex")
         _, sent = self.call(alex, "post", "/api/vessels/",
                             {"name": "BLANK", "date": "2026-11-17", "arrival_agent": "   ", "sailing_agent": "NILE"})
-        self.assertEqual([(m["id"], m["missing"]) for m in self.missing()], [(sent["id"], ["Arrival"])])
+        self.assertEqual([(m["id"], m["missing"]) for m in self.missing()], [(sent["id"], TIME_NAMES + ["Arrival agent"])])
 
     def test_services_without_agent_are_listed_once_per_type_in_order(self, _):
         v = self.vessel("SERVICES", TODAY - DAY)
@@ -176,12 +184,12 @@ class MissingAgentTests(ApiTestCase):
         Service.objects.create(vessel=v, service_type="Crew Change")
         Service.objects.create(vessel=v, service_type="Crew Change")
         Service.objects.create(vessel=v, service_type="Fresh Water", agent="NILE")
-        self.assertEqual(self.missing()[0]["missing"], ["Crew Change", "Others / Remarks"])
+        self.assertEqual(self.missing()[0]["missing"], ["Crew Change agent", "Others / Remarks agent"])
 
     def test_everything_missing_is_listed_in_order(self, _):
         v = self.vessel("ALL", TODAY - DAY, arrival="", sailing="")
         Service.objects.create(vessel=v, service_type="Landing")
-        self.assertEqual(self.missing()[0]["missing"], ["Arrival", "Sailing", "Landing"])
+        self.assertEqual(self.missing()[0]["missing"], ["Arrival agent", "Sailing agent", "Landing agent"])
 
     def test_today_and_later_never_count(self, _):
         for offset, name in ((0, "TODAY"), (1, "TOMORROW"), (30, "LATER")):
@@ -214,6 +222,6 @@ class MissingAgentTests(ApiTestCase):
         client = self.login("admin")
         with CaptureQueriesContext(connection) as queries:
             status, data = self.call(client, "get", "/api/vessels/alerts/")
-        self.assertEqual([m["name"] for m in data["missing_agent"]], ["GAP"])
+        self.assertEqual([m["name"] for m in data["missing"]], ["GAP"])
         sql = " ".join(q["sql"] for q in queries.captured_queries)
         self.assertNotIn('"sheet_service"."data"', sql)
