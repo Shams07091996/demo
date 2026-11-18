@@ -3,9 +3,11 @@
 import logging
 
 from django.conf import settings
-from django.shortcuts import render
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import redirect, render
+from django.urls import reverse
 
-from . import alerts, throttle
+from . import alerts, throttle, twostep
 from .netutils import client_ip
 
 security_log = logging.getLogger("sheet.security")
@@ -47,6 +49,34 @@ class LoginThrottleMiddleware:
                 alerts.note("login_lockout")
                 return render(request, "sheet/locked.html", status=429)
         return self.get_response(request)
+
+
+class TwoStepMiddleware:
+    """The one gate of the two-step login: a signed-in person who hasn't passed the code step (or must still choose
+    their own password) reaches only the page of that step, the sign-in pages, Log out and static files. API calls
+    answer 401 (the page then goes back to sign-in), the CSV export 401, every other page (admin pages included)
+    redirects to the step."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if not request.user.is_authenticated or self._always_open(request.path):
+            return self.get_response(request)
+        step = twostep.next_step(request)
+        if step is None or request.path == reverse(step):
+            return self.get_response(request)
+        if request.path.startswith("/api/"):
+            return JsonResponse({"error": "Please log in again."}, status=401)
+        if request.path == reverse("export_csv"):
+            return HttpResponse(status=401)
+        return redirect(step)
+
+    @staticmethod
+    def _always_open(path):
+        admin = f"/{settings.ADMIN_URL}"
+        open_paths = (settings.LOGIN_URL, reverse("logout"), f"{admin}login/", f"{admin}logout/")
+        return path in open_paths or path.startswith(f"/{settings.STATIC_URL.lstrip('/')}")
 
 
 class SecurityHeadersMiddleware:

@@ -1,0 +1,17 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two-step login · Marine Service Sheet</title>
+<link rel="stylesheet" href="{% static 'sheet/app.css' %}">
+</head>
+<body class="login-body">
+{% include "sheet/icons.svg" %}
+  <div class="login-card">
+    <div class="login-logo"><span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-phone"></use></svg></span><h1>TWO-STEP <span>LOGIN</span></h1></div>
+    <div class="login-error">Ask an administrator to reset your two-step login.</div>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost wide" type="submit">Log out</button></form>
+  </div>
+</body>
+</html>

@@ -10,7 +10,7 @@ from django.contrib.sessions.backends.db import SessionStore
 from django.core.checks import run_checks
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 
-from .tests import FAST_HASHER, PASSWORD, make_user
+from .tests import FAST_HASHER, PASSWORD, make_user, pass_two_step
 
 
 def load_settings(code, **env):
@@ -65,6 +65,8 @@ class RenamedCookieTests(TestCase):
         answer = client.post("/login/", {"username": "alex", "password": PASSWORD, "csrfmiddlewaretoken": token})
         self.assertEqual(answer.status_code, 302)
         self.assertIn("__Host-sessionid", client.cookies)
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)  # the code step comes first
+        pass_two_step(client, "alex")
         self.assertEqual(client.get("/api/vessels/").status_code, 200)
 
 
@@ -114,7 +116,7 @@ class SessionRotationTests(TestCase):
         before = session.session_key
         client.post("/login/", {"username": "alex", "password": PASSWORD})
         self.assertNotEqual(client.session.session_key, before)
-        self.assertEqual(client.get("/api/vessels/").status_code, 200)
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)  # the code step comes first
 
 
 class EmailTimeoutTests(SimpleTestCase):
@@ -129,6 +131,7 @@ class ApiErrorsAreJsonTests(TestCase):
         make_user("alex", "alexandria")
         self.client = Client(enforce_csrf_checks=True)
         self.client.login(username="alex", password=PASSWORD)
+        pass_two_step(self.client, "alex")
 
     def test_csrf_failure_under_the_api_answers_json(self):
         response = self.client.post("/api/vessels/", "{}", content_type="application/json")

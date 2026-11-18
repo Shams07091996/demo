@@ -1,14 +1,19 @@
 """Two-step login: password + a six-digit Authenticator code (TOTP)."""
 
+import time
 from datetime import timedelta
 
+from django.conf import settings
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.utils import timezone
+from django_otp.oath import TOTP
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from .models import ChangeRecord, Profile, RememberedComputer
-from .tests import FAST_HASHER, make_user
+from . import throttle, twostep
+from .models import ChangeRecord, LoginAttempt, Profile, RememberedComputer
+from .tests import FAST_HASHER, PASSWORD, make_user
 
 
 def history(model_name, **filters):
@@ -74,3 +79,269 @@ class TwoStepModelTests(TestCase):
         row.last_used_at = timezone.now()
         row.save()
         self.assertEqual(len(history("rememberedcomputer")), 1)
+
+
+def current_code(device):
+    totp = TOTP(device.bin_key, device.step, device.t0, device.digits, device.drift)
+    totp.time = time.time()
+    return f"{totp.token():06d}"
+
+
+def wrong_code(device):
+    return "000000" if current_code(device) != "000000" else "111111"
+
+
+@FAST_HASHER
+class SignInTests(TestCase):
+    """The gate: nothing past the password alone."""
+
+    def setUp(self):
+        self.user = make_user("alex", "alexandria")
+        self.device = TOTPDevice.objects.create(user=self.user, name="Authenticator", confirmed=True)
+
+    def password_only(self, username="alex", client=None):
+        client = client or Client()
+        self.assertTrue(client.login(username=username, password=PASSWORD))
+        return client
+
+    def send_code(self, client, code, remember=False):
+        data = {"code": code}
+        if remember:
+            data["remember"] = "on"
+        return client.post("/login/code/", data)
+
+    def test_api_is_401_until_code(self):
+        client = self.password_only()
+        response = client.get("/api/vessels/")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"error": "Please log in again."})
+        for url in ("/api/dashboard/", "/api/dashboard/jobs/", "/api/history/", "/api/calculations/"):
+            self.assertEqual(client.get(url).status_code, 401, url)
+        self.assertEqual(client.post("/api/vessels/", "{}", content_type="application/json").status_code, 401)
+
+    def test_index_redirects_to_code(self):
+        response = self.password_only().get("/")
+        self.assertRedirects(response, "/login/code/", fetch_redirect_response=False)
+
+    def test_export_401_until_code(self):
+        self.assertEqual(self.password_only().get("/export.csv").status_code, 401)
+
+    def test_admin_pages_redirect_until_verified(self):
+        boss = make_user("boss", "admin")
+        boss.is_staff = boss.is_superuser = True
+        boss.save()
+        TOTPDevice.objects.create(user=boss, name="Authenticator", confirmed=True)
+        client = Client()
+        response = client.post(f"/{settings.ADMIN_URL}login/", {"username": "boss", "password": PASSWORD})
+        self.assertEqual(response.status_code, 302)
+        for url in ("", "auth/user/", "sheet/changerecord/", "otp_totp/totpdevice/"):
+            page = client.get(f"/{settings.ADMIN_URL}{url}")
+            self.assertRedirects(page, "/login/code/", fetch_redirect_response=False, msg_prefix=url)
+
+    def test_logout_always_works(self):
+        client = self.password_only()
+        self.assertEqual(client.post("/logout/").status_code, 302)
+        self.assertNotIn("_auth_user_id", client.session)
+
+    def test_right_code_passes(self):
+        client = self.password_only()
+        before = client.session.session_key
+        response = self.send_code(client, current_code(self.device))
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertNotEqual(client.session.session_key, before)
+        self.assertEqual(client.get("/api/vessels/").status_code, 200)
+
+    def test_code_with_spaces_is_fine(self):
+        client = self.password_only()
+        code = current_code(self.device)
+        self.send_code(client, f"{code[:3]} {code[3:]}")
+        self.assertEqual(client.get("/api/vessels/").status_code, 200)
+
+    def test_wrong_code_refused_and_counted(self):
+        client = self.password_only()
+        with self.assertLogs("sheet.security", level="WARNING") as logs:
+            response = self.send_code(client, "12345x")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Wrong code.")
+        self.assertIn("two-step code wrong user=alex", "\n".join(logs.output))
+        self.assertEqual(LoginAttempt.objects.filter(key__startswith="pair|").get().failures, 1)
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)
+
+    def test_code_cannot_be_used_twice(self):
+        code = current_code(self.device)
+        first = self.password_only()
+        self.send_code(first, code)
+        self.assertEqual(first.get("/api/vessels/").status_code, 200)
+        second = self.password_only()
+        self.send_code(second, code)
+        self.assertEqual(second.get("/api/vessels/").status_code, 401)
+
+    def test_five_wrong_codes_lock(self):
+        client = self.password_only()
+        for _ in range(throttle.MAX_PAIR_FAILURES):
+            TOTPDevice.objects.filter(pk=self.device.pk).update(throttling_failure_count=0)  # skip django-otp's wait
+            self.send_code(client, wrong_code(self.device))
+        TOTPDevice.objects.filter(pk=self.device.pk).update(throttling_failure_count=0)
+        self.assertEqual(self.send_code(client, current_code(self.device)).status_code, 429)
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)
+
+    def test_django_otp_wait_after_a_wrong_code(self):
+        client = self.password_only()
+        self.send_code(client, wrong_code(self.device))
+        self.send_code(client, current_code(self.device))  # within the 1-second wait: refused
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)
+
+    def test_password_sign_in_clears_pass(self):
+        client = self.password_only()
+        self.send_code(client, current_code(self.device))
+        self.assertEqual(client.get("/api/vessels/").status_code, 200)
+        self.password_only(client=client)  # a password sign-in on top of a passed session
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)
+
+    def test_exempt_user_goes_straight_in(self):
+        viewer = make_user("viewer", "readonly")
+        viewer.profile.two_step_exempt = True
+        viewer.profile.save()
+        client = self.password_only("viewer")
+        with self.assertLogs("sheet.security", level="INFO") as logs:
+            self.assertEqual(client.get("/api/vessels/").status_code, 200)
+        self.assertIn("two-step exempt sign-in user=viewer", "\n".join(logs.output))
+        Profile.objects.filter(user=viewer).update(two_step_exempt=False)  # exception removed: the session ends
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)
+
+    def test_exempt_flag_ignored_for_superuser(self):
+        Profile.objects.filter(user=self.user).update(two_step_exempt=True)  # past the model's own check
+        User.objects.filter(pk=self.user.pk).update(is_superuser=True)
+        self.assertEqual(self.password_only().get("/api/vessels/").status_code, 401)
+
+    def test_remember_skips_code_for_30_days(self):
+        client = self.password_only()
+        self.send_code(client, current_code(self.device), remember=True)
+        cookie = client.cookies[settings.REMEMBER_COOKIE_NAME]
+        self.assertTrue(cookie["httponly"])
+        self.assertEqual(cookie["samesite"], "Lax")
+        self.assertEqual(int(cookie["max-age"]), 30 * 24 * 3600)
+        row = RememberedComputer.objects.get()
+        self.assertNotEqual(row.token_hash, cookie.value)
+        client.post("/logout/")
+        self.assertEqual(client.cookies[settings.REMEMBER_COOKIE_NAME].value, cookie.value)  # logout keeps it
+        self.password_only(client=client)
+        self.assertEqual(client.get("/api/vessels/").status_code, 200)
+        self.assertContains(client.get("/"), "Forget this computer")
+
+    def test_remember_expires(self):
+        client = self.password_only()
+        self.send_code(client, current_code(self.device), remember=True)
+        client.post("/logout/")
+        self.password_only(client=client)
+        self.assertEqual(client.get("/api/vessels/").status_code, 200)
+        RememberedComputer.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)  # the session that used it ends too
+        self.password_only(client=client)
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)
+
+    def test_remembered_cookie_of_other_user_is_ignored(self):
+        client = self.password_only()
+        self.send_code(client, current_code(self.device), remember=True)
+        token = client.cookies[settings.REMEMBER_COOKIE_NAME].value
+        other = make_user("suez", "suez")
+        TOTPDevice.objects.create(user=other, name="Authenticator", confirmed=True)
+        thief = Client()
+        thief.cookies[settings.REMEMBER_COOKIE_NAME] = token
+        self.password_only("suez", client=thief)
+        self.assertEqual(thief.get("/api/vessels/").status_code, 401)
+
+    def test_unticked_box_remembers_nothing(self):
+        client = self.password_only()
+        self.send_code(client, current_code(self.device))
+        self.assertFalse(RememberedComputer.objects.exists())
+        self.assertNotContains(client.get("/"), "Forget this computer")
+
+    def test_forget_removes_row_and_cookie(self):
+        client = self.password_only()
+        self.send_code(client, current_code(self.device), remember=True)
+        self.assertEqual(client.get("/login/forget/").status_code, 405)
+        response = client.post("/login/forget/")
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertFalse(RememberedComputer.objects.exists())
+        self.assertEqual(client.cookies[settings.REMEMBER_COOKIE_NAME].value, "")
+
+    def test_reset_ends_live_sessions(self):
+        client = self.password_only()
+        self.send_code(client, current_code(self.device), remember=True)
+        twostep.reset(self.user)
+        self.assertFalse(RememberedComputer.objects.exists())
+        self.assertFalse(TOTPDevice.objects.filter(user=self.user).exists())
+        self.assertRedirects(client.get("/"), "/login/setup/", fetch_redirect_response=False)
+
+    def test_code_page_is_csp_safe(self):
+        page = self.password_only().get("/login/code/")
+        self.assertIn("script-src 'self'", page["Content-Security-Policy"])
+        text = page.content.decode()
+        self.assertNotIn("<script", text)
+        self.assertNotIn("style=", text)
+        self.assertIn('autocomplete="one-time-code"', text)
+
+
+@FAST_HASHER
+class SetupTests(TestCase):
+    def setUp(self):
+        self.user = make_user("viewer", "readonly")
+        self.client.login(username="viewer", password=PASSWORD)
+
+    def test_setup_shows_qr_and_confirms(self):
+        self.assertRedirects(self.client.get("/"), "/login/setup/", fetch_redirect_response=False)
+        page = self.client.get("/login/setup/")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'src="data:image/svg+xml')
+        device = TOTPDevice.objects.get(user=self.user)
+        self.assertFalse(device.confirmed)
+        self.assertContains(page, twostep.secret_text(device))
+        self.assertNotIn("<script", page.content.decode())
+        with self.assertLogs("sheet.security", level="INFO") as logs:
+            response = self.client.post("/login/setup/", {"code": current_code(device)})
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertIn("two-step setup done user=viewer", "\n".join(logs.output))
+        device.refresh_from_db()
+        self.assertTrue(device.confirmed)
+        self.assertEqual(self.client.get("/api/vessels/").status_code, 200)
+
+    def test_wrong_setup_code_keeps_it_unconfirmed(self):
+        self.client.get("/login/setup/")
+        device = TOTPDevice.objects.get(user=self.user)
+        page = self.client.post("/login/setup/", {"code": wrong_code(device)})
+        self.assertContains(page, "Wrong code.")
+        device.refresh_from_db()
+        self.assertFalse(device.confirmed)
+
+    def test_setup_same_secret_on_reload(self):
+        first = self.client.get("/login/setup/").content
+        second = self.client.get("/login/setup/").content
+        self.assertEqual(TOTPDevice.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(first.split(b'name="csrfmiddlewaretoken"')[0], second.split(b'name="csrfmiddlewaretoken"')[0])
+        device = TOTPDevice.objects.get(user=self.user)
+        self.assertIn(twostep.secret_text(device).encode(), second)
+
+    def test_setup_refused_after_window(self):
+        Profile.objects.filter(user=self.user).update(setup_until=timezone.now() - timedelta(seconds=1))
+        self.assertRedirects(self.client.get("/"), "/login/blocked/", fetch_redirect_response=False)
+        self.assertRedirects(self.client.get("/login/setup/"), "/login/blocked/", fetch_redirect_response=False)
+        page = self.client.get("/login/blocked/")
+        self.assertContains(page, "Ask an administrator to reset your two-step login.")
+        self.assertFalse(TOTPDevice.objects.exists())
+        self.assertEqual(self.client.get("/api/vessels/").status_code, 401)
+
+    def test_setup_refused_while_device_confirmed(self):
+        TOTPDevice.objects.create(user=self.user, name="Authenticator", confirmed=True)
+        self.assertRedirects(self.client.get("/login/setup/"), "/login/code/", fetch_redirect_response=False)
+
+    def test_secret_not_in_logs_or_history(self):
+        with self.assertLogs("sheet.security", level="INFO") as logs:
+            self.client.get("/login/setup/")
+            device = TOTPDevice.objects.get(user=self.user)
+            self.client.post("/login/setup/", {"code": current_code(device)})
+            self.client.get("/api/vessels/")
+        secret = twostep.secret_text(device).replace(" ", "")
+        for text in ("\n".join(logs.output), str(list(ChangeRecord.objects.values_list("changes", flat=True)))):
+            self.assertNotIn(device.key, text)
+            self.assertNotIn(secret, text)

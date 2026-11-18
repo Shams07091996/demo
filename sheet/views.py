@@ -14,7 +14,7 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, listing, logistics, ratelimit
+from . import calculations, listing, logistics, ratelimit, twostep
 from . import dashboard as dashboard_figures
 from .access import profile_of, require_admin, require_edit, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
@@ -63,6 +63,7 @@ def index(request):
             ("h", "hotels", "hotels", "+ Add hotel stay", "No hotel stays in this range."),
             ("t", "transport", "transfers", "+ Add transfer", "No transfers in this range."),
         ],
+        "remembered": twostep.remembered_row(request) is not None,
     }
     return render(request, "sheet/index.html", context)
 

@@ -1,0 +1,29 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Set up Authenticator · Marine Service Sheet</title>
+<link rel="stylesheet" href="{% static 'sheet/app.css' %}">
+</head>
+<body class="login-body">
+{% include "sheet/icons.svg" %}
+  <div class="login-card wide-card">
+    <form method="post">
+      {% csrf_token %}
+      <div class="login-logo"><span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-phone"></use></svg></span><h1>SET UP <span>AUTHENTICATOR</span></h1></div>
+      <ol class="steps">
+        <li>Open Microsoft Authenticator on your phone.</li>
+        <li>Tap + → Other account, and scan this code.</li>
+        <li>Type the six-digit code it shows.</li>
+      </ol>
+      <img class="qr" src="{{ qr }}" alt="QR code for Microsoft Authenticator" width="220" height="220">
+      <p class="secret">Can't scan? Enter this key: <code>{{ secret }}</code></p>
+      {% if error %}<div class="login-error">{{ error }}</div>{% endif %}
+      <div class="field"><label for="id_code">Code</label><input id="id_code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required></div>
+      <button class="btn primary wide" type="submit">Confirm</button>
+    </form>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost wide" type="submit">Log out</button></form>
+  </div>
+</body>
+</html>

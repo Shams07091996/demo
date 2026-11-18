@@ -30,6 +30,9 @@
       <div class="user-line"><strong>{{ request.user.get_username }}</strong><small id="roleLabel"></small></div>
       <button class="nav-item" type="button" id="themeBtn" data-act="toggle-theme"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-moon"></use></svg></span><span class="label">Dark mode</span></button>
       <a class="nav-item" href="{% url 'password_change' %}"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Change password</span></a>
+      {% if remembered %}<form method="post" action="{% url 'two_step_forget' %}">{% csrf_token %}
+        <button class="nav-item" type="submit"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg></span><span>Forget this computer</span></button>
+      </form>{% endif %}
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
         <button class="nav-item" type="submit"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-log-out"></use></svg></span><span>Log out</span></button>
       </form>

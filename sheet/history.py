@@ -74,6 +74,11 @@ class HistoryMiddleware:
             _request.reset(token)
 
 
+def current_request():
+    """The request being served, or None (management commands, shell)."""
+    return _request.get()
+
+
 def _values(instance):
     skipped = SKIPPED_FIELDS | SECRET_FIELDS.get(type(instance), set())
     fields = instance._meta.concrete_fields
