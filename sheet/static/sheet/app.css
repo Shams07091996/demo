@@ -95,6 +95,7 @@ code{background:color-mix(in srgb,var(--text) 8%,transparent);padding:1px 6px;bo
 .chip.active{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
 .chip.ark.active{background:var(--ark);border-color:var(--ark)}.chip.msk.active{background:var(--msk);border-color:var(--msk)}.chip.oth.active{background:var(--oth);border-color:var(--oth)}
 .search{max-width:300px}
+.tools .search{width:300px;flex:0 1 300px;min-width:160px}
 .count{font-size:12px;color:var(--muted);margin:6px 2px 10px}
 .table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:6px;overflow-x:auto}
 table{width:100%;border-collapse:collapse}
