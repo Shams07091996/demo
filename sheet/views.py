@@ -226,8 +226,10 @@ def _usage_counts(profile):
     counts = {
         kind: {row[kind]: row["n"] for row in vessels.values(kind).annotate(n=Count("id")).order_by()}
         for kind in OPTION_KIND_KEYS
-        if kind not in BOOKING_KINDS and kind != "agent"
+        if kind not in BOOKING_KINDS and kind not in ("agent", "delay", "closure")
     }
+    counts["delay"] = {}
+    counts["closure"] = {}
     # An agent is used by a vessel when it entered it, sailed it or did any of its services (each vessel once).
     agent_vessels = {}
     for field in ("arrival_agent", "sailing_agent", "services__agent"):
