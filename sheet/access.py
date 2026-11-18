@@ -2,7 +2,7 @@
 
 from .constants import PORT_KEYS
 from .errors import Forbidden
-from .models import Profile, Vessel
+from .models import PortClosure, Profile, Vessel
 
 
 def profile_of(user):
@@ -32,3 +32,12 @@ def scoped_vessels(profile, port=None, prefetch=True):
     if port in PORT_KEYS:
         return queryset.filter(port=port)
     return queryset
+
+
+def scoped_closures(profile, port=None):
+    """Port closures this profile may see: port users only their own port whatever they ask; others may filter."""
+    if profile.port:
+        return PortClosure.objects.filter(port=profile.port)
+    if port in PORT_KEYS:
+        return PortClosure.objects.filter(port=port)
+    return PortClosure.objects.all()

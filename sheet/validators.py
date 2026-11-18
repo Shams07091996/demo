@@ -438,3 +438,29 @@ def clean_transfer(data):
         **_price_fields(data, "cost", "revenue"),
         "guests": guests,
     }
+
+
+# ---- port closures ----------------------------------------------------------------------------
+
+
+def clean_closure(data, profile, existing=None):
+    """Validate a port closure. Port users are always pinned to their own port; the reason is from the Master data
+    "closure" list of that port (or All ports); an empty Reopened means the port is still closed."""
+    data = _as_dict(data)
+    if profile.port:
+        port = profile.port
+    else:
+        port = data.get("port") or (existing.port if existing else "")
+        if port not in PORT_KEYS:
+            raise BadRequest("Unknown port.")
+    start_at = _local_datetime(data.get("start_at"), "Closed from")
+    if start_at is None:
+        raise BadRequest("Closed from is required.")
+    end_at = _local_datetime(data.get("end_at"), "Reopened")
+    if end_at is not None and end_at < start_at:
+        raise BadRequest("Reopened cannot be before closed from.")
+    reason = listed("closure", data.get("reason"), port, getattr(existing, "reason", ""))
+    if not reason:
+        raise BadRequest("Choose a closure reason.")
+    return {"port": port, "start_at": start_at, "end_at": end_at, "reason": reason,
+            "notes": _short(data.get("notes"), 500, "Notes")}

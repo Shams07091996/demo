@@ -16,7 +16,7 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, listing, logistics, ratelimit, twostep
+from . import calculations, closures, listing, logistics, ratelimit, twostep
 from . import dashboard as dashboard_figures
 from .access import profile_of, require_admin, require_edit, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
@@ -373,6 +373,36 @@ def export_csv(request):
         )
     audit(request, "export.csv")
     return response
+
+
+# ---- port closures (see closures.py) -----------------------------------------------------------
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def closures_list(request):
+    profile = request.profile
+    if request.method == "GET":
+        return JsonResponse(closures.list_response(profile, request.GET))
+    require_edit(profile)
+    closure = closures.save_closure(profile, read_json(request))
+    audit(request, "closure.create", id=closure.id, port=closure.port)
+    return JsonResponse(closures.closure_to_dict(closure, profile), status=201)
+
+
+@json_api
+@require_http_methods(["PUT", "DELETE"])
+def closure_detail(request, pk):
+    profile = request.profile
+    require_edit(profile)
+    closure = closures.get_closure(profile, pk)
+    if request.method == "DELETE":
+        closure.delete()
+        audit(request, "closure.delete", id=pk)
+        return JsonResponse({"ok": True})
+    closure = closures.save_closure(profile, read_json(request), existing=closure)
+    audit(request, "closure.update", id=closure.id)
+    return JsonResponse(closures.closure_to_dict(closure, profile))
 
 
 # ---- hotels and transport (see logistics.py) ---------------------------------------------------
