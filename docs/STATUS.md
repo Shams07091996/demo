@@ -5,14 +5,18 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Two-step login (2026-11-18):** built on `feature/two-step-login` (**not merged yet**, waiting for the user's OK).
+  Needs migration **`0012_two_step_login`** and `pip install --require-hashes -r requirements.txt` (new packages
+  django-otp, segno). After merging, on the user's PostgreSQL database: `migrate`, create the superusers, each sets up
+  Authenticator within 72 hours of the migration / account creation.
 - **Git branches:** `main`, plus `chore/pythonanywhere-demo` (not merged: puts back the hash-locked
   `requirements.txt` and the settings that the user's Render commits on `main` had replaced). Agents per job, Dashboards and New look merged 2026-11-18 (branches deleted).
 - **Online demo (2026-11-18):** https://shams1996.pythonanywhere.com (PythonAnywhere free plan, the user's account,
   demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
-- **Tests (on `main`):** `npm run check` green with 257 backend tests; smoke test passes for `alex`,
-  `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
+- **Tests:** `npm run check` green with 307 backend tests on `feature/two-step-login` (257 on `main`); smoke test
+  (now signing in with a code) passes for `alex`, `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
   `%APPDATA%\postgresql\pgpass.conf`, never in the project). Migrations through `0010` applied; **`0011_agents_per_job` still to apply** (`DJANGO_DEBUG=1 python manage.py migrate` with the settings below); no users yet.
@@ -40,6 +44,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-18 | **Agents per job** (merged 2026-11-18): Arrival agent (was Agent) and Sailing agent on each vessel, an Agent on every service (all from the Master data Agent list, empty until chosen); search / sort / CSV / "used by N" cover them; a **Missing agent** alert (bell + banner, max 20 rows + "+ N more") for vessels dated before today that miss any agent; **Bulk add removed** | `2026-11-18-agents-per-job-design.md` |
 | 2026-11-18 | **Dashboards** (merged 2026-11-18): one filter bar (dates, port, OPR, agent, service type); jobs per agent (bars + table; a row opens that agent's jobs), services per month (stacked columns + table), money per month (Cost / Revenue / Profit table); OPR charts and cards follow the filters | `2026-11-18-dashboards-design.md` |
 | 2026-11-18 | **New look** (merged 2026-11-18): neutral grey with one blue accent; dark and light mode (follows the computer until chosen in the sidebar, remembered); system font, no Google Fonts (CSP `font-src 'none'`); 28 line icons drawn for the app instead of emojis; full-width pages, smaller radii, no gradients or all-caps headings | `2026-11-18-new-look-design.md` |
+| 2026-11-18 | **Two-step login** (security piece 3): password + six-digit Microsoft Authenticator code for everyone; one gate for every page, API call and admin page; remember this computer 30 days (Forget in the sidebar); setup within 72 hours of creation / reset; forced password change when someone else set it; superuser-only reset (admin action, `reset_two_step` command); exceptions for non-admins; key never in history / logs / admin; deploy warning `sheet.W002` (fewer than two superusers with Authenticator) | `2026-11-17-two-step-login-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
@@ -65,6 +70,9 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 - **Order (2026-11-18):** agents → dashboards → new look, **before** two-step login (which will then be built in the new look).
 - **Dashboards (designed 2026-11-18):** jobs per agent (arrival = 1 job, sailing = 1, each service = 1), services per month, money per month as a **separate** table; chart **and** figures; filters date / port / OPR / agent / service type.
 - **New look (designed 2026-11-18):** look B (neutral grey, one blue accent), dark and light mode, system font, line icons drawn for the app; **no third-party dependency**.
+- **Two-step login (approved 2026-11-18, "go ahead with 2fa"):** everyone, Microsoft Authenticator codes, 30-day
+  remember for everyone, no backup codes, superusers reset each other (3–4 planned), exceptions only for non-admins;
+  **not for the online demo** for now ("no need for the demo right now").
 - **Field encryption** of crew personal data: **not now** — revisit when getting ready for production (disk / backup encryption is the production setup step).
 
 ## Next
@@ -74,15 +82,14 @@ Agreed order (2026-11-18), each on its own branch, designed and approved:
 1. **Agents per job** — done and merged (2026-11-18).
 2. **Dashboards** — done and merged (2026-11-18).
 3. **New look** — done and merged (2026-11-18).
-4. **Next: two-step login** (below).
+4. **Two-step login** — built 2026-11-18 on `feature/two-step-login`, waiting for the merge OK.
 
 The user is **selling the app to their company: security comes first** ("no security vulnerability should be there").
 Their security push has three pieces, in this order:
 
 1. **Safe page building + checks** — done and merged (2026-11-17).
 2. **OWASP Top 10 (2025) review** — done and merged (2026-11-17).
-3. **Two-step login (MFA)**, at least for admins — the biggest known gap; it changes how people sign in, so design
-   it with the user first.
+3. **Two-step login (MFA)** — built 2026-11-18 (see above).
 
 4. **After the security push** (user's top picks from the ARKAS 2027 preview): keep the exchange rate used by each
    service, service status (completed / in progress / cancelled + reason), billing basis (Cash / Owners' Account),
