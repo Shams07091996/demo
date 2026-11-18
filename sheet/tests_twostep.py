@@ -13,7 +13,7 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from . import throttle, twostep
 from .models import ChangeRecord, LoginAttempt, Profile, RememberedComputer
-from .tests import FAST_HASHER, PASSWORD, make_user
+from .tests import FAST_HASHER, PASSWORD, make_user, pass_two_step
 
 
 def history(model_name, **filters):
@@ -345,3 +345,112 @@ class SetupTests(TestCase):
         for text in ("\n".join(logs.output), str(list(ChangeRecord.objects.values_list("changes", flat=True)))):
             self.assertNotIn(device.key, text)
             self.assertNotIn(secret, text)
+
+
+NEW_PASSWORD = "a-very-long-new-passphrase"
+
+
+def make_superuser(username="boss"):
+    boss = make_user(username, "admin")
+    boss.is_staff = boss.is_superuser = True
+    boss.save()
+    return boss
+
+
+def admin_client(username="boss"):
+    client = Client()
+    client.force_login(User.objects.get(username=username))
+    return pass_two_step(client, username)
+
+
+@FAST_HASHER
+class ForcedPasswordTests(TestCase):
+    def setUp(self):
+        self.alex = make_user("alex", "alexandria")
+        make_superuser()
+        self.admin = admin_client()
+
+    def admin_sets_password(self, user):
+        url = f"/{settings.ADMIN_URL}auth/user/{user.pk}/password/"
+        response = self.admin.post(url, {"password1": NEW_PASSWORD, "password2": NEW_PASSWORD, "usable_password": "true"})
+        self.assertEqual(response.status_code, 302, response.content[:2000])
+
+    def change_own(self, client, old, new=NEW_PASSWORD + "-2"):
+        return client.post("/password/", {"old_password": old, "new_password1": new, "new_password2": new})
+
+    def test_password_set_by_other_forces_change(self):
+        self.admin_sets_password(self.alex)
+        self.assertTrue(Profile.objects.get(user=self.alex).must_change_password)
+
+    def test_new_account_from_admin_forces_change(self):
+        url = f"/{settings.ADMIN_URL}auth/user/add/"
+        data = {
+            "username": "newbie",
+            "password1": NEW_PASSWORD,
+            "password2": NEW_PASSWORD,
+            "usable_password": "true",
+            "profile-TOTAL_FORMS": "1",
+            "profile-INITIAL_FORMS": "0",
+            "profile-MIN_NUM_FORMS": "0",
+            "profile-MAX_NUM_FORMS": "1",
+            "profile-0-role": "readonly",
+        }
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.admin.post(url, data)
+        self.assertEqual(response.status_code, 302, response.content[:3000])
+        newbie = User.objects.get(username="newbie")
+        self.assertTrue(Profile.objects.get(user=newbie).must_change_password)
+
+    def test_forced_change_blocks_everything_else(self):
+        self.admin_sets_password(self.alex)
+        client = Client()
+        client.login(username="alex", password=NEW_PASSWORD)  # no Authenticator yet
+        self.assertRedirects(client.get("/"), "/password/", fetch_redirect_response=False)
+        self.assertRedirects(client.get("/login/setup/"), "/password/", fetch_redirect_response=False)
+        self.assertEqual(client.get("/api/vessels/").status_code, 401)
+        page = client.get("/password/")
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, ">Cancel<")
+        self.assertEqual(self.change_own(client, NEW_PASSWORD).status_code, 302)
+        self.assertFalse(Profile.objects.get(user=self.alex).must_change_password)
+        self.assertRedirects(client.get("/"), "/login/setup/", fetch_redirect_response=False)  # then the setup
+
+    def test_code_before_forced_change(self):
+        device = TOTPDevice.objects.create(user=self.alex, name="Authenticator", confirmed=True)
+        self.admin_sets_password(self.alex)
+        client = Client()
+        client.login(username="alex", password=NEW_PASSWORD)
+        self.assertRedirects(client.get("/"), "/login/code/", fetch_redirect_response=False)
+        self.assertRedirects(client.get("/password/"), "/login/code/", fetch_redirect_response=False)
+        client.post("/login/code/", {"code": current_code(device)})
+        self.assertRedirects(client.get("/"), "/password/", fetch_redirect_response=False)
+
+    def test_own_change_clears_flag(self):
+        Profile.objects.filter(user=self.alex).update(must_change_password=True)
+        client = Client()
+        client.force_login(self.alex)
+        pass_two_step(client, "alex")
+        self.assertEqual(self.change_own(client, PASSWORD).status_code, 302)
+        self.assertFalse(Profile.objects.get(user=self.alex).must_change_password)
+        self.assertEqual(client.get("/api/vessels/").status_code, 200)
+
+    def test_remembered_removed_on_password_change(self):
+        RememberedComputer.objects.create(
+            user=self.alex, token_hash="b" * 64, expires_at=timezone.now() + timedelta(days=30)
+        )
+        self.alex.set_password(NEW_PASSWORD)
+        self.alex.save()
+        self.assertFalse(RememberedComputer.objects.exists())
+
+    def test_command_password_does_not_force(self):
+        self.alex.set_password(NEW_PASSWORD)
+        self.alex.save()  # no request: a command at the server
+        User.objects.create_user("cmd", password=NEW_PASSWORD)
+        self.assertFalse(Profile.objects.get(user=self.alex).must_change_password)
+        self.assertFalse(Profile.objects.filter(user__username="cmd", must_change_password=True).exists())
+
+    def test_saving_without_password_change_keeps_flag(self):
+        Profile.objects.filter(user=self.alex).update(must_change_password=True)
+        self.alex.first_name = "Alex"
+        self.alex.save()
+        self.assertTrue(Profile.objects.get(user=self.alex).must_change_password)
