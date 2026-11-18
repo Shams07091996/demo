@@ -117,7 +117,7 @@ maths for the live preview (`js/calc.js`, same rounding), but the server's numbe
 **Vessel list** (`listing.py`): the database narrows by date range and port; every vessel in that range gets its
 figures computed once; then search (literal, case-insensitive), OPR bucket (ARK / MSK / other / with services), exact
 OPR, sorting (ties by newest id) and paging run in Python. `totals` cover range + port only. The same module serves
-the alerts (today / tomorrow in Cairo time, and past vessels missing an agent) and the CSV export.
+the alerts (today / tomorrow in Cairo time, and past vessels missing details) and the CSV export.
 
 **Dashboard** (`dashboard.py`, `GET /api/dashboard/` and `/api/dashboard/jobs/`): vessels in date range + port (+ exact
 OPR) → jobs (arrival = 1 for the arrival agent, sailing = 1 for the sailing agent, each service = 1 for its agent; a

@@ -9,11 +9,11 @@ import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from django.db.models import Prefetch, Q
+from django.db.models import F, Prefetch, Q
 from django.utils import timezone
 
 from .access import scoped_vessels
-from .constants import SERVICE_TYPES, TIME_FIELDS, TIME_KEYS, is_delayed
+from .constants import DELAY_LIMIT, SERVICE_TYPES, TIME_FIELDS, TIME_KEYS, is_delayed
 from .errors import BadRequest
 from .models import Service, Vessel
 from .serializers import month_rates, vessel_to_dict
@@ -180,6 +180,15 @@ def alerts_response(profile, params):
     }
 
 
+def gap_filter():
+    """Vessels that may miss a detail: an empty agent (vessel or service), an empty time, or berthed more than
+    DELAY_LIMIT after arrival with no delay reason (the database narrows; `is_delayed` has the final word)."""
+    gaps = Q(arrival_agent="") | Q(sailing_agent="") | Q(services__agent="")
+    for key in TIME_KEYS:
+        gaps |= Q(**{f"{key}__isnull": True})
+    return gaps | Q(berthing_at__gt=F("arrival_at") + DELAY_LIMIT, delay_reason="")
+
+
 def missing_details(profile, port, today):
     """Vessels dated before today (Cairo) with a gap, oldest first: any port-call time, a delay reason when berthing
     was more than 2 hours after arrival, the arrival / sailing agent, or an agent on any service (every type needs one).
@@ -190,15 +199,11 @@ def missing_details(profile, port, today):
     order = {name: i for i, name in enumerate(SERVICE_TYPES)}
     found = []
     # No look-back limit, so keep the query light: only vessels with a possible gap, and only the columns needed.
-    gaps = Q(arrival_agent="") | Q(sailing_agent="") | Q(services__agent="")
-    for key in TIME_KEYS:
-        gaps |= Q(**{f"{key}__isnull": True})
-    gaps |= Q(arrival_at__isnull=False, berthing_at__isnull=False, delay_reason="")  # delayed? checked below
     light_services = Service.objects.only("id", "vessel_id", "service_type", "agent")
     vessels = (
         scoped_vessels(profile, port, prefetch=False)
         .filter(date__lt=today)
-        .filter(pk__in=Vessel.objects.filter(gaps).values("pk"))
+        .filter(pk__in=Vessel.objects.filter(gap_filter()).values("pk"))
         .only("id", "name", "date", "arrival_agent", "sailing_agent", "delay_reason", *TIME_KEYS)
         .prefetch_related(Prefetch("services", queryset=light_services))
     )

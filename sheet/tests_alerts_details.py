@@ -3,6 +3,9 @@
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
+from django.test import TestCase
+
+from .listing import gap_filter
 from .models import Service, Vessel
 from .tests import FAST_HASHER, ApiTestCase
 from .tests_agents import ALL_TIMES, DAY, TIME_NAMES, TODAY
@@ -68,3 +71,16 @@ class MissingDetailsTests(ApiTestCase):
         mine = self.vessel("ALEX", sailing_at=None)
         self.vessel("SUEZ", port="suez", sailing_at=None)
         self.assertEqual([m["id"] for m in self.missing("alex", "?port=suez")], [mine.id])
+
+
+class MissingDetailsQueryTests(TestCase):
+    def test_database_filter_skips_complete_vessels_that_berthed_on_time(self):
+        # The alert has no look-back limit: a past call with every time and agent, berthed within 2 hours, must not
+        # even be read from the database (only vessels with a possible gap are).
+        on_time = Vessel.objects.create(name="ON TIME", date=TODAY - DAY, arrival_agent="A", sailing_agent="B",
+                                        **ALL_TIMES)
+        late = Vessel.objects.create(name="LATE", date=TODAY - DAY, arrival_agent="A", sailing_agent="B",
+                                     **{**ALL_TIMES, "berthing_at": ARRIVED + timedelta(hours=2, minutes=1)})
+        found = set(Vessel.objects.filter(gap_filter()).values_list("pk", flat=True))
+        self.assertNotIn(on_time.pk, found)
+        self.assertIn(late.pk, found)

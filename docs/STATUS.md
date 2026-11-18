@@ -7,6 +7,9 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 
 - **Port closures, delay reason, Missing details (2026-11-19):** built on branch `feature/port-closures-delays`,
   **not merged yet** (waiting for the user's OK). Needs migration **`0013_port_closures_and_delays`** after merging.
+  **Right after migrating, an admin fills Master data → Delay reason and Closure reason** (at least All-ports values):
+  while they are empty, no closure can be added and a vessel that berthed more than 2 hours after arrival cannot be
+  saved. Smoke test passes for alex / admin / viewer / suez; fresh review done (fixes in).
 - **Two-step login (2026-11-18):** merged into `main` (branch deleted).
   Needs migration **`0012_two_step_login`** and `pip install --require-hashes -r requirements.txt` (new packages
   django-otp, segno). After merging, on the user's PostgreSQL database: `migrate`, create the superusers, each sets up
@@ -17,7 +20,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
   demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
-- **Tests:** `npm run check` green with 395 backend tests on `feature/port-closures-delays` (347 on `main`); smoke test
+- **Tests:** `npm run check` green with 396 backend tests on `feature/port-closures-delays` (347 on `main`); smoke test
   (now signing in with a code) passes for `alex`, `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
@@ -180,6 +183,16 @@ Agents per job (final review, minor, for the user to decide):
 - No automated test runs migration 0011 itself (it is a plain rename).
 - The bell panel's empty text still says "No vessels today or tomorrow." (shown only when nothing is pending).
 - The Master data agent usage count reads one row per service; fine now, watch it if `/api/options/` slows.
+
+Port closures / delays (final review, minor, for the user to decide):
+
+- The vessel form decides "delayed" from the wall clock; the server from real time in Cairo. On the night Cairo moves
+  its clocks (April / October) the two can disagree: the server may ask for a delay reason while the form hides it
+  (change a time, or the reason appears once the times show more than 2 hours).
+- A closure that reopened at exactly 00:00 on the From day is still listed for that range.
+- The vessel form rebuilds its dropdowns twice when an admin changes the port (harmless).
+- The Django admin page for closures doesn't check the reason list or the time order (like the other admin pages).
+- No starter values for the Delay / Closure reason lists on a real database (only `seed_demo` adds them).
 
 Two-step login (final review, minor, for the user to decide):
 
