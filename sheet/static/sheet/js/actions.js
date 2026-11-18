@@ -12,7 +12,7 @@ import {
 import {
   addGuest, changeVessel, deleteBooking, openBookingDialog, pickVessel, removeGuest, saveBooking,
 } from './modals/booking.js';
-import { openVessel, openVesselForm, vesselPayload } from './modals/vessel.js';
+import { openVessel, openVesselForm, updateDelayRow, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { historyPage } from './pages/history.js';
@@ -137,7 +137,10 @@ export const actions = {
   'save-vessel-more': () => saveVessel({ addAnother: true }),
   'del-vessel': () => deleteVessel(),
   'del-vessel-row': (b) => deleteVessel(Number(b.dataset.id)),
-  'time-now': (b) => { $(`#vessel-form [name="${b.dataset.target}"]`).value = nowLocalInput(); },
+  'time-now': (b) => {
+    $(`#vessel-form [name="${b.dataset.target}"]`).value = nowLocalInput();
+    updateDelayRow();
+  },
 
   'save-rate': () => changeRate(() => api('/api/rates/', 'POST', formValues($('#rate-form')))),
   'del-rate': (b) => changeRate(() => api(`/api/rates/${b.dataset.id}/`, 'DELETE')),

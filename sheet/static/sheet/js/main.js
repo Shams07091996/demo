@@ -49,7 +49,8 @@ document.addEventListener('keydown', (event) => {
 });
 el.modal.addEventListener('input', onModalInput);
 el.modal.addEventListener('change', onModalChange);
-el.modal.addEventListener('change', onVesselFormChange); // admin switches a vessel's port
+el.modal.addEventListener('change', onVesselFormChange); // admin switches a vessel's port, times change
+el.modal.addEventListener('input', onVesselFormChange);  // times typed: show / hide the delay reason
 el.modal.addEventListener('input', onBookingInput);  // hotel stay / transfer dialog
 el.modal.addEventListener('change', onBookingInput);
 

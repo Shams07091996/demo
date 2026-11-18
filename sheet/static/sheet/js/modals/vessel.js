@@ -7,7 +7,7 @@ import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { ensureVessel } from '../data.js';
 import { state } from '../state.js';
-import { $, $$, fmt, formValues, sign, today } from '../util.js';
+import { $, $$, fmt, formValues, isDelayed, sign, today } from '../util.js';
 
 const lines = (parts) => parts.flatMap((part, i) => [i ? h('br') : null, part]);
 const txt = (x) => (x === null || x === undefined ? '' : String(x));
@@ -91,11 +91,23 @@ export async function openVessel(id) {
 const selectField = (name, label, current, port, kind = name) =>
   h('div', { class: 'field' }, h('label', null, label), h('select', { attrs: { name } }, optionChoicesEl(kind, current, port)));
 
-const FORM_LISTS = [['opr', 'opr'], ['poc', 'poc'], ['arrival_agent', 'agent'], ['sailing_agent', 'agent']];
+const FORM_LISTS = [['opr', 'opr'], ['poc', 'poc'], ['arrival_agent', 'agent'], ['sailing_agent', 'agent'], ['delay_reason', 'delay']];
 
-/** Admin changed the vessel's port in the form: offer that port's OPR / POC / agent values (keeping the chosen ones). */
+/** Show the delay reason while the times say the vessel berthed more than 2 hours after it arrived, or while a reason
+ *  is chosen (the server then refuses the save until it is cleared: nothing is wiped silently). */
+export function updateDelayRow() {
+  const row = $('#delay-row');
+  if (!row) return;
+  const value = (name) => $(`#vessel-form [name="${name}"]`).value;
+  row.hidden = !(isDelayed(value('arrival_at'), value('berthing_at')) || value('delay_reason'));
+}
+
+/** Admin changed the vessel's port in the form: offer that port's OPR / POC / agent / delay values (keeping the chosen
+ *  ones). Arrival or berthing changed: show or hide the delay reason. */
 export function onVesselFormChange(event) {
-  if (state.ctx.view !== 'vessel-form' || event.target.name !== 'port') return;
+  if (state.ctx.view !== 'vessel-form') return;
+  if (['arrival_at', 'berthing_at', 'delay_reason'].includes(event.target.name)) updateDelayRow();
+  if (event.target.name !== 'port') return;
   for (const [name, kind] of FORM_LISTS) {
     const select = $(`#vessel-form [name="${name}"]`);
     if (select) setChildren(select, optionChoicesEl(kind, select.value, event.target.value));
@@ -135,6 +147,8 @@ export function openVesselForm(vessel) {
         h('span', null, 'Port call times ',
           h('small', { class: 'none', style: { textTransform: 'none', letterSpacing: '0' } }, '(Cairo time, all optional)'))),
       h('div', { class: 'row two' }, TIME_FIELDS.map((f) => timeField(f, vessel))),
+      h('div', { class: 'row two', id: 'delay-row', hidden: !(isDelayed(vessel?.arrival_at, vessel?.berthing_at) || vessel?.delay_reason) },
+        selectField('delay_reason', 'Delay reason', vessel?.delay_reason, selectedPort, 'delay')),
       h('details', { class: 'fold', open: Object.keys(summary).length > 0 },
         h('summary', null, 'Financial summary (optional)'),
         h('div', { class: 'row two' }, SUMMARY_FIELDS.map((key) => h('div', { class: 'field' }, h('label', null, key),

@@ -1,4 +1,5 @@
-// The bell and the banner: vessels with a date of today or tomorrow, and past vessels missing an agent
+// The bell and the banner: vessels with a date of today or tomorrow, and past vessels missing details (times, delay
+// reason, agents)
 // (state.alerts, from the server).
 import { state } from '../state.js';
 import { h, icon, setChildren } from '../dom.js';
@@ -34,7 +35,7 @@ export function buildNotifications() {
   const tomorrowIso = dayISO(1);
   const todays = state.alerts.today;
   const tomorrows = state.alerts.tomorrow;
-  const missing = state.alerts.missing_agent || [];
+  const missing = state.alerts.missing || [];
   const total = todays.length + tomorrows.length + missing.length;
 
   const badge = $('#bellBadge');
@@ -46,7 +47,7 @@ export function buildNotifications() {
     h('div', { class: `notif-row ${kind}`, dataset: { act: 'summary', id: v.id } },
       h('span', { class: `dot ${kind}` }), h('b', null, label), h('span', null, v.name), serviceTags(v));
   const missingRow = (v, cls) => h('div', { class: cls, dataset: { act: 'summary', id: v.id } },
-    h('span', { class: 'dot missing' }), h('b', null, 'Missing agent'), h('span', null, v.name), h('span', { class: 'none' }, `${dmy(v.date)} · ${v.missing.join(', ')}`));
+    h('span', { class: 'dot missing' }), h('b', null, 'Missing details'), h('span', null, v.name), h('span', { class: 'none' }, `${dmy(v.date)} · ${v.missing.join(', ')}`));
   const { shown: missingShown, more } = limitRows(missing, BANNER_MISSING_MAX);
   const banner = $('#notifBanner');
   const collapsed = alertsCollapsed();
@@ -54,7 +55,7 @@ export function buildNotifications() {
   banner.classList.toggle('collapsed', collapsed);
   const head = h('div', { class: 'notif-head' },
     h('span', null, h('span', { class: 'dot today' }), ' ', h('b', null, todays.length), ' today · ', h('span', { class: 'dot tomorrow' }), ' ', h('b', null, tomorrows.length), ' tomorrow',
-      missing.length ? [' · ', h('b', null, missing.length), ' missing an agent'] : null),
+      missing.length ? [' · ', h('b', null, missing.length), ' missing details'] : null),
     h('span', { class: 'spacer' }),
     h('button', { class: 'btn ghost small', dataset: { act: 'toggle-alerts' }, attrs: { 'aria-expanded': String(!collapsed) } },
       collapsed ? ['Show ', icon('chevron-down')] : ['Hide ', icon('chevron-up')]));
@@ -73,14 +74,14 @@ export function buildNotifications() {
     list.length ? [h('div', { class: 'notif-group', style: { color } }, title), list.map(panelItem)] : null;
   setChildren($('#notifPanel'), total
     ? [group(todays, 'var(--danger)', `Today — ${dmy(todayIso)}`), group(tomorrows, 'var(--warning)', `Tomorrow — ${dmy(tomorrowIso)}`),
-      missing.length ? [h('div', { class: 'notif-group', style: { color: 'var(--accent)' } }, 'Missing agent'),
+      missing.length ? [h('div', { class: 'notif-group', style: { color: 'var(--accent)' } }, 'Missing details'),
         missing.map((v) => missingRow(v, 'notif-item missing'))] : null]
     : h('div', { class: 'empty' }, 'No vessels today or tomorrow.'));
 }
 
 export const closePanel = () => $('#notifPanel').classList.remove('open');
 
-/** Open the bell panel (the banner's "+ N more"): it lists every vessel missing an agent. */
+/** Open the bell panel (the banner's "+ N more"): it lists every vessel missing details. */
 export function openPanel() {
   buildNotifications();
   $('#notifPanel').classList.add('open');

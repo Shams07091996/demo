@@ -15,7 +15,7 @@ function load(entry) {
   return require(file);
 }
 const { parsePersonal, parseFlightText } = load('crewParsing.js');
-const { limitRows } = load('util.js');
+const { isDelayed, limitRows } = load('util.js');
 
 let failed = 0;
 const check = (cond, label) => { console.log(`${cond ? 'PASS' : 'FAIL'} ${label}`); if (!cond) failed += 1; };
@@ -44,6 +44,12 @@ check(leg[0].departureTime === '05 Apr 2026 08:55', 'pasted itinerary departure 
 const many = limitRows(Array.from({ length: 25 }, (_, i) => i), 20);
 check(many.shown.length === 20 && many.shown[19] === 19 && many.more === 5, 'limitRows: 25 rows → 20 shown, 5 more');
 check(limitRows([1, 2], 20).more === 0 && limitRows([], 20).shown.length === 0, 'limitRows: short lists are shown whole');
+
+/* ---------- delay (berthing more than 2 hours after arrival) ---------- */
+check(isDelayed('2026-11-13T08:00', '2026-11-13T10:00') === false, 'isDelayed: exactly 2 hours is not delayed');
+check(isDelayed('2026-11-13T08:00', '2026-11-13T10:01') === true, 'isDelayed: 2:01 is delayed');
+check(isDelayed('2026-11-13T23:00', '2026-11-14T02:00') === true, 'isDelayed: across midnight');
+check(isDelayed('', '2026-11-13T10:01') === false && isDelayed('2026-11-13T08:00', '') === false, 'isDelayed: a missing time is never delayed');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);
