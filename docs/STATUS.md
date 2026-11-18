@@ -5,7 +5,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Two-step login (2026-11-18):** built on `feature/two-step-login` (**not merged yet**, waiting for the user's OK).
+- **Two-step login (2026-11-18):** merged into `main` (branch deleted).
   Needs migration **`0012_two_step_login`** and `pip install --require-hashes -r requirements.txt` (new packages
   django-otp, segno). After merging, on the user's PostgreSQL database: `migrate`, create the superusers, each sets up
   Authenticator within 72 hours of the migration / account creation.
@@ -15,7 +15,7 @@ Last updated: 2026-11-18. Read this with `CLAUDE.md` before starting work. Each 
   demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
-- **Tests:** `npm run check` green with 319 backend tests on `feature/two-step-login` (261 on `main`); smoke test
+- **Tests:** `npm run check` green with 319 backend tests on `main`; smoke test
   (now signing in with a code) passes for `alex`, `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
@@ -83,14 +83,14 @@ Agreed order (2026-11-18), each on its own branch, designed and approved:
 1. **Agents per job** — done and merged (2026-11-18).
 2. **Dashboards** — done and merged (2026-11-18).
 3. **New look** — done and merged (2026-11-18).
-4. **Two-step login** — built 2026-11-18 on `feature/two-step-login`, waiting for the merge OK.
+4. **Two-step login** — done and merged (2026-11-18).
 
 The user is **selling the app to their company: security comes first** ("no security vulnerability should be there").
 Their security push has three pieces, in this order:
 
 1. **Safe page building + checks** — done and merged (2026-11-17).
 2. **OWASP Top 10 (2025) review** — done and merged (2026-11-17).
-3. **Two-step login (MFA)** — built 2026-11-18 (see above).
+3. **Two-step login (MFA)** — done and merged (2026-11-18).
 
 4. **After the security push** (user's top picks from the ARKAS 2027 preview): keep the exchange rate used by each
    service, service status (completed / in progress / cancelled + reason), billing basis (Cash / Owners' Account),
