@@ -41,6 +41,8 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "django_otp",  # two-step login: the Authenticator device and the code check (sheet/twostep.py)
+    "django_otp.plugins.otp_totp",
     "sheet",  # before staticfiles, so sheet's runserver (no-cache static files) is the one used
     "django.contrib.staticfiles",
 ]
@@ -98,6 +100,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 ADMIN_URL = os.environ.get("DJANGO_ADMIN_URL", "admin/")  # move it with DJANGO_ADMIN_URL=private-path/
 
 LOGIN_URL = "/login/"
+OTP_TOTP_ISSUER = "Marine Service Sheet"  # the name shown in Microsoft Authenticator
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 

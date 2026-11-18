@@ -1,19 +1,52 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from .constants import OPTION_KINDS, PLACES, PORT_KEYS, PORTS, ROLES, SERVICE_TYPES
 
 
+SETUP_WINDOW = timedelta(hours=72)  # how long after creation / a reset a person may set up their Authenticator
+EXEMPT_REFUSED = "Remove the two-step exception first."
+
+
+def default_setup_until():
+    return timezone.now() + SETUP_WINDOW
+
+
 class Profile(models.Model):
-    """A user's role: admin, read-only, or tied to one port (edits only that port)."""
+    """A user's role: admin, read-only, or tied to one port (edits only that port), and their two-step login state."""
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     role = models.CharField(max_length=20, choices=ROLES, default="readonly")
+    # Two-step login (sheet/twostep.py). Only superusers change these, in the admin pages.
+    two_step_exempt = models.BooleanField(
+        "Two-step exception", default=False, help_text="Signs in with the password only. Never for admins."
+    )
+    must_change_password = models.BooleanField(
+        default=False, help_text="Set when someone else set the password: they choose their own at the next sign-in."
+    )
+    setup_until = models.DateTimeField(
+        "Authenticator setup allowed until", null=True, blank=True, default=default_setup_until
+    )
 
     def __str__(self):
         return f"{self.user} ({self.role})"
+
+    def may_be_exempt(self):
+        """Admins (role admin, superusers, anyone who can open the admin pages) always need the code."""
+        user = self.user
+        return not (self.role == "admin" or user.is_superuser or user.is_staff)
+
+    def clean(self):
+        if self.two_step_exempt and not self.may_be_exempt():
+            raise ValidationError(EXEMPT_REFUSED)
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
     @property
     def port(self):
@@ -223,3 +256,22 @@ class ChangeRecord(models.Model):
 
     def __str__(self):
         return f"{self.at:%Y-%m-%d %H:%M} {self.username} {self.action} {self.object_type} #{self.object_id}"
+
+
+class RememberedComputer(models.Model):
+    """"Remember this computer for 30 days": one browser of one user may skip the code. The browser holds a random
+    token in a cookie; only its SHA-256 is stored here (sheet/twostep.py)."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="remembered_computers")
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    ip = models.CharField("Address", max_length=45, blank=True)
+    agent = models.CharField("Browser", max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} · {self.agent[:40]} · until {self.expires_at:%d.%m.%Y}"
