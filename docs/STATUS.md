@@ -5,8 +5,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Port closures, delay reason, Missing details (2026-11-19):** built on branch `feature/port-closures-delays`,
-  **not merged yet** (waiting for the user's OK). Needs migration **`0013_port_closures_and_delays`** after merging.
+- **Port closures, delay reason, Missing details (2026-11-19):** merged into `main` (branch deleted). Needs migration **`0013_port_closures_and_delays`** after merging.
   **Right after migrating, an admin fills Master data → Delay reason and Closure reason** (at least All-ports values):
   while they are empty, no closure can be added and a vessel that berthed more than 2 hours after arrival cannot be
   saved. Smoke test passes for alex / admin / viewer / suez; fresh review done (fixes in).
@@ -20,7 +19,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
   demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
-- **Tests:** `npm run check` green with 396 backend tests on `feature/port-closures-delays` (347 on `main`); smoke test
+- **Tests:** `npm run check` green with 396 backend tests on `main`; smoke test
   (now signing in with a code) passes for `alex`, `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
@@ -36,7 +35,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
-| 2026-11-19 | **Port closures, delay reason, Missing details** (branch `feature/port-closures-delays`): a Port closures page (port, closed from, reopened or still closed, reason from the new Closure reason list, notes; port users their port, admins all, read-only view; change history); a **Delay reason** (new Master data list) required when a vessel berthed more than 2 hours after arrival and refused otherwise; the past-vessel alert is now **Missing details** (the five times, a needed delay reason, arrival / sailing agent, service agents) | `2026-11-19-port-closures-and-delays-design.md` |
+| 2026-11-19 | **Port closures, delay reason, Missing details** (merged 2026-11-19): a Port closures page (port, closed from, reopened or still closed, reason from the new Closure reason list, notes; port users their port, admins all, read-only view; change history); a **Delay reason** (new Master data list) required when a vessel berthed more than 2 hours after arrival and refused otherwise; the past-vessel alert is now **Missing details** (the five times, a needed delay reason, arrival / sailing agent, service agents) | `2026-11-19-port-closures-and-delays-design.md` |
 | 2026-11-19 | Tighter input rules: OPR / POC / agents / booking hotel, airport and port must be in Master data for the vessel's port (a value already saved stays allowed); service numbers must be real numbers, amounts never negative (user's decision), exchange rate above 0, percentage 0-100; too-long text refused with a message instead of cut (pasted crew-change details still trimmed); exchange rate 0 = empty; more than 100 lines refused | — |
 | 2026-11-18 | Faster first load: the page names all 32 script files up front (`modulepreload`), so they arrive in 1 round instead of 4; vessel toolbar on one line (no big empty gap) | — |
 | 2026-11-15 | Security fixes: exchange rates admin-only; debug mode off unless `DJANGO_DEBUG=1`; audit-log values escaped | — |
