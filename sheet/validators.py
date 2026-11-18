@@ -19,6 +19,7 @@ from .constants import (
     SUMMARY_FIELDS,
     TIME_KEYS,
     TIME_LABELS,
+    is_delayed,
 )
 from .errors import BadRequest
 from .models import Option
@@ -252,6 +253,21 @@ def _check_time_order(times):
             raise BadRequest(f"{TIME_LABELS[later]} cannot be before {TIME_LABELS[earlier].lower()}.")
 
 
+def clean_delay_reason(data, times, port, existing=None):
+    """A reason from the Master data "delay" list, required when the vessel berthed more than DELAY_LIMIT after it
+    arrived and refused otherwise. A save without the key keeps the stored reason (and is checked like it)."""
+    saved = getattr(existing, "delay_reason", "")
+    sent = data["delay_reason"] if "delay_reason" in data else saved
+    if is_delayed(times["arrival_at"], times["berthing_at"]):
+        reason = listed("delay", sent, port, saved)
+        if not reason:
+            raise BadRequest("Choose a delay reason (berthed more than 2 hours after arrival).")
+        return reason
+    if _text(sent, 200):
+        raise BadRequest("Not delayed (berthed within 2 hours): clear the delay reason.")
+    return ""
+
+
 def clean_agent(value, port, current=""):
     """An agent from the Master data Agent list of `port` (or All ports), or empty."""
     return listed("agent", value, port, current)
@@ -286,6 +302,7 @@ def clean_vessel(data, profile, existing=None):
         "date": when,
         "port": port,
         "summary": clean_summary(data.get("summary")),
+        "delay_reason": clean_delay_reason(data, times, port, existing),
         **times,
     }
 

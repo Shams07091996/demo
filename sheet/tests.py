@@ -467,10 +467,12 @@ class PortCallTests(ApiTestCase):
 
     def test_times_and_agent_round_trip_in_cairo_time(self):
         allow("agent", "NILE AGENCY")
+        allow("delay", "WEATHER")
         alex = self.login("alex")
         status, vessel = self.create(
             alex,
             arrival_agent="NILE AGENCY",
+            delay_reason="WEATHER",  # berthed 2.5 hours after arrival
             arrival_at="2026-11-13T06:00",
             berthing_at="2026-11-13T08:30",
             ops_start_at="2026-11-13T09:00",

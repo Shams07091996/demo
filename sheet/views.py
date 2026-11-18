@@ -351,7 +351,7 @@ def export_csv(request):
     writer.writerow(
         ["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Date", "Status"]
         + [label for _, label in TIME_FIELDS]
-        + ["Services", "Total Cost LE", "Total Profit LE"]
+        + ["Delay reason", "Services", "Total Cost LE", "Total Profit LE"]
     )
     for data in rows:
         writer.writerow(
@@ -365,6 +365,7 @@ def export_csv(request):
                 date.fromisoformat(data["date"]).strftime("%d.%m.%Y"),
                 data["status"],
                 *[_display_time(data[key]) for key in TIME_KEYS],
+                _csv_safe(data["delay_reason"]),
                 _csv_safe(", ".join(s["type"] for s in data["services"])),
                 data["total_cost_egp"],
                 data["total_profit_egp"],

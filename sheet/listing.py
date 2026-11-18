@@ -109,7 +109,8 @@ def range_rows(profile, f):
 
 
 def _matches_query(row, needle):
-    fields = [row["name"], row["opr"], row["poc"], row["arrival_agent"], row["sailing_agent"]]
+    fields = [row["name"], row["opr"], row["poc"], row["arrival_agent"], row["sailing_agent"],
+              row["delay_reason"]]
     fields += [part for s in row["services"] for part in (s["type"], s["agent"])]
     return any(needle in (field or "").casefold() for field in fields)
 
