@@ -134,11 +134,16 @@ export async function refreshAfterChange() {
 }
 
 export async function loadOptions() {
+  const writes = state.optionWrites;
+  let options;
   try {
-    state.options = (await api('/api/options/')).options;
+    options = (await api('/api/options/')).options;
   } catch {
-    state.options = [];
+    options = [];
   }
+  // A change saved while this was loading already brought a newer list: keep that one.
+  if (state.optionWrites !== writes) return;
+  state.options = options;
   fillQuickSelects();
 }
 

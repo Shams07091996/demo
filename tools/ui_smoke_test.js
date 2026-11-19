@@ -498,6 +498,13 @@ async function login() {
   ok($$('#vessel-form [type=datetime-local]').length === 5, 'vessel form has the five port-call time fields');
   type($('#vessel-form [name=name]'), '<img src=x onerror=window.__xss=1>');
   type($('#vessel-form [name=date]'), '2020-01-20');
+  if (ROLE === 'admin') {
+    // On All ports nothing is assumed: the admin chooses the port.
+    ok($('#vessel-form [name=port]').value === '', 'admin on All ports: the new vessel has no port yet');
+    click($('[data-act="save-vessel"]'));
+    ok(await waitFor(() => /Choose a port/.test($('#modal .error')?.textContent || '')), 'admin: a new vessel without a port is refused');
+    type($('#vessel-form [name=port]'), 'alexandria');
+  }
   click($('[data-act="save-vessel"]'));
   ok(await waitFor(() => /Choose an OPR/.test($('#modal .error')?.textContent || '')), 'a new vessel without an OPR is refused');
   type($('#vessel-form [name=opr]'), 'MSK');

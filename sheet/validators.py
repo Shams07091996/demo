@@ -317,7 +317,9 @@ def clean_vessel(data, profile, existing=None):
     if profile.port:
         port = profile.port
     else:
-        port = data.get("port") or (existing.port if existing else "alexandria")
+        port = data.get("port") or (existing.port if existing else "")
+        if not port:  # an admin's new vessel: the port is chosen, never assumed
+            raise BadRequest("Choose a port.")
         if port not in PORT_KEYS:
             raise BadRequest("Unknown port.")
 

@@ -78,6 +78,7 @@ async function changeRate(request) {
 
 async function changeOption(request) {
   state.options = (await mutate(request)).options;
+  state.optionWrites += 1;
   fillQuickSelects();
   renderMasterPage();
 }

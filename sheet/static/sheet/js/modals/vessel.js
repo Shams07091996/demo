@@ -132,17 +132,20 @@ const timeField = ({ key, label }, vessel) =>
 
 export function openVesselForm(vessel) {
   state.ctx = { view: 'vessel-form', vesselId: vessel ? vessel.id : null };
-  const selectedPort = vessel ? vessel.port : ME.port || (state.filter.port !== 'ALL' ? state.filter.port : 'alexandria');
+  const selectedPort = vessel ? vessel.port : ME.port || (state.filter.port !== 'ALL' ? state.filter.port : ''); // admins on All ports choose
   const summary = (vessel && vessel.summary) || {};
   const portField = ME.isAdmin
-    ? h('div', { class: 'field' }, h('label', null, 'Port'), h('select', { attrs: { name: 'port' } }, portOptionEls({ selected: selectedPort })))
+    ? h('div', { class: 'field' }, h('label', null, 'Port'), h('select', { attrs: { name: 'port' } },
+      h('option', { value: '' }, '—'), portOptionEls({ selected: selectedPort })))
     : null;
 
   openModal(
     headEl(vessel ? 'Edit vessel' : 'Add vessel'),
     h('div', { class: 'm-body', id: 'vessel-form' },
-      h('div', { class: 'field' }, h('label', null, 'Vessel name'),
-        h('input', { attrs: { name: 'name', maxlength: 120, autofocus: true }, value: vessel?.name })),
+      h('div', { class: portField ? 'row two' : null },
+        h('div', { class: 'field' }, h('label', null, 'Vessel name'),
+          h('input', { attrs: { name: 'name', maxlength: 120, autofocus: true }, value: vessel?.name })),
+        portField),
       h('div', { class: 'row two' },
         selectField('opr', 'OPR', vessel?.opr, selectedPort), selectField('poc', 'POC', vessel?.poc, selectedPort)),
       h('div', { class: 'row two' },
@@ -151,8 +154,7 @@ export function openVesselForm(vessel) {
       h('div', { class: 'hint' }, 'Missing an OPR, POC or agent? Add it under ',
         h('a', { href: '#master', dataset: { act: 'goto', page: 'master' }, style: { color: 'var(--accent)' } }, 'Master data'), '.'),
       h('div', { class: 'row two' },
-        h('div', { class: 'field' }, h('label', null, 'Date'), h('input', { attrs: { type: 'date', name: 'date' }, value: vessel ? vessel.date : today() })),
-        portField),
+        h('div', { class: 'field' }, h('label', null, 'Date'), h('input', { attrs: { type: 'date', name: 'date' }, value: vessel ? vessel.date : today() }))),
       h('div', { class: 'section-title', style: { marginTop: '6px' } },
         h('span', null, 'Port call times ',
           h('small', { class: 'none', style: { textTransform: 'none', letterSpacing: '0' } }, '(Cairo time, all optional)'))),

@@ -16,7 +16,7 @@ LIMITS = override_settings(
 @LIMITS
 class RateLimitTests(ApiTestCase):
     def new_vessel(self, client, name="RATE"):
-        return self.call(client, "post", "/api/vessels/", {**NEEDED, "name": name, "date": "2026-11-13"})
+        return self.call(client, "post", "/api/vessels/", {**NEEDED, "name": name, "date": "2026-11-13", "port": "alexandria"})
 
     def test_fourth_write_by_one_user_is_refused(self):
         alex = self.login("alex")
