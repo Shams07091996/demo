@@ -77,6 +77,22 @@ def _refresh(kind, booking, guest, member, group, vessel):
         guest.save()
 
 
+_GUEST_FK = {Transfer: "transfer", HotelStay: "stay"}
+
+
+def _adopt(unlinked, member, group, uid):
+    """A booking made before crew uids existed (guest with the same name and group, no uid) is linked to the member
+    instead of getting a duplicate draft. True when one was adopted."""
+    name = _guest_fields(member, group)["name"]
+    for guest in unlinked:
+        if name and guest.name == name and guest.group == group:
+            guest.crew_uid = uid
+            guest.save()
+            unlinked.remove(guest)
+            return True
+    return False
+
+
 def sync(vessel):
     """Bring the vessel's automatic bookings in step with all its Crew Change services."""
     members = crew_members(vessel)
@@ -91,11 +107,13 @@ def sync(vessel):
             for guest in guests:
                 if guest.crew_uid:
                     linked.setdefault(guest.crew_uid, []).append((booking, guest, len(guests)))
+        unlinked = [g for g in Guest.objects.filter(**{f"{_GUEST_FK[kind]}__vessel": vessel}, crew_uid="")]
         for uid, (member, group) in members.items():
             if not _wanted(kind, member):
                 continue
             if uid not in linked:
-                _create(kind, vessel, uid, member, group)
+                if not _adopt(unlinked, member, group, uid):
+                    _create(kind, vessel, uid, member, group)
                 continue
             for booking, guest, count in linked[uid]:
                 if booking.draft and count == 1:

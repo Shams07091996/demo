@@ -212,6 +212,25 @@ class DraftBookingTests(ApiTestCase):
         self.assertFalse(self.transfers().exists())
 
 
+    def test_vessel_save_refreshes_drafts(self):
+        self.post_crew(off=[member("A OFF", landing="", needsHotel=True)])
+        payload = {"name": "ALEX SHIP", "date": "2026-11-13", "sailing_at": "2026-12-02T10:00"}
+        self.assertEqual(self.call(self.alex, "put", f"/api/vessels/{self.vessel.id}/", payload)[0], 200)
+        self.assertEqual(self.stays().get().check_in, date(2026, 12, 2))
+        self.assertEqual(timezone.localtime(self.transfers().get().at).date(), date(2026, 12, 2))
+
+    def test_legacy_booking_adopted_not_duplicated(self):
+        service = self.post_crew(on=[member("J SMITH")])
+        draft = self.transfers().get()
+        draft.delete()  # as before this feature: a hand-made, completed transfer with an unlinked guest
+        old = Transfer.objects.create(vessel=self.vessel, from_place="airport", to_place="port", at=timezone.now(),
+                                      cost=1, revenue=2)
+        Guest.objects.create(transfer=old, name="J SMITH", group="on")
+        self.put_crew(service, self.saved(service)["onSigners"])
+        self.assertEqual(list(self.transfers()), [old])
+        self.assertEqual(old.guests.get().crew_uid, self.saved(service)["onSigners"][0]["uid"])
+
+
 def landing_text(day):
     return f"{day:%d} {day:%b}".upper() + " 10:00"
 
@@ -287,3 +306,4 @@ class AlertTests(ApiTestCase):
         self.crew_vessel(3)
         self.assertEqual(self.alerts("suezuser")["early"], [])
         self.assertEqual(len(self.alerts("alex")["early"]), 1)
+

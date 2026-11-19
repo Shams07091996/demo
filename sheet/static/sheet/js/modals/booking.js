@@ -87,7 +87,10 @@ async function loadCrew() {
     if (guest.crewIndex !== undefined) continue;
     const byUid = guest.crew_uid ? crew.findIndex((c) => c.uid === guest.crew_uid) : -1;
     const index = byUid >= 0 ? byUid : crew.findIndex((c) => c.name.toUpperCase() === guest.name.toUpperCase());
-    if (index >= 0 && !mine.guests.some((g) => g.crewIndex === index)) guest.crewIndex = index;
+    if (index >= 0 && !mine.guests.some((g) => g.crewIndex === index)) {
+      guest.crewIndex = index;
+      guest.crew_uid = guest.crew_uid || crew[index].uid; // link a booking made before crew uids existed
+    }
   }
   render();
 }

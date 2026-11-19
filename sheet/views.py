@@ -139,6 +139,7 @@ def vessel_detail(request, pk):
     for field, value in clean_vessel(read_json(request), request.profile, vessel).items():
         setattr(vessel, field, value)
     vessel.save()
+    crewbookings.sync(vessel)  # draft dates follow the vessel date (e.g. it became the sailing day)
     audit(request, "vessel.update", id=vessel.id)
     return _vessel_json(vessel.pk)
 
