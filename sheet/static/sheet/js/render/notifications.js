@@ -1,5 +1,5 @@
-// The bell and the banner: vessels with a date of today or tomorrow, and past vessels missing details (times, delay
-// reason, agents)
+// The bell and the banner: vessels with a date of today or tomorrow, past vessels missing details (times, delay
+// reason, agents, unfinished bookings) and on-signers landing 2+ days before their vessel (Early arrival)
 // (state.alerts, from the server).
 import { state } from '../state.js';
 import { h, icon, setChildren } from '../dom.js';
@@ -36,7 +36,8 @@ export function buildNotifications() {
   const todays = state.alerts.today;
   const tomorrows = state.alerts.tomorrow;
   const missing = state.alerts.missing || [];
-  const total = todays.length + tomorrows.length + missing.length;
+  const early = state.alerts.early || [];
+  const total = todays.length + tomorrows.length + missing.length + early.length;
 
   const badge = $('#bellBadge');
   badge.hidden = !total;
@@ -48,14 +49,19 @@ export function buildNotifications() {
       h('span', { class: `dot ${kind}` }), h('b', null, label), h('span', null, v.name), serviceTags(v));
   const missingRow = (v, cls) => h('div', { class: cls, dataset: { act: 'summary', id: v.id } },
     h('span', { class: 'dot missing' }), h('b', null, 'Missing details'), h('span', null, v.name), h('span', { class: 'none' }, `${dmy(v.date)} · ${v.missing.join(', ')}`));
+  const earlyRow = (e, cls) => h('div', { class: cls, dataset: { act: 'summary', id: e.id } },
+    h('span', { class: 'dot early' }), h('b', null, 'Early arrival'), h('span', null, e.name),
+    h('span', { class: 'none' }, `${e.crew} · lands ${dmy(e.lands)} · vessel ${dmy(e.date)}`));
   const { shown: missingShown, more } = limitRows(missing, BANNER_MISSING_MAX);
+  const { shown: earlyShown, more: earlyMore } = limitRows(early, BANNER_MISSING_MAX);
   const banner = $('#notifBanner');
   const collapsed = alertsCollapsed();
   banner.hidden = !total;
   banner.classList.toggle('collapsed', collapsed);
   const head = h('div', { class: 'notif-head' },
     h('span', null, h('span', { class: 'dot today' }), ' ', h('b', null, todays.length), ' today · ', h('span', { class: 'dot tomorrow' }), ' ', h('b', null, tomorrows.length), ' tomorrow',
-      missing.length ? [' · ', h('b', null, missing.length), ' missing details'] : null),
+      missing.length ? [' · ', h('b', null, missing.length), ' missing details'] : null,
+      early.length ? [' · ', h('b', null, early.length), ' early arrival'] : null),
     h('span', { class: 'spacer' }),
     h('button', { class: 'btn ghost small', dataset: { act: 'toggle-alerts' }, attrs: { 'aria-expanded': String(!collapsed) } },
       collapsed ? ['Show ', icon('chevron-down')] : ['Hide ', icon('chevron-up')]));
@@ -63,7 +69,8 @@ export function buildNotifications() {
     todays.map((v) => bannerRow(v, 'today', 'Today')),
     tomorrows.map((v) => bannerRow(v, 'tomorrow', 'Tomorrow')),
     missingShown.map((v) => missingRow(v, 'notif-row missing')),
-    more ? h('button', { class: 'btn ghost small', dataset: { act: 'show-alerts-panel' } }, `+ ${more} more`) : null,
+    earlyShown.map((e) => earlyRow(e, 'notif-row early')),
+    more || earlyMore ? h('button', { class: 'btn ghost small', dataset: { act: 'show-alerts-panel' } }, `+ ${more + earlyMore} more`) : null,
   ]);
 
   const panelItem = (v) => h('div', { class: 'notif-item', dataset: { act: 'summary', id: v.id } },
@@ -75,7 +82,9 @@ export function buildNotifications() {
   setChildren($('#notifPanel'), total
     ? [group(todays, 'var(--danger)', `Today — ${dmy(todayIso)}`), group(tomorrows, 'var(--warning)', `Tomorrow — ${dmy(tomorrowIso)}`),
       missing.length ? [h('div', { class: 'notif-group', style: { color: 'var(--accent)' } }, 'Missing details'),
-        missing.map((v) => missingRow(v, 'notif-item missing'))] : null]
+        missing.map((v) => missingRow(v, 'notif-item missing'))] : null,
+      early.length ? [h('div', { class: 'notif-group', style: { color: 'var(--warning)' } }, 'Early arrival'),
+        early.map((e) => earlyRow(e, 'notif-item early'))] : null]
     : h('div', { class: 'empty' }, 'No vessels today or tomorrow.'));
 }
 

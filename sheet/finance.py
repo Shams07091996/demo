@@ -123,7 +123,7 @@ def _all_lines(service_type, data, month_rate):
     if service_type == "Cash to Master":
         return [_cash_to_master(data, rate, own_rate)]
     # Every other service (Crew Change and Others / Remarks included) has one cost and one revenue.
-    return [
+    lines = [
         line(
             _single_label(service_type, data),
             money(data.get("cost"), data.get("costCurrency"), rate),
@@ -131,6 +131,17 @@ def _all_lines(service_type, data, month_rate):
             own_rate,
         )
     ]
+    if service_type == "Crew Change":  # plus each on-signer's broken-visa charge
+        for member in data.get("onSigners") or []:
+            visa = member.get("brokenVisa") if isinstance(member, dict) else None
+            if isinstance(visa, dict):
+                lines.append(line(
+                    f"Broken visa · {member.get('name') or ''}".strip(),
+                    money(visa.get("cost"), visa.get("costCurrency"), rate),
+                    money(visa.get("revenue"), visa.get("revenueCurrency"), rate),
+                    own_rate,
+                ))
+    return lines
 
 
 def has_money(item):

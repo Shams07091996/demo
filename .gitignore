@@ -9,3 +9,6 @@ tools/node_modules/
 .ruff_cache/
 db.sqlite3-journal
 .superpowers/
+
+# LOG letter pictures (signed company stamp): never in git
+letterhead/

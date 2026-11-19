@@ -1,14 +1,17 @@
 """HTTP handlers: the page, the JSON API and the CSV export."""
 
 import csv
+import logging
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from functools import cache
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import Count
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -16,7 +19,7 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, closures, listing, logistics, ratelimit, twostep
+from . import calculations, closures, crewbookings, history, listing, logistics, logpdf, ratelimit, twostep
 from . import dashboard as dashboard_figures
 from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
@@ -36,6 +39,8 @@ from .errors import BadRequest, Forbidden, TooManyRequests
 from .models import ChangeRecord, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import clean_agent, clean_service_data, clean_vessel
+
+security_log = logging.getLogger("sheet.security")
 
 # ---- page -----------------------------------------------------------------------------------
 
@@ -134,6 +139,7 @@ def vessel_detail(request, pk):
     for field, value in clean_vessel(read_json(request), request.profile, vessel).items():
         setattr(vessel, field, value)
     vessel.save()
+    crewbookings.sync(vessel)  # draft dates follow the vessel date (e.g. it became the sailing day)
     audit(request, "vessel.update", id=vessel.id)
     return _vessel_json(vessel.pk)
 
@@ -158,6 +164,7 @@ def service_create(request, pk):
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
     service_type, agent, data = _read_service(request, vessel)
     service = Service.objects.create(vessel=vessel, service_type=service_type, agent=agent, data=data)
+    crewbookings.sync(vessel)
     audit(request, "service.create", id=service.id, vessel=vessel.id, type=service_type)
     return _vessel_json(vessel.pk, status=201)
 
@@ -175,7 +182,68 @@ def service_detail(request, pk):
         service.service_type, service.agent, service.data = _read_service(request, service.vessel, service.agent)
         service.save()
         audit(request, "service.update", id=service.id, vessel=service.vessel_id)
+    crewbookings.sync(service.vessel)  # automatic bookings follow the crew (a deleted service drops its drafts)
     return _vessel_json(service.vessel_id)
+
+
+# ---- LOG letter (see logpdf.py) --------------------------------------------------------------
+
+_LETTERHEAD_FILES = {"logo": "logo.jpg", "stamp": "stamp.jpg", "footer": "footer.jpg"}
+_MAX_IMAGE_BYTES = 2_000_000
+
+
+def _letterhead_images():
+    """The letterhead JPEGs from settings.LETTERHEAD_DIR (fixed names only); a missing / unreadable one is None."""
+    folder = settings.LETTERHEAD_DIR
+    images = {}
+    for name, file_name in _LETTERHEAD_FILES.items():
+        images[name] = None
+        if not folder:
+            continue
+        try:
+            path = Path(folder, file_name)
+            if path.is_file() and path.stat().st_size <= _MAX_IMAGE_BYTES:
+                images[name] = path.read_bytes()
+        except OSError:
+            security_log.warning("letterhead image unreadable name=%s", name)
+    return images
+
+
+def _file_name_part(text):
+    return " ".join(re.sub(r"[^A-Za-z0-9 -]", "", str(text)).split())[:60]
+
+
+@json_api
+@require_http_methods(["GET"])
+def service_log(request, pk, uid):
+    """The LOG letter (PDF) of one on-signer of a Crew Change. Anyone who can edit the vessel may make it."""
+    require_edit(request.profile)
+    ratelimit.check(request, "export")
+    allowed = scoped_vessels(request.profile, prefetch=False)
+    service = get_object_or_404(Service.objects.filter(vessel__in=allowed, service_type="Crew Change")
+                                .select_related("vessel"), pk=pk)
+    person = next((m for m in (service.data or {}).get("onSigners") or []
+                   if isinstance(m, dict) and m.get("uid") == uid), None)
+    if person is None:
+        raise Http404
+    segments = (person.get("flightStructured") or {}).get("segments") or []
+    vessel = service.vessel
+    fields = {
+        "to": (segments[0].get("airline") if segments and isinstance(segments[0], dict) else "") or "",
+        "date": timezone.localdate().strftime("%d/%m/%Y"),
+        "vessel": vessel.name,
+        "flight": person.get("flightData") or "",
+        "personal": person.get("personalData") or "",
+    }
+    pdf = logpdf.build(fields, _letterhead_images())
+    name = person.get("name") or ""
+    history.record("letter", service, {"LOG letter": [None, name]})
+    audit(request, "service.log", id=service.id, vessel=vessel.id, crew=name)
+    response = HttpResponse(pdf, content_type="application/pdf")
+    file_name = " ".join(part for part in ("LOG", _file_name_part(vessel.name), _file_name_part(name)) if part)
+    response["Content-Disposition"] = f'attachment; filename="{file_name}.pdf"'
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 # ---- exchange rates -------------------------------------------------------------------------

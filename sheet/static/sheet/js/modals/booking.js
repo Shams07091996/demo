@@ -85,8 +85,12 @@ async function loadCrew() {
   // When editing, tick the crew members who are already guests (matched by name).
   for (const guest of mine.guests) {
     if (guest.crewIndex !== undefined) continue;
-    const index = crew.findIndex((c) => c.name.toUpperCase() === guest.name.toUpperCase());
-    if (index >= 0 && !mine.guests.some((g) => g.crewIndex === index)) guest.crewIndex = index;
+    const byUid = guest.crew_uid ? crew.findIndex((c) => c.uid === guest.crew_uid) : -1;
+    const index = byUid >= 0 ? byUid : crew.findIndex((c) => c.name.toUpperCase() === guest.name.toUpperCase());
+    if (index >= 0 && !mine.guests.some((g) => g.crewIndex === index)) {
+      guest.crewIndex = index;
+      guest.crew_uid = guest.crew_uid || crew[index].uid; // link a booking made before crew uids existed
+    }
   }
   render();
 }
@@ -228,7 +232,7 @@ async function prefill() {
     if (touchesHotel(form) && !form.hotel && guestName) {
       try {
         const { bookings } = await api(`/api/hotels/?${new URLSearchParams({ q: guestName, page_size: 50 })}`);
-        const stay = bookings.find((b) => b.vessel.id === vessel.id && b.guests.some((g) => g.name === guestName));
+        const stay = bookings.find((b) => b.hotel && b.vessel.id === vessel.id && b.guests.some((g) => g.name === guestName));
         if (stay && !form.hotel) form.hotel = stay.hotel;
       } catch {
         // no pre-fill
@@ -306,7 +310,7 @@ function toggleCrew(index, on) {
       return;
     }
     const c = crew[index];
-    guests.push({ name: c.name, rank: c.rank, nationality: c.nationality, group: c.group, flight: c.flight, crewIndex: index });
+    guests.push({ name: c.name, rank: c.rank, nationality: c.nationality, group: c.group, flight: c.flight, crew_uid: c.uid, crewIndex: index });
     prefill();
   } else {
     ctx().guests = guests.filter((g) => g.crewIndex !== index);
@@ -363,7 +367,7 @@ export async function saveBooking() {
   const payload = {
     ...fields,
     vessel: vessel.id,
-    guests: guests.map(({ name, rank, nationality, group, flight }) => ({ name, rank, nationality, group, flight })),
+    guests: guests.map(({ name, rank, nationality, group, flight, crew_uid: crewUid }) => ({ name, rank, nationality, group, flight, crew_uid: crewUid || '' })),
     [costKey]: cost,
     [revenueKey]: revenue,
   };

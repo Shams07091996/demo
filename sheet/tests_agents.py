@@ -223,5 +223,6 @@ class MissingAgentTests(ApiTestCase):
         with CaptureQueriesContext(connection) as queries:
             status, data = self.call(client, "get", "/api/vessels/alerts/")
         self.assertEqual([m["name"] for m in data["missing"]], ["GAP"])
-        sql = " ".join(q["sql"] for q in queries.captured_queries)
+        # Early arrival reads crew data, but only of Crew Change services in its 60-day look-back (crewbookings).
+        sql = " ".join(q["sql"] for q in queries.captured_queries if "'Crew Change'" not in q["sql"])
         self.assertNotIn('"sheet_service"."data"', sql)

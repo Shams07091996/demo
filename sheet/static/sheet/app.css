@@ -20,7 +20,7 @@ button,input,select,textarea{font-family:inherit}
 .meta-item{display:inline-flex;align-items:center;gap:4px}
 .x{display:inline-flex;align-items:center;justify-content:center}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;vertical-align:middle}
-.dot.today{background:var(--danger)}.dot.tomorrow{background:var(--warning)}.dot.missing{background:var(--accent)}
+.dot.today{background:var(--danger)}.dot.tomorrow{background:var(--warning)}.dot.missing{background:var(--accent)}.dot.early{background:var(--warning)}
 h1{font-size:20px;font-weight:600}
 h1 span{color:var(--accent)}
 code{background:color-mix(in srgb,var(--text) 8%,transparent);padding:1px 6px;border-radius:4px;font-size:12px}
@@ -138,6 +138,7 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .notif-row.today{background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 35%,transparent)}
 .notif-row.tomorrow{background:color-mix(in srgb,var(--warning) 10%,transparent);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent)}
 .notif-row.missing{background:color-mix(in srgb,var(--accent) 8%,transparent);border:1px solid var(--line)}
+.notif-row.early{background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid var(--line)}
 .svc-agent{font-size:12px;color:var(--muted);margin-top:4px}
 .notif-row b{font-size:11px}
 .bell-wrap{position:relative}.bell{position:relative;padding:6px 12px}
@@ -236,6 +237,9 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .crew-card{background:var(--surface2);border:1px solid var(--line);border-radius:6px;margin-bottom:8px;overflow:hidden}
 .crew-head{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;cursor:pointer}
 .crew-head span{font-weight:600;font-size:13px}
+.crew-actions{display:flex;gap:6px;align-items:center}
+.crew-body .check{display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 10px}
+.crew-body .check input{width:auto}
 .crew-body{display:none;padding:0 12px 10px}.crew-card.open .crew-body{display:block}
 .crew-body .field{margin-bottom:8px}.crew-body textarea{min-height:90px;font-size:12px}
 .parsed{font-size:11px;color:var(--accent);margin-top:4px}

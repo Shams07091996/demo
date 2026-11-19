@@ -9,7 +9,9 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
+from sheet import crewbookings
 from sheet.models import ExchangeRate, Option, PortClosure, Profile, Service, Vessel
+from sheet.validators import clean_service_data
 
 DEMO_USERS = [
     ("admin", "admin"),
@@ -107,20 +109,28 @@ class Command(BaseCommand):
             data={"amount": 1000, "amountCurrency": "USD", "shareMode": "percent", "percentage": 5},
         )
         landing = f"{today:%d} {today:%b}".upper() + " 10:00"  # e.g. "16 NOV 10:00", as the flight parser stores it
-        flight = {"segments": [{"flightNo": "MS123", "arrivalCity": "Alexandria", "arrivalTime": landing}]}
+        flight = {"segments": [{"flightNo": "MS123", "airline": "EGYPTAIR", "arrivalCity": "Alexandria",
+                                "arrivalTime": landing}]}
+        early_day = today - timedelta(days=3)  # lands 3 days before the vessel: the "Early arrival" alert
+        early = {"segments": [{"flightNo": "MS125", "airline": "EGYPTAIR", "arrivalCity": "Alexandria",
+                               "arrivalTime": f"{early_day:%d} {early_day:%b}".upper() + " 09:00"}]}
+        # Cleaned like a browser save (crew uids); Ahmed Test needs a hotel. sync() makes the draft bookings.
         Service.objects.create(
             vessel=v1,
             service_type="Crew Change",
-            data={
+            data=clean_service_data("Crew Change", {
                 "onSigners": [
                     {"name": "Ahmed Test", "personalStructured": {"rank": "2/E", "nationality": "Egyptian"},
-                     "flightStructured": flight},
+                     "flightStructured": flight, "needsHotel": True,
+                     "flightData": f"MS123 EGYPTAIR ARRIVAL ALEXANDRIA {landing}",
+                     "personalData": "Surname: Test\nGiven name: Ahmed\nRank: 2/E\nNationality: Egyptian"},
                     {"name": "Ali Sayed", "personalStructured": {"rank": "OS", "nationality": "Egyptian"},
-                     "flightStructured": flight},
+                     "flightStructured": early},
                 ],
                 "offSigners": [],
-            },
+            }),
         )
+        crewbookings.sync(v1)
         v2 = Vessel.objects.create(
             name="ARKAS STAR", opr="ARK", poc="AIT", date=today + timedelta(days=1), port="portsaid",
             arrival_agent="NILE AGENCY", sailing_agent="NILE AGENCY",

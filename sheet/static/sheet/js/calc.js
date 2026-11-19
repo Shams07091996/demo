@@ -30,6 +30,13 @@ export function calcLocal(type, data, monthRate) {
   } else { // every other service, Crew Change and Others / Remarks included
     cost = toEgp(data.cost, data.costCurrency);
     revenue = toEgp(data.revenue, data.revenueCurrency);
+    if (type === 'Crew Change') { // plus each on-signer's broken-visa charge
+      (data.onSigners || []).forEach((m) => {
+        const visa = m.brokenVisa || {};
+        cost += toEgp(visa.cost, visa.costCurrency);
+        revenue += toEgp(visa.revenue, visa.revenueCurrency);
+      });
+    }
   }
   return {
     cost_egp: cost,

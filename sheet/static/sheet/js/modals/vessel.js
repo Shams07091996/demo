@@ -102,11 +102,21 @@ export function updateDelayRow() {
   row.hidden = !(isDelayed(value('arrival_at'), value('berthing_at')) || value('delay_reason'));
 }
 
+/** Once a sailing time is filled, the vessel's date is its sailing day (the server sets it too): show that, read-only. */
+export function syncSailingDate() {
+  const date = $('#vessel-form [name="date"]');
+  const sailing = $('#vessel-form [name="sailing_at"]');
+  if (!date || !sailing) return;
+  date.readOnly = Boolean(sailing.value);
+  if (sailing.value) date.value = sailing.value.slice(0, 10);
+}
+
 /** Admin changed the vessel's port in the form: offer that port's OPR / POC / agent / delay values (keeping the chosen
  *  ones). Arrival or berthing changed: show or hide the delay reason. */
 export function onVesselFormChange(event) {
   if (state.ctx.view !== 'vessel-form') return;
   if (['arrival_at', 'berthing_at', 'delay_reason'].includes(event.target.name)) updateDelayRow();
+  if (event.target.name === 'sailing_at') syncSailingDate();
   if (event.target.name !== 'port') return;
   for (const [name, kind] of FORM_LISTS) {
     const select = $(`#vessel-form [name="${name}"]`);
@@ -160,6 +170,7 @@ export function openVesselForm(vessel) {
         vessel ? null : btn('ghost', 'save-vessel-more', 'Save & add another'), ' ',
         btn('primary', 'save-vessel', 'Save'))),
   );
+  syncSailingDate();
 }
 
 /** The values typed into the vessel form, ready to send to the server. */
