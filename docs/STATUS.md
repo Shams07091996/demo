@@ -36,7 +36,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
   superuser, and a stronger `postgres` password.
   App settings for it: `DJANGO_DB_NAME=marine_sheet DJANGO_DB_USER=postgres DJANGO_DB_HOST=localhost
   DJANGO_DB_PORT=5432 DJANGO_DB_SSLMODE=disable` (the local server has SSL off and accepts local connections only).
-- **Tests (on `main`):** `cd tools && npm run check` → all passed (235 backend tests; the 204 of 2026-11-17 also passed on PostgreSQL 17, the agents tests not yet); `tools` parser tests pass; the jsdom smoke test
+- **Tests (on `main`):** `cd tools && npm run check` → all passed (452 backend tests; all 452 also passed on PostgreSQL 17 on 2026-11-19, the PostgreSQL-only history trigger tests included); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
