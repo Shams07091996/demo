@@ -5,12 +5,11 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Crew bookings, sailing date, early arrival, LOG letter (2026-11-19):** built on branch
-  **`feature/crew-bookings-log`, not merged** (merge only when the user agrees). Needs migration
+- **Crew bookings, sailing date, early arrival, LOG letter (2026-11-19):** merged into `main` (branch deleted). Needs migration
   **`0014_crew_bookings`** (it also moves every vessel that has a sailing time to its sailing day). For the LOG
   pictures, put `logo.jpg`, `stamp.jpg`, `footer.jpg` (from the user's `LOG.docx`) in a folder outside the project and
   set `DJANGO_LETTERHEAD_DIR`; without it the letter has no logo / stamp / footer. `npm run check` green; smoke test
-  passes for alex / admin / viewer / suez.
+  passes for alex / admin / viewer / suez; fresh review done (fixes in).
 - **Port closures, delay reason, Missing details (2026-11-19):** merged into `main` (branch deleted). Needs migration **`0013_port_closures_and_delays`** after merging.
   **Right after migrating, an admin fills Master data → Delay reason and Closure reason** (at least All-ports values):
   while they are empty, no closure can be added and a vessel that berthed more than 2 hours after arrival cannot be
@@ -27,7 +26,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
   login (user's choice, 2026-11-19). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
-- **Tests:** `npm run check` green with 396 backend tests on `main`; smoke test
+- **Tests:** `npm run check` green with 443 backend tests on `main`; smoke test
   (now signing in with a code) passes for `alex`, `admin`, `viewer` and `suez`. Screenshots (light / dark / phone) in `.superpowers/screenshots/new-look/` (not in git).
 - **The user's own database:** **PostgreSQL 17 only**, on this PC (port 5432; PostgreSQL 18 on 5433 is not used).
   Database `marine_sheet`, signed in as `postgres` for now (password in the user's
@@ -60,7 +59,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 | 2026-11-18 | **Dashboards** (merged 2026-11-18): one filter bar (dates, port, OPR, agent, service type); jobs per agent (bars + table; a row opens that agent's jobs), services per month (stacked columns + table), money per month (Cost / Revenue / Profit table); OPR charts and cards follow the filters | `2026-11-18-dashboards-design.md` |
 | 2026-11-18 | **New look** (merged 2026-11-18): neutral grey with one blue accent; dark and light mode (follows the computer until chosen in the sidebar, remembered); system font, no Google Fonts (CSP `font-src 'none'`); 28 line icons drawn for the app instead of emojis; full-width pages, smaller radii, no gradients or all-caps headings | `2026-11-18-new-look-design.md` |
 | 2026-11-18 | **Two-step login** (security piece 3): password + six-digit Microsoft Authenticator code for everyone; one gate for every page, API call and admin page; remember this computer 30 days (Forget in the sidebar); setup within 72 hours of creation / reset; forced password change when someone else set it; superuser-only reset (admin action, `reset_two_step` command); exceptions for non-admins; key never in history / logs / admin; deploy warning `sheet.W002` (fewer than two superusers with Authenticator) | `2026-11-17-two-step-login-design.md` |
-| 2026-11-19 | **Crew bookings, sailing date, early arrival, LOG letter** (branch `feature/crew-bookings-log`): every crew member gets an automatic **draft** transfer, and a draft hotel stay when **Needs hotel** is ticked (tagged "To complete" until saved in the dialog); incomplete bookings of a vessel that has sailed join its **Missing details** line; the vessel date becomes the **sailing day** once a sailing time is entered; on-signers landing 2+ days before the vessel show as **Early arrival** until a **Broken visa** cost / revenue (counted in the crew change's money) is entered; a **LOG** button per on-signer downloads the letter as a PDF made by our own code (no library), edit roles only, recorded in the History | `2026-11-19-crew-bookings-early-arrival-log-design.md` |
+| 2026-11-19 | **Crew bookings, sailing date, early arrival, LOG letter** (merged 2026-11-19): every crew member gets an automatic **draft** transfer, and a draft hotel stay when **Needs hotel** is ticked (tagged "To complete" until saved in the dialog); incomplete bookings of a vessel that has sailed join its **Missing details** line; the vessel date becomes the **sailing day** once a sailing time is entered; on-signers landing 2+ days before the vessel show as **Early arrival** until a **Broken visa** cost / revenue (counted in the crew change's money) is entered; a **LOG** button per on-signer downloads the letter as a PDF made by our own code (no library), edit roles only, recorded in the History | `2026-11-19-crew-bookings-early-arrival-log-design.md` |
 | 2026-11-16 | Project put under git; `CLAUDE.md` and this file written for future sessions | — |
 
 ## Decisions the user made (respect these)
