@@ -68,6 +68,8 @@ Each row: what the app does, which tests prove it, and what is left to the peopl
 * LOG letter pictures: put `logo.jpg`, `stamp.jpg` and `footer.jpg` (baseline JPEGs, at most 2 MB each) in a folder
   **outside the project and outside static files**, readable only by the app's user, and set `DJANGO_LETTERHEAD_DIR` to
   it. Never commit them (the stamp is signed); `.gitignore` ignores a `letterhead/` folder.
+* Static files: run `python manage.py collectstatic --noinput` on every release and have the web server serve
+  `staticfiles/` at `/static/` with `Cache-Control: no-cache` (README, "Static files … in production").
 * Run `cd tools && npm run check` on every release (it includes `check --deploy`, `pip-audit` and `npm audit`).
 * On the server, `python manage.py check --deploy --database default`: warns (`sheet.W002`) while fewer than two
   active superusers have Authenticator set up.

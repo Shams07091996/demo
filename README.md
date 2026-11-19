@@ -56,6 +56,40 @@ python manage.py loaddata data.json
 PostgreSQL enforces text lengths and number sizes that SQLite ignores; the app trims input before saving, so normal
 data loads, but run the test suite against PostgreSQL once before relying on it.
 
+## Static files (CSS, scripts, icons) in production
+
+With debug off, Django does **not** serve the CSS and JavaScript files: without the step below the page loads with no
+styles and no scripts. On every release, in the production environment:
+
+```bash
+python manage.py collectstatic --noinput     # copies everything under static/ into staticfiles/
+```
+
+Then let the web server answer `/static/` from that `staticfiles/` folder and send everything else to Django. The files
+have fixed names (no version in the name), so tell browsers to check for a newer copy each time (`no-cache`): otherwise
+after an update a browser can mix old and new scripts and the page breaks. Example for nginx:
+
+```nginx
+location /static/ {
+    alias /srv/marine_sheet/staticfiles/;
+    add_header Cache-Control "no-cache";
+    add_header X-Content-Type-Options "nosniff";
+}
+location / {
+    proxy_pass http://127.0.0.1:8000;              # the WSGI server running config.wsgi
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;    # with DJANGO_BEHIND_PROXY=1
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;   # with DJANGO_CLIENT_IP_HEADER=X-Forwarded-For
+}
+```
+
+- **IIS:** a virtual directory `/static` pointing at `staticfiles\`, with `Cache-Control: no-cache` in its HTTP response
+  headers.
+- **PythonAnywhere:** Web tab → Static files → URL `/static/`, directory `…/marine_sheet/staticfiles`.
+- Never put anything private in `static/`: everything there is public. The LOG letter pictures stay in their own folder
+  (`DJANGO_LETTERHEAD_DIR`).
+- The development server (`runserver`) serves these files itself, already with `no-cache`.
+
 ## Pages (sidebar)
 
 | Page | What it is for |
