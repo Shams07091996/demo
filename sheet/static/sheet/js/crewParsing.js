@@ -16,6 +16,10 @@ export function parsePersonal(text) {
   return parsed;
 }
 
+/** The date that follows the airline on a FLIGHT line ("EMIRATES   TUE 17 NOVEMBER 2026"); same rule as
+ *  views.AIRLINE_DATE_TAIL on the server. */
+const FLIGHT_DATE_TAIL = /\s+(?:(?:MON|TUE|WED|THU|FRI|SAT|SUN)[A-Z]*\s+\d{1,2}\b|\d{1,2}\s+[A-Z]{3,}\s+\d{2,4}\b).*$/i;
+
 /** Hand-typed blocks: "FLIGHT TK123 - Airline  DEPARTURE: City  13 NOV 10:00  ARRIVAL: ...". */
 function parseFlightManual(text) {
   const segments = [];
@@ -26,7 +30,7 @@ function parseFlightManual(text) {
     const arrival = block.match(/ARRIVAL:\s*([^\n,]+(?:,[^\n]+)?)\s{2,}(\d{1,2}\s+[A-Z]{3}\s+\d{2}:\d{2})/i);
     segments.push({
       flightNo: flight[1].replace(/\s+/, ''),
-      airline: flight[2].trim(),
+      airline: flight[2].replace(FLIGHT_DATE_TAIL, '').trim(),
       departureCity: departure ? departure[1].trim() : '',
       departureTime: departure ? departure[2].trim() : '',
       arrivalCity: arrival ? arrival[1].trim() : '',

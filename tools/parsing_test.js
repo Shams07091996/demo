@@ -32,6 +32,10 @@ check(seg && seg.flightNo === 'TK689' && seg.airline === 'Turkish Airlines', 'ma
 check(seg.departureCity === 'Alexandria, Egypt' && seg.departureTime === '05 APR 08:55', 'manual departure');
 check(seg.arrivalCity === 'Istanbul, Turkey' && seg.arrivalTime === '05 APR 12:30', 'manual arrival');
 check(parseFlightText('nothing useful here').length === 0, 'unrecognised text gives no segments');
+const dated = parseFlightText('FLIGHT     EK 337 - EMIRATES                         TUE 17 NOVEMBER 2026\n' +
+  'DEPARTURE: MANILA, PH (NINOY AQUINO INTL), TERMINAL 3           17 NOV 07:55\n')[0];
+check(dated && dated.flightNo === 'EK337' && dated.airline === 'EMIRATES', 'the flight date is not part of the airline');
+check(parseFlightText('FLIGHT FZ 175 - FLYDUBAI TUE 17 NOVEMBER 2026')[0].airline === 'FLYDUBAI', 'one space before the date: still cut');
 
 const itinerary = 'Travel Details Sunday 05 Apr 2026 ' +
   'Flight Information Airline Booking Ref VBCUSA Airline Turkish Airlines Flight TK689 Origin Alexandria, Borg el Arab Destination Istanbul Airport Departing 08:55 Arriving 12:30 ' +
