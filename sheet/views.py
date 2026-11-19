@@ -16,7 +16,7 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, closures, listing, logistics, ratelimit, twostep
+from . import calculations, closures, crewbookings, listing, logistics, ratelimit, twostep
 from . import dashboard as dashboard_figures
 from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
@@ -158,6 +158,7 @@ def service_create(request, pk):
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
     service_type, agent, data = _read_service(request, vessel)
     service = Service.objects.create(vessel=vessel, service_type=service_type, agent=agent, data=data)
+    crewbookings.sync(vessel)
     audit(request, "service.create", id=service.id, vessel=vessel.id, type=service_type)
     return _vessel_json(vessel.pk, status=201)
 
@@ -175,6 +176,7 @@ def service_detail(request, pk):
         service.service_type, service.agent, service.data = _read_service(request, service.vessel, service.agent)
         service.save()
         audit(request, "service.update", id=service.id, vessel=service.vessel_id)
+    crewbookings.sync(service.vessel)  # automatic bookings follow the crew (a deleted service drops its drafts)
     return _vessel_json(service.vessel_id)
 
 

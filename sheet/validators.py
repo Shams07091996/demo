@@ -373,6 +373,7 @@ def clean_guests(raw):
                 "nationality": _short(item.get("nationality"), 60, "Guest nationality"),
                 "group": group if group in GUEST_GROUPS else "",
                 "flight": _short(item.get("flight"), 20, "Guest flight"),
+                "crew_uid": uid if isinstance(uid := item.get("crew_uid"), str) and UID_RE.match(uid) else "",
             }
         )
     return guests

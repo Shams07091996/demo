@@ -97,7 +97,7 @@ def _in_range(kind, queryset, p):
 def _guest_dict(guest):
     return {
         "name": guest.name, "rank": guest.rank, "nationality": guest.nationality,
-        "group": guest.group, "flight": guest.flight,
+        "group": guest.group, "flight": guest.flight, "crew_uid": guest.crew_uid,
     }
 
 
@@ -109,6 +109,7 @@ def booking_to_dict(kind, obj, profile):
                    "port_label": PORT_LABELS.get(vessel.port, vessel.port)},
         "guests": [_guest_dict(g) for g in obj.guests.all()],
         "hotel": obj.hotel,
+        "draft": obj.draft,
     }
     if kind == "hotels":
         row.update(check_in=obj.check_in.isoformat(), nights=obj.nights, check_out=obj.check_out.isoformat())
@@ -212,6 +213,7 @@ def save_booking(kind, profile, data, existing=None):
         check_booking_lists(cleaned, obj.vessel.port, existing)
         for field, value in cleaned.items():
             setattr(obj, field, value)
+        obj.draft = False  # saved by a person: no longer an automatic draft
         obj.save()
         obj.guests.all().delete()
         history.record_created(
@@ -257,14 +259,27 @@ def parse_flight_time(text, segment_date, near):
     return None
 
 
+def crew_leg(member, group):
+    """The flight leg into Egypt (on-signer: the last) or out of Egypt (off-signer: the first), or {}."""
+    segments = (member.get("flightStructured") or {}).get("segments") or []
+    leg = (segments[-1] if group == "on" else segments[0]) if segments else {}
+    return leg if isinstance(leg, dict) else {}
+
+
+def crew_moment(member, group, near):
+    """When an on-signer lands / an off-signer takes off (Cairo datetime), or None when it can't be read."""
+    leg = crew_leg(member, group)
+    key = "arrivalTime" if group == "on" else "departureTime"
+    return parse_flight_time(leg.get(key), leg.get("date"), near) if leg else None
+
+
 def _crew_entry(member, group, near):
     personal = member.get("personalStructured") or {}
-    segments = (member.get("flightStructured") or {}).get("segments") or []
-    leg = (segments[-1] if group == "on" else segments[0]) if segments else {}  # into Egypt / out of Egypt
-    key = "arrivalTime" if group == "on" else "departureTime"
-    moment = parse_flight_time(leg.get(key), leg.get("date"), near) if leg else None
+    leg = crew_leg(member, group)
+    moment = crew_moment(member, group, near)
     stamp = local_iso(moment) if moment else ""
     return {
+        "uid": member.get("uid", ""),
         "group": group,
         "name": member.get("name") or personal.get("name") or "",
         "rank": personal.get("rank", ""),
