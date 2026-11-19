@@ -59,7 +59,8 @@ cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_sm
 - `runserver --noreload` caches templates **and Python code**: restart it after editing `index.html` or any `.py`.
 - The smoke test's writes count against the API rate limits (120 writes / 10 min per user, 600 per address): fine for
   one run of each role; many back-to-back runs on one server may need `DJANGO_RATE_LIMIT_*` raised.
-- `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers and a USD Fresh Water service at
+- `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers (Ahmed Test needs a hotel, Ali
+  Sayed lands 3 days early: the "Early arrival" alert; drafts made by `crewbookings.sync`) and a USD Fresh Water service at
   the month rate 50, and SEA BREEZE (Alexandria, yesterday) no times, a missing sailing agent and a Landing without agent (the
   "Missing details" alert); it also adds Delay / Closure reasons, a WEATHER closure in Alexandria (yesterday 06:00-14:00,
   "Strong wind") and an open FOG closure in Port Said; the smoke test relies on all of these.
@@ -134,6 +135,29 @@ booking. Bookings are scoped through `vessel` like everything else. Each booking
 line. Booking money counts on the Calculations page only and is not part of `finance.compute` or any vessel
 figure. `crew_of(vessel)` feeds the dialog's crew picker (on-signers use their last flight leg, off-signers their
 first). The two pages are one module configured twice (`js/pages/bookings.js`) plus the dialog (`js/modals/booking.js`).
+
+**Automatic crew bookings** (`crewbookings.py`): every crew member has a stable `uid` (12 hex, made by
+`validators._clean_crew_change`), `needsHotel`, and on-signers a `brokenVisa` cost / revenue (a money line of the Crew
+Change in `finance`). After every Crew Change write, `crewbookings.sync(vessel)` gives each member a **draft** transfer
+(on: airport → port at landing; off: port → airport at take-off; else the vessel date 00:00) and, while Needs hotel is
+on, a draft hotel stay (hotel "", 1 night). Drafts (`draft=True`) are linked by `Guest.crew_uid`, follow their member
+while they hold that one guest, and are deleted when the member goes away; a booking saved in the dialog becomes
+`draft=False` and is never touched again (the dialog keeps `crew_uid`). The alerts add `early` (on-signers landing 2+
+days before the vessel date, 60-day look-back, cleared by any broken-visa amount incl. 0) and, in `missing`,
+`Hotel: …` / `Transport: …` for incomplete bookings (draft or no cost / revenue) of vessels that have **sailed**
+(sailing time passed, or none and dated before today). `crewbookings` imports `logistics`, which imports `listing`, so
+`listing` imports `crewbookings` inside its functions.
+
+**LOG letter** (`logpdf.py`, `GET /api/services/<id>/log/<uid>/`, `views.service_log`): the on-signer's "Invitation
+letter for boarding" as a PDF written with the **standard library only** (the user refused any PDF library): built-in
+fonts with WinAnsi (`to_winansi`: Ş → S, Cyrillic → ?), JPEGs placed raw (`/DCTDecode`, only the header is read), every
+value a plain escaped PDF string, never `{{ }}`. Edit roles only (`require_edit`, scoped, Crew Change on-signers), rate
+limited like the CSV export, recorded in the History (action `letter`). The logo / stamp / footer JPEGs come from
+`DJANGO_LETTERHEAD_DIR` (`logo.jpg`, `stamp.jpg`, `footer.jpg`) — **never in git (the GitHub repo is public) and never
+under `static/`**; missing → the letter has no pictures.
+
+**Vessel date = sailing day:** once `sailing_at` is set, `clean_vessel` sets `date` to its Cairo date (migration 0014
+did the same for existing vessels); the form shows the date read-only.
 
 **Calculations** (`calculations.py`, `GET /api/calculations/`): vessels in a vessel-date range / exact OPR / port →
 `service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
