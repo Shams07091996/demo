@@ -5,6 +5,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **OPR / POC required + Master data layout (2026-11-19):** on branch `feature/required-opr-poc`, not merged. No migration. `npm run check` green; smoke test passes for alex / admin / viewer / suez.
 - **Crew bookings, sailing date, early arrival, LOG letter (2026-11-19):** merged into `main` (branch deleted). Needs migration
   **`0014_crew_bookings`** (it also moves every vessel that has a sailing time to its sailing day). For the LOG
   pictures, put `logo.jpg`, `stamp.jpg`, `footer.jpg` (from the user's `LOG.docx`) in a folder outside the project and
@@ -42,6 +43,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
+| 2026-11-19 | **OPR and POC required** (branch `feature/required-opr-poc`): a new vessel can't be saved without an OPR and a POC ("Choose an OPR." / "Choose a POC."); once set they can't be emptied; a vessel saved before this rule without them still saves. Master data rows no longer overflow: a long value takes its own line, the port / usage / Remove stay together | — |
 | 2026-11-19 | **Port closures, delay reason, Missing details** (merged 2026-11-19): a Port closures page (port, closed from, reopened or still closed, reason from the new Closure reason list, notes; port users their port, admins all, read-only view; change history); a **Delay reason** (new Master data list) required when a vessel berthed more than 2 hours after arrival and refused otherwise; the past-vessel alert is now **Missing details** (the five times, a needed delay reason, arrival / sailing agent, service agents) | `2026-11-19-port-closures-and-delays-design.md` |
 | 2026-11-19 | Tighter input rules: OPR / POC / agents / booking hotel, airport and port must be in Master data for the vessel's port (a value already saved stays allowed); service numbers must be real numbers, amounts never negative (user's decision), exchange rate above 0, percentage 0-100; too-long text refused with a message instead of cut (pasted crew-change details still trimmed); exchange rate 0 = empty; more than 100 lines refused | — |
 | 2026-11-18 | Faster first load: the page names all 32 script files up front (`modulepreload`), so they arrive in 1 round instead of 4; vessel toolbar on one line (no big empty gap) | — |
@@ -74,6 +76,7 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
   (a vessel's whole port call lands in one period).
 - **Hotels / Transport:** two separate pages; bookings entered there (not in the Crew Change editor); one room or one
   car trip can hold several guests and is priced once; transfers record which airport / hotel / port; no driver data.
+- **OPR and POC** are required for every new vessel (2026-11-19); older vessels without them still save.
 - **Master data:** every list (OPR, POC, Agent, Hotel, Airport, Port) can be per port; admins choose (default All
   ports) and can move values; port users' values are their port's.
 - **Security first:** the app is being sold to the user's company. The front end never parses HTML strings

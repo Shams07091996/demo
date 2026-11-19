@@ -326,10 +326,17 @@ def clean_vessel(data, profile, existing=None):
     if times["sailing_at"]:  # once it has sailed, the vessel's date is its sailing day (Cairo)
         when = timezone.localdate(times["sailing_at"])
 
+    # OPR and POC: required for a new vessel and can't be emptied once set (older vessels without them still save).
+    opr = listed("opr", data.get("opr"), port, getattr(existing, "opr", ""))
+    poc = listed("poc", data.get("poc"), port, getattr(existing, "poc", ""))
+    for value, field, message in ((opr, "opr", "Choose an OPR."), (poc, "poc", "Choose a POC.")):
+        if not value and (existing is None or getattr(existing, field)):
+            raise BadRequest(message)
+
     return {
         "name": name,
-        "opr": listed("opr", data.get("opr"), port, getattr(existing, "opr", "")),
-        "poc": listed("poc", data.get("poc"), port, getattr(existing, "poc", "")),
+        "opr": opr,
+        "poc": poc,
         "arrival_agent": clean_agent(data.get("arrival_agent"), port, getattr(existing, "arrival_agent", "")),
         "sailing_agent": clean_agent(data.get("sailing_agent"), port, getattr(existing, "sailing_agent", "")),
         "date": when,

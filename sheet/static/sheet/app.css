@@ -155,11 +155,14 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .panel h3,.dash-title{font-weight:600;font-size:14px;color:var(--text);margin-bottom:10px}
 .dash-title{margin:6px 0 12px}
 .master-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start}
-.opt-row{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:13px}
-.opt-row .val{flex:1;font-weight:600}
-.opt-row small{color:var(--muted);font-size:11px}
+.opt-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:13px}
+.opt-row .val{flex:1 1 auto;min-width:0;overflow-wrap:break-word;font-weight:600}
+.opt-row .opt-ctl{display:flex;align-items:center;gap:10px;margin-left:auto}
+.opt-row .select{padding:3px 6px;font-size:12px}
+.opt-row small{color:var(--muted);font-size:11px;white-space:nowrap}
 .opt-row .scope{background:color-mix(in srgb,var(--warning) 12%,transparent);color:var(--warning);border-radius:6px;padding:1px 8px;font-size:10px;font-weight:700}
-.add-row{display:flex;gap:8px;margin-top:12px}
+.add-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.add-row input{flex:1 1 10em;min-width:0}
 .rate-chip{display:inline-flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--warning) 10%,transparent);border:1px solid color-mix(in srgb,var(--warning) 30%,transparent);border-radius:6px;padding:5px 10px;margin:0 8px 8px 0;font-size:13px}
 .rate-chip b{color:var(--warning)}.rate-chip button{background:none;border:none;color:var(--danger);cursor:pointer}
 .st-ok{color:var(--success)}.st-bad{color:var(--danger)}.st-warn{color:var(--warning)}

@@ -9,7 +9,7 @@ from django.test.utils import CaptureQueriesContext
 
 from .constants import TIME_FIELDS, TIME_KEYS
 from .models import ChangeRecord, Service, Vessel
-from .tests import FAST_HASHER, ApiTestCase, allow
+from .tests import FAST_HASHER, NEEDED, ApiTestCase, allow
 
 
 class AgentFieldTests(TestCase):
@@ -50,7 +50,7 @@ class AgentApiTests(ApiTestCase):
         allow("agent", "DELTA", "NILE", "X")
 
     def new_vessel(self, client, **fields):
-        return self.call(client, "post", "/api/vessels/", {"name": "AG", "date": "2026-11-13", **fields})
+        return self.call(client, "post", "/api/vessels/", {**NEEDED, "name": "AG", "date": "2026-11-13", **fields})
 
     def test_create_vessel_with_agents(self):
         status, vessel = self.new_vessel(self.login("alex"), arrival_agent=" DELTA ", sailing_agent="")
@@ -67,7 +67,7 @@ class AgentApiTests(ApiTestCase):
         alex = self.login("alex")
         _, vessel = self.new_vessel(alex, arrival_agent="DELTA")
         _, updated = self.call(alex, "put", f"/api/vessels/{vessel['id']}/",
-                               {"name": "AG", "date": "2026-11-13", "arrival_agent": "DELTA", "sailing_agent": "NILE"})
+                               {**NEEDED, "name": "AG", "date": "2026-11-13", "arrival_agent": "DELTA", "sailing_agent": "NILE"})
         self.assertEqual((updated["arrival_agent"], updated["sailing_agent"]), ("DELTA", "NILE"))
 
     def test_service_agent_round_trip(self):
@@ -175,7 +175,7 @@ class MissingAgentTests(ApiTestCase):
         allow("agent", "NILE")
         alex = self.login("alex")
         _, sent = self.call(alex, "post", "/api/vessels/",
-                            {"name": "BLANK", "date": "2026-11-17", "arrival_agent": "   ", "sailing_agent": "NILE"})
+                            {**NEEDED, "name": "BLANK", "date": "2026-11-17", "arrival_agent": "   ", "sailing_agent": "NILE"})
         self.assertEqual([(m["id"], m["missing"]) for m in self.missing()], [(sent["id"], TIME_NAMES + ["Arrival agent"])])
 
     def test_services_without_agent_are_listed_once_per_type_in_order(self, _):

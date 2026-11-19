@@ -130,7 +130,7 @@ async function login() {
     }
     const res = await w.fetch('/api/vessels/', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
-      body: JSON.stringify({ name: HOSTILE, arrival_agent: HOSTILE_AGENT, opr: '<i>O</i>', port: 'alexandria', date: localNow() }),
+      body: JSON.stringify({ name: HOSTILE, arrival_agent: HOSTILE_AGENT, opr: '<i>O</i>', poc: 'ALY', port: 'alexandria', date: localNow() }),
     });
     hostileId = (await res.json()).id;
     ok(res.status === 201 || res.status === 200, `hostile-text vessel created (HTTP ${res.status})`);
@@ -455,8 +455,13 @@ async function login() {
     ok(await waitFor(() => agentChoices().includes('SMOKE SUEZ AGENT')), 'switching the vessel to Suez offers the Suez agent');
     closeModal();
     await go('master');
-    type(optionRow('SMOKE SUEZ AGENT').querySelector('select[data-option-port]'), '');
-    ok(await waitFor(() => optionRow('SMOKE SUEZ AGENT')?.querySelector('select[data-option-port]')?.value === ''), 'admin: moving a value to All ports saves');
+    const moved = optionRow('SMOKE SUEZ AGENT').querySelector('select[data-option-port]');
+    type(moved, '');
+    // The page is drawn again from the server's answer: wait for the new select, not the one just changed.
+    ok(await waitFor(() => {
+      const select = optionRow('SMOKE SUEZ AGENT')?.querySelector('select[data-option-port]');
+      return select && select !== moved && select.value === '';
+    }), 'admin: moving a value to All ports saves');
     await go('vessels');
     click($('#addVesselBtn'));
     type($('#vessel-form [name=port]'), 'alexandria');
@@ -474,6 +479,7 @@ async function login() {
   type($('#qa-name'), 'ui smoke ship');
   ok($('#qa-name').value === NAME, 'quick-add upper-cases the name');
   type($('#qa-date'), '2020-01-15');
+  type($('#qa-opr'), 'MSK'); type($('#qa-poc'), 'ALY'); // both required for a new vessel
   type($('#qa-agent'), 'SMOKE AGENT');
   click($('#qa-add'));
   ok(await waitFor(() => $('#rangeNotice').textContent.includes('15.01.2020 is outside the current date range')), 'notice for a vessel saved outside the range');
@@ -491,8 +497,13 @@ async function login() {
   ok($('#vessel-form [name=arrival_agent]').value === '' && $('#vessel-form [name=sailing_agent]').value === '', 'a new vessel starts with no agents');
   ok($$('#vessel-form [type=datetime-local]').length === 5, 'vessel form has the five port-call time fields');
   type($('#vessel-form [name=name]'), '<img src=x onerror=window.__xss=1>');
-  type($('#vessel-form [name=opr]'), 'MSK');
   type($('#vessel-form [name=date]'), '2020-01-20');
+  click($('[data-act="save-vessel"]'));
+  ok(await waitFor(() => /Choose an OPR/.test($('#modal .error')?.textContent || '')), 'a new vessel without an OPR is refused');
+  type($('#vessel-form [name=opr]'), 'MSK');
+  click($('[data-act="save-vessel"]'));
+  ok(await waitFor(() => /Choose a POC/.test($('#modal .error')?.textContent || '')), 'a new vessel without a POC is refused');
+  type($('#vessel-form [name=poc]'), 'ALY');
   type($('[data-sum="Vendor Name"]'), 'ACME & SONS');
   click($('[data-act="save-vessel"]'));
   await waitFor(() => $('#modal h2')?.textContent.includes('<img'));
@@ -506,6 +517,7 @@ async function login() {
     await waitFor(() => $('#portBanner').textContent.includes('Suez'));
     click($('#addVesselBtn'));
     type($('#vessel-form [name=name]'), 'PORT MOVE');
+    type($('#vessel-form [name=opr]'), 'MSK'); type($('#vessel-form [name=poc]'), 'ALY');
     type($('#vessel-form [name=date]'), localNow());
     type($('#vessel-form [name=port]'), 'alexandria');
     click($('[data-act="save-vessel"]'));
@@ -640,6 +652,7 @@ async function login() {
   /* ======== notifications (quick add uses today's date) ======== */
   await go('vessels');
   type($('#qa-name'), 'smoke today');
+  type($('#qa-opr'), 'MSK'); type($('#qa-poc'), 'ALY');
   type($('#qa-date'), localNow());
   click($('#qa-add'));
   ok(await waitFor(() => rowFor('SMOKE TODAY')), 'vessel dated today created');
@@ -681,7 +694,7 @@ async function login() {
       const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': meta() };
       const extra = [];
       for (let i = 1; i <= 21; i += 1) {
-        const res = await w.fetch('/api/vessels/', { method: 'POST', headers, body: JSON.stringify({ name: `SMOKE GAP ${i}`, date: '2019-03-01' }) });
+        const res = await w.fetch('/api/vessels/', { method: 'POST', headers, body: JSON.stringify({ name: `SMOKE GAP ${i}`, opr: 'MSK', poc: 'ALY', date: '2019-03-01' }) });
         extra.push((await res.json()).id);
       }
       type($('#qa-name'), 'smoke gap trigger'); type($('#qa-date'), localNow()); click($('#qa-add')); // a save reloads the alerts

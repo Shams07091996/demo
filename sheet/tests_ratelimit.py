@@ -5,7 +5,7 @@ from unittest import mock
 from django.db import DatabaseError
 from django.test import TestCase, override_settings
 
-from .tests import FAST_HASHER, ApiTestCase
+from .tests import FAST_HASHER, NEEDED, ApiTestCase
 
 LIMITS = override_settings(
     RATE_LIMIT_WRITES_PER_USER=3, RATE_LIMIT_WRITES_PER_IP=100, RATE_LIMIT_EXPORTS_PER_USER=3
@@ -16,7 +16,7 @@ LIMITS = override_settings(
 @LIMITS
 class RateLimitTests(ApiTestCase):
     def new_vessel(self, client, name="RATE"):
-        return self.call(client, "post", "/api/vessels/", {"name": name, "date": "2026-11-13"})
+        return self.call(client, "post", "/api/vessels/", {**NEEDED, "name": name, "date": "2026-11-13"})
 
     def test_fourth_write_by_one_user_is_refused(self):
         alex = self.login("alex")
