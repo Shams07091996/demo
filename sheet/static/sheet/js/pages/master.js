@@ -23,16 +23,17 @@ function optionRow(option) {
   } else if (option.port) {
     scope = h('span', { class: 'scope' }, PORT_LABEL[option.port] || option.port);
   }
+  // The port, usage and Remove stay together: a long value takes its own line above them.
   return h('div', { class: 'opt-row' },
     h('span', { class: 'val' }, option.value), ' ',
-    scope, ' ',
-    h('small', null, `${option.used} ${usageUnit(option.kind, option.used)}`), ' ',
-    canRemove
-      ? h('button', {
-        class: 'btn danger small',
-        dataset: { act: 'del-option', id: option.id, used: option.used, kind: option.kind, value: option.value },
-      }, 'Remove')
-      : null);
+    h('span', { class: 'opt-ctl' }, scope, ' ',
+      h('small', null, `${option.used} ${usageUnit(option.kind, option.used)}`), ' ',
+      canRemove
+        ? h('button', {
+          class: 'btn danger small',
+          dataset: { act: 'del-option', id: option.id, used: option.used, kind: option.kind, value: option.value },
+        }, 'Remove')
+        : null));
 }
 
 function listPanel({ key, label }) {

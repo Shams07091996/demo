@@ -6,7 +6,7 @@ from unittest import mock
 from django.core import mail
 from django.test import Client, override_settings
 
-from .tests import FAST_HASHER, ApiTestCase, pass_two_step
+from .tests import FAST_HASHER, NEEDED, ApiTestCase, pass_two_step
 
 
 @FAST_HASHER
@@ -63,7 +63,7 @@ class ErrorResponseTests(ApiTestCase):
 class AlertTests(ApiTestCase):
     def deny(self, client, times):
         for _ in range(times):
-            self.assertEqual(self.call(client, "post", "/api/vessels/", {"name": "X", "date": "2026-11-13"})[0], 403)
+            self.assertEqual(self.call(client, "post", "/api/vessels/", {**NEEDED, "name": "X", "date": "2026-11-13"})[0], 403)
 
     def test_ten_denied_requests_raise_exactly_one_alert(self):
         viewer = self.login("viewer")

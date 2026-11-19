@@ -4,7 +4,7 @@ text is refused with a message instead of being cut."""
 from datetime import date
 
 from .models import HotelStay, Option, Service, Vessel
-from .tests import ApiTestCase
+from .tests import NEEDED, ApiTestCase
 
 
 class InputRulesData(ApiTestCase):
@@ -23,7 +23,7 @@ class InputRulesData(ApiTestCase):
         self.admin = self.login("admin")
 
     def vessel(self, client=None, **fields):
-        payload = {"name": "RULE SHIP", "date": "2026-11-13", **fields}
+        payload = {**NEEDED, "name": "RULE SHIP", "date": "2026-11-13", **fields}
         return self.call(client or self.alex, "post", "/api/vessels/", payload)
 
     def service(self, data, agent="", vessel=None, service_type="Fresh Water"):
@@ -37,8 +37,8 @@ class MasterDataListTests(InputRulesData):
         status, _ = self.vessel(opr="ARK", poc="ALY", arrival_agent="DELTA SHIPPING", sailing_agent="DELTA SHIPPING")
         self.assertEqual(status, 201)
 
-    def test_empty_list_values_are_still_allowed(self):
-        self.assertEqual(self.vessel(opr="", poc="", arrival_agent="", sailing_agent="")[0], 201)
+    def test_empty_agents_are_still_allowed(self):  # OPR / POC are required (tests_vessel_required)
+        self.assertEqual(self.vessel(arrival_agent="", sailing_agent="")[0], 201)
 
     def test_vessel_value_not_in_the_list_is_refused(self):
         for field in ("opr", "poc", "arrival_agent", "sailing_agent"):
@@ -58,7 +58,7 @@ class MasterDataListTests(InputRulesData):
     def test_a_value_already_saved_stays_allowed(self):
         vessel = Vessel.objects.create(name="OLD", date=date(2026, 11, 13), port="alexandria", opr="OLD OPR")
         status, _ = self.call(self.alex, "put", f"/api/vessels/{vessel.id}/",
-                              {"name": "OLD RENAMED", "date": "2026-11-13", "opr": "OLD OPR"})
+                              {**NEEDED, "name": "OLD RENAMED", "date": "2026-11-13", "opr": "OLD OPR"})
         self.assertEqual(status, 200)
         vessel.refresh_from_db()
         self.assertEqual((vessel.name, vessel.opr), ("OLD RENAMED", "OLD OPR"))

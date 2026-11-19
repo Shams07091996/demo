@@ -21,6 +21,8 @@ from .models import ExchangeRate, LoginAttempt, Option, Profile, Service, Vessel
 from .validators import clean_service_data, clean_summary
 
 PASSWORD = "correct-horse-battery"
+# A new vessel needs an OPR and a POC from Master data (ApiTestCase lists these two for All ports).
+NEEDED = {"opr": "TEST OPR", "poc": "TEST POC"}
 FAST_HASHER = override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])  # tests only
 
 
@@ -59,6 +61,8 @@ class ApiTestCase(TestCase):
     def setUpTestData(cls):
         for name, role in [("admin", "admin"), ("viewer", "readonly"), ("alex", "alexandria"), ("suezuser", "suez")]:
             make_user(name, role)
+        allow("opr", NEEDED["opr"])
+        allow("poc", NEEDED["poc"])
         cls.alex_vessel = Vessel.objects.create(name="ALEX SHIP", date=date(2026, 11, 13), port="alexandria")
         cls.suez_vessel = Vessel.objects.create(name="SUEZ SHIP", date=date(2026, 11, 13), port="suez")
         cls.suez_service = Service.objects.create(
@@ -194,7 +198,7 @@ class AccessTests(ApiTestCase):
         alex = self.login("alex")
         self.assertEqual(self.call(alex, "get", f"/api/vessels/{self.suez_vessel.id}/")[0], 404)
         self.assertEqual(
-            self.call(alex, "put", f"/api/vessels/{self.suez_vessel.id}/", {"name": "x", "date": "2026-01-01"})[0], 404
+            self.call(alex, "put", f"/api/vessels/{self.suez_vessel.id}/", {**NEEDED, "name": "x", "date": "2026-01-01"})[0], 404
         )
         self.assertEqual(self.call(alex, "delete", f"/api/vessels/{self.suez_vessel.id}/")[0], 404)
         self.assertEqual(
@@ -208,17 +212,17 @@ class AccessTests(ApiTestCase):
 
     def test_port_user_is_pinned_to_own_port_on_create_and_update(self):
         alex = self.login("alex")
-        status, vessel = self.call(alex, "post", "/api/vessels/", {"name": "NEW", "date": "2026-11-13", "port": "suez"})
+        status, vessel = self.call(alex, "post", "/api/vessels/", {**NEEDED, "name": "NEW", "date": "2026-11-13", "port": "suez"})
         self.assertEqual((status, vessel["port"]), (201, "alexandria"))
         status, vessel = self.call(
-            alex, "put", f"/api/vessels/{vessel['id']}/", {"name": "NEW", "date": "2026-11-13", "port": "suez"}
+            alex, "put", f"/api/vessels/{vessel['id']}/", {**NEEDED, "name": "NEW", "date": "2026-11-13", "port": "suez"}
         )
         self.assertEqual(vessel["port"], "alexandria")
 
     def test_read_only_user_can_read_but_not_write(self):
         viewer = self.login("viewer")
         self.assertEqual(len(self.call(viewer, "get", "/api/vessels/")[1]["vessels"]), 2)
-        self.assertEqual(self.call(viewer, "post", "/api/vessels/", {"name": "X", "date": "2026-11-13"})[0], 403)
+        self.assertEqual(self.call(viewer, "post", "/api/vessels/", {**NEEDED, "name": "X", "date": "2026-11-13"})[0], 403)
         self.assertEqual(self.call(viewer, "delete", f"/api/services/{self.suez_service.id}/")[0], 403)
         self.assertEqual(self.call(viewer, "post", "/api/rates/", {"month": "2026-10", "rate": "50"})[0], 403)
         self.assertEqual(self.call(viewer, "post", "/api/options/", {"kind": "opr", "value": "X"})[0], 403)
@@ -247,7 +251,7 @@ class AccessTests(ApiTestCase):
         client.login(username="fresh", password=PASSWORD)
         pass_two_step(client, "fresh")
         client.get("/")
-        self.assertEqual(self.call(client, "post", "/api/vessels/", {"name": "X", "date": "2026-11-13"})[0], 403)
+        self.assertEqual(self.call(client, "post", "/api/vessels/", {**NEEDED, "name": "X", "date": "2026-11-13"})[0], 403)
         self.assertEqual(user.profile.role, "readonly")
 
 
@@ -277,8 +281,8 @@ class RequestHardeningTests(ApiTestCase):
 
     def test_validation_errors(self):
         alex = self.login("alex")
-        self.assertEqual(self.call(alex, "post", "/api/vessels/", {"name": "  ", "date": "2026-11-13"})[0], 400)
-        self.assertEqual(self.call(alex, "post", "/api/vessels/", {"name": "A", "date": "13/11/2026"})[0], 400)
+        self.assertEqual(self.call(alex, "post", "/api/vessels/", {**NEEDED, "name": "  ", "date": "2026-11-13"})[0], 400)
+        self.assertEqual(self.call(alex, "post", "/api/vessels/", {**NEEDED, "name": "A", "date": "13/11/2026"})[0], 400)
         self.assertEqual(
             self.call(alex, "post", f"/api/vessels/{self.alex_vessel.id}/services/", {"type": "Hacking", "data": {}})[
                 0
@@ -327,7 +331,7 @@ class ServiceFlowTests(ApiTestCase):
             alex,
             "post",
             "/api/vessels/",
-            {"name": "S", "date": "2026-11-13", "summary": {"Vendor Name": "ACME", "bad": "x"}},
+            {**NEEDED, "name": "S", "date": "2026-11-13", "summary": {"Vendor Name": "ACME", "bad": "x"}},
         )
         self.assertEqual(vessel["summary"], {"Vendor Name": "ACME"})
 
@@ -473,7 +477,7 @@ class SeedCommandTests(TestCase):
 
 class PortCallTests(ApiTestCase):
     def create(self, client, **extra):
-        payload = {"name": "TIMED", "date": "2026-11-13", **extra}
+        payload = {**NEEDED, "name": "TIMED", "date": "2026-11-13", **extra}
         return self.call(client, "post", "/api/vessels/", payload)
 
     def test_times_and_agent_round_trip_in_cairo_time(self):
@@ -530,7 +534,7 @@ class PortCallTests(ApiTestCase):
         alex = self.login("alex")
         _, vessel = self.create(alex, arrival_at="2026-11-13T06:00")
         _, updated = self.call(
-            alex, "put", f"/api/vessels/{vessel['id']}/", {"name": "TIMED", "date": "2026-11-13", "arrival_at": ""}
+            alex, "put", f"/api/vessels/{vessel['id']}/", {**NEEDED, "name": "TIMED", "date": "2026-11-13", "arrival_at": ""}
         )
         self.assertIsNone(updated["arrival_at"])
 
@@ -627,6 +631,8 @@ class SecurityLogTests(TestCase):
 
     def test_changes_are_audited(self):
         make_user("alex", "alexandria")
+        allow("opr", NEEDED["opr"])
+        allow("poc", NEEDED["poc"])
         client = Client(enforce_csrf_checks=True)
         client.login(username="alex", password=PASSWORD)
         pass_two_step(client, "alex")
@@ -635,7 +641,7 @@ class SecurityLogTests(TestCase):
             token = client.cookies["csrftoken"].value
             client.post(
                 "/api/vessels/",
-                data='{"name": "AUDITED", "date": "2026-11-13"}',
+                data=json.dumps({**NEEDED, "name": "AUDITED", "date": "2026-11-13"}),
                 content_type="application/json",
                 HTTP_X_CSRFTOKEN=token,
             )

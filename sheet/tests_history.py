@@ -7,7 +7,7 @@ from django.db import DatabaseError, connection, transaction
 from django.test import Client, TestCase
 
 from .models import ChangeRecord, Guest, HotelStay, Option, Service, Vessel
-from .tests import FAST_HASHER, ApiTestCase, allow
+from .tests import FAST_HASHER, NEEDED, ApiTestCase, allow
 
 
 def records(**filters):
@@ -18,7 +18,7 @@ def records(**filters):
 class HistoryRecordingTests(ApiTestCase):
     def test_create_update_delete_through_the_api_make_one_record_each(self):
         alex = self.login("alex")
-        status, vessel = self.call(alex, "post", "/api/vessels/", {"name": "HIST", "date": "2026-11-13"})
+        status, vessel = self.call(alex, "post", "/api/vessels/", {**NEEDED, "name": "HIST", "date": "2026-11-13"})
         self.assertEqual(status, 201)
         created = records(object_type="vessel", object_id=vessel["id"])
         self.assertEqual([r.action for r in created], ["create"])
@@ -27,7 +27,7 @@ class HistoryRecordingTests(ApiTestCase):
         self.assertEqual(record.ip, "127.0.0.1")
         self.assertEqual(record.changes["name"], [None, "HIST"])
 
-        self.call(alex, "put", f"/api/vessels/{vessel['id']}/", {"name": "HIST 2", "date": "2026-11-13"})
+        self.call(alex, "put", f"/api/vessels/{vessel['id']}/", {**NEEDED, "name": "HIST 2", "date": "2026-11-13"})
         update = records(object_type="vessel", object_id=vessel["id"], action="update")
         self.assertEqual(len(update), 1)
         self.assertEqual(update[0].changes, {"name": ["HIST", "HIST 2"]})
@@ -39,8 +39,8 @@ class HistoryRecordingTests(ApiTestCase):
 
     def test_an_update_that_changes_nothing_records_nothing(self):
         alex = self.login("alex")
-        _, vessel = self.call(alex, "post", "/api/vessels/", {"name": "SAME", "date": "2026-11-13"})
-        self.call(alex, "put", f"/api/vessels/{vessel['id']}/", {"name": "SAME", "date": "2026-11-13"})
+        _, vessel = self.call(alex, "post", "/api/vessels/", {**NEEDED, "name": "SAME", "date": "2026-11-13"})
+        self.call(alex, "put", f"/api/vessels/{vessel['id']}/", {**NEEDED, "name": "SAME", "date": "2026-11-13"})
         self.assertEqual(records(object_type="vessel", object_id=vessel["id"], action="update"), [])
 
     def test_deleting_a_vessel_records_every_deleted_child(self):
@@ -72,7 +72,7 @@ class HistoryRecordingTests(ApiTestCase):
         admin = self.login("admin")
         self.call(admin, "post", "/api/options/", {"kind": "opr", "value": "NEWOPR"})
         self.call(admin, "post", "/api/rates/", {"month": "2026-11", "rate": "50"})
-        self.assertEqual(len(records(object_type="option", action="create")), 1)
+        self.assertEqual(len(records(object_type="option", action="create", username="admin")), 1)
         self.assertEqual(len(records(object_type="exchangerate", action="create")), 1)
 
     def test_a_change_without_a_request_is_recorded_as_system(self):
@@ -88,7 +88,7 @@ class HistoryRecordingTests(ApiTestCase):
             self.assertLogs("django.request", level="ERROR"),
         ):
             status, data = self.call(
-                alex, "put", f"/api/vessels/{self.alex_vessel.id}/", {"name": "CHANGED", "date": "2026-11-13"}
+                alex, "put", f"/api/vessels/{self.alex_vessel.id}/", {**NEEDED, "name": "CHANGED", "date": "2026-11-13"}
             )
         self.assertEqual(status, 500)
         self.assertIn("ref", data)
@@ -129,7 +129,7 @@ class HistoryApiTests(ApiTestCase):
     def test_filters_by_type_user_and_date(self):
         admin = self.login("admin")
         Option.objects.create(kind="opr", value="BYTYPE")
-        self.call(self.login("alex"), "post", "/api/vessels/", {"name": "BYUSER", "date": "2026-11-13"})
+        self.call(self.login("alex"), "post", "/api/vessels/", {**NEEDED, "name": "BYUSER", "date": "2026-11-13"})
         by_type = admin.get("/api/history/?type=option").json()["records"]
         self.assertTrue(by_type and all(r["object_type"] == "option" for r in by_type))
         by_user = admin.get("/api/history/?user=alex").json()["records"]
