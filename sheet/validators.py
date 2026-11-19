@@ -2,6 +2,7 @@
 
 import math
 import re
+import secrets
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -28,6 +29,7 @@ MAX_ENTRIES = 100
 MAX_CREW = 60
 MAX_SEGMENTS = 12
 MAX_AMOUNT = 1e10  # same ceiling as booking money
+UID_RE = re.compile(r"^[0-9a-f]{12}$")  # a crew member's stable identity (links its automatic bookings)
 MAX_RATE = 1_000_000
 KIND_LABELS = dict(OPTION_KINDS)
 
@@ -131,11 +133,40 @@ def _crew_member(raw):
     }
 
 
-def _clean_crew_change(raw):
+def _broken_visa(raw):
+    """An on-signer's broken-visa charge (landed too early): cost / revenue, each optional."""
+    raw = _as_dict(raw)
     return {
-        group: [_crew_member(m) for m in _as_list(raw.get(group))[:MAX_CREW] if isinstance(m, dict)]
-        for group in ("onSigners", "offSigners")
+        "cost": _amount(raw.get("cost"), "Broken visa cost"),
+        "costCurrency": _currency(raw.get("costCurrency")),
+        "revenue": _amount(raw.get("revenue"), "Broken visa revenue"),
+        "revenueCurrency": _currency(raw.get("revenueCurrency")),
     }
+
+
+def _clean_crew_change(raw):
+    """On- and off-signers. Each keeps a valid uid it was sent (once per crew change) or gets a new one."""
+    seen = set()
+    cleaned = {}
+    for group in ("onSigners", "offSigners"):
+        members = []
+        for item in _as_list(raw.get(group))[:MAX_CREW]:
+            if not isinstance(item, dict):
+                continue
+            member = _crew_member(item)
+            uid = item.get("uid")
+            if not (isinstance(uid, str) and UID_RE.match(uid)) or uid in seen:
+                uid = secrets.token_hex(6)
+                while uid in seen:
+                    uid = secrets.token_hex(6)
+            seen.add(uid)
+            member["uid"] = uid
+            member["needsHotel"] = bool(item.get("needsHotel"))
+            if group == "onSigners":
+                member["brokenVisa"] = _broken_visa(item.get("brokenVisa"))
+            members.append(member)
+        cleaned[group] = members
+    return cleaned
 
 
 def _clean_multi(service_type, raw):
