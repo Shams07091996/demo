@@ -169,6 +169,8 @@ def list_response(profile, params):
 def alerts_response(profile, params):
     """Vessels dated today or tomorrow (Cairo date), whatever range or search the list shows, and past vessels missing
     details (times, delay reason, agents)."""
+    from .crewbookings import early_arrivals  # crewbookings -> logistics -> listing: imported here, not at the top
+
     today = timezone.localdate()
     tomorrow = today + timedelta(days=1)
     vessels = scoped_vessels(profile, params.get("port") or None).filter(date__in=[today, tomorrow])
@@ -177,6 +179,7 @@ def alerts_response(profile, params):
         "today": [r for r in rows if r["date"] == today.isoformat()],
         "tomorrow": [r for r in rows if r["date"] == tomorrow.isoformat()],
         "missing": missing_details(profile, params.get("port") or None, today),
+        "early": early_arrivals(scoped_vessels(profile, params.get("port") or None, prefetch=False), today),
     }
 
 
@@ -217,4 +220,15 @@ def missing_details(profile, port, today):
         missing += [f"{name} agent" for name in sorted(types, key=lambda name: order.get(name, len(order)))]
         if missing:
             found.append({"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "missing": missing})
+    from .crewbookings import booking_gaps  # see alerts_response
+
+    # Bookings still incomplete once the vessel has sailed join that vessel's line (or make one).
+    rows = {row["id"]: row for row in found}
+    gaps = booking_gaps(scoped_vessels(profile, port, prefetch=False), today, timezone.now())
+    for vessel, items in gaps.items():
+        if vessel.id not in rows:
+            rows[vessel.id] = {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "missing": []}
+            found.append(rows[vessel.id])
+        rows[vessel.id]["missing"] += items
+    found.sort(key=lambda row: (row["date"], row["id"]))
     return found

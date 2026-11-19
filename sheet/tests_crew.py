@@ -1,13 +1,13 @@
 """Crew members: uid, Needs hotel, broken visa; vessel date = sailing date; automatic draft bookings; alerts."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.test import SimpleTestCase
 from django.utils import timezone
 
 from . import finance
 from .errors import BadRequest
-from .models import ChangeRecord, HotelStay, Service, Transfer
+from .models import ChangeRecord, Guest, HotelStay, Service, Transfer, Vessel
 from .tests import ApiTestCase, allow
 from .validators import UID_RE, clean_service_data
 
@@ -210,3 +210,80 @@ class DraftBookingTests(ApiTestCase):
         viewer = self.login("viewer")
         self.assertEqual(self.call(viewer, "post", f"/api/vessels/{self.vessel.id}/services/", payload)[0], 403)
         self.assertFalse(self.transfers().exists())
+
+
+def landing_text(day):
+    return f"{day:%d} {day:%b}".upper() + " 10:00"
+
+
+class AlertTests(ApiTestCase):
+    """Booking gaps once the vessel has sailed, and on-signers landing 2+ days before the vessel date."""
+
+    def setUp(self):
+        self.now = timezone.now()
+        self.today = timezone.localdate()
+
+    def alerts(self, user="admin"):
+        status, data = self.call(self.login(user), "get", "/api/vessels/alerts/")
+        self.assertEqual(status, 200)
+        return data
+
+    def missing_of(self, vessel, user="admin"):
+        rows = [row for row in self.alerts(user)["missing"] if row["id"] == vessel.id]
+        return rows[0]["missing"] if rows else []
+
+    def sailed_vessel(self, sailing):
+        vessel = Vessel.objects.create(name="GONE", date=self.today, port="alexandria", sailing_at=sailing,
+                                       arrival_agent="A", sailing_agent="B")
+        transfer = Transfer.objects.create(vessel=vessel, from_place="airport", to_place="port", at=self.now,
+                                           draft=True)
+        Guest.objects.create(transfer=transfer, name="J SMITH", group="on")
+        return vessel
+
+    def test_incomplete_booking_listed_after_sailing(self):
+        vessel = self.sailed_vessel(self.now - timedelta(hours=1))
+        self.assertIn("Transport: J SMITH", self.missing_of(vessel))
+
+    def test_not_listed_before_sailing(self):
+        vessel = self.sailed_vessel(self.now + timedelta(days=1))
+        vessel.date = self.today + timedelta(days=1)
+        vessel.save()
+        self.assertEqual(self.missing_of(vessel), [])
+
+    def test_completed_but_no_price_listed(self):
+        vessel = self.sailed_vessel(self.now - timedelta(hours=1))
+        stay = HotelStay.objects.create(vessel=vessel, hotel="NILE", check_in=self.today, nights=1,
+                                        cost_per_night=10)
+        Guest.objects.create(stay=stay, name="A OFF", group="off")
+        vessel.transfers.update(draft=False, cost=1, revenue=2)
+        self.assertEqual(self.missing_of(vessel), ["Hotel: A OFF"])
+
+    def crew_vessel(self, lands_days_before, group="onSigners", visa=None, port="alexandria"):
+        when = self.today + timedelta(days=1)
+        vessel = Vessel.objects.create(name="EARLY", date=when, port=port)
+        person = member("J SMITH", landing=landing_text(when - timedelta(days=lands_days_before)), uid="abcdef123456")
+        if visa is not None:
+            person["brokenVisa"] = visa
+        Service.objects.create(vessel=vessel, service_type="Crew Change",
+                               data={"onSigners": [], "offSigners": [], group: [person]})
+        return vessel, when
+
+    def test_early_arrival(self):
+        vessel, when = self.crew_vessel(2)
+        rows = [r for r in self.alerts()["early"] if r["id"] == vessel.id]
+        self.assertEqual(rows, [{"id": vessel.id, "name": "EARLY", "date": when.isoformat(), "crew": "J SMITH",
+                                 "lands": (when - timedelta(days=2)).isoformat()}])
+
+    def test_one_day_early_or_off_signer_not_listed(self):
+        self.crew_vessel(1)
+        self.crew_vessel(3, group="offSigners")
+        self.assertEqual(self.alerts()["early"], [])
+
+    def test_broken_visa_zero_clears_early(self):
+        self.crew_vessel(3, visa={"cost": 0})
+        self.assertEqual(self.alerts()["early"], [])
+
+    def test_early_port_scoped(self):
+        self.crew_vessel(3)
+        self.assertEqual(self.alerts("suezuser")["early"], [])
+        self.assertEqual(len(self.alerts("alex")["early"]), 1)

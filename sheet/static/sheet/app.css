@@ -20,7 +20,7 @@ button,input,select,textarea{font-family:inherit}
 .meta-item{display:inline-flex;align-items:center;gap:4px}
 .x{display:inline-flex;align-items:center;justify-content:center}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;vertical-align:middle}
-.dot.today{background:var(--danger)}.dot.tomorrow{background:var(--warning)}.dot.missing{background:var(--accent)}
+.dot.today{background:var(--danger)}.dot.tomorrow{background:var(--warning)}.dot.missing{background:var(--accent)}.dot.early{background:var(--warning)}
 h1{font-size:20px;font-weight:600}
 h1 span{color:var(--accent)}
 code{background:color-mix(in srgb,var(--text) 8%,transparent);padding:1px 6px;border-radius:4px;font-size:12px}
@@ -138,6 +138,7 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .notif-row.today{background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 35%,transparent)}
 .notif-row.tomorrow{background:color-mix(in srgb,var(--warning) 10%,transparent);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent)}
 .notif-row.missing{background:color-mix(in srgb,var(--accent) 8%,transparent);border:1px solid var(--line)}
+.notif-row.early{background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid var(--line)}
 .svc-agent{font-size:12px;color:var(--muted);margin-top:4px}
 .notif-row b{font-size:11px}
 .bell-wrap{position:relative}.bell{position:relative;padding:6px 12px}

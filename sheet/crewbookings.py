@@ -6,12 +6,13 @@ that one guest, and is deleted when the member goes away (or switches Needs hote
 (`draft=False`) is never changed or deleted here. Runs inside the request's transaction, so history records the user.
 """
 
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
+from django.db.models import Q
 from django.utils import timezone
 
 from .logistics import crew_leg, crew_moment
-from .models import Guest, HotelStay, Transfer
+from .models import Guest, HotelStay, Service, Transfer
 
 _GROUPS = (("onSigners", "on"), ("offSigners", "off"))
 
@@ -106,3 +107,51 @@ def incomplete(booking):
     if isinstance(booking, HotelStay):
         return booking.draft or booking.cost_per_night is None or booking.revenue_per_night is None
     return booking.draft or booking.cost is None or booking.revenue is None
+
+
+# ---- alerts --------------------------------------------------------------------------------------
+
+EARLY_DAYS = 2  # an on-signer landing this many days (or more) before the vessel date breaks the visa terms
+EARLY_LOOK_BACK = timedelta(days=60)
+_INCOMPLETE = (
+    (HotelStay, "Hotel", Q(draft=True) | Q(cost_per_night=None) | Q(revenue_per_night=None)),
+    (Transfer, "Transport", Q(draft=True) | Q(cost=None) | Q(revenue=None)),
+)
+
+
+def booking_gaps(vessels, today, now):
+    """vessel -> ["Hotel: <guests>", "Transport: <guests>", ...] for incomplete bookings of vessels that have sailed
+    (sailing time passed, or no sailing time and dated before today)."""
+    sailed = vessels.filter(Q(sailing_at__lte=now) | Q(sailing_at=None, date__lt=today))
+    gaps = {}
+    for kind, label, incomplete_q in _INCOMPLETE:
+        bookings = kind.objects.filter(incomplete_q, vessel__in=sailed.values("pk"))
+        for booking in bookings.select_related("vessel").prefetch_related("guests").order_by("id"):
+            names = ", ".join(g.name for g in booking.guests.all())
+            gaps.setdefault(booking.vessel, []).append(f"{label}: {names}")
+    return gaps
+
+
+def early_arrivals(vessels, today):
+    """On-signers landing EARLY_DAYS or more before their vessel's date, with no broken-visa charge entered yet."""
+    services = (
+        Service.objects.filter(service_type="Crew Change", vessel__in=vessels.filter(date__gte=today - EARLY_LOOK_BACK))
+        .select_related("vessel")
+        .only("id", "data", "vessel__id", "vessel__name", "vessel__date")
+        .order_by("vessel__date", "vessel__id", "id")
+    )
+    rows = []
+    for service in services:
+        vessel = service.vessel
+        for person in (service.data or {}).get("onSigners") or []:
+            if not isinstance(person, dict):
+                continue
+            visa = person.get("brokenVisa") or {}
+            if visa.get("cost") is not None or visa.get("revenue") is not None:
+                continue  # handled (0 means "checked, no charge")
+            moment = crew_moment(person, "on", vessel.date)
+            lands = timezone.localdate(moment) if moment else None
+            if lands and lands <= vessel.date - timedelta(days=EARLY_DAYS):
+                rows.append({"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(),
+                             "crew": person.get("name") or "", "lands": lands.isoformat()})
+    return rows
