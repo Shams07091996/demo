@@ -213,6 +213,13 @@ def _file_name_part(text):
     return " ".join(re.sub(r"[^A-Za-z0-9 -]", "", str(text)).split())[:60]
 
 
+# The date that followed the airline on a pasted FLIGHT line ("EMIRATES   TUE 17 NOVEMBER 2026"); crew saved before the
+# parser fix (crewParsing.js FLIGHT_DATE_TAIL, same rule) still have it in the airline.
+AIRLINE_DATE_TAIL = re.compile(
+    r"\s+(?:(?:MON|TUE|WED|THU|FRI|SAT|SUN)[A-Z]*\s+\d{1,2}\b|\d{1,2}\s+[A-Z]{3,}\s+\d{2,4}\b).*$", re.I | re.S
+)
+
+
 @json_api
 @require_http_methods(["GET"])
 def service_log(request, pk, uid):
@@ -227,9 +234,10 @@ def service_log(request, pk, uid):
     if person is None:
         raise Http404
     segments = (person.get("flightStructured") or {}).get("segments") or []
+    airline = (segments[0].get("airline") if segments and isinstance(segments[0], dict) else "") or ""
     vessel = service.vessel
     fields = {
-        "to": (segments[0].get("airline") if segments and isinstance(segments[0], dict) else "") or "",
+        "to": AIRLINE_DATE_TAIL.sub("", str(airline)).strip(),
         "date": timezone.localdate().strftime("%d/%m/%Y"),
         "vessel": vessel.name,
         "flight": person.get("flightData") or "",

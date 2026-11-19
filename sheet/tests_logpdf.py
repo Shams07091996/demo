@@ -68,6 +68,27 @@ class LogPdfTests(SimpleTestCase):
         pdf = self.build(flight="X" * 400)
         self.assertNotIn(b"X" * 200, pdf)
 
+    def stamp_and_visa_y(self, pdf):
+        stamp_y = float(re.search(rb" ([\d.]+) cm /Im2 Do", pdf).group(1))
+        visa_y = float(re.search(rb"([\d.]+) Td \(VISA UPON ARRIVAL IN EGYPT\)", pdf).group(1))
+        return stamp_y, visa_y
+
+    def test_stamp_beside_the_personal_details(self):
+        # Two flight legs used to push the stamp alone onto page 2: it now sits right of the (short) personal lines.
+        logo = tiny_jpeg(20, 10)
+        flight = "\n".join(["FLIGHT     EK 337 - EMIRATES" + " " * 40 + "TUE 17 NOVEMBER 2026"] * 18)
+        personal = "\n".join(f"Line {i}: SHORT" for i in range(12))
+        pdf = self.build(images={"logo": logo, "stamp": tiny_jpeg(409, 369), "footer": tiny_jpeg(724, 106)},
+                         flight=flight, personal=personal)
+        self.assertEqual(page_count(pdf), 1)
+        stamp_y, visa_y = self.stamp_and_visa_y(pdf)
+        self.assertGreater(stamp_y, visa_y)  # above the closing lines, not after them
+
+    def test_stamp_after_the_text_when_personal_lines_are_wide(self):
+        pdf = self.build(images={"stamp": tiny_jpeg(409, 369)}, personal="X" * 90)
+        stamp_y, visa_y = self.stamp_and_visa_y(pdf)
+        self.assertLess(stamp_y, visa_y)
+
     def test_jpeg_size(self):
         self.assertEqual(logpdf.jpeg_size(tiny_jpeg(20, 10)), (20, 10))
         self.assertIsNone(logpdf.jpeg_size(b"\x89PNG\r\n\x1a\n...."))
@@ -104,6 +125,15 @@ class LogViewTests(ApiTestCase):
         record = ChangeRecord.objects.filter(object_type="service", action="letter").get()
         self.assertEqual((record.username, record.object_id, record.changes), ("alex", self.service.id,
                                                                             {"LOG letter": [None, "J SMITH"]}))
+
+    def test_date_after_the_airline_is_left_out(self):
+        # Crew saved before the parser fix: "EMIRATES   TUE 17 NOVEMBER 2026" was stored as the airline.
+        data = self.service.data
+        data["onSigners"][0]["flightStructured"]["segments"][0]["airline"] = "EMIRATES        TUE 17 NOVEMBER 2026"
+        Service.objects.filter(pk=self.service.pk).update(data=data)
+        pdf = self.get("alex").content
+        self.assertIn(b"(EMIRATES)", pdf)
+        self.assertNotIn(b"TUE 17", pdf.split(b"(DATE:)")[0])
 
     def test_viewer_refused(self):
         self.assertEqual(self.get("viewer").status_code, 403)

@@ -177,6 +177,20 @@ class _Layout:
         self.y -= 6
         self.ops.append(f"0.6 w {LEFT} {self.y:.2f} m {RIGHT} {self.y:.2f} l S".encode())
 
+    def stamp_beside(self, page, top, widest):
+        """Put the stamp at the right of a block that started at `top` on page number `page` and whose lines are at
+        most `widest` wide. False (nothing drawn) when there is no stamp or it would not fit there."""
+        stamp = self.images.get("stamp")
+        if not stamp:
+            return False
+        height = STAMP_W * stamp[1] / stamp[0]
+        x = RIGHT - STAMP_W
+        if len(self.pages) != page or LEFT + widest + 10 > x or top - height < self.bottom:
+            return False
+        self._image("stamp", x, top - height, STAMP_W, height)
+        self.y = min(self.y, top - height)
+        return True
+
     def stamp(self):
         stamp = self.images.get("stamp")
         if not stamp:
@@ -213,12 +227,20 @@ def _letter(layout, fields):
     layout.gap(14)
     layout.block(fields.get("flight") or "")
     layout.gap(18)
-    layout.block(fields.get("personal") or "")
+    # The stamp goes in the empty space right of the personal details (short lines); after the last line only when
+    # those lines are too wide or the block crosses a page. Word puts it after the last line, which pushes it alone
+    # onto a second page once the flight details are long.
+    personal = fields.get("personal") or ""
+    widest = max((_text_width(to_winansi(raw.rstrip()), 9, "F3") for raw in str(personal).splitlines()), default=0)
+    page, top = len(layout.pages), layout.y
+    layout.block(personal)
+    beside = layout.stamp_beside(page, top, min(widest, TEXT_W))
     layout.gap(28)
     layout.line(b"A visa has been arranged before departure and will take care of him.", "F2", 11, x=LEFT + 15)
     layout.gap(16)
     layout.line(b"VISA UPON ARRIVAL IN EGYPT", "F2", 11)
-    layout.stamp()
+    if not beside:
+        layout.stamp()
 
 
 def build(fields, images):
