@@ -323,6 +323,8 @@ def clean_vessel(data, profile, existing=None):
 
     times = {key: _local_datetime(data.get(key), TIME_LABELS[key]) for key in TIME_KEYS}
     _check_time_order(times)
+    if times["sailing_at"]:  # once it has sailed, the vessel's date is its sailing day (Cairo)
+        when = timezone.localdate(times["sailing_at"])
 
     return {
         "name": name,

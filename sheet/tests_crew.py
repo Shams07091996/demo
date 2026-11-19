@@ -4,6 +4,7 @@ from django.test import SimpleTestCase
 
 from . import finance
 from .errors import BadRequest
+from .tests import ApiTestCase
 from .validators import UID_RE, clean_service_data
 
 
@@ -53,3 +54,24 @@ class CrewDataTests(SimpleTestCase):
         data = crew(on=[{"name": "J SMITH", "brokenVisa": {"cost": 0}}], cost=100)
         labels = [line["label"] for line in finance.service_lines("Crew Change", data, 50)]
         self.assertEqual(len(labels), 1)
+
+
+class SailingDateTests(ApiTestCase):
+    def setUp(self):
+        self.alex = self.login("alex")
+
+    def put(self, **times):
+        payload = {"name": "ALEX SHIP", "date": "2026-11-13", **times}
+        return self.call(self.alex, "put", f"/api/vessels/{self.alex_vessel.id}/", payload)
+
+    def test_sailing_time_sets_vessel_date(self):
+        status, vessel = self.put(arrival_at="2026-11-13T08:00", sailing_at="2026-11-15T23:30")
+        self.assertEqual((status, vessel["date"]), (200, "2026-11-15"))
+
+    def test_sailing_dates_are_cairo_days(self):
+        self.assertEqual(self.put(sailing_at="2026-11-30T23:30")[1]["date"], "2026-11-30")
+        status, vessel = self.put(sailing_at="2026-12-01T00:10")
+        self.assertEqual((status, vessel["date"]), (200, "2026-12-01"))
+
+    def test_without_sailing_posted_date_kept(self):
+        self.assertEqual(self.put(arrival_at="2026-11-13T08:00")[1]["date"], "2026-11-13")

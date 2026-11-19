@@ -169,6 +169,7 @@ class HotelStay(models.Model):
     revenue_per_night = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     revenue_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    draft = models.BooleanField(default=False)  # made automatically from a crew change, not completed yet
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -197,6 +198,7 @@ class Transfer(models.Model):
     revenue = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  # what we get, per trip
     revenue_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    draft = models.BooleanField(default=False)  # made automatically from a crew change, not completed yet
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -218,6 +220,7 @@ class Guest(models.Model):
     nationality = models.CharField(max_length=60, blank=True)
     group = models.CharField(max_length=3, blank=True)  # "on", "off" or "" (typed by hand)
     flight = models.CharField(max_length=20, blank=True)
+    crew_uid = models.CharField(max_length=12, blank=True, db_index=True)  # the crew member it was copied from
 
     class Meta:
         ordering = ["position", "id"]
