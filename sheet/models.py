@@ -262,7 +262,7 @@ class ChangeRecord(models.Model):
     """One create / update / delete of a tracked object (history.py). Append-only: no edit or delete path in the
     app or the Django admin; on PostgreSQL a trigger refuses UPDATE and DELETE (migration 0010). Kept forever."""
 
-    ACTIONS = [("create", "Created"), ("update", "Changed"), ("delete", "Deleted")]
+    ACTIONS = [("create", "Created"), ("update", "Changed"), ("delete", "Deleted"), ("letter", "LOG made")]
 
     at = models.DateTimeField(auto_now_add=True, db_index=True)
     user = models.ForeignKey(

@@ -154,6 +154,10 @@ RATE_LIMIT_WRITES_PER_USER = int(os.environ.get("DJANGO_RATE_LIMIT_WRITES_PER_US
 RATE_LIMIT_WRITES_PER_IP = int(os.environ.get("DJANGO_RATE_LIMIT_WRITES_PER_IP", 600))
 RATE_LIMIT_EXPORTS_PER_USER = int(os.environ.get("DJANGO_RATE_LIMIT_EXPORTS_PER_USER", 20))
 
+# The LOG letter's pictures (logo.jpg, stamp.jpg, footer.jpg): a folder outside the project and outside static files,
+# never in git (the stamp is signed). Empty / missing -> the letter is made without them (demo, tests).
+LETTERHEAD_DIR = os.environ.get("DJANGO_LETTERHEAD_DIR", "")
+
 # Alerting (sheet/alerts.py): ALERT_THRESHOLD lock-outs, denied requests or server errors within the window write one
 # `sheet.alert` ERROR record, and e-mail DJANGO_ALERT_EMAILS (comma-separated) if set (needs Django's EMAIL_* settings).
 ALERT_THRESHOLD = int(os.environ.get("DJANGO_ALERT_THRESHOLD", 10))

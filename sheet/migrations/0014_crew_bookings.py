@@ -35,5 +35,10 @@ class Migration(migrations.Migration):
             name='draft',
             field=models.BooleanField(default=False),
         ),
+        migrations.AlterField(
+            model_name='changerecord',
+            name='action',
+            field=models.CharField(choices=[('create', 'Created'), ('update', 'Changed'), ('delete', 'Deleted'), ('letter', 'LOG made')], max_length=6),
+        ),
         migrations.RunPython(date_from_sailing, migrations.RunPython.noop),
     ]
