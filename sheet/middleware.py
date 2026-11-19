@@ -33,6 +33,25 @@ CSP = "; ".join(
     ]
 )
 
+# The Django admin: same rules, except that its own scripts (jQuery, select2…) build HTML from text and may set style
+# attributes, so no Trusted Types there and style attributes allowed. Scripts still come only from this site.
+ADMIN_CSP = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self'",
+        "style-src-elem 'self'",
+        "style-src-attr 'unsafe-inline'",
+        "font-src 'none'",
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]
+)
+
 
 class LoginThrottleMiddleware:
     """Refuse login attempts from an address that has failed too often. Covers /login/ AND the admin login."""
@@ -85,9 +104,8 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        # The Django admin ships its own scripts and styles; leave it on Django's defaults.
-        if not request.path.startswith(f"/{settings.ADMIN_URL}"):
-            response.headers.setdefault("Content-Security-Policy", CSP)
+        admin = request.path.startswith(f"/{settings.ADMIN_URL}")
+        response.headers.setdefault("Content-Security-Policy", ADMIN_CSP if admin else CSP)
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
         # Pages and API answers contain private data: never keep them in a browser or proxy cache.
