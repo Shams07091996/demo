@@ -203,9 +203,16 @@ different way from the link. Every demo user has the same password, so name only
   cd ~/marine_sheet && venv/bin/pip install --require-hashes -r requirements.txt
   set -a; . ~/marine.env; set +a
   venv/bin/python manage.py migrate && venv/bin/python manage.py collectstatic --noinput
+  venv/bin/python manage.py seed_demo --force
   ```
 
-  Then click **Reload** on the Web page.
+  Then click **Reload** on the Web page. `seed_demo` again only adds what is new (for example the Delay reason and
+  Closure reason lists); it never changes existing users, passwords or vessels.
+- **Two-step login (since 2026-11-18):** every demo user signs in with a Microsoft Authenticator code too. At the
+  first sign-in after the update, each person scans the QR code shown and types the 6-digit code. They have 72 hours
+  from the update (or from when the account was made); after that they are blocked until reset:
+  `venv/bin/python manage.py reset_two_step <username>` (in the Bash console, after the `set -a` line). A lost phone
+  is reset the same way.
 - **When the demo is over:** delete the web app on the Web page, and delete `marine_demo.sqlite3` and `marine.env`.
 - **Demo data only.** No real crew names or passports. Real data waits for the production setup in `SECURITY.md` §4.
 

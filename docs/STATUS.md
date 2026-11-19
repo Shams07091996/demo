@@ -16,7 +16,9 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 - **Git branches:** `main`, plus `chore/pythonanywhere-demo` (not merged: puts back the hash-locked
   `requirements.txt` and the settings that the user's Render commits on `main` had replaced). Agents per job, Dashboards and New look merged 2026-11-18 (branches deleted).
 - **Online demo (2026-11-18):** https://shams1996.pythonanywhere.com (PythonAnywhere free plan, the user's account,
-  demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`; built from `chore/pythonanywhere-demo`). How to update or
+  demo data only, SQLite with `DJANGO_ALLOW_SQLITE=1`). Updates are built from `main` (the old
+  `chore/pythonanywhere-demo` branch is gone; `main` has the hash-locked `requirements.txt`); the demo keeps two-step
+  login (user's choice, 2026-11-19). How to update or
   remove it: `docs/DEMO_HOSTING.md` part B. Render was dropped (needs a credit card). `origin` is the user's
   GitHub repo `Shams07091996/demo` (public).
 - **Tests:** `npm run check` green with 396 backend tests on `main`; smoke test
