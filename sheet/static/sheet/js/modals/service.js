@@ -1,7 +1,7 @@
 // Adding / editing a service: the type picker, the per-type forms, the live profit preview and the crew editor.
 import { calcLocal } from '../calc.js';
 import { headEl, optionChoicesEl } from '../components.js';
-import { MULTI, SINGLE_EXTRA, TYPES } from '../config.js';
+import { ME, MULTI, SINGLE_EXTRA, TYPES } from '../config.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
@@ -65,19 +65,36 @@ const personalNote = (m) => {
   return parts.length ? parts.join(' · ') : '';
 };
 
+const visaField = (m, side, label, defaultCurrency) => {
+  const visa = m.brokenVisa || {};
+  return field(label, h('div', { class: 'row money' },
+    numberInput({ dataset: { crew: `visa.${side}` } }, visa[side] ?? ''),
+    currencySelect({ dataset: { crew: `visa.${side}Currency` } }, visa[`${side}Currency`] || defaultCurrency)));
+};
+
+// The LOG letter (PDF) of a saved on-signer: a plain link, the server sends it as a download.
+const logLink = (m) => (ME.canEdit && state.ctx.serviceId && m.uid
+  ? h('a', { class: 'btn ghost small', href: `/api/services/${state.ctx.serviceId}/log/${m.uid}/`, dataset: { act: 'crew-log' } }, 'LOG')
+  : null);
+
 function crewGroupEl(group, label, color) {
   const isOff = group === 'offSigners';
   const cards = state.crew[group].map((m, i) =>
     h('div', { class: `crew-card ${m._open ? 'open' : ''}`.trim(), dataset: { group, i } },
       h('div', { class: 'crew-head', dataset: { act: 'toggle-crew' } },
         h('span', { class: 'crew-name' }, m.name || `Crew member ${i + 1}`),
-        h('button', { class: 'btn danger small', dataset: { act: 'rm-crew' } }, 'Remove')),
+        h('span', { class: 'crew-actions' }, isOff ? null : logLink(m),
+          h('button', { class: 'btn danger small', dataset: { act: 'rm-crew' } }, 'Remove'))),
       h('div', { class: 'crew-body' },
         field('Full name', h('input', { dataset: { crew: 'name' }, value: m.name })),
         field('Flight details', h('textarea', { dataset: { crew: 'flightData' }, value: m.flightData }),
           h('div', { class: 'parsed', dataset: { parsed: 'flight' } }, flightNote(m))),
         field('Personal data', h('textarea', { dataset: { crew: 'personalData' }, value: m.personalData }),
-          h('div', { class: 'parsed', dataset: { parsed: 'personal' } }, personalNote(m))))));
+          h('div', { class: 'parsed', dataset: { parsed: 'personal' } }, personalNote(m))),
+        h('label', { class: 'check' },
+          h('input', { attrs: { type: 'checkbox' }, dataset: { crew: 'needsHotel' }, checked: Boolean(m.needsHotel) }), ' Needs hotel'),
+        isOff ? null : h('div', { class: 'row two' },
+          visaField(m, 'cost', 'Broken visa cost', 'USD'), visaField(m, 'revenue', 'Broken visa revenue', 'USD')))));
   return [
     h('div', { class: 'section-title', style: { ...(isOff ? { marginTop: '16px' } : {}), color } },
       h('span', null, `${label} (${state.crew[group].length})`),
@@ -222,6 +239,15 @@ export function onModalInput(event) {
   const card = field.closest('.crew-card');
   const member = state.crew[card.dataset.group][Number(card.dataset.i)];
   const kind = field.dataset.crew;
+  if (kind === 'needsHotel') {
+    member.needsHotel = field.checked;
+    return;
+  }
+  if (kind.startsWith('visa.')) {
+    member.brokenVisa = { ...member.brokenVisa, [kind.slice(5)]: field.value };
+    updatePreview();
+    return;
+  }
   member[kind] = field.value;
 
   if (kind === 'name') {

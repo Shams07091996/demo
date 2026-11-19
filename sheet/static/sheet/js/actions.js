@@ -1,6 +1,7 @@
 // Every button in the app has a data-act="name"; this file maps each name to what it does.
 import { api, mutate } from './api.js';
 import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from './data.js';
+import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
 import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
@@ -13,7 +14,7 @@ import {
 import {
   addGuest, changeVessel, deleteBooking, openBookingDialog, pickVessel, removeGuest, saveBooking,
 } from './modals/booking.js';
-import { openVessel, openVesselForm, updateDelayRow, vesselPayload } from './modals/vessel.js';
+import { openVessel, openVesselForm, syncSailingDate, updateDelayRow, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { historyPage } from './pages/history.js';
@@ -138,9 +139,27 @@ export const actions = {
   'save-vessel-more': () => saveVessel({ addAnother: true }),
   'del-vessel': () => deleteVessel(),
   'del-vessel-row': (b) => deleteVessel(Number(b.dataset.id)),
+  // The LOG letter of an on-signer: fetched, then saved as a file (an error shows in the status line instead).
+  'crew-log': async (link) => {
+    const response = await fetch(link.href, { credentials: 'same-origin' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setStatus('error', body.error || 'Could not make the LOG.');
+      return;
+    }
+    const name = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '');
+    const url = URL.createObjectURL(await response.blob());
+    const save = document.createElement('a');
+    save.href = url;
+    save.download = name ? name[1] : 'LOG.pdf';
+    save.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
   'time-now': (b) => {
     $(`#vessel-form [name="${b.dataset.target}"]`).value = nowLocalInput();
     updateDelayRow();
+    syncSailingDate();
   },
 
   'save-rate': () => changeRate(() => api('/api/rates/', 'POST', formValues($('#rate-form')))),

@@ -16,6 +16,8 @@ const typingYear = (iso) => iso && Number(iso.slice(0, 4)) < 1900;
 
 // Cells return text or nodes (never HTML strings).
 const guestsCell = (guests) => guests.flatMap((g, i) => [i ? h('br') : null, g.rank ? `${g.name} (${g.rank})` : g.name]);
+// Made automatically from a crew change and not completed yet.
+const vesselCell = (b) => [b.vessel.name, b.draft ? [' ', h('span', { class: 'tag' }, 'To complete')] : null];
 const priceCell = (amount, currency) => (amount === null || amount === undefined ? '—' : `${currency} ${fmt(amount)}`);
 
 const HOTEL_COLUMNS = [
@@ -25,7 +27,7 @@ const HOTEL_COLUMNS = [
   { title: 'Hotel', sort: 'hotel', cell: (b) => b.hotel },
   { title: 'Guests', sort: 'guest', cell: (b) => guestsCell(b.guests) },
   { title: 'Nationality', cell: (b) => [...new Set(b.guests.map((g) => g.nationality).filter(Boolean))].join(', ') || '—' },
-  { title: 'Vessel', sort: 'vessel', cell: (b) => b.vessel.name },
+  { title: 'Vessel', sort: 'vessel', cell: vesselCell },
   { title: 'Cost/night', cell: (b) => priceCell(b.cost_per_night, b.cost_currency) },
   { title: 'Revenue/night', cell: (b) => priceCell(b.revenue_per_night, b.revenue_currency) },
 ];
@@ -44,7 +46,7 @@ const TRANSFER_COLUMNS = [
   },
   { title: 'Guests', sort: 'guest', cell: (b) => guestsCell(b.guests) },
   { title: 'Flight', cell: (b) => [...new Set(b.guests.map((g) => g.flight).filter(Boolean))].join(', ') || '—' },
-  { title: 'Vessel', sort: 'vessel', cell: (b) => b.vessel.name },
+  { title: 'Vessel', sort: 'vessel', cell: vesselCell },
   { title: 'Cost', cell: (b) => priceCell(b.cost, b.cost_currency) },
   { title: 'Revenue', cell: (b) => priceCell(b.revenue, b.revenue_currency) },
 ];

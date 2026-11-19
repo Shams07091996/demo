@@ -595,6 +595,14 @@ async function login() {
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => modalText().includes('On-signers (1): Ahmed Test')), 'Crew Change saved');
   ok($$('.svc-card').some((c) => c.textContent.includes('Crew Change') && c.textContent.includes('LE 100.00')), 'crew change: its cost shows on the vessel');
+  // Saved: each card has Needs hotel; on-signers have Broken visa and a LOG link (off-signers neither).
+  click($$('.svc-card').find((c) => c.textContent.includes('Crew Change')).querySelector('[data-act="edit-service"]'));
+  ok(await waitFor(() => $('.crew-card[data-group="onSigners"] [data-act="crew-log"]')), 'crew change: a saved on-signer has a LOG link');
+  const onCardSaved = $('.crew-card[data-group="onSigners"]');
+  const offCardSaved = $('.crew-card[data-group="offSigners"]');
+  ok(onCardSaved.querySelector('[data-crew="needsHotel"]') && onCardSaved.querySelector('[data-crew="visa.cost"]') && offCardSaved.querySelector('[data-crew="needsHotel"]') && !offCardSaved.querySelector('[data-crew="visa.cost"]') && !offCardSaved.querySelector('[data-act="crew-log"]'), 'crew change: Needs hotel on every card, Broken visa and LOG on on-signers only');
+  click($('[data-act="back"]'));
+  await waitFor(() => $$('.svc-card').length > 0);
 
   /* ======== summary of services ======== */
   click($('#modal [data-act="summary"]'));
@@ -655,6 +663,19 @@ async function login() {
     click($('#bell'));
     ok($('#notifPanel').textContent.includes('Missing details') && $('#notifPanel').textContent.includes('SEA BREEZE'), 'bell panel has a Missing details group');
     click($('#bell'));
+    // seed_demo: Ali Sayed (MSC AURORA, Alexandria, today) lands 3 days before the vessel.
+    const earlyRow = () => $$('#notifBanner .notif-row.early').find((r) => r.textContent.includes('MSC AURORA'));
+    ok(await waitFor(() => earlyRow()?.textContent.includes('Ali Sayed') && /early arrival/.test($('#notifBanner').textContent)), 'banner shows an Early arrival on-signer');
+    click($('#bell'));
+    ok($('#notifPanel').textContent.includes('Early arrival') && $('#notifPanel').textContent.includes('Ali Sayed'), 'bell panel has an Early arrival group');
+    click($('#bell'));
+    // The LOG letter of a seeded on-signer: a PDF for those who can edit Alexandria, refused for read-only users.
+    const early = (await (await w.fetch('/api/vessels/alerts/')).json()).early.find((e) => e.name === 'MSC AURORA');
+    const aurora = await (await w.fetch(`/api/vessels/${early.id}/`)).json();
+    const crewService = aurora.services.find((s) => s.type === 'Crew Change');
+    const logResponse = await w.fetch(`/api/services/${crewService.id}/log/${crewService.data.onSigners[0].uid}/`);
+    if (ROLE === 'viewer') ok(logResponse.status === 403, 'LOG: read-only users cannot make it');
+    else ok(logResponse.status === 200 && logResponse.headers.get('Content-Type') === 'application/pdf', 'LOG: the on-signer\'s letter downloads as a PDF');
     if (ROLE === 'alex') {
       // More than 20 vessels missing details: the banner stops at 20 and "+ N more" opens the full list.
       const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': meta() };
@@ -717,6 +738,9 @@ async function login() {
   await go('hotels');
   ok(await waitFor(() => /Cost\/night/.test($('#h-head').textContent) && /Revenue\/night/.test($('#h-head').textContent)), 'hotels: cost and revenue per night columns');
   ok($('#h-from').value === todayIso.slice(0, 8) + '01' && [...$('#h-pager #h-page-size').options].map((o) => o.value).join() === '10,25,50,100', 'hotels: this month by default, rows per page 10/25/50/100');
+  if (ROLE !== 'suez') {
+    ok(await waitFor(() => $$('#h-tbody tr').some((t) => t.textContent.includes('AHMED TEST') && t.textContent.includes('To complete'))), 'hotels: the crew change made a draft stay tagged To complete');
+  }
   click($('#h-add'));
   ok(await waitFor(() => $('#bkd-vessel-q')), 'hotels: "+ Add hotel stay" opens the dialog');
   ok(await pickVessel('MSC AURORA'), 'dialog: picking the vessel lists its crew');
@@ -742,7 +766,8 @@ async function login() {
   click($('[data-act="booking-save"]')); click($('[data-act="booking-save"]')); // a double click
   ok(await waitFor(() => !$('#overlay').classList.contains('open') && $('#h-tbody').textContent.includes('AHMED TEST') && $('#h-tbody').textContent.includes('ALI SAYED')), 'hotels: the shared room is listed with both guests');
   ok(stayPosts - postsBefore === 1, `hotels: a double click on Save creates the stay once (sent ${stayPosts - postsBefore} times)`);
-  const stayRow = () => $$('#h-tbody tr').find((t) => t.textContent.includes('AHMED TEST'));
+  // AHMED TEST also has the automatic draft stay from the seeded crew change ("To complete"): skip that one.
+  const stayRow = () => $$('#h-tbody tr').find((t) => t.textContent.includes('AHMED TEST') && !t.textContent.includes('To complete'));
   ok(stayRow().textContent.includes('USD 80.00') && stayRow().textContent.includes('EGP 4,500.00') && stayRow().textContent.includes('MSC AURORA') && stayRow().textContent.includes(dmyOf(plusDays(todayIso, 2))), 'hotels: cost, revenue, vessel and check-out shown');
   click(stayRow());
   ok(await waitFor(() => $('[data-bf="nights"]')?.value === '2'), 'hotels: a row opens its booking');
