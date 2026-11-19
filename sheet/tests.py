@@ -671,6 +671,17 @@ class SessionAndHeaderTests(ApiTestCase):
         self.assertEqual(page["Cross-Origin-Resource-Policy"], "same-origin")
         self.assertEqual(page["Cache-Control"], "no-store")
 
+    def test_admin_pages_have_a_csp_too(self):
+        # The Django admin's own scripts build HTML from text, so no Trusted Types there; everything else stays strict.
+        for page in (self.client.get(f"/{settings.ADMIN_URL}login/"), self.login("admin").get(f"/{settings.ADMIN_URL}")):
+            csp = page["Content-Security-Policy"]
+            for rule in ("default-src 'self'", "script-src 'self';", "style-src 'self';", "object-src 'none'",
+                         "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"):
+                self.assertIn(rule, csp)
+            self.assertNotIn("unsafe-eval", csp)
+            self.assertNotIn("script-src 'self' 'unsafe-inline'", csp)
+            self.assertNotIn("trusted-types", csp)
+
     def test_login_page_is_not_cached_either(self):
         self.assertIn("no-store", Client().get("/login/")["Cache-Control"])
 
