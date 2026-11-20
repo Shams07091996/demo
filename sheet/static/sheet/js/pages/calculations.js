@@ -44,9 +44,11 @@ const fmtRate = (rate) => Number(rate).toLocaleString('en-US', { minimumFraction
 function sideCell(side) {
   if (!side) return '—';
   let text = `${side.currency} ${fmt(side.amount)}`;
-  if (side.times > 1) text += ` × ${side.times}`;
+  // times is a count of nights / people, or the m³ of Garbage & Sludge (which may be under 1)
+  const times = side.times !== 1;
+  if (times) text += ` × ${Number(side.times).toLocaleString('en-US', { maximumFractionDigits: 3 })}`;
   if (side.currency === 'USD') text += side.rate ? ` × ${fmtRate(side.rate)}` : ' × 1 (no rate)';
-  if (side.currency === 'USD' || side.times > 1) text += ` = ${fmt(side.egp)}`;
+  if (side.currency === 'USD' || times) text += ` = ${fmt(side.egp)}`;
   return text;
 }
 

@@ -39,6 +39,8 @@ class PriceApiTests(ApiTestCase):
             ({"port": "cairo"}, "Unknown port."),
             ({"garbage_cost": "-1"}, "Garbage cost must be 0 or more."),
             ({"sludge_revenue": "abc"}, "Sludge revenue must be a number."),
+            ({"sludge_cost": ""}, "Enter the sludge cost (0 if free)."),
+            ({"garbage_revenue": "9999999999.996"}, "Garbage revenue is too large."),
         ):
             self.assertEqual(self.call(admin, "post", self.URL, {**PRICE, **bad}), (400, {"error": message}))
         self.assertFalse(DisposalPrice.objects.exists())

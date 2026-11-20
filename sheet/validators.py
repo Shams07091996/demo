@@ -520,7 +520,7 @@ MAX_PRICE = 1e10  # the column holds 12 digits with 2 decimals
 
 
 def clean_disposal_price(data):
-    """A month (YYYY-MM), a port and four USD prices per m³ (empty = 0, never negative)."""
+    """A month (YYYY-MM), a port and four USD prices per m³ (each required, 0 or more)."""
     data = data if isinstance(data, dict) else {}
     try:
         year, month = str(data.get("month", "")).split("-")
@@ -532,8 +532,11 @@ def clean_disposal_price(data):
         raise BadRequest("Unknown port.")
     prices = {}
     for key, label in DISPOSAL_PRICE_LABELS.items():
-        value = _amount(data.get(key), label) or 0
+        value = _amount(data.get(key), label)
+        if value is None:  # an empty price would silently count as 0: the admin types 0 when it is free
+            raise BadRequest(f"Enter the {label.lower()} (0 if free).")
+        value = round(value, 2)
         if value >= MAX_PRICE:
             raise BadRequest(f"{label} is too large.")
-        prices[key] = Decimal(str(round(value, 2)))
+        prices[key] = Decimal(str(value))
     return first_of_month, port, prices

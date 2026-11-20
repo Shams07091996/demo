@@ -582,11 +582,11 @@ async function login() {
   click($('[data-act="add-service"]'));
   click($('[data-type="Garbage & Sludge"]'));
   type($('#svc-form [name=agent]'), 'SMOKE AGENT');
-  type($('#svc-form [name=garbage]'), '3'); type($('#svc-form [name=sludge]'), '2');
+  type($('#svc-form [name=garbage]'), '3'); type($('#svc-form [name=sludge]'), '0.5');
   ok($('#preview').textContent.includes('No Garbage & Sludge price'), 'garbage & sludge: preview warns when the port and month have no price');
   click($('[data-act="save-service"]'));
   const garbageCard = () => $$('.svc-card').find((c) => c.textContent.includes('Garbage & Sludge'));
-  ok(await waitFor(() => garbageCard()?.textContent.includes('Garbage 3 m³ · Sludge 2 m³')), 'garbage & sludge: saved with its quantities');
+  ok(await waitFor(() => garbageCard()?.textContent.includes('Garbage 3 m³ · Sludge 0.5 m³')), 'garbage & sludge: saved with its quantities');
   ok(garbageCard().textContent.includes('No price for this port and month'), 'garbage & sludge: the card flags the missing price');
   if (ROLE === 'admin') {
     closeModal();
@@ -597,12 +597,20 @@ async function login() {
     ok(await waitFor(() => $('#prices-table')?.textContent.includes('01.2020')), 'garbage & sludge: admin saves a month and port price');
     await go('vessels');
     await openRow(NAME);
-    // 3 × (15 − 10) + 2 × (30 − 20) = 35 USD, counted 1:1 while January 2020 has no rate
-    ok(await waitFor(() => garbageCard() && !garbageCard().textContent.includes('No price') && garbageCard().textContent.includes('35.00')), 'garbage & sludge: the price applies to the vessel');
+    // 3 × (15 − 10) + 0.5 × (30 − 20) = 20 USD, counted 1:1 while January 2020 has no rate
+    ok(await waitFor(() => garbageCard() && !garbageCard().textContent.includes('No price') && garbageCard().textContent.includes('20.00')), 'garbage & sludge: the price applies to the vessel');
     click(garbageCard().querySelector('[data-act="edit-service"]'));
-    ok(await waitFor(() => /Profit USD \+?35\.00/.test($('#preview')?.textContent || '')), 'garbage & sludge: the preview shows the profit in USD');
+    ok(await waitFor(() => /Profit USD \+?20\.00/.test($('#preview')?.textContent || '')), 'garbage & sludge: the preview shows the profit in USD');
     click($('#modal [data-act="back"]'));
     await waitFor(() => garbageCard());
+    closeModal();
+    await go('calculations');
+    type($('#c-from'), '2020-01-01'); type($('#c-to'), '2020-01-31');
+    const sludgeRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('Sludge · 0.5 m³'));
+    ok(await waitFor(() => sludgeRow()?.textContent.includes('USD 20.00 × 0.5 × 1 (no rate) = 10.00')), 'calculations: a quantity under 1 m³ shows in the working');
+    ok(sludgeRow().textContent.includes('USD 5.00'), 'calculations: the line shows its profit in USD');
+    await go('vessels');
+    await openRow(NAME);
   }
 
   /* ======== Cash to Master ======== */
