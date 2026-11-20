@@ -260,7 +260,8 @@ def _receipt(layout, fields):
                 b"rendered from Messrs ARKAS EGYPT SAE", "F1", 11)
     layout.gap(10)
     layout.block(fields.get("services") or "", "F1", 11)
-    for label, space in ((b"Master", 70), (b"Ship's stamp", 70)):
+    # Room below each label: a signature, then a ship's stamp (about 40 mm = 115pt).
+    for label, space in ((b"Master", 70), (b"Ship's stamp", 120)):
         layout.room(40 + 14 + space)  # a label never sits alone at the foot of a page, without room to sign
         layout.gap(40)
         layout.line(label, "F2", 11)

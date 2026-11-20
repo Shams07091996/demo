@@ -158,6 +158,15 @@ class ReceiptPdfTests(SimpleTestCase):
         self.assertLess(everything.index(b"(Service line 119 with cost $10)"), everything.index(b"(Master)"))
         self.assertLess(everything.index(b"(Master)"), everything.index(b"(Ship's stamp)"))
 
+    def test_receipt_room_to_stamp_whatever_the_length(self):
+        # Review finding: near the page foot only ~18 mm stayed under "Ship's stamp"; a ship's stamp needs ~40 mm.
+        bottom = 30 + 20  # no footer picture: the layout's bottom margin
+        for count in range(1, 60):
+            services = "\n".join(f"Line {i}" for i in range(count))
+            pdf = logpdf.build_receipt({**RECEIPT, "services": services}, {})
+            stamp_y = float(re.search(rb"([\d.]+) Td \(Ship's stamp\)", pdf).group(1))
+            self.assertGreaterEqual(stamp_y - bottom, 110, count)
+
     def test_receipt_text_escaped(self):
         pdf = logpdf.build_receipt({**RECEIPT, "services": "a(b)c\\d {{x}} عربي"}, {})
         self.assertIn(b"(a\\(b\\)c\\\\d {{x}} ????)", pdf)

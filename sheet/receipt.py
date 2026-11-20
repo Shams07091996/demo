@@ -5,8 +5,8 @@ The service's revenue is written as "cost": what ARKAS earns is what the vessel 
 
 from django.utils import timezone
 
-from .constants import MULTI_TYPES, PORT_LABELS
-from .finance import cash_to_master_share, num
+from .constants import PORT_LABELS
+from .finance import service_lines
 
 
 def _amount_text(amount, currency):
@@ -15,21 +15,13 @@ def _amount_text(amount, currency):
 
 
 def _revenue(service):
-    """{currency: total revenue} of a service, in the currencies it was entered in."""
-    data = service.data or {}
-    if service.service_type == "Cash to Master":
-        share, currency = cash_to_master_share(data)
-        pairs = [(share, currency)]
-    elif service.service_type in MULTI_TYPES:
-        pairs = [(num(e.get("revenue")), e.get("revenueCurrency")) for e in data.get("entries") or []
-                 if isinstance(e, dict)]
-    else:
-        pairs = [(num(data.get("revenue")), data.get("revenueCurrency"))]
+    """{currency: total revenue} of a service, in the currencies it was entered in: the revenue side of every money
+    line finance counts for it (entries, Cash to Master's share, a Crew Change's broken-visa charges included)."""
     totals = {}
-    for amount, currency in pairs:
-        if amount > 0:
-            key = "USD" if currency == "USD" else "EGP"
-            totals[key] = totals.get(key, 0.0) + amount
+    for item in service_lines(service.service_type, service.data, None):
+        side = item["revenue"]
+        if side and side["amount"] > 0:
+            totals[side["currency"]] = totals.get(side["currency"], 0.0) + side["amount"] * side["times"]
     return totals
 
 

@@ -163,7 +163,8 @@ personal details on page 2 under a bold "Personal details:" with the stamp besid
 `views.service_receipt`, dialog `js/modals/receipt.js`): a "WHOM IT MAY CONCERN" paper the vessel's master signs and
 stamps by hand, after the user's "name of port.docx". A Receipt button on every service card (edit roles) opens a form
 pre-filled by GET (port label, today in Cairo, vessel, one line: the service type — Others / Remarks: its note's first
-line — plus its **revenue written as "cost"** in its own currency, `$120` / `EGP 3,000`, entries summed per currency;
+line — plus its **revenue written as "cost"** in its own currency, `$120` / `EGP 3,000`: the revenue side of `finance.service_lines`, so entries,
+Cash to Master's share and broken-visa charges count, summed per currency;
 no revenue → the label only); POST with the edited text (`validators.clean_receipt`: services required, 2000 characters,
 40 lines) returns the PDF: logo and footer, **no stamp**, no separate revenue line. Nothing typed is stored; the
 History records action `receipt` (migration 0017 widened `ChangeRecord.action` to 7). Scoped, `require_edit`, rate

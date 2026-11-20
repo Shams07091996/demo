@@ -58,6 +58,12 @@ class ReceiptTests(ApiTestCase):
         service = self.service("Cash to Master", {"amount": 1000, "amountCurrency": "USD", "percentage": 5})
         self.assertEqual(self.prefill(service)["services"], "Cash to Master with cost $50")
 
+    def test_prefill_crew_change_includes_broken_visa(self):
+        # Review finding: a broken-visa revenue is part of what the vessel is charged for the crew change.
+        on = {"name": "A ON", "brokenVisa": {"revenue": 80, "revenueCurrency": "USD"}}
+        service = self.service("Crew Change", {"onSigners": [on], "revenue": 200, "revenueCurrency": "USD"})
+        self.assertEqual(self.prefill(service)["services"], "Crew Change with cost $280")
+
     def test_post_returns_pdf_and_history(self):
         service = self.service("Others / Remarks", {"note": "x"})
         response = self.post(self.login("alex"), service, EDITED)

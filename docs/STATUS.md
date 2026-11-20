@@ -5,7 +5,7 @@ Last updated: 2026-11-20. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Master receipt (2026-11-20):** built on branch `feature/master-receipt` (worktree `../marine_sheet-receipt`), **not merged** — merge when the user agrees. Needs migration **`0017_history_receipt`** on the user's database. 489 backend tests; smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
+- **Master receipt (2026-11-20):** built on branch `feature/master-receipt` (worktree `../marine_sheet-receipt`), **not merged** — merge when the user agrees. Needs migration **`0017_history_receipt`** on the user's database. 491 backend tests; fresh review done (fixes in); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **LOG letter layout (2026-11-20):** on `main` (bold "Flight:" / "Personal details:", personal details and stamp on page 2).
 - **Next, agreed with the user:** an **Excel download for presentations** (vessels per line / OPR, port closures with hours closed, jobs per agent, "and so on"): not designed yet; first question is whether "line" means the OPR.
 - **Garbage & Sludge page (2026-11-20):** merged into `main` (branch deleted). Replaces the service of the same name. Needs migration **`0016_garbage_page`** on the user's database (it deletes the old test Garbage & Sludge services and prices). `npm run check` green (472 tests); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
@@ -230,6 +230,15 @@ Port closures / delays (final review, minor, for the user to decide):
 - The vessel form rebuilds its dropdowns twice when an admin changes the port (harmless).
 - The Django admin page for closures doesn't check the reason list or the time order (like the other admin pages).
 - No starter values for the Delay / Closure reason lists on a real database (only `seed_demo` adds them).
+
+Master receipt (final review, minor, for the user to decide):
+
+- A double click on Download makes two PDFs and two History records (no "working…" state).
+- A failed download (receipt or LOG) shows the error without its reference number.
+- The receipt's rate-limit check runs after the vessel lookup (the LOG's runs before): harmless, inconsistent.
+- The 40-line limit counts a few rare Unicode line breaks the PDF does not break on (strict side only).
+- Migration 0017 and the new tests have not been run on PostgreSQL yet.
+- The viewer smoke run ends before its receipt / LOG "403" checks (the backend tests cover them).
 
 Two-step login (final review, minor, for the user to decide):
 
