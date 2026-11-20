@@ -5,6 +5,7 @@ import re
 import zipfile
 from datetime import date, datetime
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import override_settings
@@ -264,3 +265,19 @@ class ExportTests(ManagementFixture):
 
     def test_export_post_refused(self):
         self.assertIn(self.login("admin").post(self.URL).status_code, (403, 405))  # CSRF or method
+
+
+class ConsistencyTests(ManagementFixture):
+    def test_line_of_a_vessel_saved_meanwhile_is_left_out(self):
+        # A vessel added to the range between the report's queries must not crash it (KeyError → 500).
+        real = calculations.rows_for
+
+        def with_newcomer(queryset):
+            newcomer = Vessel.objects.create(name="LATE", date=date(2026, 10, 6), port="alexandria", opr="MSK")
+            self.add(newcomer, "Crew Change", {"onSigners": [{"name": "A", "brokenVisa": {"revenue": 5}}]}, "")
+            VesselDisposal.objects.create(vessel=newcomer, garbage=Decimal("1"))
+            return real(queryset)
+
+        with mock.patch.object(calculations, "rows_for", with_newcomer):
+            data = report.data(profile("admin"), RANGE)
+        self.assertEqual(table(data, "summary")["total"][1], 4 + 1)  # the four fixture vessels + SUEZ SHIP

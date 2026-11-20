@@ -86,3 +86,9 @@ class XlsxTests(SimpleTestCase):
                            anchor=(3, 0))
         data = xlsx.build([xlsx.Sheet(name="S", rows=[["a", 0], ["b", 0], ["c", 9]], widths=[], charts=[chart])])
         self.assertEqual(open_parts(data)["xl/charts/chart1.xml"].count('</c:val><c:smooth val="0"/></c:ser>'), 2)
+
+    def test_escape_sequence_text_shown_as_typed(self):
+        # Excel decodes _xHHHH_ in strings: "_x0041_" would show as "A" unless its underscore is escaped.
+        sheet = xlsx.Sheet(name="S", rows=[["_x0041_ and _x003D_1"]], widths=[], charts=[])
+        xml = open_parts(xlsx.build([sheet]))["xl/worksheets/sheet1.xml"]
+        self.assertIn("<t>_x005F_x0041_ and _x005F_x003D_1</t>", xml)

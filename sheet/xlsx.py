@@ -104,7 +104,7 @@ def _cell(ref, value):
         return f'<c r="{ref}" s="{MONEY}"><v>{_number(value)}</v></c>'
     else:
         style, text = NORMAL, value
-    text = str(text)
+    text = str(text).replace("_x", "_x005F_x")  # Excel decodes _xHHHH_ in strings; escape it to show what was typed
     space = ' xml:space="preserve"' if text != text.strip() else ""
     style_attr = f' s="{style}"' if style else ""
     return f'<c r="{ref}"{style_attr} t="inlineStr"><is><t{space}>{_text(text)}</t></is></c>'

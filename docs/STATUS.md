@@ -7,7 +7,7 @@ Last updated: 2026-11-20. Read this with `CLAUDE.md` before starting work. Each 
 
 - **Master receipt (2026-11-20):** merged into `main` (branch deleted). Needs migration **`0017_history_receipt`** on the user's database. 491 backend tests; fresh review done (fixes in); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **LOG letter layout (2026-11-20):** on `main` (bold "Flight:" / "Personal details:", personal details and stamp on page 2).
-- **Management Excel (2026-11-20):** built on branch `feature/management-excel` (worktree `marine_sheet-excel`), **not merged** — merge only when the user agrees. No migration. 517 backend tests; `npm run check` green; smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez; a workbook made from the demo data opened in Excel on this PC with its charts.
+- **Management Excel (2026-11-20):** built on branch `feature/management-excel` (worktree `marine_sheet-excel`), **not merged** — merge only when the user agrees. No migration. 519 backend tests; fresh review done (no critical or important findings; two minors fixed); `npm run check` green; smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez; a workbook made from the demo data opened in Excel on this PC with its charts.
 - **Garbage & Sludge page (2026-11-20):** merged into `main` (branch deleted). Replaces the service of the same name. Needs migration **`0016_garbage_page`** on the user's database (it deletes the old test Garbage & Sludge services and prices). `npm run check` green (472 tests); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **Garbage & Sludge (2026-11-20):** merged into `main` together with the admin-port fix and `docs/DEPLOYMENT.md` (branches `feature/garbage-sludge` and `fix/admin-vessel-port` deleted). Needs migration **`0015_disposal_price`** on the user's database. `npm run check` green (467 tests); smoke test passes for alex / admin / viewer / suez.
 - **OPR / POC required + Master data layout (2026-11-19):** merged into `main` (branch deleted). No migration. `npm run check` green; smoke test passes for alex / admin / viewer / suez.
@@ -148,6 +148,15 @@ Ideas raised along the way:
 - Exports of the Calculations page.
 
 ## Left open — small things the user hasn't decided on yet
+
+Management Excel (from the final review, minor):
+
+- Garbage m³ / sludge t cells use the money format (2 decimals), so 0.125 shows as 0.13 (the cell value is exact).
+- The xlsx writer has no 32,767-character cut per cell and lets through sheet names Excel refuses (leading `'`,
+  `History`): no current text can reach either (fields are at most 100 characters, sheet names are fixed).
+- Charts carry no cached values (previews such as Outlook show them empty until opened in Excel) and have Excel's
+  default rounded corners.
+- A closure ending exactly at the range start counts as 1 closure with 0.0 hours (same rule as the Port closures page).
 
 OWASP 2025 (from the final review, minor / for the user to decide):
 - The history keeps crew personal data (guest names, crew in services) forever and, on PostgreSQL, undeletable:

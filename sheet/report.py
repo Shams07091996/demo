@@ -293,7 +293,9 @@ def _vessels(profile, r):
 def data(profile, r, now=None):
     """Every sheet's tables, keyed: summary, months, lines, services, ports_perf, closures, agents, crew, disposal."""
     queryset, objects, vessels = _vessels(profile, r)
-    rows = calculations.rows_for(queryset)
+    known = {v["id"] for v in vessels}
+    # Only the vessels read above: one saved into the range meanwhile must not crash the report (or be half in it).
+    rows = [row for row in calculations.rows_for(queryset) if row["vessel"]["id"] in known]
     money = {v["id"]: (0.0, 0.0, 0.0) for v in vessels} | _money_by_vessel(rows)
     return {
         "summary": _summary(vessels, money, rows),
