@@ -9,6 +9,7 @@ from . import twostep
 from .models import (
     EXEMPT_REFUSED,
     ChangeRecord,
+    DisposalPrice,
     ExchangeRate,
     Guest,
     HotelStay,
@@ -131,6 +132,7 @@ class RememberedComputerAdmin(admin.ModelAdmin):
 admin.site.unregister(User)
 admin.site.register(User, UserWithProfile)
 admin.site.register(ExchangeRate)
+admin.site.register(DisposalPrice)
 admin.site.register(Option)
 
 

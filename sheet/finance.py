@@ -3,6 +3,9 @@
 USD amounts are converted with the item's own override rate if it has one, otherwise with the exchange rate of the
 vessel's month; with neither, USD counts 1:1 and the line is flagged `rate_missing`.
 
+Garbage & Sludge has no typed money: quantity (m³) × the USD price of the vessel's port and month (`prices`, from
+serializers.disposal_prices); a quantity without a price gives a line flagged `price_missing` and no money.
+
 `service_lines` returns the money lines of one service with their working (amount, currency, rate, EGP); `compute`
 adds them up for the vessel figures, so the Calculations page and the vessel totals can never disagree.
 Hotel stays and transfers use the same `money` / `line` helpers (see logistics.booking_line).
@@ -62,6 +65,7 @@ def line(label, cost, revenue, own_rate, note=""):
         "profit_egp": round(revenue_egp - cost_egp, 2),
         "rate_source": "" if not uses_usd or rate_missing else ("own" if own_rate else "month"),
         "rate_missing": rate_missing,
+        "price_missing": False,
     }
 
 
@@ -105,10 +109,34 @@ def _cash_to_master(data, rate, own_rate):
     return result
 
 
-def _all_lines(service_type, data, month_rate):
+DISPOSAL_KINDS = (("garbage", "Garbage"), ("sludge", "Sludge"))
+
+
+def _disposal_lines(data, rate, prices):
+    """One line per quantity: price per m³ (USD) × m³, each side converted with the month rate."""
+    lines = []
+    for key, label in DISPOSAL_KINDS:
+        quantity = num(data.get(key))
+        if not quantity:
+            continue
+        price = (prices or {}).get(key)
+        name = f"{label} · {quantity:g} m³"
+        if price is None:
+            item = line(name, None, None, 0, note="no price for this port and month")
+            item["price_missing"] = True
+        else:
+            item = line(name, money(price.get("cost"), "USD", rate, quantity),
+                        money(price.get("revenue"), "USD", rate, quantity), 0)
+        lines.append(item)
+    return lines
+
+
+def _all_lines(service_type, data, month_rate, prices=None):
     """Every money line of a service, empty ones included (multi-entry figures stay aligned with their entries)."""
     own_rate = num(data.get("exchangeRate"))
     rate = own_rate or num(month_rate)
+    if service_type == "Garbage & Sludge":
+        return _disposal_lines(data, num(month_rate), prices)
     if service_type in MULTI_TYPES:
         return [
             line(
@@ -148,14 +176,16 @@ def has_money(item):
     return bool(item["cost"] or item["revenue"])
 
 
-def service_lines(service_type, data, month_rate):
-    """The money lines of one service (lines with neither cost nor revenue are left out). Figures are unrounded."""
-    return [item for item in _all_lines(service_type, data or {}, month_rate) if has_money(item)]
+def service_lines(service_type, data, month_rate, prices=None):
+    """The money lines of one service (lines with neither cost nor revenue are left out, unless a price is missing).
+    Figures are unrounded. `prices`: the Garbage & Sludge prices of the vessel's port and month, or None."""
+    return [item for item in _all_lines(service_type, data or {}, month_rate, prices)
+            if has_money(item) or item["price_missing"]]
 
 
-def compute(service_type, data, month_rate):
-    """Return cost / revenue / profit / to_master (EGP), per-entry figures and a missing-rate flag."""
-    lines = _all_lines(service_type, data or {}, month_rate)
+def compute(service_type, data, month_rate, prices=None):
+    """Return cost / revenue / profit / to_master (EGP), per-entry figures and missing-rate / missing-price flags."""
+    lines = _all_lines(service_type, data or {}, month_rate, prices)
     cost = sum(item["cost_egp"] for item in lines)
     revenue = sum(item["revenue_egp"] for item in lines)
     return {
@@ -165,6 +195,7 @@ def compute(service_type, data, month_rate):
             [_figures(item["cost_egp"], item["revenue_egp"]) for item in lines] if service_type in MULTI_TYPES else []
         ),
         "rate_missing": any(item["rate_missing"] for item in lines),
+        "price_missing": any(item["price_missing"] for item in lines),
     }
 
 

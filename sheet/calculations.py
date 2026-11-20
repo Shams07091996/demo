@@ -11,7 +11,7 @@ from .errors import BadRequest
 from .finance import service_lines
 from .listing import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, date_param, int_param
 from .logistics import booking_line
-from .serializers import month_rates
+from .serializers import disposal_prices, month_rates
 
 SORT_KEYS = {
     "date": lambda r: r["vessel"]["date"],
@@ -64,7 +64,18 @@ def _rounded_side(side):
     return {**side, "amount": round(side["amount"], 2), "egp": round(side["egp"], 2)}
 
 
+def _usd(item):
+    """(cost, revenue, profit) in USD when every side of the line is in USD (e.g. Garbage & Sludge), else None."""
+    sides = [side for side in (item["cost"], item["revenue"]) if side]
+    if not sides or any(side["currency"] != "USD" for side in sides):
+        return None
+    cost, revenue = (round(side["amount"] * side["times"], 2) if side else 0.0
+                     for side in (item["cost"], item["revenue"]))
+    return cost, revenue, round(revenue - cost, 2)
+
+
 def _row(vessel, kind, item):
+    usd = _usd(item)
     return {
         "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "opr": vessel.opr,
                    "port": vessel.port},
@@ -76,16 +87,20 @@ def _row(vessel, kind, item):
         "cost_egp": item["cost_egp"],
         "revenue_egp": item["revenue_egp"],
         "profit_egp": item["profit_egp"],
+        "cost_usd": usd[0] if usd else None,
+        "revenue_usd": usd[1] if usd else None,
+        "profit_usd": usd[2] if usd else None,
         "rate_source": item["rate_source"],
         "rate_missing": item["rate_missing"],
+        "price_missing": item["price_missing"],
     }
 
 
-def _vessel_rows(vessel, rate):
+def _vessel_rows(vessel, rate, price):
     """One vessel's lines: its services in order, then its hotel stays, then its transfers."""
     rows = []
     for service in vessel.services.all():
-        lines = service_lines(service.service_type, service.data, rate)
+        lines = service_lines(service.service_type, service.data, rate, price)
         rows += [_row(vessel, service.service_type, item) for item in lines]
     for kind, label, bookings in (("hotels", "Hotel stay", vessel.hotel_stays.all()),
                                   ("transfers", "Transfer", vessel.transfers.all())):
@@ -107,10 +122,11 @@ def response(profile, params):
     oprs = sorted(set(vessels.exclude(opr="").values_list("opr", flat=True)), key=str.casefold)
     if p.opr is not None:
         vessels = vessels.filter(opr=p.opr)
-    rates = month_rates()
+    rates, prices = month_rates(), disposal_prices()
     rows = []
     for vessel in vessels.order_by("-date", "-id"):
-        rows += _vessel_rows(vessel, rates.get((vessel.date.year, vessel.date.month)))
+        month = (vessel.date.year, vessel.date.month)
+        rows += _vessel_rows(vessel, rates.get(month), prices.get((*month, vessel.port)))
     rows.sort(key=SORT_KEYS[p.sort], reverse=p.desc)  # stable: ties keep newest vessel first, lines in order
     totals = {
         "revenue_egp": round(sum(r["revenue_egp"] for r in rows), 2),
@@ -118,6 +134,10 @@ def response(profile, params):
         "profit_egp": round(sum(r["profit_egp"] for r in rows), 2),
         "lines": len(rows),
         "rate_missing_lines": sum(1 for r in rows if r["rate_missing"]),
+        "price_missing_lines": sum(1 for r in rows if r["price_missing"]),
+        # USD totals of the lines that are wholly in USD (the EGP totals above cover every line).
+        **{f"{key}_usd": round(sum(r[f"{key}_usd"] for r in rows if r[f"{key}_usd"] is not None), 2)
+           for key in ("cost", "revenue", "profit")},
     }
     start = (p.page - 1) * p.page_size
     page_rows = [

@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from .constants import PORT_LABELS, TIME_KEYS
 from .finance import compute
-from .models import ExchangeRate
+from .models import DisposalPrice, ExchangeRate
 
 
 def local_iso(moment):
@@ -36,19 +36,23 @@ def month_rates():
     return {(r.month.year, r.month.month): r.rate for r in ExchangeRate.objects.all()}
 
 
-def service_to_dict(service, month_rate):
+def service_to_dict(service, month_rate, prices=None):
     return {
         "id": service.id,
         "type": service.service_type,
         "agent": service.agent,
         "data": service.data,
-        "calc": compute(service.service_type, service.data, month_rate),
+        "calc": compute(service.service_type, service.data, month_rate, prices),
     }
 
 
-def vessel_to_dict(vessel, rates):
+def vessel_to_dict(vessel, rates, prices=None):
+    """`prices`: disposal_prices() when many vessels are serialised at once (loaded here otherwise)."""
     rate = rates.get((vessel.date.year, vessel.date.month))
-    services = [service_to_dict(s, rate) for s in vessel.services.all()]
+    if prices is None:
+        prices = disposal_prices()
+    price = prices.get((vessel.date.year, vessel.date.month, vessel.port))
+    services = [service_to_dict(s, rate, price) for s in vessel.services.all()]
     return {
         "id": vessel.id,
         "name": vessel.name,
@@ -69,9 +73,35 @@ def vessel_to_dict(vessel, rates):
             "port_hours": _hours(vessel.arrival_at, vessel.sailing_at),
         },
         "rate": float(rate) if rate else None,
+        "disposal_price": price,
         "services": services,
         "total_cost_egp": round(sum(s["calc"]["cost_egp"] for s in services), 2),
         "total_profit_egp": round(sum(s["calc"]["profit_egp"] for s in services), 2),
+    }
+
+
+PRICE_FIELDS = ("garbage_cost", "garbage_revenue", "sludge_cost", "sludge_revenue")
+
+
+def disposal_price_to_dict(price):
+    return {
+        "id": price.id,
+        "month": price.month.strftime("%Y-%m"),
+        "label": price.month.strftime("%m.%Y"),
+        "port": price.port,
+        "port_label": PORT_LABELS.get(price.port, price.port),
+        **{field: float(getattr(price, field)) for field in PRICE_FIELDS},
+    }
+
+
+def disposal_prices():
+    """{(year, month, port): {"garbage": {"cost", "revenue"}, "sludge": {...}}} — USD per m³."""
+    return {
+        (p.month.year, p.month.month, p.port): {
+            kind: {"cost": float(getattr(p, f"{kind}_cost")), "revenue": float(getattr(p, f"{kind}_revenue"))}
+            for kind in ("garbage", "sludge")
+        }
+        for p in DisposalPrice.objects.all()
     }
 
 

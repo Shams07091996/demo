@@ -21,6 +21,7 @@ SERVICE_TYPES = [
     "Landing",
     "Certificates",
     "Fresh Water",
+    "Garbage & Sludge",
     "Cash to Master",
     "Others / Remarks",
 ]

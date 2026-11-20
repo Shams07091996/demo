@@ -15,6 +15,7 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from .models import (
     ChangeRecord,
+    DisposalPrice,
     ExchangeRate,
     Guest,
     HotelStay,
@@ -36,6 +37,7 @@ TRACKED = (
     Guest,
     Option,
     ExchangeRate,
+    DisposalPrice,
     PortClosure,
     Profile,
     User,

@@ -36,9 +36,9 @@ from .constants import (
     TIME_KEYS,
 )
 from .errors import BadRequest, Forbidden, TooManyRequests
-from .models import ChangeRecord, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
-from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
-from .validators import clean_agent, clean_service_data, clean_vessel
+from .models import ChangeRecord, DisposalPrice, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
+from .serializers import disposal_price_to_dict, month_rates, option_to_dict, rate_to_dict, vessel_to_dict
+from .validators import clean_agent, clean_disposal_price, clean_service_data, clean_vessel
 
 security_log = logging.getLogger("sheet.security")
 
@@ -291,6 +291,36 @@ def rate_delete(request, pk):
     get_object_or_404(ExchangeRate, pk=pk).delete()
     audit(request, "rate.delete", id=pk)
     return _rates_json()
+
+
+# ---- Garbage & Sludge prices (USD per m³, per month and port) -------------------------------
+
+
+def _disposal_prices_json(profile):
+    prices = DisposalPrice.objects.all()
+    if profile.port:  # port users see their own port's prices only
+        prices = prices.filter(port=profile.port)
+    return JsonResponse({"prices": [disposal_price_to_dict(p) for p in prices]})
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def disposal_prices_list(request):
+    if request.method == "POST":
+        require_admin(request.profile)  # money settings, like exchange rates
+        month, port, prices = clean_disposal_price(read_json(request))
+        DisposalPrice.objects.update_or_create(month=month, port=port, defaults=prices)
+        audit(request, "disposal_price.save", month=month.isoformat(), port=port)
+    return _disposal_prices_json(request.profile)
+
+
+@json_api
+@require_http_methods(["DELETE"])
+def disposal_price_delete(request, pk):
+    require_admin(request.profile)
+    get_object_or_404(DisposalPrice, pk=pk).delete()
+    audit(request, "disposal_price.delete", id=pk)
+    return _disposal_prices_json(request.profile)
 
 
 # ---- master data (OPR / POC options) --------------------------------------------------------
