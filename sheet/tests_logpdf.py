@@ -26,6 +26,11 @@ def page_count(pdf):
     return int(re.search(rb"/Type /Pages /Kids \[[^\]]*\] /Count (\d+)", pdf).group(1))
 
 
+def page_contents(pdf):
+    """Each page's content stream, in page order (image streams carry more keys, so they are not matched)."""
+    return re.findall(rb"<< /Length \d+ >>\nstream\n(.*?)\nendstream", pdf, re.S)
+
+
 class LogPdfTests(SimpleTestCase):
     def build(self, images=None, **fields):
         return logpdf.build({**FIELDS, **fields}, images or {})
@@ -74,15 +79,32 @@ class LogPdfTests(SimpleTestCase):
         return stamp_y, visa_y
 
     def test_stamp_beside_the_personal_details(self):
-        # Two flight legs used to push the stamp alone onto page 2: it now sits right of the (short) personal lines.
+        # The stamp sits right of the (short) personal lines, on their page, above the closing lines.
         logo = tiny_jpeg(20, 10)
         flight = "\n".join(["FLIGHT     EK 337 - EMIRATES" + " " * 40 + "TUE 17 NOVEMBER 2026"] * 18)
         personal = "\n".join(f"Line {i}: SHORT" for i in range(12))
         pdf = self.build(images={"logo": logo, "stamp": tiny_jpeg(409, 369), "footer": tiny_jpeg(724, 106)},
                          flight=flight, personal=personal)
-        self.assertEqual(page_count(pdf), 1)
+        self.assertEqual(page_count(pdf), 2)
+        self.assertIn(b"/Im2 Do", page_contents(pdf)[1])
         stamp_y, visa_y = self.stamp_and_visa_y(pdf)
         self.assertGreater(stamp_y, visa_y)  # above the closing lines, not after them
+
+    def test_bold_labels_and_personal_details_on_page_two(self):
+        # User's request (2026-11-20): "Flight:" and "Personal details:" in bold, the personal details and the
+        # stamp on a page of their own.
+        pdf = self.build(images={"logo": tiny_jpeg(), "stamp": tiny_jpeg(409, 369)}, flight="EK 337",
+                         personal="RANK: 2/E")
+        first, second = page_contents(pdf)
+        self.assertRegex(first, rb"/F2 [\d.]+ Tf [\d. ]+ Td \(Flight:\) Tj")
+        self.assertIn(b"(EK 337)", first)
+        self.assertNotIn(b"(RANK: 2/E)", first)
+        self.assertRegex(second, rb"/F2 [\d.]+ Tf [\d. ]+ Td \(Personal details:\) Tj")
+        self.assertIn(b"(RANK: 2/E)", second)
+        self.assertIn(b"/Im2 Do", second)
+        self.assertNotIn(b"/Im2 Do", first)
+        self.assertIn(b"/Im1 Do", second)  # the logo on the new page too
+        self.assertLess(second.index(b"(Personal details:)"), second.index(b"(RANK: 2/E)"))
 
     def test_stamp_after_the_text_when_personal_lines_are_wide(self):
         pdf = self.build(images={"stamp": tiny_jpeg(409, 369)}, personal="X" * 90)

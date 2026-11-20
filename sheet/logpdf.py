@@ -131,9 +131,9 @@ class _Layout:
         footer = images.get("footer")
         self.footer_h = FOOTER_W * footer[1] / footer[0] if footer else 0
         self.bottom = 30 + self.footer_h + 20
-        self._new_page()
+        self.new_page()
 
-    def _new_page(self):
+    def new_page(self):
         self.ops = []
         self.pages.append(self.ops)
         self.y = PAGE_H - 40
@@ -150,7 +150,7 @@ class _Layout:
 
     def room(self, height):
         if self.y - height < self.bottom:
-            self._new_page()
+            self.new_page()
 
     def text_at(self, x, y, data, font, size):
         self.ops.append(b"BT /" + font.encode() + f" {size} Tf {x:.2f} {y:.2f} Td ".encode() + _pdf_string(data)
@@ -225,11 +225,14 @@ def _letter(layout, fields):
     layout.gap(6)
     layout.line(b"PLEASE NOTE THAT THE FOLLOWING CREW MEMBER (S) WILL JOIN  M/V " + win["vessel"], "F2", 10)
     layout.gap(14)
+    layout.line(b"Flight:", "F2", 11)
+    layout.gap(4)
     layout.block(fields.get("flight") or "")
-    layout.gap(18)
-    # The stamp goes in the empty space right of the personal details (short lines); after the last line only when
-    # those lines are too wide or the block crosses a page. Word puts it after the last line, which pushes it alone
-    # onto a second page once the flight details are long.
+    # The personal details start a page of their own (user's request, 2026-11-20), the stamp in the empty space right
+    # of them (short lines); after the last line only when those lines are too wide or the block crosses a page.
+    layout.new_page()
+    layout.line(b"Personal details:", "F2", 11)
+    layout.gap(4)
     personal = fields.get("personal") or ""
     widest = max((_text_width(to_winansi(raw.rstrip()), 9, "F3") for raw in str(personal).splitlines()), default=0)
     page, top = len(layout.pages), layout.y
