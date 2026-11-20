@@ -1095,6 +1095,19 @@ async function login() {
       type($('#d-port'), 'ALL');
       await waitFor(() => $('#portSelect').value === 'ALL' && $('#dash-count').textContent === allPorts);
     }
+    // The management Excel: every role may download it, for a From–To range.
+    ok($('[data-act="dashboard-export"]'), 'dashboard: Excel button shown');
+    const today = localNow().slice(0, 10);
+    const sheet = await w.fetch(`/api/dashboard/export/?from=${today.slice(0, 8)}01&to=${today}`);
+    ok(sheet.status === 200 && (sheet.headers.get('Content-Type') || '').includes('spreadsheetml'), 'dashboard: Excel file downloads');
+    const rangeFrom = $('#d-from').value;
+    const rangeTo = $('#d-to').value;
+    click($('#d-clear'));
+    await waitFor(() => $('#d-from').value === '' && $('#d-to').value === '');
+    click($('[data-act="dashboard-export"]'));
+    ok(await waitFor(() => $('#status-text').textContent.includes('Choose a From and To date.')), 'dashboard: Excel needs a From and To date');
+    type($('#d-from'), rangeFrom); type($('#d-to'), rangeTo);
+    await waitFor(() => $('#f-from').value === rangeFrom && $('#f-to').value === rangeTo);
   }
 
   /** The change history: admins read it on the History page; everyone else gets no page and a 403. */

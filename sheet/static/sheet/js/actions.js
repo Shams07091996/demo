@@ -153,6 +153,13 @@ export const actions = {
     const error = await download(link.href, 'Could not make the LOG.');
     if (error) setStatus('error', error);
   },
+  // The management workbook (.xlsx) of the Dashboard's From - To range and port.
+  'dashboard-export': async () => {
+    const { from, to, port } = state.filter;
+    const query = new URLSearchParams({ from: from || '', to: to || '', port: port && port !== 'ALL' ? port : '' });
+    const error = await download(`/api/dashboard/export/?${query}`, 'Could not make the Excel file.');
+    if (error) setStatus('error', error);
+  },
   receipt: (b) => openReceipt(Number(b.dataset.id)),
   'receipt-download': downloadReceipt,
 
