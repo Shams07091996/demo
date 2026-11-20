@@ -76,6 +76,14 @@ async function changeRate(request) {
   renderRatesPage();
 }
 
+/** Save or delete a Garbage & Sludge price, then refresh the vessels (their figures depend on it). */
+async function changePrice(request) {
+  state.prices = (await mutate(request)).prices;
+  state.cache.clear();
+  await refreshAfterChange();
+  renderRatesPage();
+}
+
 async function changeOption(request) {
   state.options = (await mutate(request)).options;
   state.optionWrites += 1;
@@ -165,6 +173,8 @@ export const actions = {
 
   'save-rate': () => changeRate(() => api('/api/rates/', 'POST', formValues($('#rate-form')))),
   'del-rate': (b) => changeRate(() => api(`/api/rates/${b.dataset.id}/`, 'DELETE')),
+  'save-price': () => changePrice(() => api('/api/disposal-prices/', 'POST', formValues($('#price-form')))),
+  'del-price': (b) => changePrice(() => api(`/api/disposal-prices/${b.dataset.id}/`, 'DELETE')),
 
   'add-option': (b) => {
     const input = $(`[data-new="${b.dataset.kind}"]`);

@@ -148,9 +148,7 @@ export async function loadOptions() {
 }
 
 export async function loadRates() {
-  try {
-    state.rates = (await api('/api/rates/')).rates;
-  } catch {
-    state.rates = [];
-  }
+  const [rates, prices] = await Promise.allSettled([api('/api/rates/'), api('/api/disposal-prices/')]);
+  state.rates = rates.status === 'fulfilled' ? rates.value.rates : [];
+  state.prices = prices.status === 'fulfilled' ? prices.value.prices : [];
 }
