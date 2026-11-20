@@ -120,16 +120,44 @@ class ExchangeRate(models.Model):
         return f"{self.month:%m.%Y}: {self.rate}"
 
 
+MONEY_CURRENCIES = [("EGP", "EGP"), ("USD", "USD")]
+
+
+def _price_qty(label):
+    return models.DecimalField(label, max_digits=12, decimal_places=3, default=0)
+
+
+def _price_amount(label):
+    return models.DecimalField(label, max_digits=12, decimal_places=2, default=0)
+
+
+def _price_currency(label, default):
+    return models.CharField(label, max_length=3, choices=MONEY_CURRENCIES, default=default)
+
+
 class DisposalPrice(models.Model):
-    """Garbage & Sludge prices for one month (stored as the 1st) and one port: USD per m³, what we pay (cost) and what
-    we charge (revenue). The service's money is quantity × these (finance.py)."""
+    """Garbage & Sludge prices for one month (stored as the 1st) and one port. Garbage revenue, garbage cost, sludge
+    revenue and sludge cost each have a minimum quantity, a minimum amount in its currency and an extra amount per m³ /
+    ton above the minimum (disposal.block_amount)."""
 
     month = models.DateField()
     port = models.CharField(max_length=20, choices=PORTS)
-    garbage_cost = models.DecimalField("Garbage cost (USD / m³)", max_digits=12, decimal_places=2, default=0)
-    garbage_revenue = models.DecimalField("Garbage revenue (USD / m³)", max_digits=12, decimal_places=2, default=0)
-    sludge_cost = models.DecimalField("Sludge cost (USD / m³)", max_digits=12, decimal_places=2, default=0)
-    sludge_revenue = models.DecimalField("Sludge revenue (USD / m³)", max_digits=12, decimal_places=2, default=0)
+    garbage_revenue_min_qty = _price_qty("Garbage revenue: minimum quantity (m³)")
+    garbage_revenue_min = _price_amount("Garbage revenue: minimum amount")
+    garbage_revenue_currency = _price_currency("Garbage revenue: currency", "USD")
+    garbage_revenue_extra = _price_amount("Garbage revenue: extra per m³ above the minimum")
+    garbage_cost_min_qty = _price_qty("Garbage cost: minimum quantity (m³)")
+    garbage_cost_min = _price_amount("Garbage cost: minimum amount")
+    garbage_cost_currency = _price_currency("Garbage cost: currency", "EGP")
+    garbage_cost_extra = _price_amount("Garbage cost: extra per m³ above the minimum")
+    sludge_revenue_min_qty = _price_qty("Sludge revenue: minimum quantity (t)")
+    sludge_revenue_min = _price_amount("Sludge revenue: minimum amount")
+    sludge_revenue_currency = _price_currency("Sludge revenue: currency", "USD")
+    sludge_revenue_extra = _price_amount("Sludge revenue: extra per t above the minimum")
+    sludge_cost_min_qty = _price_qty("Sludge cost: minimum quantity (t)")
+    sludge_cost_min = _price_amount("Sludge cost: minimum amount")
+    sludge_cost_currency = _price_currency("Sludge cost: currency", "EGP")
+    sludge_cost_extra = _price_amount("Sludge cost: extra per t above the minimum")
 
     class Meta:
         ordering = ["-month", "port"]
@@ -137,6 +165,19 @@ class DisposalPrice(models.Model):
 
     def __str__(self):
         return f"{self.month:%m.%Y} {self.port}"
+
+
+class VesselDisposal(models.Model):
+    """A vessel's garbage (m³) and sludge (tons), typed on the Garbage & Sludge page. `hidden` = the vessel has none
+    (it leaves the page's normal views and counts 0). Made on the first change; no row = nothing entered yet."""
+
+    vessel = models.OneToOneField(Vessel, on_delete=models.CASCADE, related_name="disposal")
+    garbage = models.DecimalField("Garbage (m³)", max_digits=12, decimal_places=3, null=True, blank=True)
+    sludge = models.DecimalField("Sludge (t)", max_digits=12, decimal_places=3, null=True, blank=True)
+    hidden = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Garbage & Sludge of vessel {self.vessel_id}"
 
 
 class Option(models.Model):

@@ -3,38 +3,7 @@
 import { MULTI } from './config.js';
 import { num } from './util.js';
 
-export const DISPOSAL_KINDS = [['garbage', 'Garbage'], ['sludge', 'Sludge']];
-
-/** Garbage & Sludge: m³ × the USD price of the vessel's port and month, converted with the month rate. */
-function disposalLocal(data, monthRate, prices) {
-  const rate = num(monthRate);
-  const out = {
-    cost_egp: 0, revenue_egp: 0, to_master_egp: 0, cost_usd: 0, revenue_usd: 0,
-    rate_missing: false, price_missing: false,
-  };
-  DISPOSAL_KINDS.forEach(([key]) => {
-    const quantity = num(data[key]);
-    if (!quantity) return;
-    const price = prices && prices[key];
-    if (!price) {
-      out.price_missing = true;
-      return;
-    }
-    const cost = num(price.cost) * quantity;
-    const revenue = num(price.revenue) * quantity;
-    if ((cost || revenue) && !rate) out.rate_missing = true;
-    out.cost_usd += cost;
-    out.revenue_usd += revenue;
-    out.cost_egp += Math.round(cost * (rate || 1) * 100) / 100;
-    out.revenue_egp += Math.round(revenue * (rate || 1) * 100) / 100;
-  });
-  out.profit_egp = out.revenue_egp - out.cost_egp;
-  out.profit_usd = out.revenue_usd - out.cost_usd;
-  return out;
-}
-
-export function calcLocal(type, data, monthRate, prices = null) {
-  if (type === 'Garbage & Sludge') return disposalLocal(data, monthRate, prices);
+export function calcLocal(type, data, monthRate) {
   const rate = num(data.exchangeRate) || num(monthRate);
   let rateMissing = false;
   const toEgp = (amount, currency) => {

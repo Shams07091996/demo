@@ -1,166 +1,215 @@
-"""Garbage & Sludge: monthly per-port USD prices, the service and its money (USD and EGP)."""
+"""Garbage & Sludge: monthly prices per port (minimum + extra per unit) and the page of vessel quantities."""
 
 from datetime import date
 from decimal import Decimal
 
-from .models import ChangeRecord, DisposalPrice
+from .models import ChangeRecord, DisposalPrice, ExchangeRate, Vessel, VesselDisposal
 from .tests import ApiTestCase
 
-PRICE = {"month": "2026-11", "port": "alexandria", "garbage_cost": "10", "garbage_revenue": "15",
-         "sludge_cost": "20", "sludge_revenue": "32.5"}
+
+def block(min_qty, minimum, currency, extra):
+    return {"min_qty": min_qty, "min": minimum, "currency": currency, "extra": extra}
+
+
+# The user's example: garbage minimum 3 m³ = USD 250 revenue / LE 5,200 cost, sludge minimum 25 t = USD 875 / LE 11,000.
+PRICE = {
+    "month": "2026-11", "port": "alexandria",
+    "garbage": {"revenue": block("3", "250", "USD", "60"), "cost": block("3", "5200", "EGP", "1500")},
+    "sludge": {"revenue": block("25", "875", "USD", "30"), "cost": block("25", "11000", "EGP", "400")},
+}
+URL = "/api/disposal-prices/"
+
+
+def with_block(kind, side, **changes):
+    return {**PRICE, kind: {**PRICE[kind], side: {**PRICE[kind][side], **changes}}}
+
+
+class BlockAmountTests(ApiTestCase):
+
+    def test_minimum_then_extra(self):
+        from .disposal import block_amount
+
+        b = {"min_qty": 3, "min": 250, "extra": 60}
+        self.assertEqual([block_amount(q, b) for q in (None, 0, 1, 3, 5, 3.5)], [0.0, 0.0, 250.0, 250.0, 370.0, 280.0])
 
 
 class PriceApiTests(ApiTestCase):
-    URL = "/api/disposal-prices/"
 
     def test_admin_saves_and_updates_a_month_and_port(self):
         admin = self.login("admin")
-        status, data = self.call(admin, "post", self.URL, PRICE)
+        status, data = self.call(admin, "post", URL, PRICE)
         self.assertEqual(status, 200)
-        self.assertEqual(data["prices"], [{
-            "id": DisposalPrice.objects.get().id, "month": "2026-11", "label": "11.2026", "port": "alexandria",
-            "port_label": "Alexandria", "garbage_cost": 10.0, "garbage_revenue": 15.0, "sludge_cost": 20.0,
-            "sludge_revenue": 32.5,
-        }])
-        self.call(admin, "post", self.URL, {**PRICE, "garbage_cost": "11"})
+        saved = data["prices"][0]
+        self.assertEqual((saved["month"], saved["label"], saved["port"], saved["port_label"]),
+                         ("2026-11", "11.2026", "alexandria", "Alexandria"))
+        self.assertEqual(saved["garbage"]["cost"], {"min_qty": 3.0, "min": 5200.0, "currency": "EGP", "extra": 1500.0})
+        self.assertEqual(saved["sludge"]["revenue"]["currency"], "USD")
+        self.call(admin, "post", URL, with_block("garbage", "cost", min="5500"))
         price = DisposalPrice.objects.get()
-        self.assertEqual((price.month, price.garbage_cost), (date(2026, 11, 1), Decimal("11")))
+        self.assertEqual((price.month, price.garbage_cost_min), (date(2026, 11, 1), Decimal("5500")))
 
     def test_every_port_has_its_own_price(self):
         admin = self.login("admin")
-        self.call(admin, "post", self.URL, PRICE)
-        self.call(admin, "post", self.URL, {**PRICE, "port": "suez"})
+        self.call(admin, "post", URL, PRICE)
+        self.call(admin, "post", URL, {**PRICE, "port": "suez"})
         self.assertEqual(DisposalPrice.objects.count(), 2)
 
     def test_bad_input_refused(self):
         admin = self.login("admin")
         for bad, message in (
-            ({"month": "nope"}, "Enter a month."),
-            ({"port": "cairo"}, "Unknown port."),
-            ({"garbage_cost": "-1"}, "Garbage cost must be 0 or more."),
-            ({"sludge_revenue": "abc"}, "Sludge revenue must be a number."),
-            ({"sludge_cost": ""}, "Enter the sludge cost (0 if free)."),
-            ({"garbage_revenue": "9999999999.996"}, "Garbage revenue is too large."),
+            ({**PRICE, "month": "nope"}, "Enter a month."),
+            ({**PRICE, "port": "cairo"}, "Unknown port."),
+            (with_block("garbage", "revenue", min=""), "Enter the garbage revenue minimum (0 if none)."),
+            (with_block("sludge", "cost", extra="-1"), "Sludge cost extra per t must be 0 or more."),
+            (with_block("sludge", "revenue", min_qty="abc"), "Sludge revenue minimum quantity must be a number."),
+            (with_block("garbage", "cost", currency="GBP"), "Garbage cost currency must be EGP or USD."),
+            (with_block("garbage", "revenue", min="9999999999.996"), "Garbage revenue minimum is too large."),
         ):
-            self.assertEqual(self.call(admin, "post", self.URL, {**PRICE, **bad}), (400, {"error": message}))
+            self.assertEqual(self.call(admin, "post", URL, bad), (400, {"error": message}))
         self.assertFalse(DisposalPrice.objects.exists())
 
     def test_only_admins_change_prices(self):
         for user in ("alex", "viewer"):
-            status, _ = self.call(self.login(user), "post", self.URL, PRICE)
+            status, _ = self.call(self.login(user), "post", URL, PRICE)
             self.assertEqual(status, 403)
         price = DisposalPrice.objects.create(month=date(2026, 11, 1), port="alexandria")
-        status, _ = self.call(self.login("alex"), "delete", f"{self.URL}{price.id}/")
+        status, _ = self.call(self.login("alex"), "delete", f"{URL}{price.id}/")
         self.assertEqual(status, 403)
-        status, data = self.call(self.login("admin"), "delete", f"{self.URL}{price.id}/")
+        status, data = self.call(self.login("admin"), "delete", f"{URL}{price.id}/")
         self.assertEqual((status, data["prices"]), (200, []))
 
     def test_port_users_read_their_port_only(self):
         DisposalPrice.objects.create(month=date(2026, 11, 1), port="alexandria")
         DisposalPrice.objects.create(month=date(2026, 11, 1), port="suez")
-        _, alex = self.call(self.login("alex"), "get", self.URL)
-        _, viewer = self.call(self.login("viewer"), "get", self.URL)
+        _, alex = self.call(self.login("alex"), "get", URL)
+        _, viewer = self.call(self.login("viewer"), "get", URL)
         self.assertEqual([p["port"] for p in alex["prices"]], ["alexandria"])
         self.assertEqual(sorted(p["port"] for p in viewer["prices"]), ["alexandria", "suez"])
 
     def test_changes_are_in_the_history(self):
-        self.call(self.login("admin"), "post", self.URL, PRICE)
+        self.call(self.login("admin"), "post", URL, PRICE)
         record = ChangeRecord.objects.get(object_type="disposalprice", action="create")
         self.assertEqual(record.username, "admin")
 
 
-class PricedCase(ApiTestCase):
-    """Alexandria, November 2026, rate 50: garbage at 10 / 15 USD per m³, sludge at 20 / 32.50 USD per m³."""
+class PageCase(ApiTestCase):
+    """Alexandria, November 2026, rate 50, the example prices."""
+
+    PAGE = "/api/disposal/?from=2026-11-01&to=2026-11-30"
 
     def setUp(self):
-        from .models import ExchangeRate
-
         ExchangeRate.objects.create(month=date(2026, 11, 1), rate=Decimal("50"))
-        DisposalPrice.objects.create(month=date(2026, 11, 1), port="alexandria", garbage_cost=10, garbage_revenue=15,
-                                     sludge_cost=20, sludge_revenue=Decimal("32.5"))
+        self.call(self.login("admin"), "post", URL, PRICE)
         self.alex = self.login("alex")
 
-    def add(self, vessel, data, client=None):
-        from .tests import allow
+    def put(self, vessel, data, client=None):
+        return self.call(client or self.alex, "put", f"/api/disposal/{vessel.id}/", data)
 
-        allow("agent", "NILE")
-        return self.call(client or self.alex, "post", f"/api/vessels/{vessel.id}/services/",
-                         {"type": "Garbage & Sludge", "agent": "NILE", "data": data})
+    def page(self, client=None, query=""):
+        return self.call(client or self.alex, "get", self.PAGE + query)[1]
 
 
-class MoneyTests(PricedCase):
+def ids(data):
+    return [r["vessel"]["id"] for r in data["rows"]]
 
-    def test_quantities_are_cleaned(self):
-        from .validators import clean_service_data
 
-        self.assertEqual(clean_service_data("Garbage & Sludge", {"garbage": "3", "sludge": "", "cost": 99}),
-                         {"garbage": 3.0, "sludge": None})
+class PageTests(PageCase):
+
+    def test_figures_in_egp_and_usd(self):
+        status, row = self.put(self.alex_vessel, {"garbage": "5", "sludge": "25"})
+        self.assertEqual(status, 200)
+        # garbage: revenue 250 + 2 × 60 = USD 370 (LE 18,500); cost 5,200 + 2 × 1,500 = LE 8,200 (USD 164)
+        # sludge (the minimum): revenue USD 875 (LE 43,750); cost LE 11,000 (USD 220)
+        self.assertEqual((row["revenue_egp"], row["cost_egp"], row["profit_egp"]), (62250.0, 19200.0, 43050.0))
+        self.assertEqual((row["revenue_usd"], row["cost_usd"], row["profit_usd"]), (1245.0, 384.0, 861.0))
+        self.assertEqual([item["label"] for item in row["lines"]], ["Garbage · 5 m³", "Sludge · 25 t"])
+        self.assertFalse(row["rate_missing"] or row["price_missing"])
+        self.assertEqual(self.page()["totals"]["profit_usd"], 861.0)
+
+    def test_port_users_see_and_change_their_port_only(self):
+        names = [r["vessel"]["name"] for r in self.page()["rows"]]
+        self.assertIn(self.alex_vessel.name, names)
+        self.assertNotIn(self.suez_vessel.name, names)
+        status, _ = self.put(self.suez_vessel, {"garbage": "1"})
+        self.assertEqual(status, 404)
+        status, _ = self.put(self.alex_vessel, {"garbage": "1"}, client=self.login("viewer"))
+        self.assertEqual(status, 403)
+
+    def test_hide_and_bring_back(self):
+        self.put(self.alex_vessel, {"garbage": "5"})
+        _, row = self.put(self.alex_vessel, {"hidden": True})
+        self.assertEqual((row["hidden"], row["garbage"], row["revenue_egp"]), (True, None, 0.0))
+        self.assertNotIn(self.alex_vessel.id, ids(self.page()))
+        self.assertIn(self.alex_vessel.id, ids(self.page(query="&show=hidden")))
+        self.put(self.alex_vessel, {"hidden": False})
+        self.assertIn(self.alex_vessel.id, ids(self.page(query="&show=none")))
+        self.assertNotIn(self.alex_vessel.id, ids(self.page(query="&show=with")))
+
+    def test_filters(self):
+        self.put(self.alex_vessel, {"sludge": "30"})
+        self.assertEqual(ids(self.page(query="&show=with")), [self.alex_vessel.id])
+        self.assertEqual(self.call(self.alex, "get", self.PAGE + "&show=odd"), (400, {"error": "Unknown filter."}))
+
+    def test_bad_quantities_refused(self):
         for bad, message in (({"garbage": "-1"}, "Garbage (m³) must be 0 or more."),
-                             ({"sludge": "x"}, "Sludge (m³) must be a number.")):
-            with self.assertRaisesMessage(Exception, message):
-                clean_service_data("Garbage & Sludge", bad)
+                             ({"sludge": "x"}, "Sludge (t) must be a number."),
+                             ({"hidden": "yes"}, "Hidden must be true or false."),
+                             ({}, "Nothing to change.")):
+            self.assertEqual(self.put(self.alex_vessel, bad), (400, {"error": message}))
+        self.assertFalse(VesselDisposal.objects.exists())
 
-    def test_money_from_quantity_price_and_rate(self):
-        status, vessel = self.add(self.alex_vessel, {"garbage": 3, "sludge": 2})
-        self.assertEqual(status, 201)
-        calc = vessel["services"][-1]["calc"]
-        # garbage 30 / 45 USD, sludge 40 / 65 USD -> cost 70 USD = 3500 EGP, revenue 110 USD = 5500 EGP
-        self.assertEqual((calc["cost_egp"], calc["revenue_egp"], calc["profit_egp"]), (3500.0, 5500.0, 2000.0))
-        self.assertFalse(calc["price_missing"] or calc["rate_missing"])
-        self.assertEqual(vessel["total_profit_egp"], 2000.0)
-        self.assertEqual(vessel["disposal_price"], {"garbage": {"cost": 10.0, "revenue": 15.0},
-                                                    "sludge": {"cost": 20.0, "revenue": 32.5}})
+    def test_missing_price_and_rate_are_flagged(self):
+        _, row = self.put(self.suez_vessel, {"garbage": "5"}, client=self.login("admin"))
+        self.assertTrue(row["price_missing"])
+        self.assertEqual(row["revenue_egp"], 0.0)
+        Vessel.objects.filter(pk=self.alex_vessel.pk).update(date=date(2026, 12, 3))
+        self.call(self.login("admin"), "post", URL, {**PRICE, "month": "2026-12"})  # a price, but no December rate
+        _, row = self.put(self.alex_vessel, {"garbage": "5"})
+        self.assertTrue(row["rate_missing"])
+        self.assertEqual((row["revenue_usd"], row["revenue_egp"], row["cost_egp"], row["cost_usd"]),
+                         (370.0, None, 8200.0, None))
 
-    def test_lines_show_their_working(self):
-        from .finance import service_lines
+    def test_totals_leave_out_flagged_rows_whole(self):
+        self.put(self.alex_vessel, {"garbage": "5"})
+        Vessel.objects.filter(pk=self.alex_vessel.pk).update(date=date(2026, 12, 3))  # December: a price, no rate
+        self.call(self.login("admin"), "post", URL, {**PRICE, "month": "2026-12"})
+        totals = self.call(self.alex, "get", "/api/disposal/?from=2026-12-01&to=2026-12-31")[1]["totals"]
+        self.assertEqual((totals["revenue_usd"], totals["cost_egp"], totals["profit_egp"]), (0.0, 0.0, 0.0))
+        self.assertEqual(totals["rate_missing_rows"], 1)
 
-        prices = {"garbage": {"cost": 10.0, "revenue": 15.0}, "sludge": {"cost": 20.0, "revenue": 32.5}}
-        lines = service_lines("Garbage & Sludge", {"garbage": 3, "sludge": 0}, 50, prices)
-        self.assertEqual([item["label"] for item in lines], ["Garbage · 3 m³"])  # no sludge: no line
-        cost = lines[0]["cost"]
-        self.assertEqual((cost["amount"], cost["times"], cost["currency"], cost["rate"], cost["egp"]),
-                         (10.0, 3.0, "USD", 50, 1500.0))
+    def test_quantities_for_a_hidden_vessel_are_refused(self):
+        self.put(self.alex_vessel, {"hidden": True})
+        self.assertEqual(self.put(self.alex_vessel, {"garbage": "5"}),
+                         (400, {"error": "Bring the vessel back before entering quantities."}))
 
-    def test_no_price_for_that_port_and_month_is_flagged(self):
-        alex_admin = self.login("admin")
-        _, vessel = self.add(self.suez_vessel, {"garbage": 3}, client=alex_admin)
-        calc = vessel["services"][-1]["calc"]
-        self.assertTrue(calc["price_missing"])
-        self.assertEqual((calc["cost_egp"], calc["revenue_egp"]), (0.0, 0.0))
-        self.assertIsNone(vessel["disposal_price"])
+    def test_a_typed_zero_is_entered(self):
+        self.put(self.alex_vessel, {"garbage": "0"})
+        self.assertNotIn(self.alex_vessel.id, ids(self.page(query="&show=none")))
+        self.assertNotIn(self.alex_vessel.id, ids(self.page(query="&show=with")))
 
-    def test_price_follows_the_vessel_month(self):
-        from .models import Vessel
-
-        _, vessel = self.add(self.alex_vessel, {"garbage": 1})
-        Vessel.objects.filter(pk=self.alex_vessel.pk).update(date=date(2026, 12, 2))
-        _, moved = self.call(self.alex, "get", f"/api/vessels/{self.alex_vessel.id}/")
-        self.assertTrue(moved["services"][-1]["calc"]["price_missing"])
+    def test_changes_are_in_the_history(self):
+        self.put(self.alex_vessel, {"garbage": "5"})
+        self.assertTrue(ChangeRecord.objects.filter(object_type="vesseldisposal", username="alex").exists())
 
 
-class CalculationsTests(PricedCase):
-    """The Calculations page shows these lines in USD and EGP, with USD totals."""
+class CalculationsTests(PageCase):
+    """Garbage & Sludge lines are on the Calculations page, with USD, but not in the vessel's own totals."""
 
-    def test_usd_figures_and_totals(self):
-        self.add(self.alex_vessel, {"garbage": 3, "sludge": 2})
+    def test_lines_usd_and_not_in_vessel_totals(self):
+        _, before = self.call(self.alex, "get", f"/api/vessels/{self.alex_vessel.id}/")
+        self.put(self.alex_vessel, {"garbage": "5", "sludge": "25"})
         _, data = self.call(self.alex, "get", "/api/calculations/?from=2026-11-01&to=2026-11-30")
         rows = {row["label"]: row for row in data["rows"]}
-        garbage = rows["Garbage · 3 m³"]
-        self.assertEqual((garbage["cost_usd"], garbage["revenue_usd"], garbage["profit_usd"]), (30.0, 45.0, 15.0))
-        self.assertEqual((garbage["cost_egp"], garbage["profit_egp"]), (1500.0, 750.0))
-        self.assertEqual(rows["Sludge · 2 m³"]["profit_usd"], 25.0)
-        totals = data["totals"]
-        self.assertEqual((totals["cost_usd"], totals["revenue_usd"], totals["profit_usd"]), (70.0, 110.0, 40.0))
-        self.assertEqual(totals["price_missing_lines"], 0)
-
-    def test_egp_lines_have_no_usd_figures(self):
-        _, data = self.call(self.login("admin"), "get", "/api/calculations/?from=2026-11-01&to=2026-11-30")
-        fresh_water = next(row for row in data["rows"] if row["kind"] == "Fresh Water")
-        self.assertIsNone(fresh_water["profit_usd"])
-        self.assertEqual(data["totals"]["profit_usd"], 0.0)
+        garbage = rows["Garbage · 5 m³"]
+        self.assertEqual((garbage["kind"], garbage["revenue_egp"], garbage["cost_egp"]),
+                         ("Garbage & Sludge", 18500.0, 8200.0))
+        self.assertEqual((garbage["revenue_usd"], garbage["cost_usd"], garbage["profit_usd"]), (370.0, 164.0, 206.0))
+        self.assertEqual(rows["Sludge · 25 t"]["profit_egp"], 32750.0)
+        _, after = self.call(self.alex, "get", f"/api/vessels/{self.alex_vessel.id}/")
+        self.assertEqual(after["total_profit_egp"], before["total_profit_egp"])
 
     def test_missing_price_line_is_listed(self):
-        self.add(self.suez_vessel, {"sludge": 4}, client=self.login("admin"))
+        self.put(self.suez_vessel, {"sludge": "4"}, client=self.login("admin"))
         _, data = self.call(self.login("admin"), "get", "/api/calculations/?from=2026-11-01&to=2026-11-30")
         row = next(row for row in data["rows"] if row["kind"] == "Garbage & Sludge")
         self.assertTrue(row["price_missing"])

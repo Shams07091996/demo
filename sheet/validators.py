@@ -237,9 +237,6 @@ def clean_service_data(service_type, raw):
         return _clean_multi(service_type, raw)
     if service_type == "Cash to Master":
         return _clean_cash_to_master(raw)
-    if service_type == "Garbage & Sludge":  # quantities only: the money comes from the monthly prices
-        return {"garbage": _amount(raw.get("garbage"), "Garbage (m³)"),
-                "sludge": _amount(raw.get("sludge"), "Sludge (m³)")}
     return _clean_single(service_type, raw)
 
 
@@ -512,16 +509,25 @@ def clean_closure(data, profile, existing=None):
             "notes": _short(data.get("notes"), 500, "Notes")}
 
 
-DISPOSAL_PRICE_LABELS = {
-    "garbage_cost": "Garbage cost", "garbage_revenue": "Garbage revenue",
-    "sludge_cost": "Sludge cost", "sludge_revenue": "Sludge revenue",
-}
-MAX_PRICE = 1e10  # the column holds 12 digits with 2 decimals
+DISPOSAL_KINDS = (("garbage", "Garbage", "m³"), ("sludge", "Sludge", "t"))
+MAX_PRICE = 1e10  # the columns hold 12 digits with 2 (amounts) or 3 (quantities) decimals
+
+
+def _required(value, label, places):
+    """A price figure: required (an empty one would silently count as 0), 0 or more, within the column."""
+    result = _amount(value, label)
+    if result is None:
+        raise BadRequest(f"Enter the {label[0].lower() + label[1:]} (0 if none).")
+    result = round(result, places)
+    if result >= (MAX_PRICE if places == 2 else MAX_PRICE / 10):
+        raise BadRequest(f"{label} is too large.")
+    return Decimal(str(result))
 
 
 def clean_disposal_price(data):
-    """A month (YYYY-MM), a port and four USD prices per m³ (each required, 0 or more)."""
-    data = data if isinstance(data, dict) else {}
+    """A month (YYYY-MM), a port and the four price blocks {garbage|sludge: {revenue|cost: {min_qty, min, currency,
+    extra}}} → (first of the month, port, model fields). Every figure is required; currencies are EGP or USD."""
+    data = _as_dict(data)
     try:
         year, month = str(data.get("month", "")).split("-")
         first_of_month = date(int(year), int(month), 1)
@@ -530,13 +536,35 @@ def clean_disposal_price(data):
     port = data.get("port")
     if port not in PORT_KEYS:
         raise BadRequest("Unknown port.")
-    prices = {}
-    for key, label in DISPOSAL_PRICE_LABELS.items():
-        value = _amount(data.get(key), label)
-        if value is None:  # an empty price would silently count as 0: the admin types 0 when it is free
-            raise BadRequest(f"Enter the {label.lower()} (0 if free).")
-        value = round(value, 2)
-        if value >= MAX_PRICE:
-            raise BadRequest(f"{label} is too large.")
-        prices[key] = Decimal(str(value))
-    return first_of_month, port, prices
+    fields = {}
+    for kind, label, unit in DISPOSAL_KINDS:
+        for side in ("revenue", "cost"):
+            block = _as_dict(_as_dict(data.get(kind)).get(side))
+            name = f"{label} {side}"
+            fields[f"{kind}_{side}_min_qty"] = _required(block.get("min_qty"), f"{name} minimum quantity", 3)
+            fields[f"{kind}_{side}_min"] = _required(block.get("min"), f"{name} minimum", 2)
+            currency = block.get("currency")
+            if currency not in ("EGP", "USD"):
+                raise BadRequest(f"{name} currency must be EGP or USD.")
+            fields[f"{kind}_{side}_currency"] = currency
+            fields[f"{kind}_{side}_extra"] = _required(block.get("extra"), f"{name} extra per {unit}", 2)
+    return first_of_month, port, fields
+
+
+def clean_disposal_quantities(data):
+    """The changes to a vessel's Garbage & Sludge: any of garbage (m³), sludge (t) — empty clears — and hidden."""
+    data = _as_dict(data)
+    changes = {}
+    for kind, label, unit in DISPOSAL_KINDS:
+        if kind in data:
+            value = _amount(data[kind], f"{label} ({unit})")
+            if value is not None and round(value, 3) >= MAX_PRICE / 10:
+                raise BadRequest(f"{label} ({unit}) is too large.")
+            changes[kind] = None if value is None else Decimal(str(round(value, 3)))
+    if "hidden" in data:
+        if not isinstance(data["hidden"], bool):
+            raise BadRequest("Hidden must be true or false.")
+        changes["hidden"] = data["hidden"]
+    if not changes:
+        raise BadRequest("Nothing to change.")
+    return changes

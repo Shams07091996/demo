@@ -6,12 +6,13 @@ maths as the vessel figures (finance.service_lines / logistics.booking_line), so
 from dataclasses import dataclass
 from datetime import date
 
+from . import disposal
 from .access import scoped_vessels
 from .errors import BadRequest
 from .finance import service_lines
 from .listing import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, date_param, int_param
 from .logistics import booking_line
-from .serializers import disposal_prices, month_rates
+from .serializers import month_rates
 
 SORT_KEYS = {
     "date": lambda r: r["vessel"]["date"],
@@ -65,7 +66,10 @@ def _rounded_side(side):
 
 
 def _usd(item):
-    """(cost, revenue, profit) in USD when every side of the line is in USD (e.g. Garbage & Sludge), else None."""
+    """(cost, revenue, profit) in USD: a Garbage & Sludge line brings its own; otherwise when every side of the line is
+    in USD, else None."""
+    if "usd" in item:
+        return item["usd"]
     sides = [side for side in (item["cost"], item["revenue"]) if side]
     if not sides or any(side["currency"] != "USD" for side in sides):
         return None
@@ -92,16 +96,17 @@ def _row(vessel, kind, item):
         "profit_usd": usd[2] if usd else None,
         "rate_source": item["rate_source"],
         "rate_missing": item["rate_missing"],
-        "price_missing": item["price_missing"],
+        "price_missing": item.get("price_missing", False),
     }
 
 
 def _vessel_rows(vessel, rate, price):
-    """One vessel's lines: its services in order, then its hotel stays, then its transfers."""
+    """One vessel's lines: its services in order, its garbage and sludge, then its hotel stays, then its transfers."""
     rows = []
     for service in vessel.services.all():
-        lines = service_lines(service.service_type, service.data, rate, price)
+        lines = service_lines(service.service_type, service.data, rate)
         rows += [_row(vessel, service.service_type, item) for item in lines]
+    rows += [_row(vessel, "Garbage & Sludge", item) for item in disposal.calculation_lines(vessel, rate, price)]
     for kind, label, bookings in (("hotels", "Hotel stay", vessel.hotel_stays.all()),
                                   ("transfers", "Transfer", vessel.transfers.all())):
         for booking in bookings:
@@ -114,6 +119,7 @@ def _vessel_rows(vessel, rate, price):
 def response(profile, params):
     p = parse_params(params)
     vessels = scoped_vessels(profile, p.port, prefetch=False).prefetch_related("services", "hotel_stays", "transfers")
+    vessels = vessels.select_related("disposal")
     if p.date_from:
         vessels = vessels.filter(date__gte=p.date_from)
     if p.date_to:
@@ -122,7 +128,7 @@ def response(profile, params):
     oprs = sorted(set(vessels.exclude(opr="").values_list("opr", flat=True)), key=str.casefold)
     if p.opr is not None:
         vessels = vessels.filter(opr=p.opr)
-    rates, prices = month_rates(), disposal_prices()
+    rates, prices = month_rates(), disposal.prices_map()
     rows = []
     for vessel in vessels.order_by("-date", "-id"):
         month = (vessel.date.year, vessel.date.month)

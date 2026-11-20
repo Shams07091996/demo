@@ -21,6 +21,7 @@
       <a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>
       <a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>
       <a class="nav-item" data-page="closures" href="#closures"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ban"></use></svg></span><span>Port closures</span></a>
+      <a class="nav-item" data-page="disposal" href="#disposal"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-trash"></use></svg></span><span>Garbage &amp; Sludge</span></a>
       <a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>
       <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>
       <a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>
@@ -151,6 +152,21 @@
       </div>
     </main>
 
+    <!-- ===== Garbage & Sludge (drawn by js/pages/disposal.js) ===== -->
+    <main class="page" id="page-disposal" hidden>
+      <div class="date-range" role="group" aria-label="Vessel date range">
+        <label>From <input class="input" type="date" id="g-from"></label>
+        <label>To <input class="input" type="date" id="g-to"></label>
+        <select id="g-show" class="select" aria-label="Show"></select>
+        <select id="g-port" class="select" hidden aria-label="Port"></select>
+      </div>
+      <div class="calc-totals" id="g-totals" role="status"></div>
+      <div class="table-wrap">
+        <table><thead id="g-head"></thead><tbody id="g-tbody"></tbody></table>
+        <div class="empty" id="g-empty" hidden>No vessels.</div>
+      </div>
+    </main>
+
     <!-- ===== Calculations (drawn by js/pages/calculations.js) ===== -->
     <main class="page" id="page-calculations" hidden>
       <div class="date-range" role="group" aria-label="Vessel date range">
@@ -234,7 +250,7 @@
         <div id="rates-panel"></div>
       </div>
       <div class="panel">
-        <h3>Garbage &amp; Sludge prices (USD per m³)</h3>
+        <h3>Garbage &amp; Sludge prices, per month and port</h3>
         <div id="prices-panel"></div>
       </div>
     </main>

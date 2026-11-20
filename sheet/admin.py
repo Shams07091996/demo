@@ -20,6 +20,7 @@ from .models import (
     Service,
     Transfer,
     Vessel,
+    VesselDisposal,
 )
 
 TWO_STEP_FIELDS = ("two_step_exempt", "must_change_password")
@@ -133,6 +134,7 @@ admin.site.unregister(User)
 admin.site.register(User, UserWithProfile)
 admin.site.register(ExchangeRate)
 admin.site.register(DisposalPrice)
+admin.site.register(VesselDisposal)
 admin.site.register(Option)
 
 

@@ -17,9 +17,10 @@ import {
 import { openVessel, openVesselForm, syncSailingDate, updateDelayRow, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
+import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
-import { renderRatesPage } from './pages/rates.js';
+import { copyLastMonth, readPriceForm, renderRatesPage } from './pages/rates.js';
 import { fillQuickSelects } from './render/list.js';
 import { closePanel, openPanel, toggleAlerts } from './render/notifications.js';
 import { hideRangeNotice } from './render/rangeNotice.js';
@@ -76,11 +77,9 @@ async function changeRate(request) {
   renderRatesPage();
 }
 
-/** Save or delete a Garbage & Sludge price, then refresh the vessels (their figures depend on it). */
+/** Save or delete a Garbage & Sludge price (its money is on its own page and Calculations, not in vessel figures). */
 async function changePrice(request) {
   state.prices = (await mutate(request)).prices;
-  state.cache.clear();
-  await refreshAfterChange();
   renderRatesPage();
 }
 
@@ -173,7 +172,8 @@ export const actions = {
 
   'save-rate': () => changeRate(() => api('/api/rates/', 'POST', formValues($('#rate-form')))),
   'del-rate': (b) => changeRate(() => api(`/api/rates/${b.dataset.id}/`, 'DELETE')),
-  'save-price': () => changePrice(() => api('/api/disposal-prices/', 'POST', formValues($('#price-form')))),
+  'save-price': () => changePrice(() => api('/api/disposal-prices/', 'POST', readPriceForm())),
+  'copy-price': () => copyLastMonth(),
   'del-price': (b) => changePrice(() => api(`/api/disposal-prices/${b.dataset.id}/`, 'DELETE')),
 
   'add-option': (b) => {
@@ -190,6 +190,8 @@ export const actions = {
   'booking-open': (b) => openBookingDialog(b.dataset.kind, Number(b.dataset.id)),
   'booking-page': (b) => bookingsPage(b.dataset.kind).step(Number(b.dataset.step)),
   'calc-page': (b) => calculationsPage.step(Number(b.dataset.step)),
+  'disposal-hide': (b) => disposalPage.hide(b.dataset.id),
+  'disposal-show': (b) => disposalPage.show(b.dataset.id),
   'history-page': (b) => historyPage.step(Number(b.dataset.step)),
   'booking-pick-vessel': pickVessel,
   'booking-change-vessel': changeVessel,

@@ -26,6 +26,7 @@ from .models import (
     Service,
     Transfer,
     Vessel,
+    VesselDisposal,
 )
 from .netutils import client_ip
 
@@ -38,6 +39,7 @@ TRACKED = (
     Option,
     ExchangeRate,
     DisposalPrice,
+    VesselDisposal,
     PortClosure,
     Profile,
     User,
