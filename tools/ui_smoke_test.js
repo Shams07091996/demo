@@ -109,6 +109,8 @@ async function login() {
   const clearTestRate = async () => {
     const { rates } = await (await w.fetch('/api/rates/')).json();
     for (const r of rates.filter((x) => x.month === '2020-01')) await w.fetch(`/api/rates/${r.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
+    const { prices } = await (await w.fetch('/api/disposal-prices/')).json();
+    for (const p of prices.filter((x) => x.month === '2020-01')) await w.fetch(`/api/disposal-prices/${p.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
   };
   if (ROLE === 'admin') await clearTestRate();
 
@@ -372,7 +374,8 @@ async function login() {
     await go('master');
     ok($$('#master-grid .panel').length === 8 && !$('[data-act="add-option"]') && !$('[data-act="del-option"]'), 'read-only: master data is view-only');
     await go('rates');
-    ok(!$('#rate-form'), 'read-only: cannot edit exchange rates');
+    ok(!$('#rate-form') && !$('#price-form'), 'read-only: cannot edit exchange rates or Garbage & Sludge prices');
+    ok(await waitFor(() => $('#prices-table') && $('#prices-panel').textContent.includes('Alexandria')), 'read-only: Garbage & Sludge prices are listed');
     for (const [page, p] of [['hotels', 'h'], ['transport', 't']]) {
       await go(page);
       ok(await waitFor(() => $(`#${p}-head`).textContent.includes('Vessel')), `read-only: ${page} list renders`);
@@ -498,6 +501,13 @@ async function login() {
   ok($$('#vessel-form [type=datetime-local]').length === 5, 'vessel form has the five port-call time fields');
   type($('#vessel-form [name=name]'), '<img src=x onerror=window.__xss=1>');
   type($('#vessel-form [name=date]'), '2020-01-20');
+  if (ROLE === 'admin') {
+    // On All ports nothing is assumed: the admin chooses the port.
+    ok($('#vessel-form [name=port]').value === '', 'admin on All ports: the new vessel has no port yet');
+    click($('[data-act="save-vessel"]'));
+    ok(await waitFor(() => /Choose a port/.test($('#modal .error')?.textContent || '')), 'admin: a new vessel without a port is refused');
+    type($('#vessel-form [name=port]'), 'alexandria');
+  }
   click($('[data-act="save-vessel"]'));
   ok(await waitFor(() => /Choose an OPR/.test($('#modal .error')?.textContent || '')), 'a new vessel without an OPR is refused');
   type($('#vessel-form [name=opr]'), 'MSK');
@@ -567,6 +577,41 @@ async function login() {
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => modalText().includes('Quantity (tons): 40')), 'Fresh Water saved');
   ok($$('.svc-card').some((c) => c.textContent.includes('Fresh Water') && c.textContent.includes('Agent: SMOKE AGENT')), 'the service card shows its agent');
+
+  /* ======== Garbage & Sludge (January 2020 has no price at first) ======== */
+  click($('[data-act="add-service"]'));
+  click($('[data-type="Garbage & Sludge"]'));
+  type($('#svc-form [name=agent]'), 'SMOKE AGENT');
+  type($('#svc-form [name=garbage]'), '3'); type($('#svc-form [name=sludge]'), '0.5');
+  ok($('#preview').textContent.includes('No Garbage & Sludge price'), 'garbage & sludge: preview warns when the port and month have no price');
+  click($('[data-act="save-service"]'));
+  const garbageCard = () => $$('.svc-card').find((c) => c.textContent.includes('Garbage & Sludge'));
+  ok(await waitFor(() => garbageCard()?.textContent.includes('Garbage 3 m³ · Sludge 0.5 m³')), 'garbage & sludge: saved with its quantities');
+  ok(garbageCard().textContent.includes('No price for this port and month'), 'garbage & sludge: the card flags the missing price');
+  if (ROLE === 'admin') {
+    closeModal();
+    await go('rates');
+    type($('#price-form [name=month]'), '2020-01'); type($('#price-form [name=port]'), 'suez'); // the admin's smoke vessel is in Suez by now
+    for (const [name, value] of [['garbage_cost', '10'], ['garbage_revenue', '15'], ['sludge_cost', '20'], ['sludge_revenue', '30']]) type($(`#price-form [name=${name}]`), value);
+    click($('[data-act="save-price"]'));
+    ok(await waitFor(() => $('#prices-table')?.textContent.includes('01.2020')), 'garbage & sludge: admin saves a month and port price');
+    await go('vessels');
+    await openRow(NAME);
+    // 3 × (15 − 10) + 0.5 × (30 − 20) = 20 USD, counted 1:1 while January 2020 has no rate
+    ok(await waitFor(() => garbageCard() && !garbageCard().textContent.includes('No price') && garbageCard().textContent.includes('20.00')), 'garbage & sludge: the price applies to the vessel');
+    click(garbageCard().querySelector('[data-act="edit-service"]'));
+    ok(await waitFor(() => /Profit USD \+?20\.00/.test($('#preview')?.textContent || '')), 'garbage & sludge: the preview shows the profit in USD');
+    click($('#modal [data-act="back"]'));
+    await waitFor(() => garbageCard());
+    closeModal();
+    await go('calculations');
+    type($('#c-from'), '2020-01-01'); type($('#c-to'), '2020-01-31');
+    const sludgeRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('Sludge · 0.5 m³'));
+    ok(await waitFor(() => sludgeRow()?.textContent.includes('USD 20.00 × 0.5 × 1 (no rate) = 10.00')), 'calculations: a quantity under 1 m³ shows in the working');
+    ok(sludgeRow().textContent.includes('USD 5.00'), 'calculations: the line shows its profit in USD');
+    await go('vessels');
+    await openRow(NAME);
+  }
 
   /* ======== Cash to Master ======== */
   click($('[data-act="add-service"]'));

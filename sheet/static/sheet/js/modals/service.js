@@ -1,5 +1,5 @@
 // Adding / editing a service: the type picker, the per-type forms, the live profit preview and the crew editor.
-import { calcLocal } from '../calc.js';
+import { calcLocal, DISPOSAL_KINDS } from '../calc.js';
 import { headEl, optionChoicesEl } from '../components.js';
 import { ME, MULTI, SINGLE_EXTRA, TYPES } from '../config.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
@@ -142,6 +142,18 @@ function cashToMasterFields(vessel, d) {
   ];
 }
 
+const usd = (value) => `USD ${fmt(value)}`;
+
+function disposalFields(vessel, d) {
+  const price = vessel.disposal_price;
+  const priceText = (key) => (price ? ` (${usd(price[key].cost)} / ${usd(price[key].revenue)})` : '');
+  return [
+    h('div', { class: 'row two' }, DISPOSAL_KINDS.map(([key, label]) =>
+      field(`${label} (m³)${priceText(key)}`, numberInput({ attrs: { name: key } }, d[key])))),
+    previewBox(),
+  ];
+}
+
 function formFields(type, vessel, d) {
   // Every service has a cost and a revenue (Crew Change and Others / Remarks too).
   const money = () => [
@@ -160,6 +172,7 @@ function formFields(type, vessel, d) {
     ];
   }
   if (type === 'Cash to Master') return cashToMasterFields(vessel, d);
+  if (type === 'Garbage & Sludge') return disposalFields(vessel, d);
   const extra = SINGLE_EXTRA[type];
   const extraField = extra
     ? field(extra.label, extra.type === 'number'
@@ -198,6 +211,7 @@ export function readServiceForm() {
     revenueCurrency: values.revenueCurrency, exchangeRate: values.exchangeRate,
   };
   if (type === 'Others / Remarks') return { note: values.note, ...money };
+  if (type === 'Garbage & Sludge') return { garbage: values.garbage, sludge: values.sludge };
   if (type === 'Crew Change') {
     const withoutUiState = ({ _open, ...member }) => member;
     return {
@@ -218,13 +232,21 @@ export function readServiceForm() {
 export function updatePreview() {
   const box = $('#preview');
   if (!box || state.ctx.view !== 'service-form') return;
-  const calc = calcLocal(state.ctx.type, readServiceForm(), getVessel(state.ctx.vesselId).rate);
+  const vessel = getVessel(state.ctx.vesselId);
+  const calc = calcLocal(state.ctx.type, readServiceForm(), vessel.rate, vessel.disposal_price);
   const profitClass = calc.profit_egp >= 0 ? 'good' : 'bad';
   const profit = ['Profit ', h('b', { class: profitClass }, `LE ${sign(calc.profit_egp)}`)];
-  setChildren(box,
-    state.ctx.type === 'Cash to Master'
-      ? ['Our revenue ', h('b', { class: 'good' }, `LE ${fmt(calc.revenue_egp)}`), ' · Paid to master ', h('b', null, `LE ${fmt(calc.to_master_egp)}`), ' · ', profit]
-      : ['Cost ', h('b', null, `LE ${fmt(calc.cost_egp)}`), ' · Revenue ', h('b', null, `LE ${fmt(calc.revenue_egp)}`), ' · ', profit],
+  let figures;
+  if (state.ctx.type === 'Cash to Master') {
+    figures = ['Our revenue ', h('b', { class: 'good' }, `LE ${fmt(calc.revenue_egp)}`), ' · Paid to master ', h('b', null, `LE ${fmt(calc.to_master_egp)}`), ' · ', profit];
+  } else {
+    figures = ['Cost ', h('b', null, `LE ${fmt(calc.cost_egp)}`), ' · Revenue ', h('b', null, `LE ${fmt(calc.revenue_egp)}`), ' · ', profit];
+  }
+  const usdLine = state.ctx.type === 'Garbage & Sludge'
+    ? h('div', null, `Cost ${usd(calc.cost_usd)} · Revenue ${usd(calc.revenue_usd)} · Profit USD ${sign(calc.profit_usd)}`)
+    : null;
+  setChildren(box, figures, usdLine,
+    calc.price_missing ? h('div', { class: 'warn-text' }, 'No Garbage & Sludge price for this port and month.') : null,
     calc.rate_missing ? h('div', { class: 'warn-text' }, 'No exchange rate for this month — USD is counted 1:1.') : null);
 }
 

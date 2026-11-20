@@ -10,7 +10,7 @@ from django.utils.crypto import get_random_string
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from sheet import crewbookings
-from sheet.models import ExchangeRate, Option, PortClosure, Profile, Service, Vessel
+from sheet.models import DisposalPrice, ExchangeRate, Option, PortClosure, Profile, Service, Vessel
 from sheet.validators import clean_service_data
 
 DEMO_USERS = [
@@ -78,6 +78,8 @@ class Command(BaseCommand):
     def _create_vessels(self):
         today = date.today()
         ExchangeRate.objects.get_or_create(month=today.replace(day=1), defaults={"rate": "50.00"})
+        DisposalPrice.objects.get_or_create(month=today.replace(day=1), port="alexandria", defaults={
+            "garbage_cost": "10", "garbage_revenue": "15", "sludge_cost": "20", "sludge_revenue": "30"})
         for kind, values in (("delay", ("WAITING FOR BERTH", "PORT CLOSED", "WEATHER", "PILOT DELAY", "OTHER")),
                              ("closure", ("WEATHER", "FOG", "STRIKE", "OTHER"))):
             for value in values:

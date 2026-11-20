@@ -237,6 +237,9 @@ def clean_service_data(service_type, raw):
         return _clean_multi(service_type, raw)
     if service_type == "Cash to Master":
         return _clean_cash_to_master(raw)
+    if service_type == "Garbage & Sludge":  # quantities only: the money comes from the monthly prices
+        return {"garbage": _amount(raw.get("garbage"), "Garbage (m³)"),
+                "sludge": _amount(raw.get("sludge"), "Sludge (m³)")}
     return _clean_single(service_type, raw)
 
 
@@ -317,7 +320,9 @@ def clean_vessel(data, profile, existing=None):
     if profile.port:
         port = profile.port
     else:
-        port = data.get("port") or (existing.port if existing else "alexandria")
+        port = data.get("port") or (existing.port if existing else "")
+        if not port:  # an admin's new vessel: the port is chosen, never assumed
+            raise BadRequest("Choose a port.")
         if port not in PORT_KEYS:
             raise BadRequest("Unknown port.")
 
@@ -505,3 +510,33 @@ def clean_closure(data, profile, existing=None):
         raise BadRequest("Choose a closure reason.")
     return {"port": port, "start_at": start_at, "end_at": end_at, "reason": reason,
             "notes": _short(data.get("notes"), 500, "Notes")}
+
+
+DISPOSAL_PRICE_LABELS = {
+    "garbage_cost": "Garbage cost", "garbage_revenue": "Garbage revenue",
+    "sludge_cost": "Sludge cost", "sludge_revenue": "Sludge revenue",
+}
+MAX_PRICE = 1e10  # the column holds 12 digits with 2 decimals
+
+
+def clean_disposal_price(data):
+    """A month (YYYY-MM), a port and four USD prices per m³ (each required, 0 or more)."""
+    data = data if isinstance(data, dict) else {}
+    try:
+        year, month = str(data.get("month", "")).split("-")
+        first_of_month = date(int(year), int(month), 1)
+    except ValueError:
+        raise BadRequest("Enter a month.") from None
+    port = data.get("port")
+    if port not in PORT_KEYS:
+        raise BadRequest("Unknown port.")
+    prices = {}
+    for key, label in DISPOSAL_PRICE_LABELS.items():
+        value = _amount(data.get(key), label)
+        if value is None:  # an empty price would silently count as 0: the admin types 0 when it is free
+            raise BadRequest(f"Enter the {label.lower()} (0 if free).")
+        value = round(value, 2)
+        if value >= MAX_PRICE:
+            raise BadRequest(f"{label} is too large.")
+        prices[key] = Decimal(str(value))
+    return first_of_month, port, prices

@@ -5,6 +5,7 @@ import {
 import { MULTI, NO_AGENT, SINGLE_EXTRA } from '../config.js';
 import { h, icon } from '../dom.js';
 import { openModal } from '../modal.js';
+import { disposalSummary } from './vessel.js';
 import { api } from '../api.js';
 import { ensureVessel } from '../data.js';
 import { setStatus } from '../feedback.js';
@@ -78,11 +79,19 @@ function singleBlock(service) {
 
 const hasMoney = (service) => service.calc.cost_egp || service.calc.revenue_egp;
 
+function disposalBlock(service) {
+  const { calc } = service;
+  return [h('div', null, disposalSummary(service)), pillsTight(
+    pillEl('Cost (EGP)', fmt(calc.cost_egp)), pillEl('Revenue (EGP)', fmt(calc.revenue_egp), 'good'),
+    pillEl('Profit (EGP)', sign(calc.profit_egp), profitClass(calc.profit_egp)))];
+}
+
 function serviceBlock(service) {
   let inner;
   if (service.type === 'Others / Remarks') inner = [h('div', null, service.data.note || '—'), hasMoney(service) ? singleBlock(service) : null];
   else if (MULTI.includes(service.type)) inner = multiEntryBlock(service);
   else if (service.type === 'Cash to Master') inner = cashToMasterBlock(service);
+  else if (service.type === 'Garbage & Sludge') inner = disposalBlock(service);
   else inner = singleBlock(service);
   return h('div', { class: 'sum-block' }, h('h4', null, service.type), inner);
 }

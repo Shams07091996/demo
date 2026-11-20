@@ -48,7 +48,9 @@ export const state = {
   dashboard: emptyDashboard(),
   dashboardFilter: { opr: '', agent: '', service: '' }, // the Dashboard's own filters (not the vessel list's)
   options: [],        // OPR / POC / Agent master data
+  optionWrites: 0,    // saved Master data changes: a list loaded before one of them is out of date
   rates: [],          // monthly USD -> EGP rates
+  prices: [],         // Garbage & Sludge prices per month and port (USD per m³)
   page: 'vessels',
   ctx: { view: null, vesselId: null },   // what the modal is currently showing
   crew: { onSigners: [], offSigners: [] }, // crew members being edited in the service form

@@ -44,9 +44,11 @@ const fmtRate = (rate) => Number(rate).toLocaleString('en-US', { minimumFraction
 function sideCell(side) {
   if (!side) return '—';
   let text = `${side.currency} ${fmt(side.amount)}`;
-  if (side.times > 1) text += ` × ${side.times}`;
+  // times is a count of nights / people, or the m³ of Garbage & Sludge (which may be under 1)
+  const times = side.times !== 1;
+  if (times) text += ` × ${Number(side.times).toLocaleString('en-US', { maximumFractionDigits: 3 })}`;
   if (side.currency === 'USD') text += side.rate ? ` × ${fmtRate(side.rate)}` : ' × 1 (no rate)';
-  if (side.currency === 'USD' || side.times > 1) text += ` = ${fmt(side.egp)}`;
+  if (side.currency === 'USD' || times) text += ` = ${fmt(side.egp)}`;
   return text;
 }
 
@@ -54,6 +56,7 @@ function itemCell(row) {
   return [
     row.label,
     row.rate_missing ? [' ', h('span', { class: 'warn-text', attrs: { title: 'No exchange rate: USD counted 1:1' } }, icon('alert'))] : null,
+    row.price_missing ? h('div', { class: 'warn-text calc-note' }, 'No price for this port and month') : null,
     row.note ? h('div', { class: 'none calc-note' }, row.note) : null,
   ];
 }
@@ -66,7 +69,8 @@ function rowEl(row) {
     h('td', null, itemCell(row)),
     h('td', { class: 'num' }, sideCell(row.cost)),
     h('td', { class: 'num' }, sideCell(row.revenue)),
-    h('td', { class: `num ${row.profit_egp < 0 ? 'neg' : ''}`.trim() }, fmt(row.profit_egp)));
+    h('td', { class: `num ${row.profit_egp < 0 ? 'neg' : ''}`.trim() }, fmt(row.profit_egp),
+      row.profit_usd != null ? h('div', { class: 'none calc-note' }, `USD ${fmt(row.profit_usd)}`) : null));
 }
 
 function totalsEls(t) {
@@ -77,6 +81,13 @@ function totalsEls(t) {
     t.rate_missing_lines
       ? [' ', h('span', { class: 'warn-text' },
         icon('alert'), ` ${t.rate_missing_lines} line${t.rate_missing_lines === 1 ? ' uses' : 's use'} USD without a rate (counted 1:1)`)]
+      : null,
+    t.cost_usd || t.revenue_usd
+      ? h('div', null, `USD lines: Revenue USD ${fmt(t.revenue_usd)} · Cost USD ${fmt(t.cost_usd)} · Profit USD ${fmt(t.profit_usd)}`)
+      : null,
+    t.price_missing_lines
+      ? h('div', { class: 'warn-text' }, icon('alert'),
+        ` ${t.price_missing_lines} Garbage & Sludge line${t.price_missing_lines === 1 ? ' has' : 's have'} no price`)
       : null,
   ];
 }

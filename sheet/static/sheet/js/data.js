@@ -134,18 +134,21 @@ export async function refreshAfterChange() {
 }
 
 export async function loadOptions() {
+  const writes = state.optionWrites;
+  let options;
   try {
-    state.options = (await api('/api/options/')).options;
+    options = (await api('/api/options/')).options;
   } catch {
-    state.options = [];
+    options = [];
   }
+  // A change saved while this was loading already brought a newer list: keep that one.
+  if (state.optionWrites !== writes) return;
+  state.options = options;
   fillQuickSelects();
 }
 
 export async function loadRates() {
-  try {
-    state.rates = (await api('/api/rates/')).rates;
-  } catch {
-    state.rates = [];
-  }
+  const [rates, prices] = await Promise.allSettled([api('/api/rates/'), api('/api/disposal-prices/')]);
+  state.rates = rates.status === 'fulfilled' ? rates.value.rates : [];
+  state.prices = prices.status === 'fulfilled' ? prices.value.prices : [];
 }

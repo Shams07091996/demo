@@ -6,6 +6,7 @@ import { ME, MULTI, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.
 import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { ensureVessel } from '../data.js';
+import { DISPOSAL_KINDS } from '../calc.js';
 import { state } from '../state.js';
 import { $, $$, fmt, formValues, isDelayed, sign, today } from '../util.js';
 
@@ -36,10 +37,19 @@ function serviceSummary(service) {
           ? lines(entries.map((e, i) => `#${i + 1} ${e.awb || 'no AWB'}${e.weight ? ` · ${txt(e.weight)} kg` : ''}`))
           : 'No entries yet';
       }
+      if (service.type === 'Garbage & Sludge') return disposalSummary(service);
       const extra = SINGLE_EXTRA[service.type];
       return extra && d[extra.name] ? `${extra.label}: ${d[extra.name]}` : '';
     }
   }
+}
+
+/** "Garbage 3 m³ · Sludge 2 m³", plus a warning when that port and month has no price. */
+export function disposalSummary(service) {
+  const d = service.data || {};
+  const parts = DISPOSAL_KINDS.filter(([key]) => Number(d[key])).map(([key, label]) => `${label} ${d[key]} m³`);
+  return [parts.join(' · ') || 'No quantities',
+    service.calc.price_missing ? h('div', { class: 'warn-text' }, 'No price for this port and month') : null];
 }
 
 function serviceCard(service) {
@@ -132,17 +142,20 @@ const timeField = ({ key, label }, vessel) =>
 
 export function openVesselForm(vessel) {
   state.ctx = { view: 'vessel-form', vesselId: vessel ? vessel.id : null };
-  const selectedPort = vessel ? vessel.port : ME.port || (state.filter.port !== 'ALL' ? state.filter.port : 'alexandria');
+  const selectedPort = vessel ? vessel.port : ME.port || (state.filter.port !== 'ALL' ? state.filter.port : ''); // admins on All ports choose
   const summary = (vessel && vessel.summary) || {};
   const portField = ME.isAdmin
-    ? h('div', { class: 'field' }, h('label', null, 'Port'), h('select', { attrs: { name: 'port' } }, portOptionEls({ selected: selectedPort })))
+    ? h('div', { class: 'field' }, h('label', null, 'Port'), h('select', { attrs: { name: 'port' } },
+      h('option', { value: '' }, '—'), portOptionEls({ selected: selectedPort })))
     : null;
 
   openModal(
     headEl(vessel ? 'Edit vessel' : 'Add vessel'),
     h('div', { class: 'm-body', id: 'vessel-form' },
-      h('div', { class: 'field' }, h('label', null, 'Vessel name'),
-        h('input', { attrs: { name: 'name', maxlength: 120, autofocus: true }, value: vessel?.name })),
+      h('div', { class: portField ? 'row two' : null },
+        h('div', { class: 'field' }, h('label', null, 'Vessel name'),
+          h('input', { attrs: { name: 'name', maxlength: 120, autofocus: true }, value: vessel?.name })),
+        portField),
       h('div', { class: 'row two' },
         selectField('opr', 'OPR', vessel?.opr, selectedPort), selectField('poc', 'POC', vessel?.poc, selectedPort)),
       h('div', { class: 'row two' },
@@ -151,8 +164,7 @@ export function openVesselForm(vessel) {
       h('div', { class: 'hint' }, 'Missing an OPR, POC or agent? Add it under ',
         h('a', { href: '#master', dataset: { act: 'goto', page: 'master' }, style: { color: 'var(--accent)' } }, 'Master data'), '.'),
       h('div', { class: 'row two' },
-        h('div', { class: 'field' }, h('label', null, 'Date'), h('input', { attrs: { type: 'date', name: 'date' }, value: vessel ? vessel.date : today() })),
-        portField),
+        h('div', { class: 'field' }, h('label', null, 'Date'), h('input', { attrs: { type: 'date', name: 'date' }, value: vessel ? vessel.date : today() }))),
       h('div', { class: 'section-title', style: { marginTop: '6px' } },
         h('span', null, 'Port call times ',
           h('small', { class: 'none', style: { textTransform: 'none', letterSpacing: '0' } }, '(Cairo time, all optional)'))),

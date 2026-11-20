@@ -120,6 +120,25 @@ class ExchangeRate(models.Model):
         return f"{self.month:%m.%Y}: {self.rate}"
 
 
+class DisposalPrice(models.Model):
+    """Garbage & Sludge prices for one month (stored as the 1st) and one port: USD per m³, what we pay (cost) and what
+    we charge (revenue). The service's money is quantity × these (finance.py)."""
+
+    month = models.DateField()
+    port = models.CharField(max_length=20, choices=PORTS)
+    garbage_cost = models.DecimalField("Garbage cost (USD / m³)", max_digits=12, decimal_places=2, default=0)
+    garbage_revenue = models.DecimalField("Garbage revenue (USD / m³)", max_digits=12, decimal_places=2, default=0)
+    sludge_cost = models.DecimalField("Sludge cost (USD / m³)", max_digits=12, decimal_places=2, default=0)
+    sludge_revenue = models.DecimalField("Sludge revenue (USD / m³)", max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ["-month", "port"]
+        constraints = [models.UniqueConstraint(fields=["month", "port"], name="one_disposal_price_per_month_port")]
+
+    def __str__(self):
+        return f"{self.month:%m.%Y} {self.port}"
+
+
 class Option(models.Model):
     """Master data: the OPR / POC choices. An empty port means shared by everyone."""
 

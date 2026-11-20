@@ -9,7 +9,7 @@ import { $ } from '../util.js';
 
 const TYPES = [
   ['', 'Everything'], ['vessel', 'Vessel'], ['service', 'Service'], ['hotelstay', 'Hotel stay'],
-  ['transfer', 'Transfer'], ['guest', 'Guest'], ['option', 'Master data'], ['exchangerate', 'Exchange rate'],
+  ['transfer', 'Transfer'], ['guest', 'Guest'], ['option', 'Master data'], ['exchangerate', 'Exchange rate'], ['disposalprice', 'Garbage & Sludge price'],
   ['profile', 'User role'], ['user', 'User account'],
 ];
 const TYPE_LABEL = Object.fromEntries(TYPES);

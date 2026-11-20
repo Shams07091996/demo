@@ -1,10 +1,11 @@
 # Project status
 
-Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each feature has a design
+Last updated: 2026-11-20. Read this with `CLAUDE.md` before starting work. Each feature has a design
 (`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
 
 ## Where things stand right now
 
+- **Garbage & Sludge (2026-11-20):** on branch `feature/garbage-sludge`, built on top of `fix/admin-vessel-port` (also unmerged), so merging it brings both. Needs migration **`0015_disposal_price`** after merging. `npm run check` green (467 tests); smoke test passes for alex / admin / viewer / suez.
 - **OPR / POC required + Master data layout (2026-11-19):** merged into `main` (branch deleted). No migration. `npm run check` green; smoke test passes for alex / admin / viewer / suez.
 - **Crew bookings, sailing date, early arrival, LOG letter (2026-11-19):** merged into `main` (branch deleted). Needs migration
   **`0014_crew_bookings`** (it also moves every vessel that has a sailing time to its sailing day). For the LOG
@@ -43,6 +44,8 @@ Last updated: 2026-11-19. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
+| 2026-11-20 | **Garbage & Sludge** (branch `feature/garbage-sludge`): admins set USD prices per m³ (garbage cost / revenue, sludge cost / revenue) for each month and port on the Exchange rates page (`DisposalPrice`); the hand-added service "Garbage & Sludge" takes garbage m³ and sludge m³; money = m³ × that port and month's price, converted with the month rate, counted in the vessel totals like any service; no price → the line is flagged and has no money. Prices apply live (changing one changes that month's vessels). Calculations shows each such line's USD profit and USD totals | `specs/2026-11-19-garbage-sludge-design.md` |
+| 2026-11-19 | **Admins choose the port of a new vessel** (branch `fix/admin-vessel-port`): with All ports in the header the vessel form and quick add start with no port (the form's Port field is now next to the name); the server refuses an admin's new vessel without one ("Choose a port.") instead of assuming Alexandria. Also: a Master data list loaded before a change was saved no longer overwrites the newer one. `docs/DEPLOYMENT.md`: deploying and creating users | — |
 | 2026-11-19 | **LOG letter fixes** (merged 2026-11-19): the airline no longer carries the flight date ("EMIRATES TUE 17 NOVEMBER 2026" was read as the airline; fixed in the parser and, for crew already saved, in the letter); the stamp sits right of the personal details instead of after the last line, so two flight legs no longer push it alone onto page 2. The logo / stamp / footer need `DJANGO_LETTERHEAD_DIR` (on the user's computer: `C:\Users\PC\marine_letterhead`, taken from LOG.docx) | — |
 | 2026-11-19 | **CSP on the admin pages** (merged 2026-11-19): the Django admin had no CSP header; it now has the app's strict one minus Trusted Types (its scripts build HTML from text) and with style attributes allowed. Checked in the browser: admin pages, sidebar filter, theme switch, date picker, nothing blocked | — |
 | 2026-11-19 | **OPR and POC required** (merged 2026-11-19): a new vessel can't be saved without an OPR and a POC ("Choose an OPR." / "Choose a POC."); once set they can't be emptied; a vessel saved before this rule without them still saves. Master data rows no longer overflow: a long value takes its own line, the port / usage / Remove stay together | — |

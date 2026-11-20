@@ -159,6 +159,12 @@ under `static/`**; missing → the letter has no pictures.
 **Vessel date = sailing day:** once `sailing_at` is set, `clean_vessel` sets `date` to its Cairo date (migration 0014
 did the same for existing vessels); the form shows the date read-only.
 
+**Garbage & Sludge** (`DisposalPrice`, `GET/POST /api/disposal-prices/`, `DELETE /api/disposal-prices/<id>/`, admin-only
+writes, port users read their port's): USD price per m³ (garbage / sludge cost and revenue) per month and port, on the
+Exchange rates page. The service's data is only `{garbage, sludge}` (m³); `finance._disposal_lines` prices it with the
+vessel's month + port (`serializers.disposal_prices`, passed as `prices`) and the month rate; no price → a line flagged
+`price_missing` with no money. `calculations` adds `cost_usd` / `revenue_usd` / `profit_usd` for all-USD lines.
+
 **Calculations** (`calculations.py`, `GET /api/calculations/`): vessels in a vessel-date range / exact OPR / port →
 `service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
 filtered rows, and the OPRs present in the range for the page's dropdown. Computed on each request, never stored.

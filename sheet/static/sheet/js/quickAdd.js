@@ -3,7 +3,7 @@ import { api, mutate } from './api.js';
 import { portOptionEls } from './components.js';
 import { ME } from './config.js';
 import { afterVesselSaved } from './data.js';
-import { setChildren } from './dom.js';
+import { h, setChildren } from './dom.js';
 import { openVessel } from './modals/vessel.js';
 import { $, today } from './util.js';
 
@@ -42,7 +42,8 @@ export function setupQuickAdd() {
 
   if (ME.isAdmin) {
     const select = $('#qa-port');
-    setChildren(select, portOptionEls());
+    // No port assumed: an admin picks one (the header's port when one is chosen there).
+    setChildren(select, h('option', { value: '' }, 'Port'), portOptionEls());
     select.hidden = false;
   }
 }
