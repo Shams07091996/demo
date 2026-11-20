@@ -79,3 +79,10 @@ class XlsxTests(SimpleTestCase):
         name = xlsx.safe_sheet_name("a/b:c*d?[e]" * 3)
         self.assertLessEqual(len(name), 31)
         self.assertFalse(set(name) & set("[]:*?/\\"))
+
+    def test_line_chart_straight_lines(self):
+        # Excel smooths a line series without <c:smooth val="0"/>: the curve then dips below zero between months.
+        chart = xlsx.Chart(kind="line", title="T", categories=(0, 2, 0), series=[("V", 0, 2, 1), ("W", 0, 2, 1)],
+                           anchor=(3, 0))
+        data = xlsx.build([xlsx.Sheet(name="S", rows=[["a", 0], ["b", 0], ["c", 9]], widths=[], charts=[chart])])
+        self.assertEqual(open_parts(data)["xl/charts/chart1.xml"].count('</c:val><c:smooth val="0"/></c:ser>'), 2)

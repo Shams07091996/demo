@@ -133,7 +133,9 @@ def _chart_xml(sheet_name, chart):
         f'<c:ser><c:idx val="{i}"/><c:order val="{i}"/><c:tx><c:v>{_text(name)}</c:v></c:tx>'
         + ('<c:marker><c:symbol val="circle"/></c:marker>' if chart.kind == "line" else "")
         + f"<c:cat><c:strRef><c:f>{_text(cats)}</c:f></c:strRef></c:cat>"
-        f"<c:val><c:numRef><c:f>{_text(_ref(sheet_name, first, last, col))}</c:f></c:numRef></c:val></c:ser>"
+        f"<c:val><c:numRef><c:f>{_text(_ref(sheet_name, first, last, col))}</c:f></c:numRef></c:val>"
+        + ('<c:smooth val="0"/>' if chart.kind == "line" else "")  # straight lines: a smoothed curve dips below 0
+        + "</c:ser>"
         for i, (name, first, last, col) in enumerate(chart.series)
     )
     axes_ids = '<c:axId val="1"/><c:axId val="2"/>'
