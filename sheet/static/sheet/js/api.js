@@ -21,6 +21,35 @@ export async function api(url, method = 'GET', payload) {
   return data;
 }
 
+/**
+ * A file download (LOG letter, master receipt): fetch it, then save the answer under the server's file name.
+ * Returns null when saved, or the error message to show (the JSON `error`, or `failed`).
+ */
+export async function download(url, failed, payload) {
+  const response = await fetch(url, payload === undefined ? { credentials: 'same-origin' } : {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+    body: JSON.stringify(payload),
+  });
+  if (response.status === 401) {
+    location.href = '/login/';
+    return failed;
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    return body.error || failed;
+  }
+  const name = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '');
+  const blobUrl = URL.createObjectURL(await response.blob());
+  const save = document.createElement('a');
+  save.href = blobUrl;
+  save.download = name ? name[1] : 'download.pdf';
+  save.click();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  return null;
+}
+
 /** Run a save, showing "Saving… / Saved / Failed" and any error inside the open modal. */
 export async function mutate(action) {
   setStatus('saving', 'Saving…');

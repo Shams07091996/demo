@@ -124,6 +124,54 @@ class LogPdfTests(SimpleTestCase):
         self.assertNotIn(b"/DCTDecode", self.build())
 
 
+RECEIPT = {"port": "Alexandria", "date": "20/11/2026", "vessel": "MSC AURORA",
+           "services": "Arrange 5 shore pass with cost $50\nLanding with cost $120"}
+
+
+class ReceiptPdfTests(SimpleTestCase):
+    def test_receipt_text(self):
+        pdf = logpdf.build_receipt(RECEIPT, {})
+        for text in (b"(Alexandria: 20/11/2026)", b"(MV/ MSC AURORA)", b"(WHOM IT MAY CONCERN)",
+                     b"(Arrange 5 shore pass with cost $50)", b"(Landing with cost $120)", b"(Master)",
+                     b"(Ship's stamp)"):
+            self.assertIn(text, pdf)
+        self.assertIn(b"master of m/v MSC AURORA", pdf)
+        self.assertIn(b"ARKAS EGYPT SAE", pdf)
+        self.assertNotIn(b"{{", pdf)
+
+    def test_receipt_has_logo_and_footer_but_no_stamp(self):
+        jpeg = tiny_jpeg()
+        pdf = logpdf.build_receipt(RECEIPT, {"logo": jpeg, "stamp": jpeg, "footer": jpeg})
+        self.assertIn(b"/Im1 Do", pdf)
+        self.assertIn(b"/Im3 Do", pdf)
+        self.assertNotIn(b"/Im2", pdf)  # neither drawn nor embedded
+        self.assertEqual(pdf.count(b"/Filter /DCTDecode"), 2)
+
+    def test_receipt_long_services_add_page_signature_after_text(self):
+        services = "\n".join(f"Service line {i} with cost $10" for i in range(120))
+        pdf = logpdf.build_receipt({**RECEIPT, "services": services}, {"logo": tiny_jpeg()})
+        self.assertGreaterEqual(page_count(pdf), 2)
+        pages = page_contents(pdf)
+        self.assertIn(b"(Ship's stamp)", pages[-1])
+        self.assertIn(b"/Im1 Do", pages[-1])  # the logo on every page
+        everything = b"\n".join(pages)  # in reading order; "Master" may start a page when there is no room to sign
+        self.assertLess(everything.index(b"(Service line 119 with cost $10)"), everything.index(b"(Master)"))
+        self.assertLess(everything.index(b"(Master)"), everything.index(b"(Ship's stamp)"))
+
+    def test_receipt_room_to_stamp_whatever_the_length(self):
+        # Review finding: near the page foot only ~18 mm stayed under "Ship's stamp"; a ship's stamp needs ~40 mm.
+        bottom = 30 + 20  # no footer picture: the layout's bottom margin
+        for count in range(1, 60):
+            services = "\n".join(f"Line {i}" for i in range(count))
+            pdf = logpdf.build_receipt({**RECEIPT, "services": services}, {})
+            stamp_y = float(re.search(rb"([\d.]+) Td \(Ship's stamp\)", pdf).group(1))
+            self.assertGreaterEqual(stamp_y - bottom, 110, count)
+
+    def test_receipt_text_escaped(self):
+        pdf = logpdf.build_receipt({**RECEIPT, "services": "a(b)c\\d {{x}} عربي"}, {})
+        self.assertIn(b"(a\\(b\\)c\\\\d {{x}} ????)", pdf)
+
+
 @override_settings(RATE_LIMIT_EXPORTS_PER_USER=20)
 class LogViewTests(ApiTestCase):
     def setUp(self):

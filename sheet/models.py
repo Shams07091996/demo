@@ -322,7 +322,8 @@ class ChangeRecord(models.Model):
     """One create / update / delete of a tracked object (history.py). Append-only: no edit or delete path in the
     app or the Django admin; on PostgreSQL a trigger refuses UPDATE and DELETE (migration 0010). Kept forever."""
 
-    ACTIONS = [("create", "Created"), ("update", "Changed"), ("delete", "Deleted"), ("letter", "LOG made")]
+    ACTIONS = [("create", "Created"), ("update", "Changed"), ("delete", "Deleted"), ("letter", "LOG made"),
+               ("receipt", "Receipt made")]
 
     at = models.DateTimeField(auto_now_add=True, db_index=True)
     user = models.ForeignKey(
@@ -330,7 +331,7 @@ class ChangeRecord(models.Model):
     )
     username = models.CharField(max_length=150)  # kept if the user is deleted; "system" without a request
     ip = models.CharField(max_length=45, blank=True)
-    action = models.CharField(max_length=6, choices=ACTIONS)
+    action = models.CharField(max_length=7, choices=ACTIONS)
     object_type = models.CharField(max_length=30, db_index=True)
     object_id = models.BigIntegerField()
     port = models.CharField(max_length=20, blank=True)

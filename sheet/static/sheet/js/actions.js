@@ -1,5 +1,5 @@
 // Every button in the app has a data-act="name"; this file maps each name to what it does.
-import { api, mutate } from './api.js';
+import { api, download, mutate } from './api.js';
 import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from './data.js';
 import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
@@ -7,6 +7,7 @@ import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
+import { downloadReceipt, openReceipt } from './modals/receipt.js';
 import {
   entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
   renumberEntries, updatePreview,
@@ -149,20 +150,11 @@ export const actions = {
   'del-vessel-row': (b) => deleteVessel(Number(b.dataset.id)),
   // The LOG letter of an on-signer: fetched, then saved as a file (an error shows in the status line instead).
   'crew-log': async (link) => {
-    const response = await fetch(link.href, { credentials: 'same-origin' });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      setStatus('error', body.error || 'Could not make the LOG.');
-      return;
-    }
-    const name = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '');
-    const url = URL.createObjectURL(await response.blob());
-    const save = document.createElement('a');
-    save.href = url;
-    save.download = name ? name[1] : 'LOG.pdf';
-    save.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const error = await download(link.href, 'Could not make the LOG.');
+    if (error) setStatus('error', error);
   },
+  receipt: (b) => openReceipt(Number(b.dataset.id)),
+  'receipt-download': downloadReceipt,
 
   'time-now': (b) => {
     $(`#vessel-form [name="${b.dataset.target}"]`).value = nowLocalInput();
