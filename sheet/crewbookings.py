@@ -150,6 +150,18 @@ def booking_gaps(vessels, today, now):
     return gaps
 
 
+def _lands_early(person, vessel_date):
+    moment = crew_moment(person, "on", vessel_date)
+    lands = timezone.localdate(moment) if moment else None
+    return bool(lands and lands <= vessel_date - timedelta(days=EARLY_DAYS))
+
+
+def early_on_signers(service):
+    """How many of this Crew Change's on-signers land EARLY_DAYS or more before the vessel date (visa or not)."""
+    people = (service.data or {}).get("onSigners") or []
+    return sum(1 for person in people if isinstance(person, dict) and _lands_early(person, service.vessel.date))
+
+
 def early_arrivals(vessels, today):
     """On-signers landing EARLY_DAYS or more before their vessel's date, with no broken-visa charge entered yet."""
     services = (
@@ -167,9 +179,8 @@ def early_arrivals(vessels, today):
             visa = person.get("brokenVisa") or {}
             if visa.get("cost") is not None or visa.get("revenue") is not None:
                 continue  # handled (0 means "checked, no charge")
-            moment = crew_moment(person, "on", vessel.date)
-            lands = timezone.localdate(moment) if moment else None
-            if lands and lands <= vessel.date - timedelta(days=EARLY_DAYS):
+            if _lands_early(person, vessel.date):
+                lands = timezone.localdate(crew_moment(person, "on", vessel.date))
                 rows.append({"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(),
                              "crew": person.get("name") or "", "lands": lands.isoformat()})
     return rows

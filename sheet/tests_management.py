@@ -1,14 +1,14 @@
 """The management workbook: its tables (report.data) and its download."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-from . import calculations, dashboard, report
+from . import calculations, dashboard, report, xlsx
 from .access import profile_of
-from .models import DisposalPrice, ExchangeRate, HotelStay, Service, Transfer, Vessel, VesselDisposal
+from .models import DisposalPrice, ExchangeRate, HotelStay, PortClosure, Service, Transfer, Vessel, VesselDisposal
 from .tests import ApiTestCase
 from .validators import clean_service_data
 
@@ -102,3 +102,90 @@ class MoneyAndCountTests(ManagementFixture):
         rows = table(report.data(profile("alex"), report.Range(RANGE.date_from, RANGE.date_to, "suez")),
                      "summary")["rows"]
         self.assertEqual([r[0] for r in rows], ["Alexandria"])
+
+
+def plain(value):
+    return value.value if isinstance(value, xlsx.Hours) else value
+
+
+def cairo(*parts):
+    return timezone.make_aware(datetime(*parts))
+
+
+def landing(day):
+    return {"segments": [{"flightNo": "MS 1", "arrivalCity": "Cairo", "arrivalTime": day,
+                          "departureCity": "Istanbul", "departureTime": day}]}
+
+
+class OperationsTests(ManagementFixture):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Vessel.objects.filter(pk=cls.v_oct.pk).update(
+            arrival_at=cairo(2026, 10, 5, 8), berthing_at=cairo(2026, 10, 5, 11), sailing_at=cairo(2026, 10, 5, 20),
+            delay_reason="PORT CLOSED")
+        Vessel.objects.filter(pk=cls.v_dec.pk).update(arrival_at=cairo(2026, 12, 10, 8),
+                                                      berthing_at=cairo(2026, 12, 10, 9))
+        cls.before = PortClosure.objects.create(port="alexandria", start_at=cairo(2026, 8, 31, 18),
+                                                end_at=cairo(2026, 9, 1, 12), reason="WEATHER")
+        cls.open = PortClosure.objects.create(port="suez", start_at=cairo(2026, 11, 19, 0), reason="FOG")
+        cls.add(cls.v_oct, "Crew Change", {
+            "onSigners": [{"name": "EARLY", "flightStructured": landing("02 OCT 10:00"),
+                           "brokenVisa": {"revenue": 20, "revenueCurrency": "USD"}},
+                          {"name": "ONE DAY", "flightStructured": landing("04 OCT 10:00")}],
+            "offSigners": [{"name": "OFF"}]}, "AG1")
+        VesselDisposal.objects.filter(vessel=cls.v_oct).update(garbage=Decimal("10"), sludge=Decimal("2"))
+        VesselDisposal.objects.create(vessel=cls.v_dec, garbage=Decimal("10"), sludge=Decimal("2"), hidden=True)
+
+    def test_port_performance_averages(self):
+        data = report.data(profile("admin"), RANGE)
+        ports = table(data, "ports_perf")
+        self.assertEqual(ports["head"], ["Port", "Vessels with times", "Avg waiting (h)", "Avg at berth (h)",
+                                         "Avg in port (h)", "Delayed vessels"])
+        alexandria = next(r for r in ports["rows"] if r[0] == "Alexandria")
+        self.assertEqual(plain(alexandria[2]), 2.0)
+        self.assertEqual(plain(alexandria[3]), 9.0)
+        self.assertEqual(alexandria[5], 1)
+        months = table(data, "ports_perf", 1)
+        self.assertEqual(months["head"][0], "Month")
+        self.assertEqual([r[0] for r in months["rows"]], ["2026-09", "2026-10", "2026-11", "2026-12"])
+        self.assertIsNone(plain(months["rows"][0][2]))
+        self.assertEqual(table(data, "ports_perf", 2)["rows"], [["PORT CLOSED", 1]])
+
+    def test_closure_hours_clipped(self):
+        data = report.data(profile("admin"), RANGE)
+        ports = {r[0]: r for r in table(data, "closures")["rows"]}
+        self.assertEqual([plain(v) for v in ports["Alexandria"][1:]], [1, 12.0, 0])
+        end = min(timezone.now(), cairo(2027, 1, 1, 0))
+        expected = (end - self.open.start_at).total_seconds() / 3600
+        self.assertAlmostEqual(plain(ports["Suez"][2]), expected, delta=0.1)
+        self.assertEqual(ports["Suez"][3], 1)
+        reasons = {r[0]: r for r in table(data, "closures", 1)["rows"]}
+        self.assertEqual([plain(v) for v in reasons["WEATHER"][1:]], [1, 12.0])
+
+    def test_crew_counts_every_early_arrival(self):
+        crew = table(report.data(profile("admin"), RANGE), "crew")
+        self.assertEqual(crew["head"], ["Line", "Crew changes", "On-signers", "Off-signers", "Early arrivals",
+                                        "Broken visa revenue (EGP)", "Hotel nights", "Transfers"])
+        msk = next(r for r in crew["rows"] if r[0] == "MSK")
+        self.assertEqual(msk[1:6], [1, 2, 1, 1, 1000.0])
+        ark = next(r for r in crew["rows"] if r[0] == "ARK")
+        self.assertEqual(ark[6:], [2, 1])
+        self.assertEqual(crew["total"][0], "Total")
+
+    def test_disposal_hidden_left_out_and_money_matches(self):
+        data = report.data(profile("admin"), RANGE)
+        disposal = table(data, "disposal")
+        self.assertEqual(disposal["head"], ["Port", "Garbage (m³)", "Sludge (t)", *report.MONEY_HEAD])
+        self.assertEqual(disposal["total"][1:3], [10.0, 2.0])
+        rows = calculations.response(profile("admin"), {**PARAMS, "page_size": "200"})["rows"]
+        revenue = round(sum(r["revenue_egp"] for r in rows if r["kind"] == "Garbage & Sludge"), 2)
+        self.assertEqual(disposal["total"][3], revenue)
+        months = table(data, "disposal", 1)
+        self.assertEqual([r[0] for r in months["rows"]], ["2026-09", "2026-10", "2026-11", "2026-12"])
+
+    def test_empty_range_has_no_rows(self):
+        data = report.data(profile("admin"), report.Range(date(2020, 1, 1), date(2020, 1, 31), None))
+        for key, index in (("ports_perf", 0), ("ports_perf", 2), ("closures", 0), ("closures", 1), ("crew", 0),
+                           ("disposal", 0)):
+            self.assertEqual(table(data, key, index)["rows"], [], (key, index))
