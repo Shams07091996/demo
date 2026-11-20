@@ -116,6 +116,18 @@ def _vessel_rows(vessel, rate, price):
     return rows
 
 
+def rows_for(vessels):
+    """Every money line of these vessels (a Vessel queryset), newest vessel first, lines in order. Also feeds the
+    management workbook, so its money always equals this page's."""
+    vessels = vessels.prefetch_related("services", "hotel_stays", "transfers").select_related("disposal")
+    rates, prices = month_rates(), disposal.prices_map()
+    rows = []
+    for vessel in vessels.order_by("-date", "-id"):
+        month = (vessel.date.year, vessel.date.month)
+        rows += _vessel_rows(vessel, rates.get(month), prices.get((*month, vessel.port)))
+    return rows
+
+
 def response(profile, params):
     p = parse_params(params)
     vessels = scoped_vessels(profile, p.port, prefetch=False).prefetch_related("services", "hotel_stays", "transfers")
@@ -128,11 +140,7 @@ def response(profile, params):
     oprs = sorted(set(vessels.exclude(opr="").values_list("opr", flat=True)), key=str.casefold)
     if p.opr is not None:
         vessels = vessels.filter(opr=p.opr)
-    rates, prices = month_rates(), disposal.prices_map()
-    rows = []
-    for vessel in vessels.order_by("-date", "-id"):
-        month = (vessel.date.year, vessel.date.month)
-        rows += _vessel_rows(vessel, rates.get(month), prices.get((*month, vessel.port)))
+    rows = rows_for(vessels)
     rows.sort(key=SORT_KEYS[p.sort], reverse=p.desc)  # stable: ties keep newest vessel first, lines in order
     totals = {
         "revenue_egp": round(sum(r["revenue_egp"] for r in rows), 2),
