@@ -156,7 +156,18 @@ fonts with WinAnsi (`to_winansi`: Ş → S, Cyrillic → ?), JPEGs placed raw (`
 value a plain escaped PDF string, never `{{ }}`. Edit roles only (`require_edit`, scoped, Crew Change on-signers), rate
 limited like the CSV export, recorded in the History (action `letter`). The logo / stamp / footer JPEGs come from
 `DJANGO_LETTERHEAD_DIR` (`logo.jpg`, `stamp.jpg`, `footer.jpg`) — **never in git (the GitHub repo is public) and never
-under `static/`**; missing → the letter has no pictures.
+under `static/`**; missing → the letter has no pictures. Its layout: bold "Flight:" above the flights on page 1, the
+personal details on page 2 under a bold "Personal details:" with the stamp beside them.
+
+**Master receipt** (`logpdf.build_receipt`, `receipt.py`, `GET/POST /api/services/<id>/receipt/`,
+`views.service_receipt`, dialog `js/modals/receipt.js`): a "WHOM IT MAY CONCERN" paper the vessel's master signs and
+stamps by hand, after the user's "name of port.docx". A Receipt button on every service card (edit roles) opens a form
+pre-filled by GET (port label, today in Cairo, vessel, one line: the service type — Others / Remarks: its note's first
+line — plus its **revenue written as "cost"** in its own currency, `$120` / `EGP 3,000`, entries summed per currency;
+no revenue → the label only); POST with the edited text (`validators.clean_receipt`: services required, 2000 characters,
+40 lines) returns the PDF: logo and footer, **no stamp**, no separate revenue line. Nothing typed is stored; the
+History records action `receipt` (migration 0017 widened `ChangeRecord.action` to 7). Scoped, `require_edit`, rate
+limited with the exports. The LOG and the receipt download through `api.download()`.
 
 **Vessel date = sailing day:** once `sailing_at` is set, `clean_vessel` sets `date` to its Cairo date (migration 0014
 did the same for existing vessels); the form shows the date read-only.
