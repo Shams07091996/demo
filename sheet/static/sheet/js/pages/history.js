@@ -13,7 +13,7 @@ const TYPES = [
   ['profile', 'User role'], ['user', 'User account'],
 ];
 const TYPE_LABEL = Object.fromEntries(TYPES);
-const ACTION_LABEL = { create: 'Created', update: 'Changed', delete: 'Deleted', letter: 'LOG made for' };
+const ACTION_LABEL = { create: 'Created', update: 'Changed', delete: 'Deleted', letter: 'LOG made for', receipt: 'Receipt made for' };
 const MAX_VALUE = 200;
 const INPUT_DELAY_MS = 400;
 
@@ -31,7 +31,7 @@ function valueText(value) {
 function changeLines(record) {
   return Object.entries(record.changes).map(([field, [before, after]]) => {
     let text;
-    if (record.action === 'create' || record.action === 'letter') text = valueText(after);
+    if (['create', 'letter', 'receipt'].includes(record.action)) text = valueText(after);
     else if (record.action === 'delete') text = valueText(before);
     else text = `${valueText(before)} → ${valueText(after)}`;
     return h('div', null, h('strong', null, field), ': ', text);

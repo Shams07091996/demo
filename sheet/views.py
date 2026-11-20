@@ -19,7 +19,19 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, closures, crewbookings, disposal, history, listing, logistics, logpdf, ratelimit, twostep
+from . import (
+    calculations,
+    closures,
+    crewbookings,
+    disposal,
+    history,
+    listing,
+    logistics,
+    logpdf,
+    ratelimit,
+    receipt,
+    twostep,
+)
 from . import dashboard as dashboard_figures
 from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
@@ -42,6 +54,7 @@ from .validators import (
     clean_agent,
     clean_disposal_price,
     clean_disposal_quantities,
+    clean_receipt,
     clean_service_data,
     clean_vessel,
 )
@@ -255,6 +268,30 @@ def service_log(request, pk, uid):
     audit(request, "service.log", id=service.id, vessel=vessel.id, crew=name)
     response = HttpResponse(pdf, content_type="application/pdf")
     file_name = " ".join(part for part in ("LOG", _file_name_part(vessel.name), _file_name_part(name)) if part)
+    response["Content-Disposition"] = f'attachment; filename="{file_name}.pdf"'
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def service_receipt(request, pk):
+    """The master receipt of a service: GET the pre-filled text, POST the edited text to get the PDF (no stamp).
+    Nothing typed is stored; making one is recorded in the History."""
+    require_edit(request.profile)
+    allowed = scoped_vessels(request.profile, prefetch=False)
+    service = get_object_or_404(Service.objects.filter(vessel__in=allowed).select_related("vessel"), pk=pk)
+    if request.method == "GET":
+        return JsonResponse({"receipt": receipt.prefill(service)})
+    ratelimit.check(request, "export")
+    fields = clean_receipt(read_json(request))
+    pdf = logpdf.build_receipt(fields, _letterhead_images())
+    vessel = service.vessel
+    history.record("receipt", service, {"Master receipt": [None, service.service_type]})
+    audit(request, "service.receipt", id=service.id, vessel=vessel.id)
+    response = HttpResponse(pdf, content_type="application/pdf")
+    file_name = " ".join(part for part in ("Receipt", _file_name_part(vessel.name),
+                                           timezone.localdate().isoformat()) if part)
     response["Content-Disposition"] = f'attachment; filename="{file_name}.pdf"'
     response["X-Content-Type-Options"] = "nosniff"
     return response

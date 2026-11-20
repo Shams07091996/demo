@@ -88,14 +88,21 @@ def _entry_label(service_type, entry):
     return " · ".join(parts)
 
 
+def cash_to_master_share(data):
+    """(our share, its currency) of a Cash to Master: a percentage of the amount or a fixed figure, at most the
+    amount."""
+    amount = num(data.get("amount"))
+    fixed = data.get("shareMode") == "fixed"
+    share = num(data.get("fixedRevenue")) if fixed else amount * num(data.get("percentage")) / 100
+    return max(0.0, min(share, amount)), "USD" if data.get("amountCurrency") == "USD" else "EGP"
+
+
 def _cash_to_master(data, rate, own_rate):
     """Our revenue is a share OF the amount (a percentage or a fixed figure), never on top of it.
     The rest is handed to the master and is not our cost."""
     amount = num(data.get("amount"))
     fixed = data.get("shareMode") == "fixed"
-    share = num(data.get("fixedRevenue")) if fixed else amount * num(data.get("percentage")) / 100
-    share = max(0.0, min(share, amount))
-    currency = "USD" if data.get("amountCurrency") == "USD" else "EGP"
+    share, currency = cash_to_master_share(data)
     percent = _number_text(data.get("percentage")) or "0"
     how = f"fixed {currency} {_fmt(share)}" if fixed else f"{percent}% of {currency} {_fmt(amount)}"
     result = line("Cash to Master", None, money(share, currency, rate), own_rate,

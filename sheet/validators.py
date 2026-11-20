@@ -240,6 +240,25 @@ def clean_service_data(service_type, raw):
     return _clean_single(service_type, raw)
 
 
+RECEIPT_MAX_LINES = 40
+
+
+def clean_receipt(raw):
+    """The master receipt's edited text (never stored): limits refused, not cut; the services are required."""
+    raw = _as_dict(raw)
+    cleaned = {
+        "port": _short(raw.get("port"), 80, "Port"),
+        "date": _short(raw.get("date"), 20, "Date"),
+        "vessel": _short(raw.get("vessel"), 80, "Vessel"),
+        "services": _short(raw.get("services"), 2000, "Services"),
+    }
+    if not cleaned["services"]:
+        raise BadRequest("Write the services.")
+    if len(cleaned["services"].splitlines()) > RECEIPT_MAX_LINES:
+        raise BadRequest(f"Services: at most {RECEIPT_MAX_LINES} lines.")
+    return cleaned
+
+
 # ---- vessels --------------------------------------------------------------------------------
 
 
