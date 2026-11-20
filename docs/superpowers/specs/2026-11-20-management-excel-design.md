@@ -101,5 +101,5 @@ on the file, no Arabic sheet names, no picture export.
 
 - Exact chart styling, colours (Excel defaults are fine), sizes and positions.
 - Splitting the code: suggested `sheet/xlsx.py` (generic writer: sheets of rows + charts → bytes) and
-  `sheet/management.py` (the nine tables from the existing modules).
+  `sheet/report.py` (the nine tables from the existing modules).
 - Sorting inside tables where not stated (ports in `PORTS` order; months ascending).

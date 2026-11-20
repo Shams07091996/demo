@@ -170,6 +170,8 @@ no revenue → the label only); POST with the edited text (`validators.clean_rec
 History records action `receipt` (migration 0017 widened `ChangeRecord.action` to 7). Scoped, `require_edit`, rate
 limited with the exports. The LOG and the receipt download through `api.download()`.
 
+**Management Excel** (`xlsx.py`, `report.py`, `GET /api/dashboard/export/?from=&to=&port=`, `views.dashboard_export`, the Dashboard's **Excel** button `data-act="dashboard-export"`): a `.xlsx` written with the **standard library only** (`zipfile` + escaped XML; text cells are always inline strings, never formulas; native DrawingML charts). `report.data(profile, Range, now)` builds nine sheets of tables (`{"head", "rows", "total"}`); money comes **only** from `calculations.rows_for` (so it equals the Calculations page, hotels / transport / garbage included), job counts from `dashboard.response`; `report.workbook` lays them out (title, range line, tables, notes, one chart; a sheet whose figures are all zero shows "No data"). From and To required, at most 24 months; every role, port users pinned to their port; rate limited with the exports; audit `dashboard.export`. `crewbookings.early_on_signers(service)` counts every early on-signer (visa charged or not).
+
 **Vessel date = sailing day:** once `sailing_at` is set, `clean_vessel` sets `date` to its Cairo date (migration 0014
 did the same for existing vessels); the form shows the date read-only.
 

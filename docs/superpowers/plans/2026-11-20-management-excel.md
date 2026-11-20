@@ -4,7 +4,7 @@
 
 **Goal:** An Excel button on the Dashboard downloads a nine-sheet `.xlsx` (tables + native Excel charts) for the range and port, written with the standard library only.
 
-**Architecture:** `sheet/xlsx.py` is a generic writer (sheets of typed cells + charts → zip bytes). `sheet/management.py` works out the nine tables from the existing modules (Calculations rows for money, Dashboard rules for counts, vessel times, closures, crew data, disposal) and lays them out as `xlsx.Sheet`s. `views.dashboard_export` serves it; the Dashboard filter bar gets an Excel button that downloads through `api.download()`.
+**Architecture:** `sheet/xlsx.py` is a generic writer (sheets of typed cells + charts → zip bytes). `sheet/report.py` works out the nine tables from the existing modules (Calculations rows for money, Dashboard rules for counts, vessel times, closures, crew data, disposal) and lays them out as `xlsx.Sheet`s. `views.dashboard_export` serves it; the Dashboard filter bar gets an Excel button that downloads through `api.download()`.
 
 **Tech Stack:** Django 5.2, Python standard library (`zipfile`, `xml.sax.saxutils`), vanilla ES modules with `dom.js`.
 
@@ -57,11 +57,11 @@
 
 ### Task 2: Money and count tables (sheets 1-4, 7)
 
-**Files:** Create `sheet/management.py`, `sheet/tests_management.py`
+**Files:** Create `sheet/report.py`, `sheet/tests_management.py`
 
 **Interfaces:**
 - Consumes: `calculations._vessel_rows` (via a new public `calculations.rows_for(vessels) -> list[dict]` that runs the loop `response` runs; `response` then uses it), `dashboard` counting (`dashboard._jobs`, `dashboard.Filters`), `serializers.vessel_to_dict`.
-- Produces: `management.Range(date_from: date, date_to: date, port: str | None)` (dataclass); `management.data(profile, r: Range) -> dict[str, dict]` with keys `summary, months, lines, services, ports_perf, closures, agents, crew, disposal`; each value `{"title": str, "tables": [{"head": list[str], "rows": list[list], "total": list | None}], "notes": list[str]}`. This task fills `summary, months, lines, services, agents`; Task 3 the rest.
+- Produces: `report.Range(date_from: date, date_to: date, port: str | None)` (dataclass); `report.data(profile, r: Range) -> dict[str, dict]` with keys `summary, months, lines, services, ports_perf, closures, agents, crew, disposal`; each value `{"title": str, "tables": [{"head": list[str], "rows": list[list], "total": list | None}], "notes": list[str]}`. This task fills `summary, months, lines, services, agents`; Task 3 the rest.
 
 Table columns (exact headings):
 - summary: `Port, Vessels, Services, Revenue (EGP), Cost (EGP), Profit (EGP)`, one row per port in `PORTS` order that has vessels, total row `Total`; notes `"Money includes hotels, transport and garbage & sludge."` always, `"<n> money lines used USD 1:1 (no exchange rate for that month)."` when n > 0, `"<n> garbage / sludge lines had no price."` when n > 0.
@@ -78,17 +78,17 @@ Table columns (exact headings):
   - `test_agents_match_dashboard` — the agents table equals `dashboard.response(...)["agents"]` turned into rows, `(no agent)` last.
   - `test_port_user_only_sees_their_port` — `alex` with `port="suez"` → summary has only Alexandria.
 - [ ] **Step 2: Run** `venv/Scripts/python.exe manage.py test sheet.tests_management` → ImportError.
-- [ ] **Step 3: Implement** `calculations.rows_for`, `management.Range`, `management.data` (the five tables; the other four keys return `{"title": …, "tables": [], "notes": []}` until Task 3). Vessels: `scoped_vessels(profile, r.port)` filtered by date; one pass for Calculations rows, one `vessel_to_dict` per vessel for service counts and agents.
+- [ ] **Step 3: Implement** `calculations.rows_for`, `report.Range`, `report.data` (the five tables; the other four keys return `{"title": …, "tables": [], "notes": []}` until Task 3). Vessels: `scoped_vessels(profile, r.port)` filtered by date; one pass for Calculations rows, one `vessel_to_dict` per vessel for service counts and agents.
 - [ ] **Step 4: Run** `venv/Scripts/python.exe manage.py test sheet.tests_management sheet.tests_calculations` → pass.
 - [ ] **Step 5: Commit** `feat(excel): summary, months, lines, services and agents tables`
 
 ### Task 3: Operations tables (sheets 5, 6, 8, 9)
 
-**Files:** Modify `sheet/management.py`, `sheet/crewbookings.py`, `sheet/tests_management.py`
+**Files:** Modify `sheet/report.py`, `sheet/crewbookings.py`, `sheet/tests_management.py`
 
 **Interfaces:**
 - Consumes: `constants.is_delayed`, `logistics.crew_moment` (as `crewbookings` imports it), `crewbookings.EARLY_DAYS`, closures overlap filter (as `closures.list_response`), `disposal` / Calculations rows.
-- Produces: `crewbookings.early_on_signers(service) -> int` (every on-signer landing `EARLY_DAYS`+ days before the vessel date, no visa or look-back filter); fills `ports_perf, closures, crew, disposal` in `management.data`.
+- Produces: `crewbookings.early_on_signers(service) -> int` (every on-signer landing `EARLY_DAYS`+ days before the vessel date, no visa or look-back filter); fills `ports_perf, closures, crew, disposal` in `report.data`.
 
 Tables (exact headings):
 - ports_perf: table 1 `Port, Vessels with times, Avg waiting (h), Avg at berth (h), Avg in port (h), Delayed vessels` (per port); table 2 the same with `Month` first (months not split by port, zero-filled, averages `None` when no vessel has the pair); table 3 `Delay reason, Vessels`. Pairs: waiting = arrival→berthing, at berth = berthing→sailing, in port = arrival→sailing; each average over vessels that have both times; `Hours(...)` rounded to 1 decimal.
@@ -109,11 +109,11 @@ Tables (exact headings):
 
 ### Task 4: The workbook and the endpoint
 
-**Files:** Modify `sheet/management.py` (`workbook`), `sheet/views.py` (`dashboard_export`), `sheet/urls.py`, `sheet/tests_management.py`
+**Files:** Modify `sheet/report.py` (`workbook`), `sheet/views.py` (`dashboard_export`), `sheet/urls.py`, `sheet/tests_management.py`
 
 **Interfaces:**
-- Consumes: `xlsx.build/Sheet/Chart/Bold/Money/Hours`, `management.data`.
-- Produces: `management.workbook(profile, r: Range, now: datetime) -> bytes`; route `api/dashboard/export/` name `api_dashboard_export`, GET only.
+- Consumes: `xlsx.build/Sheet/Chart/Bold/Money/Hours`, `report.data`.
+- Produces: `report.workbook(profile, r: Range, now: datetime) -> bytes`; route `api/dashboard/export/` name `api_dashboard_export`, GET only.
 
 Layout per sheet: row 0 `Bold(title)`, row 1 `"<dd/mm/yyyy> to <dd/mm/yyyy> · <port label or All ports> · made <dd/mm/yyyy HH:MM>"`, a blank row, then each table (heading row in `Bold`, rows, total row in `Bold` label), a blank row between tables, then the notes; a sheet with no rows in any table shows `"No data"` and gets no chart. Sheet names: `Summary, By month, By line, Profit by service, Port performance, Port closures, Agents, Crew, Garbage & Sludge`. Charts (anchor two columns right of the widest table, row 3): Summary column profit per port (table 1, Profit column); By month line revenue / cost / profit; By line bar revenue (table 1); Profit by service bar profit; Port performance column avg waiting per port (table 1); Port closures column hours per port (table 1); Agents bar total; Crew column on- and off-signers per line; Garbage & Sludge column garbage m³ and sludge t per month (table 2). Chart ranges exclude the total row.
 
@@ -127,7 +127,7 @@ Endpoint: `@json_api`, GET, `ratelimit.check(request, "export")`, `from` / `to` 
   - `test_export_read_only_allowed_and_rate_limited` — viewer → 200; with `RATE_LIMIT_EXPORTS_PER_USER=2` the third GET → 429.
   - `test_export_text_literal` — a vessel OPR `=HYPERLINK("x")` → in the By line sheet as inline string, no `<f>`.
 - [ ] **Step 2: Run** → fail (404 route).
-- [ ] **Step 3: Implement** `management.workbook`, the view, the route.
+- [ ] **Step 3: Implement** `report.workbook`, the view, the route.
 - [ ] **Step 4: Run** `venv/Scripts/python.exe manage.py test sheet` → pass; ruff clean.
 - [ ] **Step 5: Commit** `feat(excel): the management workbook and its download`
 
@@ -144,6 +144,6 @@ Endpoint: `@json_api`, GET, `ratelimit.check(request, "export")`, `from` / `to` 
 ### Task 6: Docs, hand check and review
 
 - [ ] **Step 1:** Open a generated workbook with the seeded demo data in LibreOffice headless (`soffice --headless --convert-to pdf`) if installed, else note it for the user; the file must open without a repair prompt and show the charts. Record the result.
-- [ ] **Step 2:** Update `docs/STATUS.md` (where things stand: branch, no migration; built table; decisions), `CLAUDE.md` (a **Management Excel** paragraph: `xlsx.py`, `management.py`, the endpoint, money from Calculations), `README.md` / `SECURITY.md` (test counts; SECURITY: the export is scoped, rate limited, text cells never formulas).
+- [ ] **Step 2:** Update `docs/STATUS.md` (where things stand: branch, no migration; built table; decisions), `CLAUDE.md` (a **Management Excel** paragraph: `xlsx.py`, `report.py`, the endpoint, money from Calculations), `README.md` / `SECURITY.md` (test counts; SECURITY: the export is scoped, rate limited, text cells never formulas).
 - [ ] **Step 3:** `cd tools && npm run check` green; fresh reviewer (most capable model) on the whole branch; important findings fixed test-first; minors to STATUS "Left open".
 - [ ] **Step 4: Commit** `docs: management Excel` — merge into `main` only when the user agrees.
