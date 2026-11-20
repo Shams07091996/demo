@@ -30,6 +30,7 @@ from . import (
     logpdf,
     ratelimit,
     receipt,
+    report,
     twostep,
 )
 from . import dashboard as dashboard_figures
@@ -140,6 +141,34 @@ def dashboard(request):
 @require_http_methods(["GET"])
 def dashboard_jobs(request):
     return JsonResponse(dashboard_figures.jobs_response(request.profile, request.GET))
+
+
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@json_api
+@require_http_methods(["GET"])
+def dashboard_export(request):
+    """The management workbook (.xlsx) for a From–To range and port. Every role may download it; port users get
+    their own port whatever they ask."""
+    ratelimit.check(request, "export")
+    date_from, date_to = listing.date_param(request.GET, "from"), listing.date_param(request.GET, "to")
+    if not date_from or not date_to:
+        raise BadRequest("Choose a From and To date.")
+    if date_from > date_to:
+        raise BadRequest("From must be on or before To.")
+    if (date_to.year * 12 + date_to.month) - (date_from.year * 12 + date_from.month) >= 24:
+        raise BadRequest("Choose a range of at most 24 months.")
+    profile = request.profile
+    port = profile.port or (request.GET.get("port") if request.GET.get("port") in PORT_LABELS else None)
+    r = report.Range(date_from, date_to, port)
+    content = report.workbook(profile, r, timezone.now())
+    audit(request, "dashboard.export", date_from=date_from, date_to=date_to, port=port or "all")
+    response = HttpResponse(content, content_type=XLSX_TYPE)
+    response["Content-Disposition"] = (f'attachment; filename="Management {report.port_label(r)} '
+                                       f'{date_from.isoformat()} to {date_to.isoformat()}.xlsx"')
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @json_api

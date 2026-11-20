@@ -1,9 +1,13 @@
 """The management workbook: its tables (report.data) and its download."""
 
+import io
+import re
+import zipfile
 from datetime import date, datetime
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from django.test import override_settings
 from django.utils import timezone
 
 from . import calculations, dashboard, report, xlsx
@@ -189,3 +193,74 @@ class OperationsTests(ManagementFixture):
         for key, index in (("ports_perf", 0), ("ports_perf", 2), ("closures", 0), ("closures", 1), ("crew", 0),
                            ("disposal", 0)):
             self.assertEqual(table(data, key, index)["rows"], [], (key, index))
+
+
+SHEETS = ["Summary", "By month", "By line", "Profit by service", "Port performance", "Port closures", "Agents",
+          "Crew", "Garbage &amp; Sludge"]
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def parts(response):
+    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    return {name: archive.read(name).decode("utf-8") for name in archive.namelist()}
+
+
+@override_settings(RATE_LIMIT_EXPORTS_PER_USER=50)
+class ExportTests(ManagementFixture):
+    URL = "/api/dashboard/export/"
+
+    def get(self, username, **params):
+        return self.login(username).get(self.URL, {**PARAMS, **params})
+
+    def test_export_downloads_nine_sheets(self):
+        response = self.get("admin")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], XLSX)
+        self.assertEqual(response["Content-Disposition"],
+                         'attachment; filename="Management All ports 2026-09-01 to 2026-12-31.xlsx"')
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        files = parts(response)
+        self.assertEqual(re.findall(r'<sheet name="([^"]+)"', files["xl/workbook.xml"]), SHEETS)
+        self.assertIn("xl/charts/chart1.xml", files)
+
+    def test_export_needs_a_range(self):
+        client = self.login("admin")
+        response = client.get(self.URL)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "Choose a From and To date.")
+        response = client.get(self.URL, {"from": "2025-01-01", "to": "2027-01-31"})
+        self.assertEqual(response.json()["error"], "Choose a range of at most 24 months.")
+        response = client.get(self.URL, {"from": "2026-12-01", "to": "2026-11-01"})
+        self.assertEqual(response.json()["error"], "From must be on or before To.")
+        self.assertEqual(client.get(self.URL, {"from": "2025-01-01", "to": "2026-12-31"}).status_code, 200)
+
+    def test_export_empty_range_no_charts(self):
+        response = self.get("admin", **{"from": "2020-01-01", "to": "2020-01-31"})
+        self.assertEqual(response.status_code, 200)
+        files = parts(response)
+        self.assertFalse([name for name in files if name.startswith("xl/charts/")])
+        self.assertIn("No data", files["xl/worksheets/sheet1.xml"])
+
+    def test_export_port_user_pinned(self):
+        response = self.get("alex", port="suez")
+        summary = parts(response)["xl/worksheets/sheet1.xml"]
+        self.assertIn("Alexandria", summary)
+        self.assertNotIn("Suez", summary)
+        self.assertIn("Alexandria", response["Content-Disposition"])
+
+    def test_export_read_only_allowed_and_rate_limited(self):
+        self.assertEqual(self.get("viewer").status_code, 200)
+        with override_settings(RATE_LIMIT_EXPORTS_PER_USER=2):
+            client = self.login("viewer")
+            codes = [client.get(self.URL, PARAMS).status_code for _ in range(3)]
+        self.assertEqual(codes[-1], 429)
+
+    def test_export_text_literal(self):
+        Vessel.objects.filter(pk=self.v_noline.pk).update(opr='=HYPERLINK("x")')
+        files = parts(self.get("admin"))
+        by_line = files["xl/worksheets/sheet3.xml"]
+        self.assertIn("=HYPERLINK(&quot;x&quot;)", by_line.replace('"', "&quot;"))
+        self.assertNotIn("<f>", by_line)
+
+    def test_export_post_refused(self):
+        self.assertIn(self.login("admin").post(self.URL).status_code, (403, 405))  # CSRF or method

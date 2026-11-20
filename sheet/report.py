@@ -11,11 +11,11 @@ from datetime import date, datetime, time, timedelta
 
 from django.utils import timezone
 
-from . import calculations, crewbookings
+from . import calculations, crewbookings, xlsx
 from . import dashboard as dashboard_figures
 from .access import scoped_closures, scoped_vessels
 from .constants import PORT_LABELS, PORTS, SERVICE_TYPES, is_delayed
-from .xlsx import Hours
+from .xlsx import Bold, Hours
 
 NO_LINE, NO_AGENT_LABEL = "(no line)", "(no agent)"
 MONEY_HEAD = ["Revenue (EGP)", "Cost (EGP)", "Profit (EGP)"]
@@ -310,3 +310,65 @@ def data(profile, r, now=None):
 
 def port_label(r):
     return PORT_LABELS.get(r.port, "All ports") if r.port else "All ports"
+
+
+# (chart kind, title, table index, [series columns]); the first column of that table holds the categories.
+CHARTS = {
+    "summary": ("column", "Profit per port (EGP)", 0, [5]),
+    "months": ("line", "Revenue, cost and profit per month (EGP)", 0, [3, 4, 5]),
+    "lines": ("bar", "Revenue per line (EGP)", 0, [3]),
+    "services": ("bar", "Profit per service (EGP)", 0, [4]),
+    "ports_perf": ("column", "Average waiting per port (h)", 0, [2]),
+    "closures": ("column", "Hours closed per port", 0, [2]),
+    "agents": ("bar", "Jobs per agent", 0, [-1]),
+    "crew": ("column", "On- and off-signers per line", 0, [2, 3]),
+    "disposal": ("column", "Garbage (m³) and sludge (t) per month", 1, [1, 2]),
+}
+
+
+def _has_data(sheet):
+    """Any count or amount other than zero in any table row (zero-filled months alone are no data)."""
+    for table in sheet["tables"]:
+        for row in table["rows"]:
+            for value in row[1:]:
+                value = value.value if isinstance(value, Hours) else value
+                if isinstance(value, int | float) and not isinstance(value, bool) and value:
+                    return True
+    return False
+
+
+def _layout(key, sheet, subtitle):
+    rows, starts = [[Bold(sheet["title"])], [subtitle], []], []
+    if not _has_data(sheet):
+        rows.append(["No data"])
+        return xlsx.Sheet(name=xlsx.safe_sheet_name(sheet["title"]), rows=rows, widths=[24], charts=[])
+    for table in sheet["tables"]:
+        starts.append(len(rows))
+        rows.append([Bold(str(cell)) for cell in table["head"]])
+        rows += table["rows"]
+        if table["total"]:
+            rows.append([Bold(str(table["total"][0])), *table["total"][1:]])
+        rows.append([])
+    rows += [[note] for note in sheet["notes"]]
+    widest = max(len(table["head"]) for table in sheet["tables"])
+    charts = []
+    kind, title, index, columns = CHARTS[key]
+    table = sheet["tables"][index]
+    if table["rows"]:
+        first, last = starts[index] + 1, starts[index] + len(table["rows"])
+        series = [(str(table["head"][col]), first, last, col % len(table["head"])) for col in columns]
+        charts.append(xlsx.Chart(kind=kind, title=title, categories=(first, last, 0), series=series,
+                                 anchor=(widest + 1, 3)))
+    return xlsx.Sheet(name=xlsx.safe_sheet_name(sheet["title"]), rows=rows, widths=[24] + [14] * (widest - 1),
+                      charts=charts)
+
+
+def subtitle(r, now):
+    return (f"{r.date_from:%d/%m/%Y} to {r.date_to:%d/%m/%Y} · {port_label(r)} · "
+            f"made {timezone.localtime(now):%d/%m/%Y %H:%M}")
+
+
+def workbook(profile, r, now):
+    """The management workbook (.xlsx bytes): nine sheets, each with its tables, notes and one chart."""
+    line = subtitle(r, now)
+    return xlsx.build([_layout(key, sheet, line) for key, sheet in data(profile, r, now).items()])
