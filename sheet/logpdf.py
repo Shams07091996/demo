@@ -246,17 +246,56 @@ def _letter(layout, fields):
         layout.stamp()
 
 
-def build(fields, images):
-    """The LOG letter as PDF bytes. `fields`: to, date, vessel, flight, personal (plain text). `images`: logo,
-    stamp, footer as JPEG bytes (missing, None or not a usable JPEG -> left out)."""
+def _receipt(layout, fields):
+    """The master receipt, after the user's "name of port.docx": the master signs and stamps it on paper."""
+    win = {key: to_winansi(fields.get(key) or "") for key in ("port", "date", "vessel")}
+    layout.line(win["port"] + b": " + win["date"], "F2", 11)
+    layout.gap(4)
+    layout.line(b"MV/ " + win["vessel"], "F2", 11)
+    layout.gap(24)
+    title = b"WHOM IT MAY CONCERN"
+    layout.line(title, "F2", 12, x=(PAGE_W - _text_width(title, 12, "F2")) / 2)
+    layout.gap(18)
+    layout.line(b"I, the undersigned master of m/v " + win["vessel"] + b" declare the following services have been "
+                b"rendered from Messrs ARKAS EGYPT SAE", "F1", 11)
+    layout.gap(10)
+    layout.block(fields.get("services") or "", "F1", 11)
+    for label, space in ((b"Master", 70), (b"Ship's stamp", 70)):
+        layout.room(40 + 14 + space)  # a label never sits alone at the foot of a page, without room to sign
+        layout.gap(40)
+        layout.line(label, "F2", 11)
+        layout.gap(space - 40)
+
+
+def _pictures(images):
     pictures = {}
     for name in IMAGE_NAMES:
         info = _jpeg_info(images.get(name))
         if info:
             pictures[name] = (*info, bytes(images[name]))
+    return pictures
+
+
+def build(fields, images):
+    """The LOG letter as PDF bytes. `fields`: to, date, vessel, flight, personal (plain text). `images`: logo,
+    stamp, footer as JPEG bytes (missing, None or not a usable JPEG -> left out)."""
+    pictures = _pictures(images)
     layout = _Layout(pictures)
     _letter(layout, fields)
+    return _pdf(layout, pictures)
 
+
+def build_receipt(fields, images):
+    """The master receipt as PDF bytes. `fields`: port, date, vessel, services (plain text, line breaks kept).
+    `images` as for build; the stamp is never used (the ship stamps the paper)."""
+    pictures = _pictures({name: data for name, data in images.items() if name != "stamp"})
+    layout = _Layout(pictures)
+    _receipt(layout, fields)
+    return _pdf(layout, pictures)
+
+
+def _pdf(layout, pictures):
+    """The laid-out pages and their pictures written as a PDF file."""
     objects = []  # (number, body bytes); numbers are positions + 1
 
     def add(body):
