@@ -84,7 +84,8 @@ class Command(BaseCommand):
             "garbage_revenue_extra": 60, "garbage_cost_min_qty": 3, "garbage_cost_min": 5200,
             "garbage_cost_currency": "EGP", "garbage_cost_extra": 1500, "sludge_revenue_min_qty": 25,
             "sludge_revenue_min": 875, "sludge_revenue_currency": "USD", "sludge_revenue_extra": 30,
-            "sludge_cost_min_qty": 25, "sludge_cost_min": 11000, "sludge_cost_currency": "EGP", "sludge_cost_extra": 400})
+            "sludge_cost_min_qty": 25, "sludge_cost_min": 11000, "sludge_cost_currency": "EGP",
+            "sludge_cost_extra": 400})
         for kind, values in (("delay", ("WAITING FOR BERTH", "PORT CLOSED", "WEATHER", "PILOT DELAY", "OTHER")),
                              ("closure", ("WEATHER", "FOG", "STRIKE", "OTHER"))):
             for value in values:

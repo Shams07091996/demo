@@ -235,12 +235,12 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 9 : 8), 'sidebar lists the pages (admins also have History; no Bulk add)');
-  const pageOrder = 'vessels,hotels,transport,closures,calculations,dashboard,master,rates' + (ROLE === 'admin' ? ',history' : '');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 10 : 9), 'sidebar lists the pages (admins also have History; no Bulk add)');
+  const pageOrder = 'vessels,hotels,transport,closures,disposal,calculations,dashboard,master,rates' + (ROLE === 'admin' ? ',history' : '');
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Port closures and Calculations sit after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
-  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
+  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['disposal', 'Garbage & Sludge'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
     await go(page);
     ok($$('.page').filter((p) => !p.hidden).length === 1 && $('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).classList.contains('active'), `sidebar opens "${title}"`);
   }
@@ -376,6 +376,9 @@ async function login() {
     await go('rates');
     ok(!$('#rate-form') && !$('#price-form'), 'read-only: cannot edit exchange rates or Garbage & Sludge prices');
     ok(await waitFor(() => $('#prices-table') && $('#prices-panel').textContent.includes('Alexandria')), 'read-only: Garbage & Sludge prices are listed');
+    await go('disposal');
+    ok(await waitFor(() => $$('#g-tbody tr').some((t) => t.textContent.includes('MSC AURORA'))), 'read-only: the Garbage & Sludge page lists vessels');
+    ok(!$('#g-tbody [data-qty]') && !$('#g-tbody [data-act="disposal-hide"]'), 'read-only: no quantity boxes or Hide buttons');
     for (const [page, p] of [['hotels', 'h'], ['transport', 't']]) {
       await go(page);
       ok(await waitFor(() => $(`#${p}-head`).textContent.includes('Vessel')), `read-only: ${page} list renders`);
@@ -412,6 +415,7 @@ async function login() {
   /* ======== master data page ======== */
   await go('master');
   ok($$('#master-grid .panel h3').map((h) => h.textContent).join() === 'OPR,POC,Agent,Hotel,Airport,Port,Delay reason,Closure reason', 'master data has OPR, POC, Agent, Hotel, Airport, Port, Delay reason and Closure reason lists');
+  ok($$('#master-grid details.master-list').every((d) => !d.open), 'master data: every list starts folded');
   type($('[data-new="agent"]'), 'SMOKE AGENT');
   click($('[data-act="add-option"][data-kind="agent"]'));
   ok(await waitFor(() => $('#master-grid').textContent.includes('SMOKE AGENT')), 'master data: agent added');
@@ -578,40 +582,51 @@ async function login() {
   ok(await waitFor(() => modalText().includes('Quantity (tons): 40')), 'Fresh Water saved');
   ok($$('.svc-card').some((c) => c.textContent.includes('Fresh Water') && c.textContent.includes('Agent: SMOKE AGENT')), 'the service card shows its agent');
 
-  /* ======== Garbage & Sludge (January 2020 has no price at first) ======== */
-  click($('[data-act="add-service"]'));
-  click($('[data-type="Garbage & Sludge"]'));
-  type($('#svc-form [name=agent]'), 'SMOKE AGENT');
-  type($('#svc-form [name=garbage]'), '3'); type($('#svc-form [name=sludge]'), '0.5');
-  ok($('#preview').textContent.includes('No Garbage & Sludge price'), 'garbage & sludge: preview warns when the port and month have no price');
-  click($('[data-act="save-service"]'));
-  const garbageCard = () => $$('.svc-card').find((c) => c.textContent.includes('Garbage & Sludge'));
-  ok(await waitFor(() => garbageCard()?.textContent.includes('Garbage 3 m³ · Sludge 0.5 m³')), 'garbage & sludge: saved with its quantities');
-  ok(garbageCard().textContent.includes('No price for this port and month'), 'garbage & sludge: the card flags the missing price');
+  /* ======== Garbage & Sludge page (January 2020 has no price at first) ======== */
+  closeModal();
+  await go('disposal');
+  type($('#g-from'), '2020-01-01'); type($('#g-to'), '2020-01-31');
+  const gRow = () => $$('#g-tbody tr').find((t) => t.textContent.includes(NAME));
+  ok(await waitFor(() => gRow()), 'garbage & sludge: the vessel is on the page');
+  type(gRow().querySelector('[data-qty=garbage]'), '5');
+  ok(await waitFor(() => gRow()?.querySelector('[data-qty=garbage]')?.value === '5' && gRow().textContent.includes('No price for this port and month')),
+    'garbage & sludge: a quantity saves on its own; the missing price is flagged');
   if (ROLE === 'admin') {
-    closeModal();
     await go('rates');
-    type($('#price-form [name=month]'), '2020-01'); type($('#price-form [name=port]'), 'suez'); // the admin's smoke vessel is in Suez by now
-    for (const [name, value] of [['garbage_cost', '10'], ['garbage_revenue', '15'], ['sludge_cost', '20'], ['sludge_revenue', '30']]) type($(`#price-form [name=${name}]`), value);
+    const pf = (name) => $(`#price-form [name="${name}"]`);
+    type(pf('month'), '2020-01'); type(pf('port'), 'suez'); // the admin's smoke vessel is in Suez by now
+    const blocks = { 'garbage.revenue': ['3', '250', 'USD', '60'], 'garbage.cost': ['3', '5200', 'EGP', '1500'], 'sludge.revenue': ['25', '875', 'USD', '30'], 'sludge.cost': ['25', '11000', 'EGP', '400'] };
+    for (const [key, values] of Object.entries(blocks)) ['min_qty', 'min', 'currency', 'extra'].forEach((name, i) => type(pf(`${key}.${name}`), values[i]));
     click($('[data-act="save-price"]'));
-    ok(await waitFor(() => $('#prices-table')?.textContent.includes('01.2020')), 'garbage & sludge: admin saves a month and port price');
-    await go('vessels');
-    await openRow(NAME);
-    // 3 × (15 − 10) + 0.5 × (30 − 20) = 20 USD, counted 1:1 while January 2020 has no rate
-    ok(await waitFor(() => garbageCard() && !garbageCard().textContent.includes('No price') && garbageCard().textContent.includes('20.00')), 'garbage & sludge: the price applies to the vessel');
-    click(garbageCard().querySelector('[data-act="edit-service"]'));
-    ok(await waitFor(() => /Profit USD \+?20\.00/.test($('#preview')?.textContent || '')), 'garbage & sludge: the preview shows the profit in USD');
-    click($('#modal [data-act="back"]'));
-    await waitFor(() => garbageCard());
-    closeModal();
+    ok(await waitFor(() => $('#prices-table')?.textContent.includes('01.2020') && $('#prices-table').textContent.includes('3 m³ min · USD 250.00 + 60.00 / m³')), 'garbage & sludge: admin saves a month and port price');
+    type(pf('month'), '2020-02'); type(pf('garbage.revenue.min'), '');
+    click($('[data-act="copy-price"]'));
+    ok(pf('garbage.revenue.min').value === '250' && pf('sludge.cost.extra').value === '400', 'garbage & sludge: Copy from last month fills the form');
+    await go('disposal');
+    // 5 m³: revenue 250 + 2 × 60 = USD 370; January 2020 has no rate, so the EGP side is left blank and flagged
+    ok(await waitFor(() => gRow()?.textContent.includes('USD 370.00') && gRow().textContent.includes('No exchange rate')), 'garbage & sludge: the price applies, in USD and EGP');
     await go('calculations');
     type($('#c-from'), '2020-01-01'); type($('#c-to'), '2020-01-31');
-    const sludgeRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('Sludge · 0.5 m³'));
-    ok(await waitFor(() => sludgeRow()?.textContent.includes('USD 20.00 × 0.5 × 1 (no rate) = 10.00')), 'calculations: a quantity under 1 m³ shows in the working');
-    ok(sludgeRow().textContent.includes('USD 5.00'), 'calculations: the line shows its profit in USD');
-    await go('vessels');
-    await openRow(NAME);
+    const gLine = () => $$('#c-tbody tr').find((t) => t.textContent.includes('Garbage · 5 m³'));
+    ok(await waitFor(() => gLine()?.textContent.includes('USD 370.00 × 1 (no rate) = 370.00')), 'calculations: the garbage line shows its working');
+    await go('disposal');
   }
+  type($('#g-show'), 'with');
+  ok(await waitFor(() => gRow()), 'garbage & sludge: "With garbage or sludge" lists it');
+  type($('#g-show'), 'none');
+  ok(await waitFor(() => !gRow()), 'garbage & sludge: "Not entered yet" leaves it out');
+  type($('#g-show'), 'all');
+  await waitFor(() => gRow());
+  click(gRow().querySelector('[data-act="disposal-hide"]'));
+  ok(await waitFor(() => !gRow()), 'garbage & sludge: Hide takes the vessel off the page');
+  type($('#g-show'), 'hidden');
+  ok(await waitFor(() => gRow()?.querySelector('[data-act="disposal-show"]')), 'garbage & sludge: hidden vessels are listed with Bring back');
+  click(gRow().querySelector('[data-act="disposal-show"]'));
+  ok(await waitFor(() => !gRow()), 'garbage & sludge: Bring back');
+  type($('#g-show'), 'all');
+  ok(await waitFor(() => gRow()?.querySelector('[data-qty=garbage]')?.value === ''), 'garbage & sludge: back without quantities (hiding cleared them)');
+  await go('vessels');
+  await openRow(NAME);
 
   /* ======== Cash to Master ======== */
   click($('[data-act="add-service"]'));

@@ -2,7 +2,7 @@
 import { ME, OPTION_KINDS, PORTS, PORT_LABEL } from '../config.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { state } from '../state.js';
-import { $ } from '../util.js';
+import { $, $$ } from '../util.js';
 
 // A port choice for admins: '' = All ports, else one port.
 const portSelect = (props, current) =>
@@ -46,10 +46,17 @@ function listPanel({ key, label }) {
         : null, ' ',
       h('button', { class: 'btn primary', dataset: { act: 'add-option', kind: key } }, 'Add'))
     : null;
-  return h('section', { class: 'panel' }, h('h3', null, label), rows.length ? rows : h('div', { class: 'none' }, 'None yet.'), adder);
+  // Folded shut until its name is clicked (the page was too long with every list open).
+  return h('details', { class: 'panel master-list', dataset: { kind: key }, open: openLists.has(key) },
+    h('summary', null, h('h3', null, label), ' ', h('small', null, String(rows.length))),
+    rows.length ? rows : h('div', { class: 'none' }, 'None yet.'), adder);
 }
 
+/** Lists the person opened stay open when the page is drawn again (after an add, a remove or a port change). */
+const openLists = new Set();
+
 export function renderMasterPage() {
+  $$('#master-grid details.master-list').forEach((d) => (d.open ? openLists.add(d.dataset.kind) : openLists.delete(d.dataset.kind)));
   const note = ME.port
     ? `Values you add are for ${PORT_LABEL[ME.port]} only; shared values are managed by an admin.`
     : 'Choose a port for each value, or All ports to offer it everywhere.';

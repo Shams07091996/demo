@@ -123,6 +123,18 @@ class ExchangeRate(models.Model):
 MONEY_CURRENCIES = [("EGP", "EGP"), ("USD", "USD")]
 
 
+def _price_qty(label):
+    return models.DecimalField(label, max_digits=12, decimal_places=3, default=0)
+
+
+def _price_amount(label):
+    return models.DecimalField(label, max_digits=12, decimal_places=2, default=0)
+
+
+def _price_currency(label, default):
+    return models.CharField(label, max_length=3, choices=MONEY_CURRENCIES, default=default)
+
+
 class DisposalPrice(models.Model):
     """Garbage & Sludge prices for one month (stored as the 1st) and one port. Garbage revenue, garbage cost, sludge
     revenue and sludge cost each have a minimum quantity, a minimum amount in its currency and an extra amount per m³ /
@@ -130,22 +142,22 @@ class DisposalPrice(models.Model):
 
     month = models.DateField()
     port = models.CharField(max_length=20, choices=PORTS)
-    garbage_revenue_min_qty = models.DecimalField("Garbage revenue: minimum quantity (m³)", max_digits=12, decimal_places=3, default=0)
-    garbage_revenue_min = models.DecimalField("Garbage revenue: minimum amount", max_digits=12, decimal_places=2, default=0)
-    garbage_revenue_currency = models.CharField("Garbage revenue: currency", max_length=3, choices=MONEY_CURRENCIES, default="USD")
-    garbage_revenue_extra = models.DecimalField("Garbage revenue: extra per m³ above the minimum", max_digits=12, decimal_places=2, default=0)
-    garbage_cost_min_qty = models.DecimalField("Garbage cost: minimum quantity (m³)", max_digits=12, decimal_places=3, default=0)
-    garbage_cost_min = models.DecimalField("Garbage cost: minimum amount", max_digits=12, decimal_places=2, default=0)
-    garbage_cost_currency = models.CharField("Garbage cost: currency", max_length=3, choices=MONEY_CURRENCIES, default="EGP")
-    garbage_cost_extra = models.DecimalField("Garbage cost: extra per m³ above the minimum", max_digits=12, decimal_places=2, default=0)
-    sludge_revenue_min_qty = models.DecimalField("Sludge revenue: minimum quantity (t)", max_digits=12, decimal_places=3, default=0)
-    sludge_revenue_min = models.DecimalField("Sludge revenue: minimum amount", max_digits=12, decimal_places=2, default=0)
-    sludge_revenue_currency = models.CharField("Sludge revenue: currency", max_length=3, choices=MONEY_CURRENCIES, default="USD")
-    sludge_revenue_extra = models.DecimalField("Sludge revenue: extra per t above the minimum", max_digits=12, decimal_places=2, default=0)
-    sludge_cost_min_qty = models.DecimalField("Sludge cost: minimum quantity (t)", max_digits=12, decimal_places=3, default=0)
-    sludge_cost_min = models.DecimalField("Sludge cost: minimum amount", max_digits=12, decimal_places=2, default=0)
-    sludge_cost_currency = models.CharField("Sludge cost: currency", max_length=3, choices=MONEY_CURRENCIES, default="EGP")
-    sludge_cost_extra = models.DecimalField("Sludge cost: extra per t above the minimum", max_digits=12, decimal_places=2, default=0)
+    garbage_revenue_min_qty = _price_qty("Garbage revenue: minimum quantity (m³)")
+    garbage_revenue_min = _price_amount("Garbage revenue: minimum amount")
+    garbage_revenue_currency = _price_currency("Garbage revenue: currency", "USD")
+    garbage_revenue_extra = _price_amount("Garbage revenue: extra per m³ above the minimum")
+    garbage_cost_min_qty = _price_qty("Garbage cost: minimum quantity (m³)")
+    garbage_cost_min = _price_amount("Garbage cost: minimum amount")
+    garbage_cost_currency = _price_currency("Garbage cost: currency", "EGP")
+    garbage_cost_extra = _price_amount("Garbage cost: extra per m³ above the minimum")
+    sludge_revenue_min_qty = _price_qty("Sludge revenue: minimum quantity (t)")
+    sludge_revenue_min = _price_amount("Sludge revenue: minimum amount")
+    sludge_revenue_currency = _price_currency("Sludge revenue: currency", "USD")
+    sludge_revenue_extra = _price_amount("Sludge revenue: extra per t above the minimum")
+    sludge_cost_min_qty = _price_qty("Sludge cost: minimum quantity (t)")
+    sludge_cost_min = _price_amount("Sludge cost: minimum amount")
+    sludge_cost_currency = _price_currency("Sludge cost: currency", "EGP")
+    sludge_cost_extra = _price_amount("Sludge cost: extra per t above the minimum")
 
     class Meta:
         ordering = ["-month", "port"]

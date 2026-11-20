@@ -118,7 +118,8 @@ def _vessel_rows(vessel, rate, price):
 
 def response(profile, params):
     p = parse_params(params)
-    vessels = scoped_vessels(profile, p.port, prefetch=False).prefetch_related("services", "hotel_stays", "transfers").select_related("disposal")
+    vessels = scoped_vessels(profile, p.port, prefetch=False).prefetch_related("services", "hotel_stays", "transfers")
+    vessels = vessels.select_related("disposal")
     if p.date_from:
         vessels = vessels.filter(date__gte=p.date_from)
     if p.date_to:

@@ -19,7 +19,7 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, closures, disposal, crewbookings, history, listing, logistics, logpdf, ratelimit, twostep
+from . import calculations, closures, crewbookings, disposal, history, listing, logistics, logpdf, ratelimit, twostep
 from . import dashboard as dashboard_figures
 from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response

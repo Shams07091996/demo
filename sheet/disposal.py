@@ -102,7 +102,8 @@ def kind_line(kind, label, unit, quantity, price, rate):
     q = num(quantity)
     if not q:
         return None
-    item = {"kind": kind, "label": f"{label} · {q:g} {unit}", "quantity": q, "unit": unit, "price_missing": price is None}
+    item = {"kind": kind, "label": f"{label} · {q:g} {unit}", "quantity": q, "unit": unit,
+            "price_missing": price is None}
     if price is None:
         item.update(revenue=None, cost=None)
         return item
