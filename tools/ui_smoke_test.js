@@ -586,11 +586,20 @@ async function login() {
   closeModal();
   await go('disposal');
   type($('#g-from'), '2020-01-01'); type($('#g-to'), '2020-01-31');
+  await waitFor(() => false, 900); // the range applies after a short pause; let it load before typing quantities
   const gRow = () => $$('#g-tbody tr').find((t) => t.textContent.includes(NAME));
   ok(await waitFor(() => gRow()), 'garbage & sludge: the vessel is on the page');
   type(gRow().querySelector('[data-qty=garbage]'), '5');
+  // Tab on to sludge and start typing while garbage saves: the save must not wipe the box being typed in.
+  const sludgeBox = gRow().querySelector('[data-qty=sludge]');
+  sludgeBox.focus(); sludgeBox.value = '3';
   ok(await waitFor(() => gRow()?.querySelector('[data-qty=garbage]')?.value === '5' && gRow().textContent.includes('No price for this port and month')),
     'garbage & sludge: a quantity saves on its own; the missing price is flagged');
+  await waitFor(() => false, 600); // let the totals reload too
+  ok(gRow().querySelector('[data-qty=sludge]') === sludgeBox && sludgeBox.value === '3' && w.document.activeElement === sludgeBox,
+    'garbage & sludge: typing in the next box survives the save');
+  type(sludgeBox, '');
+  sludgeBox.blur();
   if (ROLE === 'admin') {
     await go('rates');
     const pf = (name) => $(`#price-form [name="${name}"]`);

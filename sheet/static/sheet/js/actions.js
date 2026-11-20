@@ -77,11 +77,9 @@ async function changeRate(request) {
   renderRatesPage();
 }
 
-/** Save or delete a Garbage & Sludge price, then refresh the vessels (their figures depend on it). */
+/** Save or delete a Garbage & Sludge price (its money is on its own page and Calculations, not in vessel figures). */
 async function changePrice(request) {
   state.prices = (await mutate(request)).prices;
-  state.cache.clear();
-  await refreshAfterChange();
   renderRatesPage();
 }
 

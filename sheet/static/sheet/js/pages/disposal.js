@@ -15,6 +15,7 @@ const SHOW = [['all', 'All'], ['with', 'With garbage or sludge'], ['none', 'Not 
 let filter = null; // starts from the Vessels page's range and port the first time the page opens
 let data = { rows: [], totals: null };
 let ticket = 0;
+let totalsTicket = 0; // a full load also brings the totals, so it cancels any totals-only reload still on its way
 let wired = false;
 
 const money = (value) => (value === null || value === undefined ? '—' : fmt(value));
@@ -88,6 +89,7 @@ function params() {
 async function load() {
   wire();
   const mine = ++ticket;
+  totalsTicket += 1;
   let answer;
   try {
     answer = await api(`/api/disposal/?${params()}`);
@@ -105,12 +107,52 @@ function setFilter(patch) {
   return load();
 }
 
-/** Save a change to one vessel ({garbage}, {sludge} or {hidden}), then reload (rows may leave the current filter). */
-async function save(id, change) {
+/** Put a saved row's new figures on the page without touching its quantity boxes (one may be being typed in). */
+function patchRow(row) {
+  data.rows = data.rows.map((r) => (r.vessel.id === row.vessel.id ? row : r));
+  const tr = $(`#g-tbody tr[data-vessel="${row.vessel.id}"]`);
+  if (!tr) return;
+  const fresh = rowEl(row);
+  [...tr.children].forEach((cell, i) => {
+    if (!cell.querySelector('input')) cell.replaceWith(fresh.children[i].cloneNode(true));
+  });
+}
+
+/** Reload only the totals (the rows on screen are already up to date, and may hold a box being typed in). */
+async function loadTotals() {
+  const mine = ++totalsTicket;
   try {
-    await mutate(() => api(`/api/disposal/${id}/`, 'PUT', change));
+    const answer = await api(`/api/disposal/?${params()}`);
+    if (mine !== totalsTicket) return;
+    data.totals = answer.totals;
+    setChildren($('#g-totals'), totalsEl(data.totals));
+  } catch (error) {
+    if (mine === totalsTicket) setStatus('error', error.message);
+  }
+}
+
+/** Save a quantity: the row's figures and the totals update; rows stay put until the filter or range changes. */
+async function saveQuantity(input) {
+  if (input.validity.badInput) { // the browser hides a half-typed number as "": never clear the saved one for it
+    setStatus('error', 'Enter a number.');
+    return;
+  }
+  let row;
+  try {
+    row = await mutate(() => api(`/api/disposal/${input.dataset.id}/`, 'PUT', { [input.dataset.qty]: input.value }));
   } catch {
     return; // mutate has shown the error
+  }
+  patchRow(row);
+  await loadTotals();
+}
+
+/** Hide or bring back a vessel, then reload (it leaves the current list). */
+async function setHidden(id, hidden) {
+  try {
+    await mutate(() => api(`/api/disposal/${id}/`, 'PUT', { hidden }));
+  } catch {
+    return;
   }
   await load();
 }
@@ -118,13 +160,12 @@ async function save(id, change) {
 function wire() {
   if (wired) return;
   wired = true;
-  filter = { from: state.filter.from, to: state.filter.to, port: state.filter.port, show: 'all' };
+  filter = { from: '', to: '', port: 'ALL', show: 'all' };
   setChildren($('#g-show'), optionEls(SHOW, 'all'));
   $('#g-show').addEventListener('change', (event) => setFilter({ show: event.target.value }));
   if (ME.seesAll) {
     const select = $('#g-port');
     setChildren(select, portOptionEls({ all: true }));
-    select.value = filter.port || 'ALL';
     select.hidden = false;
     select.addEventListener('change', () => setFilter({ port: select.value }));
   }
@@ -146,12 +187,20 @@ function wire() {
   $('#g-to').addEventListener('change', onDate);
   $('#g-tbody').addEventListener('change', (event) => {
     const input = event.target.closest('[data-qty]');
-    if (input) save(input.dataset.id, { [input.dataset.qty]: input.value });
+    if (input) saveQuantity(input);
   });
 }
 
+/** Opening the page takes the Vessels page's date range and port (the two pages share them). */
+function open() {
+  wire();
+  Object.assign(filter, { from: state.filter.from, to: state.filter.to, port: state.filter.port || 'ALL' });
+  if (ME.seesAll) $('#g-port').value = filter.port;
+  return load();
+}
+
 export const disposalPage = {
-  load,
-  hide: (id) => save(id, { hidden: true }),
-  show: (id) => save(id, { hidden: false }),
+  load: open,
+  hide: (id) => setHidden(id, true),
+  show: (id) => setHidden(id, false),
 };

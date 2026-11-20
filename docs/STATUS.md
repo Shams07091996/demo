@@ -5,7 +5,7 @@ Last updated: 2026-11-20. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Garbage & Sludge page (2026-11-20):** on branch `feature/garbage-page` (not merged). Replaces the service of the same name. Needs migration **`0016_garbage_page`** after merging (it deletes the old test Garbage & Sludge services and prices). `npm run check` green (469 tests); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
+- **Garbage & Sludge page (2026-11-20):** on branch `feature/garbage-page` (not merged). Replaces the service of the same name. Needs migration **`0016_garbage_page`** after merging (it deletes the old test Garbage & Sludge services and prices). `npm run check` green (472 tests); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **Garbage & Sludge (2026-11-20):** merged into `main` together with the admin-port fix and `docs/DEPLOYMENT.md` (branches `feature/garbage-sludge` and `fix/admin-vessel-port` deleted). Needs migration **`0015_disposal_price`** on the user's database. `npm run check` green (467 tests); smoke test passes for alex / admin / viewer / suez.
 - **OPR / POC required + Master data layout (2026-11-19):** merged into `main` (branch deleted). No migration. `npm run check` green; smoke test passes for alex / admin / viewer / suez.
 - **Crew bookings, sailing date, early arrival, LOG letter (2026-11-19):** merged into `main` (branch deleted). Needs migration

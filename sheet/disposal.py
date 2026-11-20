@@ -193,14 +193,18 @@ def row(vessel, rates, prices):
     }
 
 
-def _entered(r):
+def _has_some(r):
     return bool(r["garbage"] or r["sludge"])
+
+
+def _nothing_typed(r):
+    return r["garbage"] is None and r["sludge"] is None  # a typed 0 is an answer, not "not entered yet"
 
 
 FILTERS = {
     "all": lambda r: not r["hidden"],
-    "with": lambda r: not r["hidden"] and _entered(r),
-    "none": lambda r: not r["hidden"] and not _entered(r),
+    "with": lambda r: not r["hidden"] and _has_some(r),
+    "none": lambda r: not r["hidden"] and _nothing_typed(r),
     "hidden": lambda r: r["hidden"],
 }
 
@@ -214,7 +218,9 @@ def response(profile, params):
         vessels = vessels.filter(date__lte=p.date_to)
     rates, prices = month_rates(), prices_map()
     rows = [r for r in (row(v, rates, prices) for v in vessels.order_by("-date", "-id")) if FILTERS[p.show](r)]
-    totals = {key: _sum([r[key] for r in rows if r[key] is not None])
+    # A row without a price or rate is left out of every total (not only its blank figures), so the totals add up.
+    complete = [r for r in rows if not r["rate_missing"] and not r["price_missing"]]
+    totals = {key: _sum([r[key] for r in complete])
               for key in ("revenue_egp", "cost_egp", "profit_egp", "revenue_usd", "cost_usd", "profit_usd")}
     totals["rate_missing_rows"] = sum(1 for r in rows if r["rate_missing"])
     totals["price_missing_rows"] = sum(1 for r in rows if r["price_missing"])
@@ -224,6 +230,9 @@ def response(profile, params):
 def save(vessel, changes):
     """Apply cleaned changes ({garbage, sludge} and / or {hidden}) to a vessel; hiding clears the quantities."""
     disposal = vessel_disposal(vessel) or VesselDisposal(vessel=vessel)
+    stays_hidden = changes.get("hidden", disposal.hidden)
+    if stays_hidden and any(changes.get(kind) is not None for kind, _label, _unit in KINDS):
+        raise BadRequest("Bring the vessel back before entering quantities.")
     for key, value in changes.items():
         setattr(disposal, key, value)
     if disposal.hidden:

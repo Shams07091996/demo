@@ -169,6 +169,24 @@ class PageTests(PageCase):
         self.assertEqual((row["revenue_usd"], row["revenue_egp"], row["cost_egp"], row["cost_usd"]),
                          (370.0, None, 8200.0, None))
 
+    def test_totals_leave_out_flagged_rows_whole(self):
+        self.put(self.alex_vessel, {"garbage": "5"})
+        Vessel.objects.filter(pk=self.alex_vessel.pk).update(date=date(2026, 12, 3))  # December: a price, no rate
+        self.call(self.login("admin"), "post", URL, {**PRICE, "month": "2026-12"})
+        totals = self.call(self.alex, "get", "/api/disposal/?from=2026-12-01&to=2026-12-31")[1]["totals"]
+        self.assertEqual((totals["revenue_usd"], totals["cost_egp"], totals["profit_egp"]), (0.0, 0.0, 0.0))
+        self.assertEqual(totals["rate_missing_rows"], 1)
+
+    def test_quantities_for_a_hidden_vessel_are_refused(self):
+        self.put(self.alex_vessel, {"hidden": True})
+        self.assertEqual(self.put(self.alex_vessel, {"garbage": "5"}),
+                         (400, {"error": "Bring the vessel back before entering quantities."}))
+
+    def test_a_typed_zero_is_entered(self):
+        self.put(self.alex_vessel, {"garbage": "0"})
+        self.assertNotIn(self.alex_vessel.id, ids(self.page(query="&show=none")))
+        self.assertNotIn(self.alex_vessel.id, ids(self.page(query="&show=with")))
+
     def test_changes_are_in_the_history(self):
         self.put(self.alex_vessel, {"garbage": "5"})
         self.assertTrue(ChangeRecord.objects.filter(object_type="vesseldisposal", username="alex").exists())
