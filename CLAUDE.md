@@ -57,6 +57,8 @@ cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_sm
 - A run that fails part-way leaves its test vessels behind and later runs then fail on them: start from a fresh
   database (or delete the leftovers) before trusting a result.
 - `runserver --noreload` caches templates **and Python code**: restart it after editing `index.html` or any `.py`.
+- The full `alex` run now writes more than 120 times: start the smoke server with
+  `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`.
 - The smoke test's writes count against the API rate limits (120 writes / 10 min per user, 600 per address): fine for
   one run of each role; many back-to-back runs on one server may need `DJANGO_RATE_LIMIT_*` raised.
 - `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers (Ahmed Test needs a hotel, Ali
@@ -159,11 +161,14 @@ under `static/`**; missing → the letter has no pictures.
 **Vessel date = sailing day:** once `sailing_at` is set, `clean_vessel` sets `date` to its Cairo date (migration 0014
 did the same for existing vessels); the form shows the date read-only.
 
-**Garbage & Sludge** (`DisposalPrice`, `GET/POST /api/disposal-prices/`, `DELETE /api/disposal-prices/<id>/`, admin-only
-writes, port users read their port's): USD price per m³ (garbage / sludge cost and revenue) per month and port, on the
-Exchange rates page. The service's data is only `{garbage, sludge}` (m³); `finance._disposal_lines` prices it with the
-vessel's month + port (`serializers.disposal_prices`, passed as `prices`) and the month rate; no price → a line flagged
-`price_missing` with no money. `calculations` adds `cost_usd` / `revenue_usd` / `profit_usd` for all-USD lines.
+**Garbage & Sludge** (`disposal.py`; page `js/pages/disposal.js`, `GET /api/disposal/`, `PUT /api/disposal/<vessel>/`;
+prices `GET/POST /api/disposal-prices/`, `DELETE /api/disposal-prices/<id>/`, admin-only writes, port users read
+their port's): `DisposalPrice` per month and port has four blocks (garbage / sludge × revenue / cost), each a minimum
+quantity, a minimum amount in its currency and an extra per m³ / t above it (`block_amount`). `VesselDisposal` (one
+per vessel: garbage m³, sludge t, `hidden`; hiding clears the quantities) is typed on the page, which shows EGP and
+USD (a figure needing a missing rate is None, the row flagged). The money is on that page and on Calculations
+(`calculation_lines`, finance format, USD 1:1 when no rate) only, never in the vessel figures. It replaced the
+"Garbage & Sludge" service (migration 0016 deleted that test data). The price form's Copy from last month is front end.
 
 **Calculations** (`calculations.py`, `GET /api/calculations/`): vessels in a vessel-date range / exact OPR / port →
 `service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
