@@ -44,7 +44,8 @@ function serviceSummary(service) {
 
 function serviceCard(service) {
   const actions = ME.canEdit
-    ? [btn('ghost small', 'edit-service', [icon('pencil'), ' Edit'], { id: service.id }), ' ', btn('danger small', 'del-service', [icon('trash'), ' Delete'], { id: service.id })]
+    ? [btn('ghost small', 'receipt', [icon('file'), ' Receipt'], { id: service.id }), ' ',
+      btn('ghost small', 'edit-service', [icon('pencil'), ' Edit'], { id: service.id }), ' ', btn('danger small', 'del-service', [icon('trash'), ' Delete'], { id: service.id })]
     : null;
   return h('div', { class: 'svc-card' },
     h('div', { class: 'svc-top' }, h('strong', null, service.type), h('div', { class: 'svc-actions' }, actions)),

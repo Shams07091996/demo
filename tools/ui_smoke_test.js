@@ -368,6 +368,7 @@ async function login() {
     click($$('#tbody tr')[0]);
     await waitFor(() => $('#modal [data-act="summary"]')); // the dialog opens once the vessel is at hand
     ok(!$('[data-act="add-service"]') && !$('[data-act="del-vessel"]') && !$('[data-act="edit-vessel"]'), 'read-only: no edit buttons in the dialog');
+    ok(!$('[data-act="receipt"]'), 'read-only: no Receipt button');
     click($('#modal [data-act="summary"]'));
     ok(await waitFor(() => modalText().includes('Port call') && modalText().includes('Services on this vessel')), 'read-only: summary of services opens');
     closeModal();
@@ -582,6 +583,17 @@ async function login() {
   ok(await waitFor(() => modalText().includes('Quantity (tons): 40')), 'Fresh Water saved');
   ok($$('.svc-card').some((c) => c.textContent.includes('Fresh Water') && c.textContent.includes('Agent: SMOKE AGENT')), 'the service card shows its agent');
 
+  /* ======== Master receipt ======== */
+  ok($$('.svc-card').every((c) => c.querySelector('[data-act="receipt"]')), 'receipt: every service card has a Receipt button');
+  click($$('.svc-card').find((c) => c.textContent.includes('Fresh Water')).querySelector('[data-act="receipt"]'));
+  ok(await waitFor(() => $('#receipt-form [name=services]')?.value === 'Fresh Water with cost $100'), 'receipt: the services line is pre-filled from the revenue');
+  ok($('#receipt-form [name=vessel]').value === NAME && $('#receipt-form [name=port]').value !== '' && /^\d\d\/\d\d\/\d{4}$/.test($('#receipt-form [name=date]').value), 'receipt: port, date and vessel are pre-filled');
+  type($('#receipt-form [name=services]'), '   ');
+  click($('[data-act="receipt-download"]'));
+  ok(await waitFor(() => /Write the services\./.test($('#modal .error')?.textContent || '')), 'receipt: an empty services box is refused');
+  click($('[data-act="back"]'));
+  ok(await waitFor(() => $('#modal .svc-card') && !$('#receipt-form')), 'receipt: Back returns to the vessel');
+
   /* ======== Garbage & Sludge page (January 2020 has no price at first) ======== */
   closeModal();
   await go('disposal');
@@ -758,6 +770,12 @@ async function login() {
     const logResponse = await w.fetch(`/api/services/${crewService.id}/log/${crewService.data.onSigners[0].uid}/`);
     if (ROLE === 'viewer') ok(logResponse.status === 403, 'LOG: read-only users cannot make it');
     else ok(logResponse.status === 200 && logResponse.headers.get('Content-Type') === 'application/pdf', 'LOG: the on-signer\'s letter downloads as a PDF');
+    const receiptResponse = await w.fetch(`/api/services/${crewService.id}/receipt/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
+      body: JSON.stringify({ port: 'Alexandria', date: '20/11/2026', vessel: 'MSC AURORA', services: 'Crew change with cost $50' }),
+    });
+    if (ROLE === 'viewer') ok(receiptResponse.status === 403, 'receipt: read-only users cannot make it');
+    else ok(receiptResponse.status === 200 && receiptResponse.headers.get('Content-Type') === 'application/pdf', 'receipt: downloads as a PDF');
     if (ROLE === 'alex') {
       // More than 20 vessels missing details: the banner stops at 20 and "+ N more" opens the full list.
       const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': meta() };
