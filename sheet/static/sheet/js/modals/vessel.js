@@ -6,7 +6,6 @@ import { ME, MULTI, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.
 import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { ensureVessel } from '../data.js';
-import { DISPOSAL_KINDS } from '../calc.js';
 import { state } from '../state.js';
 import { $, $$, fmt, formValues, isDelayed, sign, today } from '../util.js';
 
@@ -37,19 +36,10 @@ function serviceSummary(service) {
           ? lines(entries.map((e, i) => `#${i + 1} ${e.awb || 'no AWB'}${e.weight ? ` · ${txt(e.weight)} kg` : ''}`))
           : 'No entries yet';
       }
-      if (service.type === 'Garbage & Sludge') return disposalSummary(service);
       const extra = SINGLE_EXTRA[service.type];
       return extra && d[extra.name] ? `${extra.label}: ${d[extra.name]}` : '';
     }
   }
-}
-
-/** "Garbage 3 m³ · Sludge 2 m³", plus a warning when that port and month has no price. */
-export function disposalSummary(service) {
-  const d = service.data || {};
-  const parts = DISPOSAL_KINDS.filter(([key]) => Number(d[key])).map(([key, label]) => `${label} ${d[key]} m³`);
-  return [parts.join(' · ') || 'No quantities',
-    service.calc.price_missing ? h('div', { class: 'warn-text' }, 'No price for this port and month') : null];
 }
 
 function serviceCard(service) {

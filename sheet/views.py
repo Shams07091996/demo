@@ -19,7 +19,7 @@ from django.views import csrf, defaults
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import calculations, closures, crewbookings, history, listing, logistics, logpdf, ratelimit, twostep
+from . import calculations, closures, disposal, crewbookings, history, listing, logistics, logpdf, ratelimit, twostep
 from . import dashboard as dashboard_figures
 from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
@@ -37,8 +37,14 @@ from .constants import (
 )
 from .errors import BadRequest, Forbidden, TooManyRequests
 from .models import ChangeRecord, DisposalPrice, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
-from .serializers import disposal_price_to_dict, month_rates, option_to_dict, rate_to_dict, vessel_to_dict
-from .validators import clean_agent, clean_disposal_price, clean_service_data, clean_vessel
+from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
+from .validators import (
+    clean_agent,
+    clean_disposal_price,
+    clean_disposal_quantities,
+    clean_service_data,
+    clean_vessel,
+)
 
 security_log = logging.getLogger("sheet.security")
 
@@ -293,14 +299,11 @@ def rate_delete(request, pk):
     return _rates_json()
 
 
-# ---- Garbage & Sludge prices (USD per m³, per month and port) -------------------------------
+# ---- Garbage & Sludge: monthly prices per port, quantities per vessel (see disposal.py) ---------
 
 
 def _disposal_prices_json(profile):
-    prices = DisposalPrice.objects.all()
-    if profile.port:  # port users see their own port's prices only
-        prices = prices.filter(port=profile.port)
-    return JsonResponse({"prices": [disposal_price_to_dict(p) for p in prices]})
+    return JsonResponse({"prices": disposal.prices_for(profile)})
 
 
 @json_api
@@ -308,8 +311,8 @@ def _disposal_prices_json(profile):
 def disposal_prices_list(request):
     if request.method == "POST":
         require_admin(request.profile)  # money settings, like exchange rates
-        month, port, prices = clean_disposal_price(read_json(request))
-        DisposalPrice.objects.update_or_create(month=month, port=port, defaults=prices)
+        month, port, fields = clean_disposal_price(read_json(request))
+        DisposalPrice.objects.update_or_create(month=month, port=port, defaults=fields)
         audit(request, "disposal_price.save", month=month.isoformat(), port=port)
     return _disposal_prices_json(request.profile)
 
@@ -321,6 +324,23 @@ def disposal_price_delete(request, pk):
     get_object_or_404(DisposalPrice, pk=pk).delete()
     audit(request, "disposal_price.delete", id=pk)
     return _disposal_prices_json(request.profile)
+
+
+@json_api
+@require_http_methods(["GET"])
+def disposal_list(request):
+    return JsonResponse(disposal.response(request.profile, request.GET))
+
+
+@json_api
+@require_http_methods(["PUT"])
+def disposal_update(request, vessel_id):
+    require_edit(request.profile)
+    vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=vessel_id)
+    changes = clean_disposal_quantities(read_json(request))
+    result = disposal.save(vessel, changes)
+    audit(request, "disposal.save", vessel=vessel.id, **changes)
+    return JsonResponse(result)
 
 
 # ---- master data (OPR / POC options) --------------------------------------------------------

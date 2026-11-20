@@ -120,16 +120,32 @@ class ExchangeRate(models.Model):
         return f"{self.month:%m.%Y}: {self.rate}"
 
 
+MONEY_CURRENCIES = [("EGP", "EGP"), ("USD", "USD")]
+
+
 class DisposalPrice(models.Model):
-    """Garbage & Sludge prices for one month (stored as the 1st) and one port: USD per m³, what we pay (cost) and what
-    we charge (revenue). The service's money is quantity × these (finance.py)."""
+    """Garbage & Sludge prices for one month (stored as the 1st) and one port. Garbage revenue, garbage cost, sludge
+    revenue and sludge cost each have a minimum quantity, a minimum amount in its currency and an extra amount per m³ /
+    ton above the minimum (disposal.block_amount)."""
 
     month = models.DateField()
     port = models.CharField(max_length=20, choices=PORTS)
-    garbage_cost = models.DecimalField("Garbage cost (USD / m³)", max_digits=12, decimal_places=2, default=0)
-    garbage_revenue = models.DecimalField("Garbage revenue (USD / m³)", max_digits=12, decimal_places=2, default=0)
-    sludge_cost = models.DecimalField("Sludge cost (USD / m³)", max_digits=12, decimal_places=2, default=0)
-    sludge_revenue = models.DecimalField("Sludge revenue (USD / m³)", max_digits=12, decimal_places=2, default=0)
+    garbage_revenue_min_qty = models.DecimalField("Garbage revenue: minimum quantity (m³)", max_digits=12, decimal_places=3, default=0)
+    garbage_revenue_min = models.DecimalField("Garbage revenue: minimum amount", max_digits=12, decimal_places=2, default=0)
+    garbage_revenue_currency = models.CharField("Garbage revenue: currency", max_length=3, choices=MONEY_CURRENCIES, default="USD")
+    garbage_revenue_extra = models.DecimalField("Garbage revenue: extra per m³ above the minimum", max_digits=12, decimal_places=2, default=0)
+    garbage_cost_min_qty = models.DecimalField("Garbage cost: minimum quantity (m³)", max_digits=12, decimal_places=3, default=0)
+    garbage_cost_min = models.DecimalField("Garbage cost: minimum amount", max_digits=12, decimal_places=2, default=0)
+    garbage_cost_currency = models.CharField("Garbage cost: currency", max_length=3, choices=MONEY_CURRENCIES, default="EGP")
+    garbage_cost_extra = models.DecimalField("Garbage cost: extra per m³ above the minimum", max_digits=12, decimal_places=2, default=0)
+    sludge_revenue_min_qty = models.DecimalField("Sludge revenue: minimum quantity (t)", max_digits=12, decimal_places=3, default=0)
+    sludge_revenue_min = models.DecimalField("Sludge revenue: minimum amount", max_digits=12, decimal_places=2, default=0)
+    sludge_revenue_currency = models.CharField("Sludge revenue: currency", max_length=3, choices=MONEY_CURRENCIES, default="USD")
+    sludge_revenue_extra = models.DecimalField("Sludge revenue: extra per t above the minimum", max_digits=12, decimal_places=2, default=0)
+    sludge_cost_min_qty = models.DecimalField("Sludge cost: minimum quantity (t)", max_digits=12, decimal_places=3, default=0)
+    sludge_cost_min = models.DecimalField("Sludge cost: minimum amount", max_digits=12, decimal_places=2, default=0)
+    sludge_cost_currency = models.CharField("Sludge cost: currency", max_length=3, choices=MONEY_CURRENCIES, default="EGP")
+    sludge_cost_extra = models.DecimalField("Sludge cost: extra per t above the minimum", max_digits=12, decimal_places=2, default=0)
 
     class Meta:
         ordering = ["-month", "port"]
@@ -137,6 +153,19 @@ class DisposalPrice(models.Model):
 
     def __str__(self):
         return f"{self.month:%m.%Y} {self.port}"
+
+
+class VesselDisposal(models.Model):
+    """A vessel's garbage (m³) and sludge (tons), typed on the Garbage & Sludge page. `hidden` = the vessel has none
+    (it leaves the page's normal views and counts 0). Made on the first change; no row = nothing entered yet."""
+
+    vessel = models.OneToOneField(Vessel, on_delete=models.CASCADE, related_name="disposal")
+    garbage = models.DecimalField("Garbage (m³)", max_digits=12, decimal_places=3, null=True, blank=True)
+    sludge = models.DecimalField("Sludge (t)", max_digits=12, decimal_places=3, null=True, blank=True)
+    hidden = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Garbage & Sludge of vessel {self.vessel_id}"
 
 
 class Option(models.Model):

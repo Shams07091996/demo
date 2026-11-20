@@ -16,7 +16,7 @@ from .access import scoped_vessels
 from .constants import DELAY_LIMIT, SERVICE_TYPES, TIME_FIELDS, TIME_KEYS, is_delayed
 from .errors import BadRequest
 from .models import Service, Vessel
-from .serializers import disposal_prices, month_rates, vessel_to_dict
+from .serializers import month_rates, vessel_to_dict
 
 SORT_KEYS = ("name", "opr", "poc", "arrival_agent", "sailing_agent", "port", "date", "total_cost_egp")
 BUCKETS = ("ALL", "ARK", "MSK", "OTH", "SERVICES")
@@ -94,8 +94,8 @@ def opr_bucket(opr):
 
 
 def _figures(vessels):
-    rates, prices = month_rates(), disposal_prices()
-    return [vessel_to_dict(v, rates, prices) for v in vessels]
+    rates = month_rates()
+    return [vessel_to_dict(v, rates) for v in vessels]
 
 
 def range_rows(profile, f):

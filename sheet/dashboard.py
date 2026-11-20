@@ -13,7 +13,7 @@ from .access import scoped_vessels
 from .constants import NO_AGENT, SERVICE_TYPES
 from .errors import BadRequest
 from .listing import date_param
-from .serializers import disposal_prices, month_rates, vessel_to_dict
+from .serializers import month_rates, vessel_to_dict
 
 MAX_JOBS = 500
 MONEY = ("cost_egp", "revenue_egp", "profit_egp")
@@ -56,8 +56,8 @@ def _rows(profile, f):
         queryset = queryset.filter(date__gte=f.date_from)
     if f.date_to:
         queryset = queryset.filter(date__lte=f.date_to)
-    rates, prices = month_rates(), disposal_prices()
-    return [vessel_to_dict(v, rates, prices) for v in queryset.order_by("-date", "-id")]
+    rates = month_rates()
+    return [vessel_to_dict(v, rates) for v in queryset.order_by("-date", "-id")]
 
 
 def _jobs(row, f):

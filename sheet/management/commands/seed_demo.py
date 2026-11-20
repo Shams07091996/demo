@@ -78,8 +78,13 @@ class Command(BaseCommand):
     def _create_vessels(self):
         today = date.today()
         ExchangeRate.objects.get_or_create(month=today.replace(day=1), defaults={"rate": "50.00"})
+        # Garbage & Sludge prices for Alexandria this month: minimum 3 m3 / 25 t, then an extra per unit.
         DisposalPrice.objects.get_or_create(month=today.replace(day=1), port="alexandria", defaults={
-            "garbage_cost": "10", "garbage_revenue": "15", "sludge_cost": "20", "sludge_revenue": "30"})
+            "garbage_revenue_min_qty": 3, "garbage_revenue_min": 250, "garbage_revenue_currency": "USD",
+            "garbage_revenue_extra": 60, "garbage_cost_min_qty": 3, "garbage_cost_min": 5200,
+            "garbage_cost_currency": "EGP", "garbage_cost_extra": 1500, "sludge_revenue_min_qty": 25,
+            "sludge_revenue_min": 875, "sludge_revenue_currency": "USD", "sludge_revenue_extra": 30,
+            "sludge_cost_min_qty": 25, "sludge_cost_min": 11000, "sludge_cost_currency": "EGP", "sludge_cost_extra": 400})
         for kind, values in (("delay", ("WAITING FOR BERTH", "PORT CLOSED", "WEATHER", "PILOT DELAY", "OTHER")),
                              ("closure", ("WEATHER", "FOG", "STRIKE", "OTHER"))):
             for value in values:
