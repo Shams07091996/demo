@@ -47,6 +47,8 @@ Each row: what the app does, which tests prove it, and what is left to the peopl
 
 ## 4. Deployment checklist
 
+The full step-by-step procedure (database logins, service, web server, accounts, backups) is `docs/DEPLOYMENT.md`; this list is what must be true at the end.
+
 * Install with `pip install --require-hashes -r requirements.txt` (exact versions, every file hash-checked).
 * HTTPS everywhere; leave `DJANGO_DEBUG` unset (or `0`); set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS`.
 * Serve the app from the **root of its own host** (e.g. `https://sheet.example.com/`, not `/sheet/`): the cookies are

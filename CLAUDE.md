@@ -17,6 +17,11 @@ needs), what was built, the **decisions the user made** (respect them), what may
 hasn't decided on, and how work has been done (Superpowers: brainstorm → design → plan → build test-first → fresh
 review). Keep it up to date when you finish a piece of work.
 
+`docs/DEPLOYMENT.md` is the user's step-by-step guide for the company server (Windows / IIS / NSSM, Linux notes),
+the three PostgreSQL logins (`postgres`, `marine_app`, `marine_backup`; people never get one), creating everyone's
+account in the admin pages, backups, and what happens on concurrent edits or a database outage. Update it when
+settings, roles, account handling or deployment steps change.
+
 ## Commands
 
 Use the project venv (`venv\Scripts\activate`, or call `venv/Scripts/python.exe` directly).
@@ -78,7 +83,8 @@ cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_sm
 in `static/sheet/js/config.js`. Everything else is fetched from `/api/...` (routes in `sheet/urls.py`).
 
 **Every API view** is wrapped in `api.json_api` (auth check, `request.profile`, rate limit via `ratelimit.check`,
-**one `transaction.atomic` per write**, maps `errors.ApiError` subclasses to JSON errors, logs 403s, turns any other
+**one `transaction.atomic` per write** (there is no edit-conflict check: two people saving the same record → the last
+save wins, both are in the History), maps `errors.ApiError` subclasses to JSON errors, logs 403s, turns any other
 exception into `{"error", "ref"}` 500 with the ref in the `sheet.security` log) and must get vessels through
 `access.scoped_vessels(profile, port)`, which pins port users to their own port whatever `port` they send. Writes call
 `access.require_edit` / `require_admin` (exchange rates are shared by all ports, so admin-only). Changes are recorded

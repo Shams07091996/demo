@@ -4,6 +4,8 @@ A Django web app that replaces the vessel/services Excel sheet: every vessel in 
 modal to record its services (zero or many). Data lives in a real database; users sign in and see only what their
 role allows.
 
+**Putting it on a server and creating everyone's account:** `docs/DEPLOYMENT.md` (step by step, with backups and what happens when the database stops or two people edit the same thing).
+
 ## Run it (development)
 
 ```bash

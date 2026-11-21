@@ -7,6 +7,8 @@ Last updated: 2026-11-20. Read this with `CLAUDE.md` before starting work. Each 
 
 - **Master receipt (2026-11-20):** merged into `main` (branch deleted). Needs migration **`0017_history_receipt`** on the user's database. 491 backend tests; fresh review done (fixes in); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **LOG letter layout (2026-11-20):** on `main` (bold "Flight:" / "Personal details:", personal details and stamp on page 2).
+- **Deployment guide (2026-11-20, uncommitted on `main`):** `docs/DEPLOYMENT.md` rewritten as a step-by-step checklist for a Windows server (IIS + NSSM + waitress; Linux notes): the three PostgreSQL logins (`postgres`, `marine_app`, `marine_backup` with `pg_read_all_data`) and why people never get one; creating every account in the admin pages; nightly `pg_dump` and restore test; and "what happens if" (two people edit the same record → last save wins, both in the History; database down → saves fail cleanly, app reconnects by itself; disk lost → restore the last backup). README, SECURITY §4 and CLAUDE.md point to it.
+- **Style tidy (2026-11-20, uncommitted on `main`):** the last four places that set a style from code now use `hidden` (Add vessel button, quick-add bar, Cash to Master's percentage / fixed fields) or a CSS class (port banner colour: `.port-banner.port-<port>` in `app.css`; `PORT_COLOR` removed). Not a security fix: a search found no `innerHTML` or other unsafe code. `npm run check` green; smoke test passes for alex / admin / viewer / suez.
 - **Management Excel (2026-11-20):** merged into `main` (branch deleted). No migration. 519 backend tests; fresh review done (no critical or important findings; two minors fixed); `npm run check` green; smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez; a workbook made from the demo data opened in Excel on this PC with its charts.
 - **Garbage & Sludge page (2026-11-20):** merged into `main` (branch deleted). Replaces the service of the same name. Needs migration **`0016_garbage_page`** on the user's database (it deletes the old test Garbage & Sludge services and prices). `npm run check` green (472 tests); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **Garbage & Sludge (2026-11-20):** merged into `main` together with the admin-port fix and `docs/DEPLOYMENT.md` (branches `feature/garbage-sludge` and `fix/admin-vessel-port` deleted). Needs migration **`0015_disposal_price`** on the user's database. `npm run check` green (467 tests); smoke test passes for alex / admin / viewer / suez.
@@ -148,6 +150,8 @@ Ideas raised along the way:
 - Exports of the Calculations page.
 
 ## Left open — small things the user hasn't decided on yet
+
+Two people editing the same record: **the last save wins**, with no warning (both saves are in the History). A "someone changed this since you opened it" warning was offered to the user on 2026-11-20; not decided.
 
 Management Excel (from the final review, minor):
 
