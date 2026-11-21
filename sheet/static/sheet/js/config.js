@@ -13,7 +13,6 @@ export const NO_AGENT = readJson('no-agent-data');            // Dashboard agent
 
 
 export const PORT_LABEL = Object.fromEntries(PORTS.map((p) => [p.key, p.label]));
-export const PORT_COLOR = { alexandria: 'var(--c1)', portsaid: 'var(--c2)', damietta: 'var(--c3)', suez: 'var(--c5)' };
 
 // Service kinds (must match sheet/constants.py).
 export const MULTI = ['Delivery Parcels', 'Delivery Courier', 'Landing'];

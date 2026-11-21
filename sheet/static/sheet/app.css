@@ -131,6 +131,10 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 
 /* ----- banners, bell ----- */
 .port-banner{padding:6px 18px;font-size:12px;font-weight:600;background:color-mix(in srgb,var(--text) 2%,transparent);border-top:1px solid var(--accent)}
+.port-banner.port-alexandria{color:var(--c1);border-top-color:var(--c1)}
+.port-banner.port-portsaid{color:var(--c2);border-top-color:var(--c2)}
+.port-banner.port-damietta{color:var(--c3);border-top-color:var(--c3)}
+.port-banner.port-suez{color:var(--c5);border-top-color:var(--c5)}
 .notif-banner{display:flex;flex-direction:column;gap:4px;padding:6px 18px;background:var(--surface)}
 .notif-head{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--muted)}
 .notif-head .spacer{flex:1}

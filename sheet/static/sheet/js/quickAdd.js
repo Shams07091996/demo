@@ -31,7 +31,7 @@ async function addVessel({ thenOpen }) {
 
 export function setupQuickAdd() {
   if (!ME.canEdit) {
-    $('#quickAdd').style.display = 'none';
+    $('#quickAdd').hidden = true;
     return;
   }
   $('#qa-date').value = today();

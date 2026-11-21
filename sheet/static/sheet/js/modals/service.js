@@ -133,9 +133,9 @@ function cashToMasterFields(vessel, d) {
     h('div', { class: 'row two' },
       field('Our share is', h('select', { attrs: { name: 'shareMode' } },
         optionEls([['percent', 'a percentage of the amount'], ['fixed', 'a fixed figure']], fixed ? 'fixed' : 'percent'))),
-      h('div', { class: 'field', id: 'pct-wrap', style: { display: fixed ? 'none' : '' } }, h('label', null, 'Percentage (%)'),
+      h('div', { class: 'field', id: 'pct-wrap', hidden: fixed }, h('label', null, 'Percentage (%)'),
         numberInput({ attrs: { name: 'percentage' } }, d.percentage, { max: 100 })),
-      h('div', { class: 'field', id: 'fixed-wrap', style: { display: fixed ? '' : 'none' } }, h('label', null, 'Revenue (same currency)'),
+      h('div', { class: 'field', id: 'fixed-wrap', hidden: !fixed }, h('label', null, 'Revenue (same currency)'),
         numberInput({ attrs: { name: 'fixedRevenue' } }, d.fixedRevenue))),
     h('div', { class: 'hint' }, 'Our revenue is a part of the amount, not on top of it. It updates as you type; the rest goes to the master.'),
     rateField(vessel, d), previewBox(),
@@ -271,8 +271,8 @@ export function onModalChange(event) {
   const target = event.target;
   if (target.name === 'shareMode') {
     const fixed = target.value === 'fixed';
-    $('#pct-wrap').style.display = fixed ? 'none' : '';
-    $('#fixed-wrap').style.display = fixed ? '' : 'none';
+    $('#pct-wrap').hidden = fixed;
+    $('#fixed-wrap').hidden = !fixed;
   }
   if (state.ctx.view === 'service-form') updatePreview();
 }

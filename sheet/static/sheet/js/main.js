@@ -142,7 +142,7 @@ $('#master-grid').addEventListener('change', (event) => {
 });
 
 if (ME.canEdit) $('#addVesselBtn').addEventListener('click', () => openVesselForm(null));
-else $('#addVesselBtn').style.display = 'none';
+else $('#addVesselBtn').hidden = true;
 setupQuickAdd();
 
 /* ---- port selector (admin and read-only users see every port) ---- */

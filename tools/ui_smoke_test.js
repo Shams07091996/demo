@@ -363,7 +363,7 @@ async function login() {
 
   /* ======== read-only user ======== */
   if (ROLE === 'viewer') {
-    ok($('#addVesselBtn').style.display === 'none' && $('#quickAdd').style.display === 'none', 'read-only: add controls hidden');
+    ok($('#addVesselBtn').hidden && $('#quickAdd').hidden, 'read-only: add controls hidden');
     ok(shown($('#portSelect')), 'read-only: sees the port selector');
     click($$('#tbody tr')[0]);
     await waitFor(() => $('#modal [data-act="summary"]')); // the dialog opens once the vessel is at hand
@@ -1103,7 +1103,8 @@ async function login() {
     const rangeFrom = $('#d-from').value;
     const rangeTo = $('#d-to').value;
     click($('#d-clear'));
-    await waitFor(() => $('#d-from').value === '' && $('#d-to').value === '');
+    // Let the cleared range finish loading first: its "Synced" would otherwise replace the error line.
+    await waitFor(() => $('#d-from').value === '' && $('#d-to').value === '' && $('#status-text').textContent === 'Synced', 8000);
     click($('[data-act="dashboard-export"]'));
     ok(await waitFor(() => $('#status-text').textContent.includes('Choose a From and To date.')), 'dashboard: Excel needs a From and To date');
     type($('#d-from'), rangeFrom); type($('#d-to'), rangeTo);

@@ -1,6 +1,6 @@
 // The vessels tab: port banner, filter inputs, table and the quick-add dropdowns.
 // Everything shown comes from the server (state.vessels = the current page). Clicking a row opens the vessel.
-import { PORT_COLOR, PORT_LABEL, ME } from '../config.js';
+import { PORT_LABEL, ME } from '../config.js';
 import { optionChoicesEl, sortIcon, statusChipEl, tagLabel } from '../components.js';
 import { h, icon, setChildren } from '../dom.js';
 import { state } from '../state.js';
@@ -11,8 +11,7 @@ export function renderPortBanner() {
   const banner = $('#portBanner');
   banner.hidden = !port;
   if (!port) return;
-  banner.style.color = PORT_COLOR[port];
-  banner.style.borderTopColor = PORT_COLOR[port];
+  banner.className = `port-banner port-${port}`; // its colour comes from app.css
   banner.textContent = `${PORT_LABEL[port]} — showing vessels for this port only`;
 }
 
