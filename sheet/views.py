@@ -693,6 +693,15 @@ def server_error(request):
 HISTORY_PAGE_SIZES = (10, 25, 50, 100)
 
 
+def _shown_changes(record):
+    """The History page never shows the edit counter (conflicts.py); a booking save that only changed its guests
+    is shown as such."""
+    changes = {k: v for k, v in record.changes.items() if k != "version"}
+    if not changes and "version" in record.changes:
+        return {"guests": [None, "changed"]}
+    return changes
+
+
 @json_api
 @require_http_methods(["GET"])
 def history_list(request):
@@ -730,7 +739,7 @@ def history_list(request):
             "object_type": r.object_type,
             "object_id": r.object_id,
             "port": r.port,
-            "changes": r.changes,
+            "changes": _shown_changes(r),
         }
         for r in rows.order_by("-id")[start : start + page_size]
     ]

@@ -83,6 +83,7 @@ class Vessel(models.Model):
     port = models.CharField(max_length=20, choices=PORTS, default="alexandria", db_index=True)
     summary = models.JSONField(default=dict, blank=True)  # optional vendor / invoice notes
     created_at = models.DateTimeField(auto_now_add=True)
+    version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 
     class Meta:
         ordering = ["-date", "-id"]
@@ -99,6 +100,7 @@ class Service(models.Model):
     agent = models.CharField("Agent", max_length=100, blank=True)  # who did this service
     data = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 
     class Meta:
         ordering = ["id"]
@@ -205,6 +207,7 @@ class PortClosure(models.Model):
     reason = models.CharField(max_length=100)  # from the Master data "closure" list
     notes = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 
     class Meta:
         ordering = ["-start_at", "-id"]
@@ -231,6 +234,7 @@ class HotelStay(models.Model):
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     draft = models.BooleanField(default=False)  # made automatically from a crew change, not completed yet
     created_at = models.DateTimeField(auto_now_add=True)
+    version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 
     class Meta:
         ordering = ["check_in", "id"]
@@ -260,6 +264,7 @@ class Transfer(models.Model):
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     draft = models.BooleanField(default=False)  # made automatically from a crew change, not completed yet
     created_at = models.DateTimeField(auto_now_add=True)
+    version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 
     class Meta:
         ordering = ["at", "id"]
