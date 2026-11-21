@@ -128,6 +128,13 @@ class DescribeTests(ApiTestCase):
         conflicts.bump_if_changed(stay, before, guests=[{"name": "A", "group": "off", "crew_uid": "abcdef123456"}])
         self.assertEqual(stay.version, 2)
 
+    def test_same_guests_in_another_order_is_no_change(self):
+        stay = HotelStay.objects.create(vessel=self.alex_vessel, hotel="H", check_in=date(2026, 11, 13), nights=1)
+        Guest.objects.create(stay=stay, name="A", position=0)
+        Guest.objects.create(stay=stay, name="B", position=1)
+        conflicts.bump_if_changed(stay, conflicts.snapshot(stay), guests=[{"name": "B"}, {"name": "A"}])
+        self.assertEqual(stay.version, 1)
+
 
 class HistoryPageTests(ApiTestCase):
     def test_history_page_hides_version(self):

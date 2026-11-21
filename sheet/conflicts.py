@@ -37,7 +37,8 @@ def sent_version(payload):
 
 
 def _guest_values(guests):
-    return tuple(tuple(str(guest.get(field) or "") for field in GUEST_FIELDS) for guest in guests)
+    """The guests as comparable values; their order is not a change (the same people re-picked in another order)."""
+    return tuple(sorted(tuple(str(guest.get(field) or "") for field in GUEST_FIELDS) for guest in guests))
 
 
 def snapshot(instance, guests=None):
