@@ -391,7 +391,9 @@ python manage.py check --deploy --database default
 nssm restart MarineSheet                          # Linux: sudo systemctl restart marine-sheet
 ```
 
-`docs/STATUS.md` lists, for each change, whether it needs a migration and anything to do after it.
+`docs/STATUS.md` lists, for each change, whether it needs a migration and anything to do after it. After an
+update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
+of date. Reload it and try again.").
 
 ---
 
@@ -401,11 +403,15 @@ nssm restart MarineSheet                          # Linux: sudo systemctl restar
 
 - **Different things** (two vessels, or two services / bookings of the same vessel) never clash: each is its own
   record, saved on its own.
-- **The same vessel form, the same service, or the same booking**: **the last one to press Save wins.** The app does
-  not warn that someone else changed it meanwhile. Each save is complete or not at all (one database transaction
-  per save), so a record is never half one person's and half the other's.
-- Nothing is lost for good: the **History** page (admins) shows both saves — who, when, from where, old → new — so the
-  earlier value can be read there and typed back.
+- **The same vessel, service, hotel stay, transfer or port closure**: the first Save goes through. The second person's
+  Save is **refused** (nothing of theirs is saved) and their dialog says who changed it, at what time and which
+  fields, with two buttons: **Show their version** (reload what is saved now; what they typed is dropped) or **Save
+  mine anyway** (their dialog's values replace the other person's). Typed values stay in the dialog until they choose.
+  The same happens with two windows of the same person ("in another window"), and after an admin-page edit.
+- Each save is complete or not at all (one database transaction per save), so a record is never half one person's
+  and half the other's. The **History** page (admins) keeps every save — who, when, from where, old → new.
+- Not covered by the warning: the Garbage & Sludge boxes, exchange rates, disposal prices, Master data and accounts
+  (there the last save wins, both in the History).
 - If one person **deletes** a vessel while the other has it open, the other's save answers "not found" and changes
   nothing.
 - Screens don't refresh by themselves: someone sees another person's change when their list reloads (changing a

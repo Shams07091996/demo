@@ -1,14 +1,15 @@
 # Project status
 
-Last updated: 2026-11-20. Read this with `CLAUDE.md` before starting work. Each feature has a design
+Last updated: 2026-11-21. Read this with `CLAUDE.md` before starting work. Each feature has a design
 (`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
 
 ## Where things stand right now
 
+- **Edit-conflict warning (2026-11-21):** merged into `main` (branch deleted). Needs migration **`0018_edit_version`** on the user's database (and `0017` if not run yet). A save of a vessel, service, hotel stay, transfer or port closure that someone else saved after the dialog opened is refused (nothing saved); the dialog says who, when and which fields, with **Show their version** / **Save mine anyway**. 553 backend tests; fresh review done (three findings fixed test-first); `npm run check` green; smoke test passes for alex / admin / suez (viewer: re-run after the merge, its only failure was the known Excel timing check fixed in the style tidy).
 - **Master receipt (2026-11-20):** merged into `main` (branch deleted). Needs migration **`0017_history_receipt`** on the user's database. 491 backend tests; fresh review done (fixes in); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **LOG letter layout (2026-11-20):** on `main` (bold "Flight:" / "Personal details:", personal details and stamp on page 2).
-- **Deployment guide (2026-11-20, uncommitted on `main`):** `docs/DEPLOYMENT.md` rewritten as a step-by-step checklist for a Windows server (IIS + NSSM + waitress; Linux notes): the three PostgreSQL logins (`postgres`, `marine_app`, `marine_backup` with `pg_read_all_data`) and why people never get one; creating every account in the admin pages; nightly `pg_dump` and restore test; and "what happens if" (two people edit the same record → last save wins, both in the History; database down → saves fail cleanly, app reconnects by itself; disk lost → restore the last backup). README, SECURITY §4 and CLAUDE.md point to it.
-- **Style tidy (2026-11-20, uncommitted on `main`):** the last four places that set a style from code now use `hidden` (Add vessel button, quick-add bar, Cash to Master's percentage / fixed fields) or a CSS class (port banner colour: `.port-banner.port-<port>` in `app.css`; `PORT_COLOR` removed). Not a security fix: a search found no `innerHTML` or other unsafe code. `npm run check` green; smoke test passes for alex / admin / viewer / suez.
+- **Deployment guide (2026-11-20):** `docs/DEPLOYMENT.md` rewritten as a step-by-step checklist for a Windows server (IIS + NSSM + waitress; Linux notes): the three PostgreSQL logins (`postgres`, `marine_app`, `marine_backup` with `pg_read_all_data`) and why people never get one; creating every account in the admin pages; nightly `pg_dump` and restore test; and "what happens if" (two people edit the same record → the second save is warned about, see the edit-conflict warning; database down → saves fail cleanly, app reconnects by itself; disk lost → restore the last backup). README, SECURITY §4 and CLAUDE.md point to it.
+- **Style tidy (2026-11-20):** the last four places that set a style from code now use `hidden` (Add vessel button, quick-add bar, Cash to Master's percentage / fixed fields) or a CSS class (port banner colour: `.port-banner.port-<port>` in `app.css`; `PORT_COLOR` removed). Not a security fix: a search found no `innerHTML` or other unsafe code. `npm run check` green; smoke test passes for alex / admin / viewer / suez.
 - **Management Excel (2026-11-20):** merged into `main` (branch deleted). No migration. 519 backend tests; fresh review done (no critical or important findings; two minors fixed); `npm run check` green; smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez; a workbook made from the demo data opened in Excel on this PC with its charts.
 - **Garbage & Sludge page (2026-11-20):** merged into `main` (branch deleted). Replaces the service of the same name. Needs migration **`0016_garbage_page`** on the user's database (it deletes the old test Garbage & Sludge services and prices). `npm run check` green (472 tests); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **Garbage & Sludge (2026-11-20):** merged into `main` together with the admin-port fix and `docs/DEPLOYMENT.md` (branches `feature/garbage-sludge` and `fix/admin-vessel-port` deleted). Needs migration **`0015_disposal_price`** on the user's database. `npm run check` green (467 tests); smoke test passes for alex / admin / viewer / suez.
@@ -81,6 +82,7 @@ Last updated: 2026-11-20. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Decisions the user made (respect these)
 
+- **Edit conflicts (2026-11-21):** warn, never overwrite silently: the warning shows who, when and which fields, with Show their version / Save mine anyway (option 2); a `version` counter per record (approach A); the name is shown to **everyone** who gets the warning, port users included (the History page stays admin-only). Not covered: deletes, Garbage & Sludge boxes, rates, prices, Master data, accounts.
 - **Who sees what:** admins everything; port users only their port (server-enforced); **read-only users see all
   money everywhere** (vessels, Dashboard, Hotels / Transport cost and revenue, Calculations) but change nothing. The
   read-only role is also used by the hotel / transport staff.
@@ -151,7 +153,13 @@ Ideas raised along the way:
 
 ## Left open — small things the user hasn't decided on yet
 
-Two people editing the same record: **the last save wins**, with no warning (both saves are in the History). A "someone changed this since you opened it" warning was offered to the user on 2026-11-20; not decided.
+Edit-conflict warning (from the final review, minor):
+- "Guests" can be missing from the field list when another save in between changed other booking fields.
+- Field names are the stored ones ("Draft" can appear; "On signers" rather than the form's "On-signers").
+- An admin-page save raises the version without locking the row (a very narrow race with a dialog save).
+- The booking dialog's redraw (e.g. adding a guest) removes the warning; the next Save warns again.
+- `describe()` reads the record's whole History (fine now; an index on `object_id` later).
+- A version higher than the stored one (only a tampered request) answers 409 listing every field.
 
 Management Excel (from the final review, minor):
 
