@@ -103,6 +103,23 @@ class ConflictApiTests(ApiTestCase):
         status, data = self.raw(self.alex, "put", url, {**self.vessel_body(), "version": 1})
         self.assertEqual((status, data["version"]), (200, 1))
 
+    def test_unchanged_resave_of_every_record_keeps_its_version(self):
+        """Times (UTC in the database, Cairo from the form) and amounts (50 vs 50.0000) that are equal are no change."""
+        resaves = [
+            (f"/api/vessels/{self.alex_vessel.id}/", self.vessel_body(arrival_at="2026-11-13T06:00",
+                                                                     berthing_at="2026-11-13T07:00")),
+            (f"/api/transfers/{self.trip.id}/", {**self.updates()[3][1], "exchange_rate": "50", "cost": "12.5",
+                                                 "cost_currency": "USD"}),
+            (f"/api/hotels/{self.stay.id}/", {**self.updates()[2][1], "cost_per_night": "80", "exchange_rate": "50.0"}),
+            (f"/api/closures/{self.closure.id}/", {**self.updates()[4][1], "end_at": "2026-11-13T14:00"}),
+        ]
+        for url, body in resaves:
+            with self.subTest(url=url):
+                status, first = self.raw(self.alex, "put", url, {**body, "version": 1})
+                self.assertEqual(status, 200, first)
+                status, again = self.raw(self.alex, "put", url, {**body, "version": first["version"]})
+                self.assertEqual((status, again["version"]), (200, first["version"]))
+
     def test_booking_same_guests_no_bump(self):
         url, body = self.updates()[2]
         same = {**body, "nights": 2}

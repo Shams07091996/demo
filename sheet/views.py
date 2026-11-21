@@ -707,7 +707,7 @@ def _shown_changes(record):
     """The History page never shows the edit counter (conflicts.py); a booking save that only changed its guests
     is shown as such."""
     changes = {k: v for k, v in record.changes.items() if k != "version"}
-    if not changes and "version" in record.changes:
+    if not changes and "version" in record.changes and record.object_type in ("hotelstay", "transfer"):
         return {"guests": [None, "changed"]}
     return changes
 

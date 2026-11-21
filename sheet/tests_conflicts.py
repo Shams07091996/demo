@@ -60,6 +60,14 @@ class VersionTests(ApiTestCase):
         change(vessel, "admin", berthing_at=timezone.now())
         self.assertEqual(vessel.version, 2)
 
+    def test_json_keys_in_another_order_are_no_change(self):
+        service = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water",
+                                         data={"cost": 10, "costCurrency": "EGP"})
+        before = conflicts.snapshot(service)
+        service.data = {"costCurrency": "EGP", "cost": 10}
+        conflicts.bump_if_changed(service, before)
+        self.assertEqual(service.version, 1)
+
     def test_check_passes_on_current_version_and_refuses_an_old_one(self):
         vessel = self.alex_vessel
         conflicts.check(vessel, 1, User.objects.get(username="admin"))
@@ -89,6 +97,17 @@ class DescribeTests(ApiTestCase):
         found = conflicts.describe(vessel, 2, User.objects.get(username="alex"))
         self.assertEqual(found["fields"], ["OPR"])
         self.assertIs(found["same_person"], True)
+
+    def test_describe_ignores_older_edits_and_automatic_updates(self):
+        vessel = self.alex_vessel
+        with as_user("alex"):
+            vessel.poc = "OLD EDIT"  # before edit conflicts existed: no version change
+            vessel.save()
+        vessel.refresh_from_db()
+        change(vessel, "admin", name="NEW NAME")
+        vessel.opr = "BY THE SYSTEM"  # an automatic update: no version change
+        vessel.save()
+        self.assertEqual(conflicts.describe(vessel, 1, User.objects.get(username="viewer"))["fields"], ["Name"])
 
     def test_describe_older_save_shows_the_date(self):
         vessel = self.alex_vessel
@@ -153,3 +172,10 @@ class HistoryPageTests(ApiTestCase):
             stay.save()
         records = self.call(self.login("admin"), "get", "/api/history/?type=hotelstay")[1]["records"]
         self.assertEqual(records[0]["changes"], {"guests": [None, "changed"]})
+
+    def test_history_page_version_only_vessel_record_is_not_called_guests(self):
+        vessel = self.alex_vessel
+        ChangeRecord.objects.create(object_type="vessel", object_id=vessel.pk, action="update",
+                                    changes={"version": [1, 2]}, username="alex")
+        records = self.call(self.login("admin"), "get", "/api/history/?type=vessel")[1]["records"]
+        self.assertFalse([r for r in records if "guests" in r["changes"]])

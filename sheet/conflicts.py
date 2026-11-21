@@ -43,7 +43,9 @@ def _guest_values(guests):
 
 def snapshot(instance, guests=None):
     """What a person can change on this record (a booking: its guests too, from `guests` or the database)."""
-    values = tuple(sorted((k, repr(v)) for k, v in _values(instance).items() if k not in UNTRACKED))
+    # Compared with == (as the History does): equal times in other zones, 50 vs 50.0000, JSON keys in another order
+    # are no change.
+    values = {k: v for k, v in _values(instance).items() if k not in UNTRACKED}
     if not isinstance(instance, BOOKINGS):
         return values, ()
     if guests is None:
@@ -115,13 +117,13 @@ def describe(instance, sent, user):
         version = record.changes.get("version")
         if (version and version[1] == sent) or (sent == 1 and record.action == "create"):
             start = index + 1
-    after = records[start:]
-    saves = [r for r in after if "version" in r.changes] or after
+    # Only person saves count (they raised the version): not older edits or automatic updates.
+    saves = [r for r in records[start:] if "version" in r.changes and r.changes["version"][1] > sent]
     last = saves[-1] if saves else None
     return {
         "who": last.username if last else "",
         "same_person": bool(last and user is not None and last.user_id == user.id),
         "at": _when(last.at) if last else "",
-        "fields": _fields(model, after),
+        "fields": _fields(model, saves),
         "version": instance.version,
     }
