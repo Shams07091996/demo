@@ -22,6 +22,7 @@ from django.views.decorators.http import require_http_methods
 from . import (
     calculations,
     closures,
+    conflicts,
     crewbookings,
     disposal,
     history,
@@ -184,8 +185,12 @@ def vessel_detail(request, pk):
         audit(request, "vessel.delete", id=pk)
         return JsonResponse({"ok": True})
 
-    for field, value in clean_vessel(read_json(request), request.profile, vessel).items():
+    payload = read_json(request)
+    vessel = conflicts.locked(vessel, payload, request.user)
+    before = conflicts.snapshot(vessel)
+    for field, value in clean_vessel(payload, request.profile, vessel).items():
         setattr(vessel, field, value)
+    conflicts.bump_if_changed(vessel, before)
     vessel.save()
     crewbookings.sync(vessel)  # draft dates follow the vessel date (e.g. it became the sailing day)
     audit(request, "vessel.update", id=vessel.id)
@@ -227,7 +232,10 @@ def service_detail(request, pk):
         service.delete()
         audit(request, "service.delete", id=pk, vessel=service.vessel_id)
     else:
+        service = conflicts.locked(service, read_json(request), request.user)
+        before = conflicts.snapshot(service)
         service.service_type, service.agent, service.data = _read_service(request, service.vessel, service.agent)
+        conflicts.bump_if_changed(service, before)
         service.save()
         audit(request, "service.update", id=service.id, vessel=service.vessel_id)
     crewbookings.sync(service.vessel)  # automatic bookings follow the crew (a deleted service drops its drafts)
@@ -596,7 +604,8 @@ def closure_detail(request, pk):
         closure.delete()
         audit(request, "closure.delete", id=pk)
         return JsonResponse({"ok": True})
-    closure = closures.save_closure(profile, read_json(request), existing=closure)
+    payload = read_json(request)
+    closure = closures.save_closure(profile, payload, existing=conflicts.locked(closure, payload, request.user))
     audit(request, "closure.update", id=closure.id)
     return JsonResponse(closures.closure_to_dict(closure, profile))
 
@@ -630,7 +639,8 @@ def booking_detail(request, kind, pk):
         booking.delete()
         audit(request, f"{_AUDIT_NAME[kind]}.delete", id=pk)
         return JsonResponse({"ok": True})
-    booking = logistics.save_booking(kind, profile, read_json(request), existing=booking)
+    payload = read_json(request)
+    booking = logistics.save_booking(kind, profile, payload, existing=conflicts.locked(booking, payload, request.user))
     audit(request, f"{_AUDIT_NAME[kind]}.update", id=booking.id)
     return JsonResponse(logistics.booking_to_dict(kind, booking, profile))
 

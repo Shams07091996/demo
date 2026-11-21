@@ -26,13 +26,42 @@ from .models import (
 TWO_STEP_FIELDS = ("two_step_exempt", "must_change_password")
 
 
+class VersionedAdmin(admin.ModelAdmin):
+    """A save here that changes something raises the record's edit-conflict version (conflicts.py), so a dialog
+    opened before it warns instead of overwriting; a changed service inline raises that service's, a changed guest
+    list the booking's (once per save). The version itself can't be edited here."""
+
+    def get_readonly_fields(self, request, obj=None):
+        return (*super().get_readonly_fields(request, obj), "version")
+
+    def save_model(self, request, obj, form, change):
+        if change and form.has_changed():
+            obj.version += 1
+            obj._version_bumped = True
+        super().save_model(request, obj, form, change)
+
+    def save_formset(self, request, form, formset, change):
+        if formset.model is Service:
+            for inline_form in formset.forms:
+                if inline_form.instance.pk and inline_form.has_changed():
+                    inline_form.instance.version += 1
+        super().save_formset(request, form, formset, change)
+        booking = form.instance
+        guests_changed = formset.new_objects or formset.changed_objects or formset.deleted_objects
+        if formset.model is Guest and change and guests_changed and not getattr(booking, "_version_bumped", False):
+            booking.version += 1
+            booking._version_bumped = True
+            booking.save(update_fields=["version"])
+
+
 class ServiceInline(admin.TabularInline):
     model = Service
     extra = 0
+    readonly_fields = ("version",)
 
 
 @admin.register(Vessel)
-class VesselAdmin(admin.ModelAdmin):
+class VesselAdmin(VersionedAdmin):
     list_display = ("name", "opr", "poc", "port", "date")
     list_filter = ("port", "opr")
     search_fields = ("name", "opr", "poc")
@@ -153,19 +182,19 @@ class TransferGuestInline(admin.TabularInline):
 
 
 @admin.register(HotelStay)
-class HotelStayAdmin(admin.ModelAdmin):
+class HotelStayAdmin(VersionedAdmin):
     list_display = ("hotel", "check_in", "nights", "vessel")
     inlines = [StayGuestInline]
 
 
 @admin.register(Transfer)
-class TransferAdmin(admin.ModelAdmin):
+class TransferAdmin(VersionedAdmin):
     list_display = ("at", "from_place", "to_place", "hotel", "vessel")
     inlines = [TransferGuestInline]
 
 
 @admin.register(PortClosure)
-class PortClosureAdmin(admin.ModelAdmin):
+class PortClosureAdmin(VersionedAdmin):
     list_display = ("port", "start_at", "end_at", "reason")
     list_filter = ("port",)
 

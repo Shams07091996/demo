@@ -61,6 +61,14 @@ def check(instance, sent, user):
         raise Conflict("conflict", conflict=describe(instance, sent, user))
 
 
+def locked(instance, payload, user):
+    """The record locked for this write (inside the request's transaction), once the version sent is current."""
+    sent = sent_version(payload)
+    row = type(instance).objects.select_for_update().get(pk=instance.pk)
+    check(row, sent, user)
+    return row
+
+
 def _label(model, field):
     if field in LABELS:
         return LABELS[field]

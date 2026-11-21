@@ -30,7 +30,7 @@ class HistoryRecordingTests(ApiTestCase):
         self.call(alex, "put", f"/api/vessels/{vessel['id']}/", {**NEEDED, "name": "HIST 2", "date": "2026-11-13"})
         update = records(object_type="vessel", object_id=vessel["id"], action="update")
         self.assertEqual(len(update), 1)
-        self.assertEqual(update[0].changes, {"name": ["HIST", "HIST 2"]})
+        self.assertEqual(update[0].changes, {"name": ["HIST", "HIST 2"], "version": [1, 2]})  # version: edit conflicts
 
         self.call(alex, "delete", f"/api/vessels/{vessel['id']}/")
         deleted = records(object_type="vessel", object_id=vessel["id"], action="delete")
