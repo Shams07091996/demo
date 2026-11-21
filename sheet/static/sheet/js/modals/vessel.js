@@ -132,7 +132,7 @@ const timeField = ({ key, label }, vessel) =>
     h('button', { class: 'btn ghost small', attrs: { type: 'button' }, dataset: { act: 'time-now', target: key } }, 'Now'));
 
 export function openVesselForm(vessel) {
-  state.ctx = { view: 'vessel-form', vesselId: vessel ? vessel.id : null };
+  state.ctx = { view: 'vessel-form', vesselId: vessel ? vessel.id : null, version: vessel?.version };
   const selectedPort = vessel ? vessel.port : ME.port || (state.filter.port !== 'ALL' ? state.filter.port : ''); // admins on All ports choose
   const summary = (vessel && vessel.summary) || {};
   const portField = ME.isAdmin

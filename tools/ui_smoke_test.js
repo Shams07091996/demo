@@ -569,6 +569,47 @@ async function login() {
   closeModal();
   ok(rowFor(NAME).querySelector('.status-chip')?.textContent === 'Sailed', 'status chip is also in the table');
 
+  /* ======== edit conflicts: a save over someone else's newer save is refused, nothing is lost ======== */
+  const jsonHeaders = () => ({ 'Content-Type': 'application/json', 'X-CSRFToken': meta() });
+  const VESSEL_KEYS = ['name', 'opr', 'poc', 'port', 'date', 'arrival_agent', 'sailing_agent', 'delay_reason', 'summary',
+    'arrival_at', 'berthing_at', 'ops_start_at', 'ops_end_at', 'sailing_at', 'version'];
+  const otherVesselSave = async (id, changes) => {
+    const current = await (await w.fetch(`/api/vessels/${id}/`)).json();
+    const body = Object.fromEntries(VESSEL_KEYS.map((k) => [k, current[k] ?? '']));
+    return (await w.fetch(`/api/vessels/${id}/`, { method: 'PUT', headers: jsonHeaders(), body: JSON.stringify({ ...body, ...changes }) })).status;
+  };
+  if (ROLE !== 'viewer') {
+    const id = Number(rowFor(NAME).dataset.id);
+    const sumInput = () => $('#vessel-form [data-sum]');
+    await openRow(NAME);
+    click($('#modal [data-act="edit-vessel"]'));
+    await waitFor(() => $('#vessel-form'));
+    ok(await otherVesselSave(id, { sailing_agent: 'SMOKE AGENT' }) === 200, 'conflict: another save made meanwhile');
+    type(sumInput(), 'SMOKE MINE');
+    click($('[data-act="save-vessel"]'));
+    ok(await waitFor(() => $('#conflict-panel')), 'conflict: the save is refused with a warning');
+    const panel = () => $('#conflict-panel')?.textContent || '';
+    ok(panel().includes('changed this vessel') && panel().includes('in another window') && panel().includes('Sailing agent'), 'conflict: says who (same person: another window) and which fields');
+    ok(panel().includes('Nothing of yours was saved') && $('#status-text').textContent === 'Not saved' && !$('#modal .error'), 'conflict: "Not saved", no generic error');
+    ok(sumInput().value === 'SMOKE MINE', 'conflict: what was typed stays in the form');
+    const onServer = async () => (await (await w.fetch(`/api/vessels/${id}/`)).json());
+    ok(!Object.values((await onServer()).summary || {}).includes('SMOKE MINE'), 'conflict: nothing was saved');
+    click($('[data-act="conflict-force"]'));
+    ok(await waitFor(() => !$('#vessel-form') && $('#modal h2')?.textContent.includes(NAME)), 'conflict: Save mine anyway saves');
+    const saved = await onServer();
+    ok(Object.values(saved.summary || {}).includes('SMOKE MINE') && saved.sailing_agent === '', 'conflict: what is in the form is saved over theirs');
+    click($('#modal [data-act="edit-vessel"]'));
+    await waitFor(() => $('#vessel-form'));
+    ok(await otherVesselSave(id, { sailing_agent: 'SMOKE AGENT' }) === 200, 'conflict: another save again');
+    type(sumInput(), 'SMOKE DROPPED');
+    click($('[data-act="save-vessel"]'));
+    ok(await waitFor(() => $('#conflict-panel')), 'conflict: warned again');
+    click($('[data-act="conflict-reload"]'));
+    ok(await waitFor(() => $('#vessel-form') && !$('#conflict-panel') && $('#vessel-form [name=sailing_agent]').value === 'SMOKE AGENT'), 'conflict: Show their version reloads the form with the saved record');
+    ok(sumInput().value === 'SMOKE MINE', 'conflict: what was typed is dropped on Show their version');
+    closeModal();
+  }
+
   /* ======== Fresh Water + live preview ======== */
   await openRow(NAME);
   click($('[data-act="add-service"]'));
@@ -818,9 +859,14 @@ async function login() {
     ok(await waitFor(() => !$('#overlay').classList.contains('open') && closureRow('01.02.2020 06:00')?.textContent.includes('3.5')), 'closures: saved and listed with its hours');
     click(closureRow('01.02.2020 06:00').querySelector('td'));
     ok(await waitFor(() => $('#closure-form [name=start_at]')?.value === '2020-02-01T06:00'), 'closures: a row opens its closure');
+    const listed = (await (await w.fetch('/api/closures/?from=2020-02-01&to=2020-02-01')).json()).closures.find((c) => c.start_at === '2020-02-01T06:00');
+    const other = { port: listed.port, start_at: listed.start_at, end_at: listed.end_at, reason: listed.reason, notes: 'THEIR NOTE', version: listed.version };
+    ok((await w.fetch(`/api/closures/${listed.id}/`, { method: 'PUT', headers: jsonHeaders(), body: JSON.stringify(other) })).status === 200, 'closures: another save made meanwhile');
     type($('#closure-form [name=notes]'), 'SMOKE CLOSURE');
     click($('[data-act="closure-save"]'));
-    ok(await waitFor(() => closureRow('SMOKE CLOSURE')), 'closures: edited');
+    ok(await waitFor(() => ($('#conflict-panel')?.textContent || '').includes('changed this port closure')) && $('#conflict-panel').textContent.includes('Notes'), 'closures: a save over a newer one is warned about');
+    click($('[data-act="conflict-force"]'));
+    ok(await waitFor(() => closureRow('SMOKE CLOSURE')), 'closures: edited (Save mine anyway)');
     click(closureRow('SMOKE CLOSURE').querySelector('[data-act="closure-del"]'));
     ok(await waitFor(() => !closureRow('SMOKE CLOSURE')), 'closures: removed from its row');
   }
