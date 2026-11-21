@@ -42,6 +42,7 @@ def service_to_dict(service, month_rate):
         "type": service.service_type,
         "agent": service.agent,
         "data": service.data,
+        "version": service.version,
         "calc": compute(service.service_type, service.data, month_rate),
     }
 
@@ -51,6 +52,7 @@ def vessel_to_dict(vessel, rates):
     services = [service_to_dict(s, rate) for s in vessel.services.all()]
     return {
         "id": vessel.id,
+        "version": vessel.version,
         "name": vessel.name,
         "opr": vessel.opr,
         "poc": vessel.poc,

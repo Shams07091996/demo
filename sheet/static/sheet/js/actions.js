@@ -1,6 +1,7 @@
 // Every button in the app has a data-act="name"; this file maps each name to what it does.
 import { api, download, mutate } from './api.js';
 import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from './data.js';
+import { conflictAction, showConflict } from './conflict.js';
 import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
 import { openAgentJobs } from './modals/agentJobs.js';
@@ -31,13 +32,32 @@ import { $, formValues, nowLocalInput } from './util.js';
 
 const vesselId = () => state.ctx.vesselId;
 
-/** Save a service, then show the vessel with its refreshed totals (the list and totals reload from the server). */
-async function saveService() {
+/** Reopen the vessel form / a service form with the record as saved on the server now (after a conflict). */
+async function reloadVesselForm(id) {
+  const vessel = await api(`/api/vessels/${id}/`);
+  rememberVessels([vessel]);
+  openVesselForm(vessel);
+}
+
+async function reloadServiceForm(id) {
+  const vessel = await api(`/api/vessels/${vesselId()}/`);
+  rememberVessels([vessel]);
+  const service = vessel.services.find((s) => s.id === id);
+  if (service) openServiceForm(service.type, service);
+  else openVessel(vessel.id);
+}
+
+/** Save a service, then show the vessel with its refreshed totals (the list and totals reload from the server).
+ *  An edit sends the version the form opened with (`version`: the one from a conflict, for "Save mine anyway"). */
+async function saveService(version) {
   const { type, serviceId } = state.ctx;
   const payload = { type, agent: $('#svc-form [name=agent]').value, data: readServiceForm() };
+  if (serviceId) payload.version = version ?? state.ctx.version;
   const vessel = await mutate(() => (serviceId
     ? api(`/api/services/${serviceId}/`, 'PUT', payload)
-    : api(`/api/vessels/${vesselId()}/services/`, 'POST', payload)));
+    : api(`/api/vessels/${vesselId()}/services/`, 'POST', payload)), (conflict) => showConflict(conflict, 'service', {
+    reload: () => reloadServiceForm(serviceId), force: (current) => saveService(current),
+  }));
   rememberVessels([vessel]);
   await refreshAfterChange();
   openVessel(vessel.id);
@@ -51,10 +71,14 @@ async function deleteService(button) {
   openVessel(vessel.id);
 }
 
-async function saveVessel({ addAnother }) {
+async function saveVessel({ addAnother, version }) {
   const payload = vesselPayload();
   const id = vesselId();
-  const vessel = await mutate(() => (id ? api(`/api/vessels/${id}/`, 'PUT', payload) : api('/api/vessels/', 'POST', payload)));
+  if (id) payload.version = version ?? state.ctx.version;
+  const vessel = await mutate(() => (id ? api(`/api/vessels/${id}/`, 'PUT', payload) : api('/api/vessels/', 'POST', payload)),
+    (conflict) => showConflict(conflict, 'vessel', {
+      reload: () => reloadVesselForm(id), force: (current) => saveVessel({ addAnother, version: current }),
+    }));
   await afterVesselSaved(vessel);
   if (addAnother) openVesselForm(null);
   else openVessel(vessel.id);
@@ -129,7 +153,7 @@ export const actions = {
     const service = getVessel(vesselId()).services.find((s) => s.id === Number(b.dataset.id));
     openServiceForm(service.type, service);
   },
-  'save-service': saveService,
+  'save-service': () => saveService(),
   'del-service': deleteService,
   'add-entry': () => { $('#entries').append(entryRowEl(state.ctx.type)); renumberEntries(); updatePreview(); },
   'rm-entry': (b) => { b.closest('.entry').remove(); renumberEntries(); updatePreview(); },
@@ -196,12 +220,15 @@ export const actions = {
   'booking-change-vessel': changeVessel,
   'booking-add-guest': addGuest,
   'booking-del-guest': removeGuest,
-  'booking-save': saveBooking,
+  'booking-save': () => saveBooking(),
   'booking-delete': deleteBooking,
 
   'closure-new': () => openClosureDialog(),
   'closure-open': (b) => openClosureDialog(Number(b.dataset.id)),
-  'closure-save': saveClosure,
+  'closure-save': () => saveClosure(),
   'closure-del': removeClosure,
   'closure-now': closureNow,
+
+  'conflict-reload': () => conflictAction('reload'),
+  'conflict-force': () => conflictAction('force'),
 };

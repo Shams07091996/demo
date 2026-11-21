@@ -16,7 +16,10 @@ export async function api(url, method = 'GET', payload) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = data.error || 'Something went wrong.';
-    throw new Error(data.ref ? `${message} (reference ${data.ref})` : message);
+    const error = new Error(data.ref ? `${message} (reference ${data.ref})` : message);
+    error.status = response.status;
+    error.data = data; // e.g. a 409's `conflict`: who saved the record meanwhile (see conflict.js)
+    throw error;
   }
   return data;
 }
@@ -50,16 +53,24 @@ export async function download(url, failed, payload) {
   return null;
 }
 
-/** Run a save, showing "Saving… / Saved / Failed" and any error inside the open modal. */
-export async function mutate(action) {
+/**
+ * Run a save, showing "Saving… / Saved / Failed" and any error inside the open modal. A save refused because someone
+ * saved the record meanwhile (409) goes to `onConflict` (the dialog's warning panel) instead of the error box.
+ */
+export async function mutate(action, onConflict) {
   setStatus('saving', 'Saving…');
   try {
     const result = await action();
     setStatus('ok', 'Saved');
     return result;
   } catch (error) {
-    setStatus('error', 'Failed');
-    showError(error.message);
+    if (error.status === 409 && error.data?.conflict && onConflict) {
+      setStatus('error', 'Not saved');
+      onConflict(error.data.conflict);
+    } else {
+      setStatus('error', 'Failed');
+      showError(error.message);
+    }
     throw error;
   }
 }

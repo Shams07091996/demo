@@ -1,6 +1,7 @@
 // The add / edit dialog for a hotel stay or a transfer: pick the vessel, tick guests from its crew change (or add
 // other guests), fill in the booking and an optional price. The server checks everything again.
 import { api, mutate } from '../api.js';
+import { showConflict } from '../conflict.js';
 import { headEl, optionChoicesEl } from '../components.js';
 import { el } from '../config.js';
 import { setStatus } from '../feedback.js';
@@ -59,6 +60,7 @@ export async function openBookingDialog(kind, id = null) {
     Object.assign(ctx(), {
       vessel: { id: booking.vessel.id, name: booking.vessel.name, port: booking.vessel.port, port_label: booking.vessel.port_label },
       guests: booking.guests.map((g) => ({ ...g })),
+      version: booking.version, // sent with the save: a newer save by someone else is warned about
     });
     for (const key of Object.keys(form)) if (key in booking) form[key] = booking[key] ?? '';
     form.nights = String(booking.nights ?? form.nights);
@@ -344,12 +346,12 @@ export function removeGuest(button) {
 }
 
 /** Run one save / delete at a time for this dialog: a double click must not create a booking twice. */
-async function once(mine, action) {
+async function once(mine, action, onConflict) {
   if (mine.saving) return false;
   mine.saving = true;
   $$('#modal .m-foot .btn').forEach((b) => { b.disabled = true; });
   try {
-    await mutate(action);
+    await mutate(action, onConflict);
     return true;
   } catch {
     return false; // mutate already showed the error in the dialog
@@ -359,7 +361,8 @@ async function once(mine, action) {
   }
 }
 
-export async function saveBooking() {
+/** Save the dialog; an edit sends the version it opened with (`version`: the one from a conflict). */
+export async function saveBooking(version) {
   const mine = ctx();
   const { kind, id, vessel, guests, form } = mine;
   const { cost, revenue, ...fields } = form;
@@ -372,7 +375,11 @@ export async function saveBooking() {
     [revenueKey]: revenue,
   };
   if (kind === 'hotels') payload.nights = Number(form.nights);
-  const saved = await once(mine, () => (id ? api(`/api/${kind}/${id}/`, 'PUT', payload) : api(`/api/${kind}/`, 'POST', payload)));
+  if (id) payload.version = version ?? mine.version;
+  const saved = await once(mine, () => (id ? api(`/api/${kind}/${id}/`, 'PUT', payload) : api(`/api/${kind}/`, 'POST', payload)),
+    (conflict) => showConflict(conflict, kind === 'hotels' ? 'hotel stay' : 'transfer', {
+      reload: () => openBookingDialog(kind, id), force: (current) => saveBooking(current),
+    }));
   if (!saved || !stillOpen(mine)) return;
   closeModal();
   await bookingsPage(kind).load();

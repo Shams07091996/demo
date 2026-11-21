@@ -172,7 +172,7 @@ function formFields(type, vessel, d) {
 export function openServiceForm(type, service) {
   const vessel = getVessel(state.ctx.vesselId);
   const data = service ? service.data || {} : {};
-  state.ctx = { view: 'service-form', vesselId: vessel.id, type, serviceId: service ? service.id : null };
+  state.ctx = { view: 'service-form', vesselId: vessel.id, type, serviceId: service ? service.id : null, version: service?.version };
   if (type === 'Crew Change') {
     state.crew = JSON.parse(JSON.stringify({ onSigners: data.onSigners || [], offSigners: data.offSigners || [] }));
   }

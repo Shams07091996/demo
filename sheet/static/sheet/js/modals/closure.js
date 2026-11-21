@@ -1,5 +1,6 @@
 // The add / edit dialog for a port closure. The server checks everything again (port, times, reason from Master data).
 import { api, mutate } from '../api.js';
+import { showConflict } from '../conflict.js';
 import { headEl, optionChoicesEl, portOptionEls } from '../components.js';
 import { ME } from '../config.js';
 import { h, setChildren } from '../dom.js';
@@ -18,7 +19,7 @@ const timeField = (name, label, value) =>
 export function openClosureDialog(id = null) {
   const closure = id ? closureById(id) : null;
   if (id && !closure) return;
-  state.ctx = { view: 'closure', closureId: id };
+  state.ctx = { view: 'closure', closureId: id, version: closure?.version };
   const port = closure ? closure.port : ME.port || 'alexandria';
   openModal(
     headEl(closure ? 'Edit port closure' : 'Add port closure'),
@@ -51,13 +52,19 @@ export function closureNow(button) {
 
 let saving = false; // one save at a time: a double click must not add the closure twice
 
-export async function saveClosure() {
+/** Save the dialog; an edit sends the version it opened with (`version`: the one from a conflict). */
+export async function saveClosure(version) {
   if (saving || state.ctx.view !== 'closure') return;
   const { closureId } = state.ctx;
   const payload = formValues($('#closure-form'));
+  if (closureId) payload.version = version ?? state.ctx.version;
   saving = true;
   try {
-    await mutate(() => (closureId ? api(`/api/closures/${closureId}/`, 'PUT', payload) : api('/api/closures/', 'POST', payload)));
+    await mutate(() => (closureId ? api(`/api/closures/${closureId}/`, 'PUT', payload) : api('/api/closures/', 'POST', payload)),
+      (conflict) => showConflict(conflict, 'port closure', {
+        reload: async () => { await closuresPage.load(); openClosureDialog(closureId); },
+        force: (current) => saveClosure(current),
+      }));
   } catch {
     return; // mutate already showed the error in the dialog
   } finally {

@@ -8,6 +8,7 @@ from datetime import datetime, time, timedelta
 from django.http import Http404
 from django.utils import timezone
 
+from . import conflicts
 from .access import scoped_closures
 from .constants import PORT_LABELS
 from .errors import BadRequest
@@ -28,6 +29,7 @@ def closure_to_dict(closure, profile):
         "hours": round(hours, 1) if hours is not None else None,
         "reason": closure.reason,
         "notes": closure.notes,
+        "version": closure.version,
         "can_edit": profile.is_admin or profile.port == closure.port,
     }
 
@@ -59,7 +61,10 @@ def get_closure(profile, pk):
 def save_closure(profile, data, existing=None):
     """Create (existing=None) or replace a closure from browser data."""
     closure = existing or PortClosure()
+    before = conflicts.snapshot(closure)
     for field, value in clean_closure(data, profile, existing).items():
         setattr(closure, field, value)
+    if existing:
+        conflicts.bump_if_changed(closure, before)
     closure.save()
     return closure

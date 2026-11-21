@@ -14,7 +14,7 @@ from django.db import transaction
 from django.http import Http404
 from django.utils import timezone
 
-from . import finance, history
+from . import conflicts, finance, history
 from .access import scoped_vessels
 from .constants import MAX_NIGHTS, PORT_LABELS
 from .errors import BadRequest
@@ -110,6 +110,7 @@ def booking_to_dict(kind, obj, profile):
         "guests": [_guest_dict(g) for g in obj.guests.all()],
         "hotel": obj.hotel,
         "draft": obj.draft,
+        "version": obj.version,
     }
     if kind == "hotels":
         row.update(check_in=obj.check_in.isoformat(), nights=obj.nights, check_out=obj.check_out.isoformat())
@@ -211,9 +212,12 @@ def save_booking(kind, profile, data, existing=None):
     with transaction.atomic():
         obj = existing or KINDS[kind](vessel=_vessel_for(profile, data.get("vessel")))
         check_booking_lists(cleaned, obj.vessel.port, existing)
+        before = conflicts.snapshot(obj) if existing else None
         for field, value in cleaned.items():
             setattr(obj, field, value)
         obj.draft = False  # saved by a person: no longer an automatic draft
+        if existing:
+            conflicts.bump_if_changed(obj, before, guests)
         obj.save()
         obj.guests.all().delete()
         history.record_created(

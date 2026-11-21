@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import UTC, date, datetime
@@ -17,12 +18,15 @@ from config.database import build_database_settings
 
 from . import finance, throttle
 from .errors import BadRequest
-from .models import ExchangeRate, LoginAttempt, Option, Profile, Service, Vessel
+from .models import ExchangeRate, HotelStay, LoginAttempt, Option, PortClosure, Profile, Service, Transfer, Vessel
 from .validators import clean_service_data, clean_summary
 
 PASSWORD = "correct-horse-battery"
 # A new vessel needs an OPR and a POC from Master data (ApiTestCase lists these two for All ports).
 NEEDED = {"opr": "TEST OPR", "poc": "TEST POC"}
+VERSIONED_URL = re.compile(r"^/api/(vessels|services|hotels|transfers|closures)/(\d+)/$")
+VERSIONED_MODELS = {"vessels": Vessel, "services": Service, "hotels": HotelStay, "transfers": Transfer,
+                    "closures": PortClosure}
 FAST_HASHER = override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])  # tests only
 
 
@@ -77,7 +81,14 @@ class ApiTestCase(TestCase):
         return client
 
     def call(self, client, method, url, payload=None):
+        """An API request. An update of a vessel / service / booking / closure that doesn't say which version it
+        edits gets the current one (the edit-conflict check itself is tested in tests_conflicts_api)."""
         token = client.cookies["csrftoken"].value
+        found = VERSIONED_URL.match(url)
+        if found and method in ("put", "patch") and isinstance(payload, dict) and "version" not in payload:
+            model = VERSIONED_MODELS[found[1]]
+            current = model.objects.filter(pk=found[2]).values_list("version", flat=True).first()
+            payload = {**payload, "version": current or 1}
         kwargs = {"content_type": "application/json", "HTTP_X_CSRFTOKEN": token}
         if payload is not None:
             kwargs["data"] = json.dumps(payload)
