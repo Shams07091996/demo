@@ -6,7 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Marine Service Sheet: a Django 5.2 app replacing an Excel sheet of vessels and the services done for them (crew change,
 deliveries, cash to master…), with cost / revenue / profit in EGP. One Django app (`sheet`) plus a vanilla ES-module
-front end with **no build step**. Users have a role: `admin`, `readonly` (sees all ports, edits nothing), or a port
+front end with **no build step**. Users have a role: `admin`, `readonly` (sees all ports, edits nothing but the
+accounting Open / Closed switch: the read-only accounts are the accountants), or a port
 role (`alexandria`, `portsaid`, `damietta`, `suez`: sees and edits only that port). See `README.md` and `SECURITY.md`.
 
 The project is a **git repository** (branch `main`; each feature on its own branch, merged only when the user agrees)
@@ -175,7 +176,7 @@ no revenue → the label only); POST with the edited text (`validators.clean_rec
 History records action `receipt` (migration 0017 widened `ChangeRecord.action` to 7). Scoped, `require_edit`, rate
 limited with the exports. The LOG and the receipt download through `api.download()`.
 
-**Management Excel** (`xlsx.py`, `report.py`, `GET /api/dashboard/export/?from=&to=&port=`, `views.dashboard_export`, the Dashboard's **Excel** button `data-act="dashboard-export"`): a `.xlsx` written with the **standard library only** (`zipfile` + escaped XML; text cells are always inline strings, never formulas; native DrawingML charts). `report.data(profile, Range, now)` builds nine sheets of tables (`{"head", "rows", "total"}`); money comes **only** from `calculations.rows_for` (so it equals the Calculations page, hotels / transport / garbage included), job counts from `dashboard.response`; `report.workbook` lays them out (title, range line, tables, notes, one chart; a sheet whose figures are all zero shows "No data"). From and To required, at most 24 months; every role, port users pinned to their port; rate limited with the exports; audit `dashboard.export`. `crewbookings.early_on_signers(service)` counts every early on-signer (visa charged or not).
+**Management Excel** (`xlsx.py`, `report.py`, `GET /api/dashboard/export/?from=&to=&port=`, `views.dashboard_export`, the Dashboard's **Excel** button `data-act="dashboard-export"`): a `.xlsx` written with the **standard library only** (`zipfile` + escaped XML; text cells are always inline strings, never formulas; native DrawingML charts). `report.data(profile, Range, now)` builds ten sheets of tables (`{"head", "rows", "total"}`); money comes **only** from `calculations.rows_for` (so it equals the Calculations page, hotels / transport / garbage included), job counts from `dashboard.response`; `report.workbook` lays them out (title, range line, tables, notes, one chart; a sheet whose figures are all zero shows "No data"). From and To required, at most 24 months; every role, port users pinned to their port; rate limited with the exports; audit `dashboard.export`. `crewbookings.early_on_signers(service)` counts every early on-signer (visa charged or not).
 
 **Edit conflicts** (`conflicts.py`, migration 0018, `js/conflict.js`): Vessel, Service, HotelStay, Transfer and PortClosure have `version`. Every update of those (vessel / service PUT-PATCH, booking / closure PUT) must send it (missing → 400 "This page is out of date…"); `conflicts.locked` re-reads the row with `select_for_update`, a different version → **409** `{"error": "conflict", "conflict": {who, same_person, at, fields, version}}` and nothing saved (who / fields from the History records whose version rose). `bump_if_changed` raises it **before** the save, only when the values (compared with `==`; booking guests in any order) really differ; automatic writes (`crewbookings.sync`, sailing-day rule) never touch it. Admin-page saves raise it (`admin.VersionedAdmin`; read-only there). The History page hides `version`. Front end: `api()` errors carry `.status` / `.data`; `mutate(action, onConflict)` sends a 409 to `showConflict` (panel `#conflict-panel`, `data-act` `conflict-reload` / `conflict-force`); each dialog keeps the version it opened with. Tests: `ApiTestCase.call` adds the current version to such updates itself; the real check is in `tests_conflicts_api` (raw requests).
 
@@ -194,7 +195,24 @@ USD (a figure needing a missing rate is None, the row flagged). The money is on 
 **Calculations** (`calculations.py`, `GET /api/calculations/`): vessels in a vessel-date range / exact OPR / port →
 `service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
 filtered rows, and the OPRs present in the range for the page's dropdown. Computed on each request, never stored.
-Every role may read it.
+Every role may read it. Each row carries `status` / `cancel_reason` (service rows; None for bookings and garbage),
+`closed` and `ref {kind, id}` (what `/api/accounting/` closes; None for garbage with no `VesselDisposal` yet).
+`status=` / `accounting=` comma lists filter the rows (unknown → 400, empty items ignored; any `status` filter drops
+rows without a status); totals follow the filters and add `open` / `closed`.
+
+**Service status** (migration 0019): `Service.status` (`in_progress` default / `completed` / `cancelled`,
+`constants.SERVICE_STATUSES`) and `cancel_reason` (`validators.clean_service_status`: required when Cancelled, refused
+otherwise, 500 characters; a save without the key keeps the stored value). Existing services became Completed. A
+cancelled service is skipped by `crewbookings.crew_members` (its drafts go, and come back if un-cancelled),
+`early_arrivals` and `listing.missing_details`; its money lines stay (the dialog sets the money to 0 on choosing
+Cancelled). **Accounting** (`accounting.py`, `POST /api/accounting/ {kind: service|hotel|transfer|disposal, id,
+closed}`, `access.require_accounting`: admin or role `readonly`): `acct_closed` on Service, HotelStay, Transfer and
+VesselDisposal, never written by operations saves (`conflicts.UNTRACKED`) and never raising `version`. Closed =
+locked for every role: `accounting.require_open` on service PUT / DELETE, booking PUT / DELETE and the disposal PUT,
+`require_vessel_open` on vessel DELETE (message `accounting.LOCKED`); `crewbookings.sync` leaves closed bookings
+alone. Dashboard `response()["status"]` (`dashboard.status_counts`: services per status, Calculations rows Open /
+Closed per month; under agent / service filters only the counted services' rows) and the Excel sheet
+"Service status" (`report._service_status`).
 
 **Agents:** `Vessel.arrival_agent` (who entered it), `Vessel.sailing_agent` (who sailed it) and `Service.agent` (who
 did that service), all plain text from the Agent list, empty until chosen. `listing.missing_details` feeds the

@@ -293,7 +293,7 @@ Roles:
 | Role | Sees | Can change |
 |---|---|---|
 | **Admin** | All ports | Everything, including exchange rates, prices and shared Master data |
-| **Read-only** | All ports, money included | Nothing (every new account starts here) |
+| **Read-only** | All ports, money included | Only the **Open / Closed** accounting switch on Calculations — give this role to **accounting** (every new account starts here) |
 | **Alexandria / Port Said / Damietta / Suez** | Their port only | Their port's vessels, services, bookings, closures and Master data |
 
 Give each person the **least** they need: most people are a port role or Read-only; keep Admin to a few.
@@ -391,7 +391,8 @@ python manage.py check --deploy --database default
 nssm restart MarineSheet                          # Linux: sudo systemctl restart marine-sheet
 ```
 
-`docs/STATUS.md` lists, for each change, whether it needs a migration and anything to do after it. After an
+`docs/STATUS.md` lists, for each change, whether it needs a migration and anything to do after it (for example
+`0019_service_status`: every service already there becomes Completed). After an
 update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
 of date. Reload it and try again.").
 
