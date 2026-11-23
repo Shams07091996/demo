@@ -1,7 +1,7 @@
 // Adding / editing a service: the type picker, the per-type forms, the live profit preview and the crew editor.
 import { calcLocal } from '../calc.js';
-import { headEl, optionChoicesEl } from '../components.js';
-import { ME, MULTI, SINGLE_EXTRA, TYPES } from '../config.js';
+import { closedNoteEl, headEl, optionChoicesEl } from '../components.js';
+import { ME, MULTI, SERVICE_STATUS, SINGLE_EXTRA, TYPES } from '../config.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
@@ -27,6 +27,22 @@ const rateField = (vessel, data) =>
       `Monthly rate for ${vessel.date.slice(5, 7)}.${vessel.date.slice(0, 4)}: `, h('b', null, vessel.rate ?? 'not set')));
 
 const previewBox = () => h('div', { id: 'preview', class: 'preview' });
+
+// Agent and operations status side by side; the reason only while Cancelled is chosen.
+const agentStatusFields = (vessel, service) => {
+  const status = service?.status || 'in_progress';
+  return [
+    h('div', { class: 'row two' },
+      field('Agent', h('select', { attrs: { name: 'agent' } }, optionChoicesEl('agent', service?.agent || '', vessel.port))),
+      field('Status', h('select', { attrs: { name: 'status' } }, optionEls(Object.entries(SERVICE_STATUS), status)))),
+    h('div', { class: 'field', id: 'svc-reason', hidden: status !== 'cancelled' },
+      h('label', null, 'Cancellation reason'),
+      h('textarea', { attrs: { name: 'cancel_reason', maxlength: 500 }, value: service?.cancel_reason || '' })),
+  ];
+};
+
+// Choosing Cancelled sets the money to 0 (someone can still type an amount afterwards).
+const MONEY_INPUTS = '[name=cost], [name=revenue], [name=amount], [name=fixedRevenue], [data-f=cost], [data-f=revenue]';
 
 export function entryRowEl(type, entry = {}) {
   const isParcel = type === 'Delivery Parcels';
@@ -179,7 +195,8 @@ export function openServiceForm(type, service) {
   openModal(
     headEl(type, vessel.name),
     h('div', { class: 'm-body', id: 'svc-form' },
-      field('Agent', h('select', { attrs: { name: 'agent' } }, optionChoicesEl('agent', service?.agent || '', vessel.port))),
+      service?.closed ? h('div', { class: 'svc-reason' }, closedNoteEl()) : null,
+      agentStatusFields(vessel, service),
       formFields(type, vessel, data)),
     footer(h('button', { class: 'btn primary', dataset: { act: 'save-service' } }, 'Save')),
   );
@@ -192,7 +209,8 @@ export function openServiceForm(type, service) {
 export function readServiceForm() {
   const root = $('#svc-form');
   const { type } = state.ctx;
-  const { agent: _agent, ...values } = formValues(root); // the agent is sent beside the data, not in it
+  // the agent and the status are sent beside the data, not in it
+  const { agent: _agent, status: _status, cancel_reason: _reason, ...values } = formValues(root);
   const money = {
     cost: values.cost, costCurrency: values.costCurrency, revenue: values.revenue,
     revenueCurrency: values.revenueCurrency, exchangeRate: values.exchangeRate,
@@ -269,6 +287,11 @@ export function onModalInput(event) {
 
 export function onModalChange(event) {
   const target = event.target;
+  if (target.name === 'status') {
+    const cancelled = target.value === 'cancelled';
+    $('#svc-reason').hidden = !cancelled;
+    if (cancelled) $$(MONEY_INPUTS, $('#svc-form')).forEach((input) => { input.value = '0'; });
+  }
   if (target.name === 'shareMode') {
     const fixed = target.value === 'fixed';
     $('#pct-wrap').hidden = fixed;

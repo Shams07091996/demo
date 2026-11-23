@@ -22,6 +22,13 @@ export const SINGLE_EXTRA = {
   'Fresh Water': { name: 'quantity', label: 'Quantity (tons)', type: 'number' },
 };
 
+// Operations status of a service (sheet/constants.py SERVICE_STATUSES) and its label colour (app.css).
+export const SERVICE_STATUS = { in_progress: 'In progress', completed: 'Completed', cancelled: 'Cancelled' };
+export const SERVICE_STATUS_CLASS = { in_progress: 'st-progress', completed: 'st-done', cancelled: 'st-cancel' };
+
+// Who may close / reopen Calculations rows: accounting (the read-only accounts) and admins.
+export const IS_ACCOUNTING = ME.isAdmin || ME.role === 'readonly';
+
 export const STATUS_LABEL = {
   scheduled: 'Scheduled',
   arrived: 'Arrived',

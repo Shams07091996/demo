@@ -1,6 +1,7 @@
 // Vessel details (port call + services) and the add / edit vessel form.
 import {
-  headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass, statusChipEl,
+  closedNoteEl, headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass,
+  serviceStatusEl, statusChipEl,
 } from '../components.js';
 import { ME, MULTI, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
 import { h, icon, setChildren } from '../dom.js';
@@ -48,7 +49,12 @@ function serviceCard(service) {
       btn('ghost small', 'edit-service', [icon('pencil'), ' Edit'], { id: service.id }), ' ', btn('danger small', 'del-service', [icon('trash'), ' Delete'], { id: service.id })]
     : null;
   return h('div', { class: 'svc-card' },
-    h('div', { class: 'svc-top' }, h('strong', null, service.type), h('div', { class: 'svc-actions' }, actions)),
+    h('div', { class: 'svc-top' },
+      h('span', null, h('strong', null, service.type), ' ', serviceStatusEl(service.status),
+        service.closed ? [' ', closedNoteEl()] : null),
+      h('div', { class: 'svc-actions' }, actions)),
+    service.status === 'cancelled' && service.cancel_reason
+      ? h('div', { class: 'svc-reason' }, `Reason: ${service.cancel_reason}`) : null,
     h('div', { class: 'svc-detail' }, serviceSummary(service)),
     h('div', { class: 'svc-agent' }, `Agent: ${service.agent || '—'}`),
     moneyPillsEl(service.type, service.calc));

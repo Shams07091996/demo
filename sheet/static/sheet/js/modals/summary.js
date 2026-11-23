@@ -1,6 +1,7 @@
 // Read-only reports: one vessel's summary, and the combined summary of an OPR.
 import {
-  headEl, metaBadgesEl, pillEl, portCallBlockEl, profitClass, serviceCountsEl, statusChipEl, tagLabel,
+  headEl, inProgressTagEl, metaBadgesEl, pillEl, portCallBlockEl, profitClass, serviceCountsEl, serviceStatusEl,
+  statusChipEl, tagLabel,
 } from '../components.js';
 import { MULTI, NO_AGENT, SINGLE_EXTRA } from '../config.js';
 import { h, icon } from '../dom.js';
@@ -84,7 +85,7 @@ function serviceBlock(service) {
   else if (MULTI.includes(service.type)) inner = multiEntryBlock(service);
   else if (service.type === 'Cash to Master') inner = cashToMasterBlock(service);
   else inner = singleBlock(service);
-  return h('div', { class: 'sum-block' }, h('h4', null, service.type), inner);
+  return h('div', { class: 'sum-block' }, h('h4', null, service.type, ' ', serviceStatusEl(service.status)), inner);
 }
 
 function crewBlock(service) {
@@ -92,7 +93,7 @@ function crewBlock(service) {
   const off = service.data.offSigners || [];
   return h('div', { class: 'crew-box' },
     h('h4', { class: 'crew-title' }, icon('users'), ' Crew Change ', h('span', { class: 'tag' }, `${on.length} On`), ' ',
-      h('span', { class: 'tag' }, `${off.length} Off`)),
+      h('span', { class: 'tag' }, `${off.length} Off`), ' ', serviceStatusEl(service.status)),
     h('div', { class: 'section-title', style: { marginTop: '10px', color: 'var(--success)' } }, 'On-signers'), crewTable(on, 'on'),
     h('div', { class: 'section-title', style: { color: 'var(--warning)' } }, 'Off-signers'), crewTable(off, 'off'),
     hasMoney(service) ? singleBlock(service) : null);
@@ -123,7 +124,7 @@ export async function openSummary(id) {
     h('div', { class: 'm-body' },
       sectionTitle('Port call'), portCallBlockEl(vessel),
       sectionTitle('Services on this vessel', { marginTop: '20px' }),
-      h('div', { style: { marginBottom: '14px' } }, serviceCountsEl(vessel)),
+      h('div', { style: { marginBottom: '14px' } }, serviceCountsEl(vessel), ' ', inProgressTagEl(vessel.services)),
       sectionTitle('Service details'), body,
       sectionTitle('Financial summary', { marginTop: '20px' }),
       h('div', { class: 'sum-grid' }, summaryCards)),

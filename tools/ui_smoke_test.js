@@ -280,6 +280,75 @@ async function login() {
     closeModal();
     await waitFor(() => !othersRow());
   }
+
+  /* ---- service status and accounting: Calculations columns, tick-box filters, the Open / Closed switch ---- */
+  const calcHeads = () => $$('#c-head th').map((th) => th.textContent.trim());
+  ok(calcHeads().includes('Status') && calcHeads().includes('Accounting'), 'calculations: Status and Accounting columns');
+  ok(await waitFor(() => waterRow()?.querySelector('.svc-status')?.textContent === 'In progress'), 'calculations: a service line shows its status label');
+  ok($('#c-status-filter summary')?.textContent === 'Status: All' && $('#c-accounting-filter summary')?.textContent === 'Accounting: All', 'calculations: tick-box filters for Status and Accounting');
+  const tick = (name, value) => $(`[data-tick="${name}"][value="${value}"]`);
+  const setTick = (name, value, on) => { const box = tick(name, value); box.checked = on; box.dispatchEvent(new w.Event('change', { bubbles: true })); };
+  setTick('status', 'completed', false);
+  ok(await waitFor(() => $('#c-status-filter summary').textContent === 'Status: All except Completed' && waterRow()), 'calculations: "All except Completed" keeps the in-progress lines');
+  setTick('status', 'in_progress', false);
+  ok(await waitFor(() => !waterRow()), 'calculations: unticking In progress hides its lines');
+  setTick('status', 'in_progress', true); setTick('status', 'completed', true);
+  ok(await waitFor(() => $('#c-status-filter summary').textContent === 'Status: All' && waterRow()), 'calculations: ticking everything again shows every line');
+  ok(/Open \d+ · Closed \d+/.test($('#c-totals').textContent), 'calculations: totals count Open and Closed lines');
+  if (ROLE === 'viewer' || ROLE === 'admin') {
+    click(waterRow().querySelector('[data-act="acct-toggle"]'));
+    ok(await waitFor(() => waterRow()?.querySelector('.acct-switch.closed')), 'accounting: the switch closes a line');
+    setTick('accounting', 'closed', false);
+    ok(await waitFor(() => $('#c-accounting-filter summary').textContent === 'Accounting: Open' && !waterRow()), 'accounting: the Open filter hides the closed line');
+    setTick('accounting', 'closed', true);
+    ok(await waitFor(() => waterRow()), 'accounting: ticking Closed again shows it');
+    if (ROLE === 'admin') {
+      click(waterRow().querySelector('[data-act="summary"]'));
+      await waitFor(() => $('#modal [data-act="open-vessel"]'));
+      click($('#modal [data-act="open-vessel"]'));
+      const waterCard = () => $$('.svc-card').find((c) => c.textContent.includes('Fresh Water'));
+      ok(await waitFor(() => waterCard()?.textContent.includes('Closed by accounting')), 'accounting: the service card says Closed by accounting');
+      click(waterCard().querySelector('[data-act="edit-service"]'));
+      await waitFor(() => $('[data-act="save-service"]'));
+      click($('[data-act="save-service"]'));
+      ok(await waitFor(() => $('#modal .error')?.textContent.includes('Accounting has closed this')), 'accounting: editing a closed service shows the lock message');
+      closeModal();
+      await go('calculations');
+      await waitFor(() => waterRow());
+    }
+    click(waterRow().querySelector('[data-act="acct-toggle"]'));
+    ok(await waitFor(() => waterRow()?.querySelector('.acct-switch:not(.closed)')), 'accounting: the switch reopens the line');
+  } else {
+    ok(waterRow().querySelector('.acct-label') && !$('#c-tbody [data-act="acct-toggle"]'), 'accounting: port users see Open / Closed but cannot switch it');
+  }
+  if (ROLE === 'alex') {
+    // Operations: a service set to Cancelled needs a reason, its money goes to 0, its card says so.
+    await go('vessels');
+    await openRow('MSC AURORA');
+    click($('[data-act="add-service"]'));
+    click($('[data-type="Others / Remarks"]'));
+    type($('#svc-form [name=note]'), 'status smoke'); type($('#svc-form [name=cost]'), '9');
+    ok($('#svc-form [name=status]').value === 'in_progress' && $('#svc-reason').hidden, 'status: a new service starts In progress, no reason box');
+    click($('[data-act="save-service"]'));
+    const smokeCard = () => $$('.svc-card').find((c) => c.textContent.includes('status smoke'));
+    await waitFor(() => smokeCard());
+    click(smokeCard().querySelector('[data-act="edit-service"]'));
+    await waitFor(() => $('#svc-form [name=status]'));
+    type($('#svc-form [name=status]'), 'cancelled');
+    ok(!$('#svc-reason').hidden && $('#svc-form [name=cost]').value === '0', 'status: choosing Cancelled shows the reason box and sets the money to 0');
+    click($('[data-act="save-service"]'));
+    ok(await waitFor(() => $('#modal .error')?.textContent.includes('Write why the service was cancelled')), 'status: Cancelled without a reason is refused');
+    type($('#svc-form [name=cancel_reason]'), 'Owner cancelled <b>B</b>');
+    click($('[data-act="save-service"]'));
+    ok(await waitFor(() => smokeCard()?.querySelector('.svc-status')?.textContent === 'Cancelled'), 'status: the card shows Cancelled');
+    ok(smokeCard().textContent.includes('Reason: Owner cancelled <b>B</b>') && noMarkup(smokeCard()), 'status: the card shows the reason literally');
+    click(smokeCard().querySelector('[data-act="del-service"]'));
+    await waitFor(() => !smokeCard());
+    closeModal();
+    ok(await waitFor(() => rowFor('MSC AURORA')?.textContent.includes('in progress')), 'status: the vessel list shows how many services are in progress');
+    await go('calculations');
+    await waitFor(() => waterRow());
+  }
   if (ROLE === 'admin') {
     // Rates are stored with 4 decimals; the working shows them in full so the multiplication adds up.
     await go('rates');
@@ -1103,6 +1172,7 @@ async function login() {
     ok($$('#chart-agents .hbar').length === agentRows().length && $$('#chart-months .stack-col').length > 0, 'dashboard: agent bars and month columns are drawn');
     ok($$('#tbl-months tbody tr').at(-1).classList.contains('total') && /[A-Z][a-z]{2} \d{4}/.test($('#tbl-months thead').textContent), 'dashboard: services per month has month columns and a Total row');
     ok($$('#tbl-money tbody tr').map((r) => r.firstElementChild.textContent).join() === 'Cost,Revenue,Profit', 'dashboard: money per month has Cost, Revenue and Profit rows');
+    ok($$('#tbl-status tbody tr').map((r) => r.firstElementChild.textContent).join() === 'In progress,Completed,Cancelled,Open lines,Closed lines', 'dashboard: service status table per month');
     ok(shown($('#d-port')) === (ROLE !== 'alex'), 'dashboard: own port selector only for users who see every port');
     type($('#d-service'), 'Fresh Water');
     ok(await waitFor(() => !agentHeads().includes('Arrivals') && !agentHeads().includes('Sailings')), 'dashboard: a service filter hides Arrivals and Sailings');

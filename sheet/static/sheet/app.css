@@ -130,6 +130,21 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .st-operating{background:color-mix(in srgb,var(--warning) 18%,transparent);color:var(--warning)}
 .st-ops_finished{background:color-mix(in srgb,var(--success) 18%,transparent);color:var(--success)}
 .st-sailed{background:color-mix(in srgb,var(--oth) 12%,transparent);color:var(--oth)}
+.svc-status{display:inline-block;border-radius:6px;padding:1px 9px;font-size:11px;font-weight:700;white-space:nowrap;vertical-align:middle}
+.st-progress{background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning)}
+.st-done{background:color-mix(in srgb,var(--success) 16%,transparent);color:var(--success)}
+.st-cancel{background:color-mix(in srgb,var(--text) 8%,transparent);color:var(--muted);text-decoration:line-through}
+.svc-reason{font-size:12px;color:var(--muted);margin-top:4px}
+.closed-note{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--muted)}
+.acct-switch{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--success);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.acct-switch.closed{color:var(--muted);background:var(--surface2)}
+.acct-switch:disabled{cursor:default}
+.acct-label{font-size:11px;font-weight:700;color:var(--success)}.acct-label.closed{color:var(--muted)}
+.tick-filter{position:relative;display:inline-block}
+.tick-filter>summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;background:var(--surface);color:var(--text)}
+.tick-filter>summary::-webkit-details-marker{display:none}
+.tick-filter .tick-list{position:absolute;z-index:5;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--card-shadow);padding:8px 10px;min-width:160px}
+.tick-filter label{display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0;white-space:nowrap}
 
 /* ----- banners, bell ----- */
 .port-banner{padding:6px 18px;font-size:12px;font-weight:600;background:color-mix(in srgb,var(--text) 2%,transparent);border-top:1px solid var(--accent)}

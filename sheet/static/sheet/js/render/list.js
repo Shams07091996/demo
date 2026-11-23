@@ -1,7 +1,7 @@
 // The vessels tab: port banner, filter inputs, table and the quick-add dropdowns.
 // Everything shown comes from the server (state.vessels = the current page). Clicking a row opens the vessel.
 import { PORT_LABEL, ME } from '../config.js';
-import { optionChoicesEl, sortIcon, statusChipEl, tagLabel } from '../components.js';
+import { inProgressTagEl, optionChoicesEl, sortIcon, statusChipEl, tagLabel } from '../components.js';
 import { h, icon, setChildren } from '../dom.js';
 import { state } from '../state.js';
 import { $, $$, dmy, oprClass } from '../util.js';
@@ -36,7 +36,7 @@ export function renderFilterInputs() {
 
 function rowEl(v) {
   const tags = v.services.length
-    ? h('div', { class: 'tags' }, v.services.map((s) => h('span', { class: 'tag' }, tagLabel(s))))
+    ? h('div', { class: 'tags' }, v.services.map((s) => h('span', { class: 'tag' }, tagLabel(s))), inProgressTagEl(v.services))
     : h('span', { class: 'none' }, '—');
   return h('tr', { dataset: { id: v.id } },
     h('td', null, h('span', { class: 'vessel-name' }, v.name), v.status && v.status !== 'scheduled' ? statusChipEl(v.status) : null),

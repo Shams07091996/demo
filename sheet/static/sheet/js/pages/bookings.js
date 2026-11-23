@@ -1,7 +1,7 @@
 // The Hotels and Transport pages: one list module, configured twice. The server filters, sorts and pages
 // (/api/hotels/, /api/transfers/); read-only users get no prices and no Add button.
 import { api } from '../api.js';
-import { portOptionEls, sortIcon } from '../components.js';
+import { closedNoteEl, portOptionEls, sortIcon } from '../components.js';
 import { ME } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
@@ -17,7 +17,8 @@ const typingYear = (iso) => iso && Number(iso.slice(0, 4)) < 1900;
 // Cells return text or nodes (never HTML strings).
 const guestsCell = (guests) => guests.flatMap((g, i) => [i ? h('br') : null, g.rank ? `${g.name} (${g.rank})` : g.name]);
 // Made automatically from a crew change and not completed yet.
-const vesselCell = (b) => [b.vessel.name, b.draft ? [' ', h('span', { class: 'tag' }, 'To complete')] : null];
+const vesselCell = (b) => [b.vessel.name, b.draft ? [' ', h('span', { class: 'tag' }, 'To complete')] : null,
+  b.closed ? h('div', null, closedNoteEl()) : null];
 const priceCell = (amount, currency) => (amount === null || amount === undefined ? '—' : `${currency} ${fmt(amount)}`);
 
 const HOTEL_COLUMNS = [
