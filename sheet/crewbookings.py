@@ -18,9 +18,10 @@ _GROUPS = (("onSigners", "on"), ("offSigners", "off"))
 
 
 def crew_members(vessel):
-    """uid -> (member, "on" / "off") for every Crew Change service of the vessel."""
+    """uid -> (member, "on" / "off") for every Crew Change service of the vessel that is not cancelled (a cancelled
+    one's members lose their draft bookings, and get them back if it is un-cancelled)."""
     found = {}
-    for service in vessel.services.filter(service_type="Crew Change").order_by("id"):
+    for service in vessel.services.filter(service_type="Crew Change").exclude(status="cancelled").order_by("id"):
         data = service.data or {}
         for key, group in _GROUPS:
             for member in data.get(key) or []:
@@ -167,6 +168,7 @@ def early_arrivals(vessels, today):
     """On-signers landing EARLY_DAYS or more before their vessel's date, with no broken-visa charge entered yet."""
     services = (
         Service.objects.filter(service_type="Crew Change", vessel__in=vessels.filter(date__gte=today - EARLY_LOOK_BACK))
+        .exclude(status="cancelled")
         .select_related("vessel")
         .only("id", "data", "vessel__id", "vessel__name", "vessel__date")
         .order_by("vessel__date", "vessel__id", "id")

@@ -52,7 +52,17 @@ from .constants import (
     TIME_KEYS,
 )
 from .errors import BadRequest, Forbidden, TooManyRequests
-from .models import ChangeRecord, DisposalPrice, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel, VesselDisposal
+from .models import (
+    ChangeRecord,
+    DisposalPrice,
+    ExchangeRate,
+    HotelStay,
+    Option,
+    Service,
+    Transfer,
+    Vessel,
+    VesselDisposal,
+)
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import (
     clean_agent,

@@ -1,6 +1,6 @@
 """Accounting status (Open / Closed) on Calculations rows, set by read-only (accounting) and admins, and the lock."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from django.test import override_settings
 
@@ -9,7 +9,7 @@ from .models import ChangeRecord, Guest, HotelStay, Service, Transfer, Vessel, V
 from .tests import NEEDED, ApiTestCase
 
 WATER = {"type": "Fresh Water", "data": {"cost": "10", "costCurrency": "EGP"}}
-AT = datetime(2026, 11, 13, 8, tzinfo=timezone.utc)
+AT = datetime(2026, 11, 13, 8, tzinfo=UTC)
 
 
 class AccountingTests(ApiTestCase):
