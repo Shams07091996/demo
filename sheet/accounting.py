@@ -39,19 +39,21 @@ def set_closed(profile, kind, pk, closed):
     return obj
 
 
+def _any_closed(queryset):
+    """Whether any of these rows is closed, read under a row lock: accounting closing one of them meanwhile waits for
+    this transaction (or this one waits for it and then sees the stored value), so a check can't go stale."""
+    return any(queryset.select_for_update().values_list("acct_closed", flat=True))
+
+
 def require_open(obj):
-    """Refuse a change to something accounting has closed (None: nothing there yet, so nothing to lock)."""
-    if obj is not None and obj.acct_closed:
+    """Refuse a change to something accounting has closed (None: nothing there yet, so nothing to lock). Reads the
+    stored flag, not the one on `obj`, which may have been loaded before accounting closed it."""
+    if obj is not None and _any_closed(type(obj).objects.filter(pk=obj.pk)):
         raise BadRequest(LOCKED)
 
 
 def require_vessel_open(vessel):
     """Refuse deleting a vessel while any of its services, bookings or its garbage & sludge is closed."""
-    closed = (
-        vessel.services.filter(acct_closed=True).exists()
-        or vessel.hotel_stays.filter(acct_closed=True).exists()
-        or vessel.transfers.filter(acct_closed=True).exists()
-        or VesselDisposal.objects.filter(vessel=vessel, acct_closed=True).exists()
-    )
-    if closed:
+    models = (Service, HotelStay, Transfer, VesselDisposal)
+    if any(_any_closed(model.objects.filter(vessel=vessel)) for model in models):
         raise BadRequest(LOCKED)

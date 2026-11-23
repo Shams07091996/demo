@@ -132,3 +132,80 @@ class AccountingTests(ApiTestCase):
     def test_accounting_is_rate_limited(self):
         codes = [self.close(self.viewer, "service", self.service.id, i % 2 == 0)[0] for i in range(3)]
         self.assertEqual(codes, [200, 200, 429])
+
+
+class LockRaceAndAdminTests(ApiTestCase):
+    """The lock reads the stored flag under a row lock (a delete that loaded the row before accounting closed it is
+    still refused), and the Django admin pages can't change or delete closed things either."""
+
+    def setUp(self):
+        self.service = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water", data=WATER["data"])
+
+    def request(self):
+        from django.contrib.auth.models import User
+        from django.test import RequestFactory
+
+        request = RequestFactory().get("/")
+        request.user = User.objects.create_superuser("root-admin", password=None)
+        return request
+
+    def test_require_open_reads_the_stored_flag(self):
+        from . import accounting
+
+        stale = Service.objects.get(pk=self.service.pk)  # loaded before accounting closed it
+        Service.objects.filter(pk=self.service.pk).update(acct_closed=True)
+        with self.assertRaisesMessage(Exception, LOCKED):
+            accounting.require_open(stale)
+
+    def test_admin_cannot_change_or_delete_closed_records(self):
+        from django.contrib import admin as django_admin
+
+        stay = HotelStay.objects.create(vessel=self.alex_vessel, hotel="", check_in=AT, nights=1, acct_closed=True)
+        Service.objects.filter(pk=self.service.pk).update(acct_closed=True)
+        request = self.request()
+        stay_admin = django_admin.site._registry[HotelStay]
+        self.assertFalse(stay_admin.has_change_permission(request, stay))
+        self.assertFalse(stay_admin.has_delete_permission(request, stay))
+        self.assertIn("acct_closed", stay_admin.get_readonly_fields(request, stay))
+        vessel_admin = django_admin.site._registry[Vessel]
+        self.assertFalse(vessel_admin.has_delete_permission(request, self.alex_vessel))
+        self.assertTrue(vessel_admin.has_change_permission(request, self.alex_vessel))  # times may still change
+        disposal = VesselDisposal.objects.create(vessel=self.suez_vessel, acct_closed=True)
+        self.assertFalse(django_admin.site._registry[VesselDisposal].has_change_permission(request, disposal))
+
+    def test_admin_inline_refuses_a_closed_service_change(self):
+        from django.contrib import admin as django_admin
+        from django.forms.models import model_to_dict
+
+        Service.objects.filter(pk=self.service.pk).update(acct_closed=True)
+        self.service.refresh_from_db()
+        request = self.request()
+        vessel_admin = django_admin.site._registry[Vessel]
+        inline = vessel_admin.get_inline_instances(request, self.alex_vessel)[0]
+        formset_class = inline.get_formset(request, self.alex_vessel)
+        prefix = formset_class.get_default_prefix()
+        services = list(self.alex_vessel.services.order_by("id"))
+        data = {f"{prefix}-TOTAL_FORMS": str(len(services)), f"{prefix}-INITIAL_FORMS": str(len(services)),
+                f"{prefix}-MIN_NUM_FORMS": "0", f"{prefix}-MAX_NUM_FORMS": "1000"}
+        for i, service in enumerate(services):
+            values = model_to_dict(service)
+            for name in formset_class.form.base_fields:
+                value = values.get(name)
+                if name == "data":
+                    import json
+                    value = json.dumps(value)
+                data[f"{prefix}-{i}-{name}"] = "" if value is None else value
+            data[f"{prefix}-{i}-id"] = service.pk
+            data[f"{prefix}-{i}-vessel"] = self.alex_vessel.pk
+            if service.pk == self.service.pk:
+                data[f"{prefix}-{i}-agent"] = "CHANGED"
+        formset = formset_class(data, instance=self.alex_vessel, prefix=prefix)
+        self.assertFalse(formset.is_valid())
+        self.assertIn(LOCKED, str(formset.non_form_errors()))
+
+    def test_admin_has_no_bulk_delete_for_lockable_records(self):
+        from django.contrib import admin as django_admin
+
+        request = self.request()
+        for model in (Vessel, HotelStay, Transfer, VesselDisposal):
+            self.assertNotIn("delete_selected", django_admin.site._registry[model].get_actions(request), model)

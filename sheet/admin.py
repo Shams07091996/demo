@@ -6,6 +6,8 @@ from django.core.exceptions import ValidationError
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from . import twostep
+from .accounting import LOCKED, require_vessel_open
+from .errors import BadRequest
 from .models import (
     EXEMPT_REFUSED,
     ChangeRecord,
@@ -54,10 +56,40 @@ class VersionedAdmin(admin.ModelAdmin):
             booking.save(update_fields=["version"])
 
 
+class AccountingLockAdmin(admin.ModelAdmin):
+    """Something accounting has closed is view-only here too (the lock is for every role, admins included); the flag
+    itself is set on the Calculations page only."""
+
+    def get_readonly_fields(self, request, obj=None):
+        return (*super().get_readonly_fields(request, obj), "acct_closed")
+
+    def has_change_permission(self, request, obj=None):
+        return super().has_change_permission(request, obj) and not (obj is not None and obj.acct_closed)
+
+    def has_delete_permission(self, request, obj=None):
+        return super().has_delete_permission(request, obj) and not (obj is not None and obj.acct_closed)
+
+    def get_actions(self, request):
+        """No bulk delete: it would not check each record's lock."""
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
+
+
+class ServiceInlineFormSet(admin.options.InlineModelAdmin.formset):
+    def clean(self):
+        super().clean()
+        for form in self.forms:
+            stored = form.instance.pk and Service.objects.filter(pk=form.instance.pk, acct_closed=True).exists()
+            if stored and (form.has_changed() or self._should_delete_form(form)):
+                raise ValidationError(LOCKED)
+
+
 class ServiceInline(admin.TabularInline):
     model = Service
     extra = 0
-    readonly_fields = ("version",)
+    formset = ServiceInlineFormSet
+    readonly_fields = ("version", "acct_closed")
 
 
 @admin.register(Vessel)
@@ -66,6 +98,21 @@ class VesselAdmin(VersionedAdmin):
     list_filter = ("port", "opr")
     search_fields = ("name", "opr", "poc")
     inlines = [ServiceInline]
+
+    def has_delete_permission(self, request, obj=None):
+        """A vessel with anything accounting has closed can't be deleted (as in the app)."""
+        if obj is not None:
+            try:
+                require_vessel_open(obj)
+            except BadRequest:
+                return False
+        return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        """No bulk delete: it would not check each vessel's lock."""
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
 
 
 class ProfileInline(admin.StackedInline):
@@ -163,7 +210,7 @@ admin.site.unregister(User)
 admin.site.register(User, UserWithProfile)
 admin.site.register(ExchangeRate)
 admin.site.register(DisposalPrice)
-admin.site.register(VesselDisposal)
+admin.site.register(VesselDisposal, AccountingLockAdmin)
 admin.site.register(Option)
 
 
@@ -182,13 +229,13 @@ class TransferGuestInline(admin.TabularInline):
 
 
 @admin.register(HotelStay)
-class HotelStayAdmin(VersionedAdmin):
+class HotelStayAdmin(AccountingLockAdmin, VersionedAdmin):
     list_display = ("hotel", "check_in", "nights", "vessel")
     inlines = [StayGuestInline]
 
 
 @admin.register(Transfer)
-class TransferAdmin(VersionedAdmin):
+class TransferAdmin(AccountingLockAdmin, VersionedAdmin):
     list_display = ("at", "from_place", "to_place", "hotel", "vessel")
     inlines = [TransferGuestInline]
 
