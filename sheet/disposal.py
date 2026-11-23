@@ -134,9 +134,20 @@ def figures(disposal, price, rate):
     return out
 
 
+def kept(disposal, price, rate):
+    """The price and rate to use: the ones written on the record when accounting closed it, else the month's."""
+    if disposal is not None:
+        if disposal.frozen_price is not None:
+            price = disposal.frozen_price
+        if disposal.exchange_rate is not None:
+            rate = disposal.exchange_rate
+    return price, rate
+
+
 def calculation_lines(vessel, rate, price):
     """The Calculations page's lines (finance.line format, USD counted 1:1 without a rate) plus USD figures."""
     disposal = getattr(vessel, "disposal", None)
+    price, rate = kept(disposal, price, rate)
     out = []
     for item in figures(disposal, price, rate)["lines"]:
         if item["price_missing"]:
@@ -183,6 +194,7 @@ def parse_params(params):
 def row(vessel, rates, prices):
     month = (vessel.date.year, vessel.date.month)
     disposal = vessel_disposal(vessel)
+    price, rate = kept(disposal, prices.get((*month, vessel.port)), rates.get(month))
     return {
         "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "opr": vessel.opr,
                    "port": vessel.port, "port_label": PORT_LABELS.get(vessel.port, vessel.port)},
@@ -190,7 +202,7 @@ def row(vessel, rates, prices):
         "sludge": float(disposal.sludge) if disposal and disposal.sludge is not None else None,
         "hidden": bool(disposal and disposal.hidden),
         "closed": bool(disposal and disposal.acct_closed),
-        **figures(disposal, prices.get((*month, vessel.port)), rates.get(month)),
+        **figures(disposal, price, rate),
     }
 
 

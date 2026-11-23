@@ -1,11 +1,12 @@
 """Accounting status (Open / Closed) on Calculations rows, set by read-only (accounting) and admins, and the lock."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from django.test import override_settings
 
 from .accounting import LOCKED
-from .models import ChangeRecord, Guest, HotelStay, Service, Transfer, Vessel, VesselDisposal
+from .models import ChangeRecord, DisposalPrice, Guest, HotelStay, Service, Transfer, Vessel, VesselDisposal
 from .tests import NEEDED, ApiTestCase
 
 WATER = {"type": "Fresh Water", "data": {"cost": "10", "costCurrency": "EGP"}}
@@ -105,6 +106,8 @@ class AccountingTests(ApiTestCase):
     def test_vessel_delete_refused_when_disposal_closed(self):
         vessel = Vessel.objects.create(name="EMPTY", date=self.alex_vessel.date, port="alexandria")
         disposal = VesselDisposal.objects.create(vessel=vessel, garbage=1)
+        DisposalPrice.objects.create(month=vessel.date.replace(day=1), port="alexandria",
+                                     garbage_revenue_extra=Decimal("100"), garbage_revenue_currency="EGP")
         self.assertEqual(self.close(self.viewer, "disposal", disposal.id)[0], 200)
         status, body = self.call(self.alex, "delete", f"/api/vessels/{vessel.id}/")
         self.assertEqual((status, body["error"]), (400, LOCKED))
@@ -235,3 +238,93 @@ class OddInputTests(ApiTestCase):
         self.assertEqual(self.call(viewer, "post", "/api/accounting/", {"kind": "service", "id": priced.id, "closed": True})[0], 200)
         Service.objects.filter(pk=priced.pk).update(data={})  # reopening is always allowed
         self.assertEqual(self.call(viewer, "post", "/api/accounting/", {"kind": "service", "id": priced.id, "closed": False})[0], 200)
+
+
+class KeepRateTests(ApiTestCase):
+    """Closing needs a rate (the month's or one written on the line) and writes the month's onto the line, where it
+    stays (also after reopening) until a person changes it; garbage & sludge keeps its month's price too."""
+
+    NEEDS_RATE = "Add this month's exchange rate (or write one on the line) first."
+    NEEDS_PRICE = "Add this month's Garbage & Sludge price first."
+
+    def setUp(self):
+        self.viewer = self.login("viewer")
+
+    def close(self, kind, pk, closed=True):
+        return self.call(self.viewer, "post", "/api/accounting/", {"kind": kind, "id": pk, "closed": closed})
+
+    def rate(self, value):
+        from datetime import date
+
+        from .models import ExchangeRate
+
+        ExchangeRate.objects.update_or_create(month=date(2026, 11, 1), defaults={"rate": Decimal(value)})
+
+    def line(self, kind, pk):
+        rows = self.login("viewer").get("/api/calculations/", {"page_size": 200}).json()["rows"]
+        return next(r for r in rows if r["ref"] == {"kind": kind, "id": pk})
+
+    def test_close_needs_a_rate(self):
+        usd = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water",
+                                     data={"revenue": 10, "revenueCurrency": "USD"})
+        self.assertEqual(self.close("service", usd.id), (400, {"error": self.NEEDS_RATE}))
+        own = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water",
+                                     data={"revenue": 10, "revenueCurrency": "USD", "exchangeRate": 48})
+        self.assertEqual(self.close("service", own.id)[0], 200)  # a rate written on the line is enough
+        self.assertEqual(Service.objects.get(pk=own.pk).version, 1)  # nothing written
+
+    def test_close_writes_month_rate_once(self):
+        self.rate("50")
+        usd = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water",
+                                     data={"revenue": 10, "revenueCurrency": "USD"})
+        self.assertEqual(self.close("service", usd.id)[0], 200)
+        usd.refresh_from_db()
+        self.assertEqual((usd.data["exchangeRate"], usd.version), (50.0, 2))
+        self.close("service", usd.id, False)
+        self.rate("60")
+        self.assertEqual(self.close("service", usd.id)[0], 200)
+        usd.refresh_from_db()
+        self.assertEqual((usd.data["exchangeRate"], usd.version), (50.0, 2))  # kept, version raised once
+        self.assertEqual(self.line("service", usd.id)["revenue_egp"], 500.0)
+
+    def test_close_keeps_booking_rate(self):
+        from datetime import datetime
+
+        self.rate("50")
+        trip = Transfer.objects.create(vessel=self.alex_vessel, from_place="airport", to_place="port",
+                                       at=datetime(2026, 11, 13, 8, tzinfo=UTC), cost=Decimal("10"),
+                                       cost_currency="USD")
+        self.assertEqual(self.close("transfer", trip.id)[0], 200)
+        trip.refresh_from_db()
+        self.assertEqual((trip.exchange_rate, trip.version), (Decimal("50"), 2))
+
+    def price(self, extra):
+        from datetime import date
+
+        from .models import DisposalPrice
+
+        DisposalPrice.objects.update_or_create(month=date(2026, 11, 1), port="alexandria", defaults={
+            "garbage_revenue_extra": Decimal(extra), "garbage_revenue_currency": "USD"})
+
+    def test_disposal_close_needs_price(self):
+        record = VesselDisposal.objects.create(vessel=self.alex_vessel, garbage=Decimal("2"))
+        self.assertEqual(self.close("disposal", record.id), (400, {"error": self.NEEDS_PRICE}))
+        self.price("10")
+        self.assertEqual(self.close("disposal", record.id), (400, {"error": self.NEEDS_RATE}))
+
+    def test_disposal_keeps_price_and_rate(self):
+        self.rate("50")
+        self.price("10")
+        record = VesselDisposal.objects.create(vessel=self.alex_vessel, garbage=Decimal("2"))
+        before = self.line("disposal", record.id)["revenue_egp"]
+        self.assertEqual(before, 1000.0)  # 2 m³ × USD 10 × 50
+        self.assertEqual(self.close("disposal", record.id)[0], 200)
+        record.refresh_from_db()
+        self.assertEqual(record.exchange_rate, Decimal("50"))
+        self.assertEqual(record.frozen_price["garbage"]["revenue"]["extra"], 10.0)
+        self.rate("60")
+        self.price("20")
+        self.assertEqual(self.line("disposal", record.id)["revenue_egp"], before)
+        page = self.login("viewer").get("/api/disposal/", {"from": "2026-11-01", "to": "2026-11-30"}).json()
+        row = next(r for r in page["rows"] if r["vessel"]["id"] == self.alex_vessel.id)
+        self.assertEqual(row["revenue_egp"], before)
