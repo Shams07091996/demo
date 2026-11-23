@@ -3,20 +3,22 @@
 A job is entering a vessel (its arrival agent), sailing it (its sailing agent) or one service (that service's agent);
 a Crew Change is one job however many crew it moves. Months follow the vessel date. Money is the services' own
 figures (finance.compute, via serializers.vessel_to_dict), summed and rounded once; hotels and transport never count
-here. Everything is worked out per request from the vessels this profile may see (access.scoped_vessels).
+here. The status table counts the services by operations status and the Calculations rows (calculations.rows_for)
+by accounting state. Everything is worked out per request from the vessels this profile may see (access.scoped_vessels).
 """
 
 from dataclasses import dataclass
 from datetime import date
 
 from .access import scoped_vessels
-from .constants import NO_AGENT, SERVICE_TYPES
+from .constants import NO_AGENT, SERVICE_STATUSES, SERVICE_TYPES
 from .errors import BadRequest
 from .listing import date_param
 from .serializers import month_rates, vessel_to_dict
 
 MAX_JOBS = 500
 MONEY = ("cost_egp", "revenue_egp", "profit_egp")
+STATUS_KEYS = (*SERVICE_STATUSES, "open", "closed")
 _TYPE_ORDER = {name: i for i, name in enumerate(SERVICE_TYPES)}
 
 
@@ -95,6 +97,37 @@ def _months_between(first, last):
         year, month = (year + 1, 1) if month == 12 else (year, month + 1)
 
 
+def status_counts(profile, vessels, narrowed):
+    """{"months", "totals"}: services per operations status and Calculations rows Open / Closed, per vessel-date
+    month (zero-filled between the first and last month with any count). `vessels` are the (row, jobs) that count;
+    when narrowed (agent / service filter), only the counted services and their rows count, no bookings."""
+    from . import calculations  # calculations imports listing, like this module's callers
+
+    months = {}
+
+    def month_of(day):
+        return months.setdefault(day[:7], dict.fromkeys(STATUS_KEYS, 0))
+
+    counted = set()
+    for row, jobs in vessels:
+        services = [s for _, _, s in jobs if s is not None] if narrowed else row["services"]
+        for service in services:
+            month_of(row["date"])[service["status"]] += 1
+            counted.add(service["id"])
+    ids = [row["id"] for row, _ in vessels]
+    for line in calculations.rows_for(scoped_vessels(profile, prefetch=False).filter(pk__in=ids)):
+        if narrowed and (line["ref"] or {}).get("kind") != "service" or narrowed and line["ref"]["id"] not in counted:
+            continue
+        month_of(line["vessel"]["date"])["closed" if line["closed"] else "open"] += 1
+    month_list = []
+    if months:
+        keys = sorted(months)
+        first, last = (tuple(int(x) for x in key.split("-")) for key in (keys[0], keys[-1]))
+        month_list = [{"month": key, **months.get(key, dict.fromkeys(STATUS_KEYS, 0))}
+                      for key in _months_between(first, last)]
+    return {"months": month_list, "totals": {key: sum(m[key] for m in month_list) for key in STATUS_KEYS}}
+
+
 def response(profile, params):
     f = parse(params)
     in_range = _rows(profile, f)
@@ -163,6 +196,7 @@ def response(profile, params):
         "agents": sorted(agents.values(), key=lambda a: (a["agent"] == "", -a["total"], a["agent"].casefold())),
         "months": month_list,
         "totals": {**totals, **{key: round(totals[key], 2) for key in MONEY}},
+        "status": status_counts(profile, vessels, narrowed),
     }
 
 
