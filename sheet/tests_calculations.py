@@ -184,3 +184,80 @@ class CentAccuracyTests(ApiTestCase):
         [line] = finance.service_lines("Certificates", {"cost": 0.004, "revenue": 0.016}, None)
         self.assertEqual((line["cost_egp"], line["revenue_egp"], line["profit_egp"]), (0.0, 0.02, 0.02))
         self.assertEqual(finance.compute("Certificates", {"cost": 0.004, "revenue": 0.016}, None)["profit_egp"], 0.02)
+
+
+class StatusColumnsTests(ApiTestCase):
+    """Calculations rows carry the operations status and the accounting state; both filter the rows and the totals.
+    ALEX SHIP: Fresh Water (completed, 10 / 30), Landing (in progress, 2 entries), Certificates (cancelled, revenue 7),
+    a hotel stay; SUEZ SHIP: nothing."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.water = Service.objects.create(vessel=cls.alex_vessel, service_type="Fresh Water", status="completed",
+                                           data={"cost": 10, "revenue": 30})
+        cls.landing = Service.objects.create(vessel=cls.alex_vessel, service_type="Landing", data={
+            "entries": [{"cost": 1, "revenue": 2}, {"cost": 3, "revenue": 4}]})
+        cls.certs = Service.objects.create(vessel=cls.alex_vessel, service_type="Certificates", status="cancelled",
+                                           cancel_reason="Owner", data={"certName": "SOLAS", "revenue": 7})
+        cls.stay = HotelStay.objects.create(vessel=cls.alex_vessel, hotel="NILE", check_in=date(2026, 11, 13), nights=1,
+                                            cost_per_night=Decimal("5"), revenue_per_night=Decimal("8"))
+
+    def get(self, **params):
+        response = self.login("viewer").get("/api/calculations/", {"port": "alexandria", **params})
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def kinds(self, **params):
+        return sorted(r["kind"] for r in self.get(**params)["rows"])
+
+    def test_rows_carry_status_and_closed(self):
+        rows = {r["kind"]: r for r in self.get()["rows"]}
+        water = rows["Fresh Water"]
+        self.assertEqual((water["status"], water["cancel_reason"], water["closed"], water["ref"]),
+                         ("completed", "", False, {"kind": "service", "id": self.water.id}))
+        self.assertEqual((rows["Certificates"]["status"], rows["Certificates"]["cancel_reason"]), ("cancelled", "Owner"))
+        hotel = rows["Hotel stay"]
+        self.assertEqual((hotel["status"], hotel["closed"], hotel["ref"]),
+                         (None, False, {"kind": "hotel", "id": self.stay.id}))
+
+    def test_status_filter_all_except_completed(self):
+        self.assertEqual(self.kinds(status="in_progress,cancelled"), ["Certificates", "Landing", "Landing"])
+
+    def test_status_filter_drops_bookings(self):
+        self.assertNotIn("Hotel stay", self.kinds(status="in_progress,completed,cancelled"))
+
+    def test_accounting_filter_open(self):
+        HotelStay.objects.filter(pk=self.stay.pk).update(acct_closed=True)
+        self.assertEqual(self.kinds(accounting="open"), ["Certificates", "Fresh Water", "Landing", "Landing"])
+        self.assertEqual(self.kinds(accounting="closed"), ["Hotel stay"])
+        self.assertEqual(len(self.kinds(accounting="open,closed")), 5)
+
+    def test_totals_follow_filters_with_counts(self):
+        Service.objects.filter(pk=self.water.pk).update(acct_closed=True)
+        totals = self.get()["totals"]
+        self.assertEqual((totals["open"], totals["closed"], totals["lines"]), (4, 1, 5))
+        totals = self.get(status="in_progress")["totals"]
+        self.assertEqual((totals["lines"], totals["cost_egp"], totals["revenue_egp"], totals["open"], totals["closed"]),
+                         (2, 4.0, 6.0, 2, 0))
+
+    def test_filter_values_refused(self):
+        client = self.login("viewer")
+        for params in ({"status": "done"}, {"accounting": "settled"}, {"status": "completed,x"}):
+            self.assertEqual(client.get("/api/calculations/", params).status_code, 400, params)
+        self.assertEqual(len(self.kinds(status="completed,,")), 1)
+        self.assertEqual(len(self.kinds(accounting="")), 5)
+
+    def test_multi_entry_service_rows_share_closed(self):
+        Service.objects.filter(pk=self.landing.pk).update(acct_closed=True)
+        landing = [r for r in self.get()["rows"] if r["kind"] == "Landing"]
+        self.assertEqual([(r["closed"], r["ref"]["id"]) for r in landing], [(True, self.landing.id)] * 2)
+
+    def test_disposal_row_ref(self):
+        from .models import DisposalPrice, VesselDisposal
+
+        DisposalPrice.objects.create(month=date(2026, 11, 1), port="alexandria", garbage_revenue_min_qty=1,
+                                     garbage_revenue_min=Decimal("100"))
+        record = VesselDisposal.objects.create(vessel=self.alex_vessel, garbage=Decimal("1"))
+        row = next(r for r in self.get()["rows"] if r["kind"] == "Garbage & Sludge")
+        self.assertEqual((row["status"], row["ref"]), (None, {"kind": "disposal", "id": record.id}))
