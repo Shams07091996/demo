@@ -70,7 +70,7 @@ class StatusTests(ApiTestCase):
         before = Service.objects.get(pk=service["id"]).version
         self.put(service["id"], status="completed")
         self.assertEqual(Service.objects.get(pk=service["id"]).version, before + 1)
-        record = ChangeRecord.objects.filter(object_type="service", object_id=service["id"], action="update").last()
+        record = ChangeRecord.objects.filter(object_type="service", object_id=service["id"], action="update").order_by("id").last()
         self.assertIn("status", record.changes)
 
     def test_existing_services_become_completed(self):

@@ -20,6 +20,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from . import (
+    accounting,
     branding,
     calculations,
     closures,
@@ -36,7 +37,7 @@ from . import (
     twostep,
 )
 from . import dashboard as dashboard_figures
-from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
+from .access import profile_of, require_accounting, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
 from .constants import (
     NO_AGENT,
@@ -51,7 +52,7 @@ from .constants import (
     TIME_KEYS,
 )
 from .errors import BadRequest, Forbidden, TooManyRequests
-from .models import ChangeRecord, DisposalPrice, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
+from .models import ChangeRecord, DisposalPrice, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel, VesselDisposal
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import (
     clean_agent,
@@ -194,6 +195,7 @@ def vessel_detail(request, pk):
 
     require_edit(request.profile)
     if request.method == "DELETE":
+        accounting.require_vessel_open(vessel)
         vessel.delete()
         audit(request, "vessel.delete", id=pk)
         return JsonResponse({"ok": True})
@@ -244,10 +246,12 @@ def service_detail(request, pk):
     allowed = scoped_vessels(request.profile, prefetch=False)
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed), pk=pk)
     if request.method == "DELETE":
+        accounting.require_open(service)
         service.delete()
         audit(request, "service.delete", id=pk, vessel=service.vessel_id)
     else:
         service = conflicts.locked(service, read_json(request), request.user)
+        accounting.require_open(service)  # the fresh row: a dialog opened before accounting closed it is refused too
         before = conflicts.snapshot(service)
         for field, value in _read_service(request, service.vessel, service).items():
             setattr(service, field, value)
@@ -427,6 +431,7 @@ def disposal_list(request):
 def disposal_update(request, vessel_id):
     require_edit(request.profile)
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=vessel_id)
+    accounting.require_open(VesselDisposal.objects.filter(vessel=vessel).select_for_update().first())
     changes = clean_disposal_quantities(read_json(request))
     result = disposal.save(vessel, changes)
     audit(request, "disposal.save", vessel=vessel.id, **changes)
@@ -652,11 +657,14 @@ def booking_detail(request, kind, pk):
         return JsonResponse(logistics.booking_to_dict(kind, booking, profile))
     require_edit(profile)
     if request.method == "DELETE":
+        accounting.require_open(booking)
         booking.delete()
         audit(request, f"{_AUDIT_NAME[kind]}.delete", id=pk)
         return JsonResponse({"ok": True})
     payload = read_json(request)
-    booking = logistics.save_booking(kind, profile, payload, existing=conflicts.locked(booking, payload, request.user))
+    existing = conflicts.locked(booking, payload, request.user)
+    accounting.require_open(existing)
+    booking = logistics.save_booking(kind, profile, payload, existing=existing)
     audit(request, f"{_AUDIT_NAME[kind]}.update", id=booking.id)
     return JsonResponse(logistics.booking_to_dict(kind, booking, profile))
 
@@ -670,6 +678,17 @@ def vessel_crew(request, pk):
 
 
 # ---- calculations (see calculations.py) --------------------------------------------------------
+
+
+@json_api
+@require_http_methods(["POST"])
+def accounting_set(request):
+    """Close or reopen one Calculations row (accounting.py): read-only (accounting) and admins only."""
+    require_accounting(request.profile)
+    kind, pk, closed = accounting.clean_request(read_json(request))
+    accounting.set_closed(request.profile, kind, pk, closed)
+    audit(request, "accounting.close" if closed else "accounting.open", kind=kind, id=pk)
+    return JsonResponse({"ok": True, "closed": closed})
 
 
 @json_api

@@ -51,6 +51,7 @@ urlpatterns = [
     path("api/disposal/", views.disposal_list, name="api_disposal"),
     path("api/disposal/<int:vessel_id>/", views.disposal_update, name="api_disposal_update"),
     path("api/calculations/", views.calculations_list, name="api_calculations"),
+    path("api/accounting/", views.accounting_set, name="api_accounting"),
     path("api/history/", views.history_list, name="api_history"),
     path("api/closures/", views.closures_list, name="api_closures"),
     path("api/closures/<int:pk>/", views.closure_detail, name="api_closure"),

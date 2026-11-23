@@ -101,7 +101,8 @@ def sync(vessel):
         for booking in related.prefetch_related("guests"):
             guests = list(booking.guests.all())
             uids = {g.crew_uid for g in guests if g.crew_uid}
-            if booking.draft and not any(u in members and _wanted(kind, members[u][0]) for u in uids):
+            closed = booking.acct_closed  # settled by accounting: never changed or deleted here
+            if booking.draft and not closed and not any(u in members and _wanted(kind, members[u][0]) for u in uids):
                 booking.delete()
                 continue
             for guest in guests:
@@ -116,7 +117,7 @@ def sync(vessel):
                     _create(kind, vessel, uid, member, group)
                 continue
             for booking, guest, count in linked[uid]:
-                if booking.draft and count == 1:
+                if booking.draft and count == 1 and not booking.acct_closed:
                     _refresh(kind, booking, guest, member, group, vessel)
 
 
