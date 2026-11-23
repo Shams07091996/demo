@@ -249,7 +249,7 @@ def clean_service_status(payload, existing=None):
     """(status, cancel reason) of a service. A save without the key keeps the stored value (a new service starts In
     progress). The reason is required when Cancelled and refused otherwise (the dialog clears it)."""
     status = payload.get("status", getattr(existing, "status", "in_progress"))
-    if status not in SERVICE_STATUSES:
+    if not isinstance(status, str) or status not in SERVICE_STATUSES:
         raise BadRequest("Choose a status: In progress, Completed or Cancelled.")
     sent = payload.get("cancel_reason", getattr(existing, "cancel_reason", "") if status == "cancelled" else "")
     reason = _short(sent, CANCEL_REASON_MAX, "The cancellation reason")

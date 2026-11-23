@@ -209,3 +209,29 @@ class LockRaceAndAdminTests(ApiTestCase):
         request = self.request()
         for model in (Vessel, HotelStay, Transfer, VesselDisposal):
             self.assertNotIn("delete_selected", django_admin.site._registry[model].get_actions(request), model)
+
+
+class OddInputTests(ApiTestCase):
+    """Odd values (a list where a word belongs) are refused with a plain 400, never a server error; only a line that
+    is on Calculations (has money) can be closed."""
+
+    def test_odd_status_and_kind_refused(self):
+        alex, viewer = self.login("alex"), self.login("viewer")
+        for status in ([], {}, 1, None):
+            code, _ = self.call(alex, "post", f"/api/vessels/{self.alex_vessel.id}/services/", {**WATER, "status": status})
+            self.assertEqual(code, 400, status)
+        for kind in ([], {}, 1):
+            code, _ = self.call(viewer, "post", "/api/accounting/", {"kind": kind, "id": 1, "closed": True})
+            self.assertEqual(code, 400, kind)
+
+    def test_only_lines_with_money_can_be_closed(self):
+        viewer = self.login("viewer")
+        empty = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water", data={})
+        draft = HotelStay.objects.create(vessel=self.alex_vessel, hotel="", check_in=AT, nights=1, draft=True)
+        for kind, pk in (("service", empty.id), ("hotel", draft.id)):
+            code, body = self.call(viewer, "post", "/api/accounting/", {"kind": kind, "id": pk, "closed": True})
+            self.assertEqual((code, body.get("error")), (400, "Only a line with money can be closed."), kind)
+        priced = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water", data=WATER["data"])
+        self.assertEqual(self.call(viewer, "post", "/api/accounting/", {"kind": "service", "id": priced.id, "closed": True})[0], 200)
+        Service.objects.filter(pk=priced.pk).update(data={})  # reopening is always allowed
+        self.assertEqual(self.call(viewer, "post", "/api/accounting/", {"kind": "service", "id": priced.id, "closed": False})[0], 200)

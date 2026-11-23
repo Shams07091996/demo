@@ -14,13 +14,14 @@ from .errors import BadRequest
 from .models import HotelStay, Service, Transfer, VesselDisposal
 
 LOCKED = "Accounting has closed this. Ask accounting to reopen it first."
+NO_MONEY = "Only a line with money can be closed."
 KINDS = {"service": Service, "hotel": HotelStay, "transfer": Transfer, "disposal": VesselDisposal}
 
 
 def clean_request(payload):
     """(kind, id, closed) of a POST /api/accounting/ body; anything else is refused."""
     kind, pk, closed = payload.get("kind"), payload.get("id"), payload.get("closed")
-    if kind not in KINDS:
+    if not isinstance(kind, str) or kind not in KINDS:
         raise BadRequest("Unknown row.")
     if not isinstance(pk, int) or isinstance(pk, bool) or pk < 1:
         raise BadRequest("Unknown row.")
@@ -33,6 +34,8 @@ def set_closed(profile, kind, pk, closed):
     """Close or reopen one row the profile may see (404 otherwise). Saves only the flag."""
     rows = KINDS[kind].objects.filter(vessel__in=scoped_vessels(profile, prefetch=False)).select_for_update()
     obj = get_object_or_404(rows, pk=pk)
+    if closed and not _on_calculations(kind, obj):
+        raise BadRequest(NO_MONEY)
     if obj.acct_closed != closed:
         obj.acct_closed = closed
         obj.save(update_fields=["acct_closed"])
@@ -43,6 +46,15 @@ def _any_closed(queryset):
     """Whether any of these rows is closed, read under a row lock: accounting closing one of them meanwhile waits for
     this transaction (or this one waits for it and then sees the stored value), so a check can't go stale."""
     return any(queryset.select_for_update().values_list("acct_closed", flat=True))
+
+
+def _on_calculations(kind, obj):
+    """Whether the thing has a line on the Calculations page (some money): only those can be closed (reopening is
+    always allowed)."""
+    from .calculations import rows_for  # calculations -> listing -> ... ; imported here to keep this module light
+    from .models import Vessel
+
+    return any(row["ref"] == {"kind": kind, "id": obj.pk} for row in rows_for(Vessel.objects.filter(pk=obj.vessel_id)))
 
 
 def require_open(obj):

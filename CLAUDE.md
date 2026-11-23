@@ -206,7 +206,8 @@ otherwise, 500 characters; a save without the key keeps the stored value). Exist
 cancelled service is skipped by `crewbookings.crew_members` (its drafts go, and come back if un-cancelled),
 `early_arrivals` and `listing.missing_details`; its money lines stay (the dialog sets the money to 0 on choosing
 Cancelled). **Accounting** (`accounting.py`, `POST /api/accounting/ {kind: service|hotel|transfer|disposal, id,
-closed}`, `access.require_accounting`: admin or role `readonly`): `acct_closed` on Service, HotelStay, Transfer and
+closed}`, `access.require_accounting`: admin or role `readonly`; only a thing with a line on Calculations, i.e. some
+money, can be closed: `accounting.NO_MONEY`): `acct_closed` on Service, HotelStay, Transfer and
 VesselDisposal, never written by operations saves (`conflicts.UNTRACKED`) and never raising `version`. Closed =
 locked for every role: `accounting.require_open` on service PUT / DELETE, booking PUT / DELETE and the disposal PUT,
 `require_vessel_open` on vessel DELETE (message `accounting.LOCKED`); `crewbookings.sync` leaves closed bookings
