@@ -59,6 +59,7 @@ from .validators import (
     clean_disposal_quantities,
     clean_receipt,
     clean_service_data,
+    clean_service_status,
     clean_vessel,
 )
 
@@ -212,14 +213,16 @@ def vessel_detail(request, pk):
 # ---- services -------------------------------------------------------------------------------
 
 
-def _read_service(request, vessel, current_agent=""):
-    """(type, agent, data) of a service sent by the browser for `vessel`."""
+def _read_service(request, vessel, existing=None):
+    """{service_type, agent, data, status, cancel_reason} of a service sent by the browser for `vessel`."""
     payload = read_json(request)
     service_type = payload.get("type")
     if service_type not in SERVICE_TYPES:
         raise BadRequest("Choose a service type.")
-    agent = clean_agent(payload.get("agent"), vessel.port, current_agent)
-    return service_type, agent, clean_service_data(service_type, payload.get("data"))
+    agent = clean_agent(payload.get("agent"), vessel.port, getattr(existing, "agent", ""))
+    status, reason = clean_service_status(payload, existing)
+    return {"service_type": service_type, "agent": agent, "data": clean_service_data(service_type, payload.get("data")),
+            "status": status, "cancel_reason": reason}
 
 
 @json_api
@@ -227,10 +230,10 @@ def _read_service(request, vessel, current_agent=""):
 def service_create(request, pk):
     require_edit(request.profile)
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
-    service_type, agent, data = _read_service(request, vessel)
-    service = Service.objects.create(vessel=vessel, service_type=service_type, agent=agent, data=data)
+    fields = _read_service(request, vessel)
+    service = Service.objects.create(vessel=vessel, **fields)
     crewbookings.sync(vessel)
-    audit(request, "service.create", id=service.id, vessel=vessel.id, type=service_type)
+    audit(request, "service.create", id=service.id, vessel=vessel.id, type=service.service_type)
     return _vessel_json(vessel.pk, status=201)
 
 
@@ -246,7 +249,8 @@ def service_detail(request, pk):
     else:
         service = conflicts.locked(service, read_json(request), request.user)
         before = conflicts.snapshot(service)
-        service.service_type, service.agent, service.data = _read_service(request, service.vessel, service.agent)
+        for field, value in _read_service(request, service.vessel, service).items():
+            setattr(service, field, value)
         conflicts.bump_if_changed(service, before)
         service.save()
         audit(request, "service.update", id=service.id, vessel=service.vessel_id)

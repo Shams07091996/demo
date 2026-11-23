@@ -189,6 +189,7 @@ def row(vessel, rates, prices):
         "garbage": float(disposal.garbage) if disposal and disposal.garbage is not None else None,
         "sludge": float(disposal.sludge) if disposal and disposal.sludge is not None else None,
         "hidden": bool(disposal and disposal.hidden),
+        "closed": bool(disposal and disposal.acct_closed),
         **figures(disposal, prices.get((*month, vessel.port)), rates.get(month)),
     }
 

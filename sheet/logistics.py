@@ -110,6 +110,7 @@ def booking_to_dict(kind, obj, profile):
         "guests": [_guest_dict(g) for g in obj.guests.all()],
         "hotel": obj.hotel,
         "draft": obj.draft,
+        "closed": obj.acct_closed,
         "version": obj.version,
     }
     if kind == "hotels":

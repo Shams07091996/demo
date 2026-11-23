@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 
 from .constants import (
+    CANCEL_REASON_MAX,
     GUEST_GROUPS,
     MAX_GUESTS,
     MAX_NIGHTS,
@@ -16,6 +17,7 @@ from .constants import (
     OPTION_KINDS,
     PLACE_KEYS,
     PORT_KEYS,
+    SERVICE_STATUSES,
     SINGLE_EXTRAS,
     SUMMARY_FIELDS,
     TIME_KEYS,
@@ -241,6 +243,21 @@ def clean_service_data(service_type, raw):
 
 
 RECEIPT_MAX_LINES = 40
+
+
+def clean_service_status(payload, existing=None):
+    """(status, cancel reason) of a service. A save without the key keeps the stored value (a new service starts In
+    progress). The reason is required when Cancelled and refused otherwise (the dialog clears it)."""
+    status = payload.get("status", getattr(existing, "status", "in_progress"))
+    if status not in SERVICE_STATUSES:
+        raise BadRequest("Choose a status: In progress, Completed or Cancelled.")
+    sent = payload.get("cancel_reason", getattr(existing, "cancel_reason", "") if status == "cancelled" else "")
+    reason = _short(sent, CANCEL_REASON_MAX, "The cancellation reason")
+    if status == "cancelled" and not reason:
+        raise BadRequest("Write why the service was cancelled.")
+    if status != "cancelled" and reason:
+        raise BadRequest("Only a cancelled service has a cancellation reason: clear it.")
+    return status, reason
 
 
 def clean_receipt(raw):

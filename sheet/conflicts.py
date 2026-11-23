@@ -17,7 +17,7 @@ from .history import _values
 from .models import ChangeRecord, HotelStay, Service, Transfer
 
 OUT_OF_DATE = "This page is out of date. Reload it and try again."
-UNTRACKED = {"id", "created_at", "version"}
+UNTRACKED = {"id", "created_at", "version", "acct_closed"}  # accounting never makes an edit conflict
 GUEST_FIELDS = ("name", "rank", "nationality", "group", "flight", "crew_uid")
 BOOKINGS = (HotelStay, Transfer)
 LABELS = {**TIME_LABELS, "service_type": "Type", "port_name": "Port", "from_place": "From", "to_place": "To",
