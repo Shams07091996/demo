@@ -458,6 +458,21 @@ def _price_fields(data, cost_key, revenue_key):
     }
 
 
+def clean_booking_refs(raw):
+    """The bookings a crew change's cancellation cancels too: [(kind, id)]; absent → []."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > 200:
+        raise BadRequest("Unknown booking.")
+    refs = []
+    for item in raw:
+        kind, pk = (item.get("kind"), item.get("id")) if isinstance(item, dict) else (None, None)
+        if kind not in ("hotel", "transfer") or not isinstance(pk, int) or isinstance(pk, bool) or pk < 1:
+            raise BadRequest("Unknown booking.")
+        refs.append((kind, pk))
+    return refs
+
+
 def _cancelled(data):
     """A booking's Cancelled tick: true / false, or None when not sent (the stored value stays)."""
     value = data.get("cancelled")

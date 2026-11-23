@@ -11,7 +11,9 @@ from datetime import datetime, time, timedelta
 from django.db.models import Q
 from django.utils import timezone
 
-from .logistics import crew_leg, crew_moment
+from .accounting import LOCKED
+from .errors import BadRequest
+from .logistics import MONEY_KEYS, crew_leg, crew_moment
 from .models import Guest, HotelStay, Service, Transfer
 
 _GROUPS = (("onSigners", "on"), ("offSigners", "off"))
@@ -120,6 +122,65 @@ def sync(vessel):
             for booking, guest, count in linked[uid]:
                 if booking.draft and count == 1 and not booking.acct_closed:
                     _refresh(kind, booking, guest, member, group, vessel)
+
+
+# ---- cancelling a crew change's saved bookings -------------------------------------------------
+
+BOOKING_KINDS = {"hotel": (HotelStay, "hotels"), "transfer": (Transfer, "transfers")}
+
+
+def _crew_uids(service):
+    data = service.data or {}
+    return {m["uid"] for key, _group in _GROUPS for m in data.get(key) or [] if isinstance(m, dict) and m.get("uid")}
+
+
+def saved_bookings(service):
+    """[(kind, booking)] of a Crew Change's saved (non-draft) bookings: those with a guest copied from its crew."""
+    uids = _crew_uids(service) if service.service_type == "Crew Change" else set()
+    found = []
+    for kind, (model, _plural) in BOOKING_KINDS.items():
+        bookings = (model.objects.filter(vessel_id=service.vessel_id, draft=False, guests__crew_uid__in=uids)
+                    .distinct().prefetch_related("guests").order_by("id")) if uids else []
+        found += [(kind, booking) for booking in bookings]
+    return found
+
+
+def booking_ref(kind, booking):
+    """What the service dialog lists for one booking."""
+    if kind == "hotel":
+        what = f"Hotel · {booking.hotel or 'no hotel yet'} · {booking.check_in:%d/%m/%Y}"
+    else:
+        what = f"Transfer · {booking.from_place} → {booking.to_place} · {timezone.localtime(booking.at):%d/%m/%Y %H:%M}"
+    return {"kind": kind, "id": booking.id, "label": what, "guests": ", ".join(g.name for g in booking.guests.all()),
+            "cancelled": booking.cancelled, "closed": booking.acct_closed}
+
+
+def cancel_bookings(service, refs):
+    """Cancel the listed saved bookings of a cancelled Crew Change (cleaned refs [(kind, id)]): each is marked
+    cancelled, its money set to 0 (a fee can be typed later) and its version raised. Anything not that crew change's,
+    or closed by accounting, refuses the whole save."""
+    if not refs:
+        return []
+    if service.service_type != "Crew Change" or service.status != "cancelled":
+        raise BadRequest("Only a cancelled crew change cancels its bookings.")
+    own = {(kind, booking.pk) for kind, booking in saved_bookings(service)}
+    done = []
+    for kind, pk in refs:
+        if (kind, pk) not in own:
+            raise BadRequest("That booking is not one of this crew change's.")
+        model, plural = BOOKING_KINDS[kind]
+        booking = model.objects.select_for_update().get(pk=pk)
+        if booking.acct_closed:
+            raise BadRequest(LOCKED)
+        if booking.cancelled:
+            continue
+        booking.cancelled = True
+        for key in MONEY_KEYS[plural]:
+            setattr(booking, key, 0)
+        booking.version += 1
+        booking.save()
+        done.append((kind, pk))
+    return done
 
 
 def incomplete(booking):

@@ -66,6 +66,7 @@ from .models import (
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import (
     clean_agent,
+    clean_booking_refs,
     clean_disposal_price,
     clean_disposal_quantities,
     clean_receipt,
@@ -260,16 +261,30 @@ def service_detail(request, pk):
         service.delete()
         audit(request, "service.delete", id=pk, vessel=service.vessel_id)
     else:
-        service = conflicts.locked(service, read_json(request), request.user)
+        payload = read_json(request)
+        service = conflicts.locked(service, payload, request.user)
         accounting.require_open(service)  # the fresh row: a dialog opened before accounting closed it is refused too
+        refs = clean_booking_refs(payload.get("cancel_bookings"))
         before = conflicts.snapshot(service)
         for field, value in _read_service(request, service.vessel, service).items():
             setattr(service, field, value)
         conflicts.bump_if_changed(service, before)
         service.save()
-        audit(request, "service.update", id=service.id, vessel=service.vessel_id)
+        cancelled = crewbookings.cancel_bookings(service, refs)
+        extra = {"cancelled_bookings": ",".join(f"{kind}:{pk}" for kind, pk in cancelled)} if cancelled else {}
+        audit(request, "service.update", id=service.id, vessel=service.vessel_id, **extra)
     crewbookings.sync(service.vessel)  # automatic bookings follow the crew (a deleted service drops its drafts)
     return _vessel_json(service.vessel_id)
+
+
+@json_api
+@require_http_methods(["GET"])
+def service_bookings(request, pk):
+    """A Crew Change's saved hotel stays and transfers, for the dialog's "cancel these too" list."""
+    allowed = scoped_vessels(request.profile, prefetch=False)
+    service = get_object_or_404(Service.objects.filter(vessel__in=allowed), pk=pk)
+    bookings = crewbookings.saved_bookings(service)
+    return JsonResponse({"bookings": [crewbookings.booking_ref(kind, booking) for kind, booking in bookings]})
 
 
 # ---- LOG letter (see logpdf.py) --------------------------------------------------------------
