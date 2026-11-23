@@ -236,6 +236,12 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
   (`tests_look`); the plain → arrow is allowed as text.
 - **Theme:** colours exist only as tokens at the top of `app.css` (light `:root`, dark under `prefers-color-scheme`
   and `[data-theme="dark"]`, light again for print); everything else uses `var(--…)` (JS charts use `--c1`…`--c8`).
+  The navy sidebar uses `--side-*`; cards (`.table-wrap`, `.panel`, `.svc-card`, `.modal`, `.login-card`) have 10 px
+  corners and `--card-shadow` (none in dark mode). The old grey look is on branch `backup/look-2026-11-18`.
+- **Brand:** "ARKAS" / "EGYPT HUSBANDRY". The logo is `brand.png` in `DJANGO_LETTERHEAD_DIR` (never in git or `static/`),
+  served by `GET /brand/logo.png` (`branding.py`, `views.brand_logo`; PNG only, 500 KB max, open without sign-in and
+  during two-step); the context processor `brand` gives templates `brand_logo`, and without it they show the anchor.
+  Sign-in / locked / error pages share `templates/sheet/brand_login.html`.
   The sidebar switch (`js/theme.js`) sets `data-theme`, a `theme` cookie and localStorage; the context processor
   `sheet.context_processors.theme` renders `data-theme` from a whitelisted cookie. System font, no web fonts.
 - **Script loading:** `views.script_modules()` lists every file under `static/sheet/js/` and `index.html` names them
