@@ -181,6 +181,9 @@ class VesselDisposal(models.Model):
     sludge = models.DecimalField("Sludge (t)", max_digits=12, decimal_places=3, null=True, blank=True)
     hidden = models.BooleanField(default=False)
     acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the quantities
+    # Written when accounting closes it (then kept, also after reopening): the month's rate and price at that time.
+    exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    frozen_price = models.JSONField(null=True, blank=True)
 
     def __str__(self):
         return f"Garbage & Sludge of vessel {self.vessel_id}"
@@ -237,6 +240,7 @@ class HotelStay(models.Model):
     revenue_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     draft = models.BooleanField(default=False)  # made automatically from a crew change, not completed yet
+    cancelled = models.BooleanField(default=False)  # did not happen: kept for its record, no alert, money 0 or a fee
     acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the booking
     created_at = models.DateTimeField(auto_now_add=True)
     version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
@@ -268,6 +272,7 @@ class Transfer(models.Model):
     revenue_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     draft = models.BooleanField(default=False)  # made automatically from a crew change, not completed yet
+    cancelled = models.BooleanField(default=False)  # did not happen: kept for its record, no alert, money 0 or a fee
     acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the booking
     created_at = models.DateTimeField(auto_now_add=True)
     version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it

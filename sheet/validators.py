@@ -458,6 +458,14 @@ def _price_fields(data, cost_key, revenue_key):
     }
 
 
+def _cancelled(data):
+    """A booking's Cancelled tick: true / false, or None when not sent (the stored value stays)."""
+    value = data.get("cancelled")
+    if value is not None and not isinstance(value, bool):
+        raise BadRequest("Say whether the booking is cancelled (true or false).")
+    return value
+
+
 def clean_hotel_stay(data):
     """One room: hotel, check-in, nights (1..MAX_NIGHTS), optional cost / revenue per room per night, guests."""
     guests = clean_guests(data.get("guests"))  # first: the guests are the first part of the form
@@ -480,6 +488,7 @@ def clean_hotel_stay(data):
         "check_in": check_in,
         "nights": nights,
         **_price_fields(data, "cost_per_night", "revenue_per_night"),
+        "cancelled": _cancelled(data),
         "guests": guests,
     }
 
@@ -515,6 +524,7 @@ def clean_transfer(data):
         **named,
         "at": at,
         **_price_fields(data, "cost", "revenue"),
+        "cancelled": _cancelled(data),
         "guests": guests,
     }
 

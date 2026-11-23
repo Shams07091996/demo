@@ -145,7 +145,8 @@ def _vessel_rows(vessel, rate, price):
         for booking in bookings:
             item = booking_line(kind, booking, rate)
             if item["cost"] or item["revenue"]:
-                rows.append(_row(vessel, label, item, _state(booking, ref)))
+                status = "cancelled" if booking.cancelled else None
+                rows.append(_row(vessel, label, item, _state(booking, ref, status)))
     return rows
 
 

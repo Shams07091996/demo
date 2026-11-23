@@ -124,6 +124,8 @@ def sync(vessel):
 
 def incomplete(booking):
     """Still to finish: never saved by a person, or no cost / revenue yet."""
+    if booking.cancelled:
+        return False
     if isinstance(booking, HotelStay):
         return booking.draft or booking.cost_per_night is None or booking.revenue_per_night is None
     return booking.draft or booking.cost is None or booking.revenue is None
@@ -145,7 +147,7 @@ def booking_gaps(vessels, today, now):
     sailed = vessels.filter(Q(sailing_at__lte=now) | Q(sailing_at=None, date__lt=today))
     gaps = {}
     for kind, label, incomplete_q in _INCOMPLETE:
-        bookings = kind.objects.filter(incomplete_q, vessel__in=sailed.values("pk"))
+        bookings = kind.objects.filter(incomplete_q, vessel__in=sailed.values("pk"), cancelled=False)
         for booking in bookings.select_related("vessel").prefetch_related("guests").order_by("id"):
             names = ", ".join(g.name for g in booking.guests.all())
             gaps.setdefault(booking.vessel, []).append(f"{label}: {names}")
