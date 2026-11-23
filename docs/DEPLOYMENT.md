@@ -133,7 +133,7 @@ them all. **Never put the real values in git.**
 | `DJANGO_DB_NAME` / `DJANGO_DB_USER` / `DJANGO_DB_PASSWORD` | `marine_sheet` / `marine_app` / … | Step 2.2 |
 | `DJANGO_DB_HOST` / `DJANGO_DB_PORT` | `localhost` / `5432` | Where PostgreSQL is |
 | `DJANGO_DB_SSLMODE` | `disable` (same server, `localhost` only) or `verify-full` (another server) | With `verify-full`, also `DJANGO_DB_SSLROOTCERT` = the certificate authority file |
-| `DJANGO_LETTERHEAD_DIR` | `C:\marine_letterhead` | `logo.jpg`, `stamp.jpg`, `footer.jpg` for the LOG letter and master receipt. **Outside** the project, readable only by the app's account, never in git |
+| `DJANGO_LETTERHEAD_DIR` | `C:\marine_letterhead` | `logo.jpg`, `stamp.jpg`, `footer.jpg` for the LOG letter and master receipt, and `brand.png` (the ARKAS logo for the sidebar and sign-in page: a PNG with a see-through background, under 500 KB; without it the pages show an anchor icon). **Outside** the project, readable only by the app's account, never in git |
 | `DJANGO_BEHIND_PROXY` | `1` | The web server tells the app the visit was HTTPS |
 | `DJANGO_CLIENT_IP_HEADER` | `X-Forwarded-For` | So lock-outs, rate limits and the History see each visitor's real address |
 
@@ -253,7 +253,7 @@ certificate and a port-80 server that returns `301 https://$host$request_uri`.
 ## 7. Before people use it
 
 - [ ] Never run `seed_demo` on this database (it is for testing only).
-- [ ] Put the letterhead pictures in `DJANGO_LETTERHEAD_DIR`.
+- [ ] Put the letterhead pictures (`logo.jpg`, `stamp.jpg`, `footer.jpg`) and the company logo `brand.png` in `DJANGO_LETTERHEAD_DIR`.
 - [ ] *(Recommended)* run a **ZAP baseline scan** (zaproxy.org) against the site and fix what it reports.
 
 The Master data, exchange rate and LOG checks come after the first admin can sign in (step 8.4).

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign in · Marine Service Sheet</title>
+<title>Sign in · ARKAS Egypt Husbandry</title>
 <link rel="stylesheet" href="{% static 'sheet/app.css' %}">
 </head>
 <body class="login-body">
@@ -11,8 +11,7 @@
   <form method="post" class="login-card">
     {% csrf_token %}
     <div class="login-logo">
-      <span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span>
-      <h1>MARINE <span>SERVICE SHEET</span></h1>
+      {% include "sheet/brand_login.html" %}
       <p>Sign in to continue</p>
     </div>
     {% if locked_message %}<div class="login-error">{{ locked_message }}</div>{% endif %}

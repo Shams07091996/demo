@@ -94,7 +94,7 @@ class TwoStepMiddleware:
     @staticmethod
     def _always_open(path):
         admin = f"/{settings.ADMIN_URL}"
-        open_paths = (settings.LOGIN_URL, reverse("logout"), f"{admin}login/", f"{admin}logout/")
+        open_paths = (settings.LOGIN_URL, reverse("logout"), reverse("brand_logo"), f"{admin}login/", f"{admin}logout/")
         return path in open_paths or path.startswith(f"/{settings.STATIC_URL.lstrip('/')}")
 
 

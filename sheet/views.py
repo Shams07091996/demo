@@ -20,6 +20,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from . import (
+    branding,
     calculations,
     closures,
     conflicts,
@@ -72,6 +73,17 @@ def script_modules():
     browser fetches them at the same time instead of discovering them one import at a time."""
     js_dir = Path(__file__).resolve().parent / "static" / "sheet" / "js"
     return tuple(sorted("sheet/" + path.relative_to(js_dir.parent).as_posix() for path in js_dir.rglob("*.js")))
+
+
+@require_http_methods(["GET", "HEAD"])
+def brand_logo(request):
+    """The company logo from the letterhead folder (branding.py); open without sign-in, as the sign-in page shows it."""
+    data = branding.logo_bytes()
+    if data is None:
+        raise Http404
+    response = HttpResponse(data, content_type="image/png")
+    response["Cache-Control"] = "max-age=3600"
+    return response
 
 
 @ensure_csrf_cookie
@@ -689,7 +701,7 @@ def csrf_failure(request, reason=""):
 def not_found(request, exception=None):
     if _is_api(request):
         return JsonResponse({"error": "Not found."}, status=404)
-    return HttpResponse(render_to_string("404.html"), status=404)
+    return HttpResponse(render_to_string("404.html", {"brand_logo": branding.logo_available()}), status=404)
 
 
 def server_error(request):
@@ -697,7 +709,7 @@ def server_error(request):
     ref, response = server_error_response(request, as_json=_is_api(request))
     if response is not None:
         return response
-    return HttpResponse(render_to_string("500.html", {"ref": ref}), status=500)
+    return HttpResponse(render_to_string("500.html", {"ref": ref, "brand_logo": branding.logo_available()}), status=500)
 
 
 HISTORY_PAGE_SIZES = (10, 25, 50, 100)

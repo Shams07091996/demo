@@ -1,10 +1,11 @@
 # Project status
 
-Last updated: 2026-11-21. Read this with `CLAUDE.md` before starting work. Each feature has a design
+Last updated: 2026-11-23. Read this with `CLAUDE.md` before starting work. Each feature has a design
 (`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
 
 ## Where things stand right now
 
+- **ARKAS look (2026-11-23):** on branch `feature/arkas-look`, **not merged**. Navy sidebar, white cards with a light shadow, the ARKAS logo with "ARKAS / EGYPT HUSBANDRY", tab titles "ARKAS Egypt Husbandry". No migration. The logo is `brand.png` in `DJANGO_LETTERHEAD_DIR` (never in git); without it the anchor icon shows. **The previous look is kept on branch `backup/look-2026-11-18`** (the user asked to keep it). 569 backend tests.
 - **Edit-conflict warning (2026-11-21):** merged into `main` (branch deleted). Needs migration **`0018_edit_version`** on the user's database (and `0017` if not run yet). A save of a vessel, service, hotel stay, transfer or port closure that someone else saved after the dialog opened is refused (nothing saved); the dialog says who, when and which fields, with **Show their version** / **Save mine anyway**. 553 backend tests; fresh review done (three findings fixed test-first); `npm run check` green; smoke test passes for alex / admin / suez (viewer: re-run after the merge, its only failure was the known Excel timing check fixed in the style tidy).
 - **Master receipt (2026-11-20):** merged into `main` (branch deleted). Needs migration **`0017_history_receipt`** on the user's database. 491 backend tests; fresh review done (fixes in); smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
 - **LOG letter layout (2026-11-20):** on `main` (bold "Flight:" / "Personal details:", personal details and stamp on page 2).
@@ -110,6 +111,7 @@ Last updated: 2026-11-21. Read this with `CLAUDE.md` before starting work. Each 
 - **Order (2026-11-18):** agents → dashboards → new look, **before** two-step login (which will then be built in the new look).
 - **Dashboards (designed 2026-11-18):** jobs per agent (arrival = 1 job, sailing = 1, each service = 1), services per month, money per month as a **separate** table; chart **and** figures; filters date / port / OPR / agent / service type.
 - **New look (designed 2026-11-18):** look B (neutral grey, one blue accent), dark and light mode, system font, line icons drawn for the app; **no third-party dependency**.
+- **ARKAS look (2026-11-23):** the company's users preferred the colours and cards of a stand-alone ARKAS mock-up. The user chose look C: a **plain navy sidebar (no gradient)**, the **blue accent kept (no teal)**, **white cards, 10 px corners, light shadow**; still no gradients, all-caps labels, stat cards or extra text. The **ARKAS logo** small on a white tile with **"ARKAS" / "EGYPT HUSBANDRY"** beside it; the logo above "EGYPT HUSBANDRY" on the sign-in / locked / error pages. The logo is served from the letterhead folder, never in git. Keep the old look on `backup/look-2026-11-18`. Show the real app before committing.
 - **Two-step login (approved 2026-11-18, "go ahead with 2fa"):** everyone, Microsoft Authenticator codes, 30-day
   remember for everyone, no backup codes, superusers reset each other (3–4 planned), exceptions only for non-admins;
   **not for the online demo** for now ("no need for the demo right now").

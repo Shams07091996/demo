@@ -13,7 +13,7 @@ CSS = (BASE / "sheet" / "static" / "sheet" / "app.css").read_text(encoding="utf-
 JS_FILES = sorted((BASE / "sheet" / "static" / "sheet" / "js").rglob("*.js"))
 TEMPLATES = sorted((BASE / "sheet" / "templates").rglob("*.html"))
 
-LIGHT = {"--bg": "#f6f7f8", "--surface": "#fff", "--line": "#e1e3e6", "--text": "#1b1d20", "--muted": "#646a73",
+LIGHT = {"--bg": "#f3f5f8", "--surface": "#fff", "--line": "#e3e7ec", "--text": "#1b1d20", "--muted": "#646a73",
          "--accent": "#2563eb"}
 DARK = {"--bg": "#141517", "--surface": "#1c1e21", "--surface2": "#232529", "--line": "#2c2f34", "--text": "#e8e9eb",
         "--muted": "#9a9ea6", "--accent": "#4c8dff"}
@@ -154,9 +154,12 @@ class IconTests(SimpleTestCase):
         self.assertNotRegex(text, r"\son[a-z]+\s*=")
 
     def test_pages_with_icons_include_the_sprite(self):
+        partials = {"brand_login.html"}  # pieces of a page: the page that includes them carries the sprite
         for page in TEMPLATES:
+            if page.name in partials:
+                continue
             text = page.read_text(encoding="utf-8")
-            if 'href="#i-' in text:
+            if 'href="#i-' in text or any(f'{{% include "sheet/{name}" %}}' in text for name in partials):
                 self.assertIn('{% include "sheet/icons.svg" %}', text, page.name)
 
 
@@ -215,7 +218,8 @@ class PrintAndPaletteTests(SimpleTestCase):
         printed = dict(re.findall(r"(--[a-z0-9-]+):([^;}]+)", block))
         self.assertEqual(set(light_tokens()) - set(printed), set())
         for name, value in printed.items():
-            if name not in ("--shadow", "--accent-text", "--bg", "--surface", "--surface2", "--line"):
+            if name not in ("--shadow", "--accent-text", "--bg", "--surface", "--surface2", "--line", "--side-bg",
+                            "--side-active", "--side-hover", "--card-shadow", "--logo-tile"):  # backgrounds
                 self.assertGreaterEqual(contrast(value, "#fff"), 4.5, f"print {name}")
         self.assertRegex(block, r"html(\[data-theme\])?[^{]*\{color-scheme:light\}")
 
@@ -225,3 +229,44 @@ class PrintAndPaletteTests(SimpleTestCase):
         config = (BASE / "sheet" / "static" / "sheet" / "js" / "config.js").read_text(encoding="utf-8")
         colours = re.findall(r"'var\(--c\d+\)'", re.search(r"CHART_COLORS = \[([^\]]*)\]", config).group(1))
         self.assertGreaterEqual(len(set(colours)), len(SERVICE_TYPES))
+
+
+SIDE_TOKENS = ["--side-bg", "--side-text", "--side-muted", "--side-active", "--side-hover", "--card-shadow", "--logo-tile"]
+
+
+def rule(selector):
+    """The body of the first rule whose selector list is exactly `selector`."""
+    return re.search(r"(?:^|[}\n])" + re.escape(selector) + r"\{([^}]*)\}", CSS).group(1)
+
+
+class ArkasLookTests(SimpleTestCase):
+    """Look C (2026-11-23): navy sidebar, white cards with a light shadow, the ARKAS logo on a white tile."""
+
+    def test_sidebar_tokens_in_every_mode(self):
+        print_block = re.search(r"@media print\{(.*?)\n\}", CSS, re.S).group(1)
+        for selector, tokens in token_blocks().items():
+            for name in SIDE_TOKENS:
+                self.assertIn(name, tokens, f"{selector} {name}")
+        self.assertEqual(len(token_blocks()), 4)  # light, dark by system, dark by choice, print
+        for name in SIDE_TOKENS:
+            self.assertIn(name + ":", print_block, f"print {name}")
+
+    def test_sidebar_contrast(self):
+        for mode, tokens in (("light", light_tokens()), ("dark", dark_tokens())):
+            for fg, bg in (("--side-text", "--side-bg"), ("--side-text", "--side-active"),
+                           ("--side-text", "--side-hover"), ("--side-muted", "--side-bg")):
+                self.assertGreaterEqual(contrast(tokens[fg], tokens[bg]), 4.5, f"{mode} {fg} on {bg}")
+            self.assertEqual(tokens["--logo-tile"].strip(), "#fff", mode)
+
+    def test_cards_have_shadow_and_radius(self):
+        for selector in (".table-wrap", ".panel", ".svc-card", ".modal", ".login-card"):
+            body = rule(selector)
+            self.assertIn("box-shadow:var(--card-shadow)", body, selector)
+            self.assertIn("border-radius:10px", body, selector)
+        self.assertIn("border-radius:8px", rule(".btn"))
+        self.assertIn("border-radius:8px", rule(".input,.select,.field input,.field select,.field textarea,.login-card input"))
+
+    def test_sidebar_uses_side_tokens(self):
+        self.assertIn("background:var(--side-bg)", rule(".sidebar"))
+        self.assertIn("var(--side-active)", rule(".nav-item.active"))
+        self.assertIn("background:var(--logo-tile)", rule(".brand-tile"))

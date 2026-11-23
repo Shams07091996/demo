@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Something went wrong · Marine Service Sheet</title>
+<title>Something went wrong · ARKAS Egypt Husbandry</title>
 <link rel="stylesheet" href="{% static 'sheet/app.css' %}">
 </head>
 <body class="login-body">
 {% include "sheet/icons.svg" %}
   <div class="login-card">
-    <div class="login-logo"><span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><h1>MARINE <span>SERVICE SHEET</span></h1></div>
+    <div class="login-logo">{% include "sheet/brand_login.html" %}</div>
     <div class="login-error">Something went wrong. Reference {{ ref }}</div>
     <a class="btn primary wide center" href="/">Back to the sheet</a>
   </div>
