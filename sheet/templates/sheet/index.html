@@ -119,6 +119,7 @@
         <label>From <input class="input" type="date" id="{{ p }}-from"></label>
         <label>To <input class="input" type="date" id="{{ p }}-to"></label>
         <button class="btn ghost small" id="{{ p }}-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
+        <button class="btn ghost small" data-act="page-export" data-page="{{ kind }}"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
       </div>
       <div class="toolbar">
         <div class="tools">
@@ -141,6 +142,7 @@
         <label>From <input class="input" type="date" id="pc-from"></label>
         <label>To <input class="input" type="date" id="pc-to"></label>
         <button class="btn ghost small" id="pc-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
+        <button class="btn ghost small" data-act="page-export" data-page="closures"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
       </div>
       <div class="toolbar">
         <div class="tools"><select id="pc-port" class="select" hidden aria-label="Port"></select></div>
@@ -159,6 +161,7 @@
         <label>To <input class="input" type="date" id="g-to"></label>
         <select id="g-show" class="select" aria-label="Show"></select>
         <select id="g-port" class="select" hidden aria-label="Port"></select>
+        <button class="btn ghost small" data-act="page-export" data-page="disposal"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
       </div>
       <div class="calc-totals" id="g-totals" role="status"></div>
       <div class="table-wrap">
@@ -176,6 +179,7 @@
         <select id="c-opr" class="select" aria-label="OPR"></select>
         <select id="c-port" class="select" hidden aria-label="Port"></select>
         <span id="c-ticks"></span>
+        <button class="btn ghost small" data-act="page-export" data-page="calculations"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
       </div>
       <div class="calc-totals" id="c-totals" role="status"></div>
       <div class="table-wrap">
@@ -219,6 +223,7 @@
           <select class="select" id="d-agent" aria-label="Agent"></select>
           <select class="select" id="d-service" aria-label="Service type"></select>
           <button class="btn ghost small" data-act="dashboard-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
+          <button class="btn ghost small" data-act="dashboard-data-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> All data</button>
         </div>
         <div class="count flush"><strong id="dash-count">0</strong> vessels in selection</div>
       </div>

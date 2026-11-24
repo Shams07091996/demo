@@ -19,6 +19,7 @@ import {
 import { openVessel, openVesselForm, syncSailingDate, updateDelayRow, vesselPayload } from './modals/vessel.js';
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
+import { closuresPage } from './pages/closures.js';
 import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
@@ -184,6 +185,22 @@ export const actions = {
     if (error) setStatus('error', error);
   },
   // The management workbook (.xlsx) of the Dashboard's From - To range and port.
+  // A page's rows as a plain-table Excel file (its current filters, every page of them).
+  'page-export': async (b) => {
+    const pages = { hotels: bookingsPage('hotels'), transfers: bookingsPage('transfers'), closures: closuresPage,
+      disposal: disposalPage, calculations: calculationsPage };
+    const page = pages[b.dataset.page];
+    if (!page) return;
+    const error = await download(`/api/export/${b.dataset.page}/?${page.exportQuery()}`, 'Could not make the Excel file.');
+    if (error) setStatus('error', error);
+  },
+  // The five pages' rows for the Dashboard's From - To range and port, one sheet each.
+  'dashboard-data-export': async () => {
+    const { from, to, port } = state.filter;
+    const query = new URLSearchParams({ from: from || '', to: to || '', port: port && port !== 'ALL' ? port : '' });
+    const error = await download(`/api/export/all/?${query}`, 'Could not make the Excel file.');
+    if (error) setStatus('error', error);
+  },
   'dashboard-export': async () => {
     const { from, to, port } = state.filter;
     const query = new URLSearchParams({ from: from || '', to: to || '', port: port && port !== 'ALL' ? port : '' });

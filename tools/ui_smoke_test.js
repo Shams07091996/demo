@@ -1280,6 +1280,50 @@ async function login() {
     ok(await waitFor(() => $('#status-text').textContent.includes('Choose a From and To date.')), 'dashboard: Excel needs a From and To date');
     type($('#d-from'), rangeFrom); type($('#d-to'), rangeTo);
     await waitFor(() => $('#f-from').value === rangeFrom && $('#f-to').value === rangeTo);
+
+    // Plain-table Excel files for other programs: each page's button sends that page's filters (no paging) and
+    // downloads; All data sends the Dashboard's range and port.
+    const fetched = [];
+    const realFetch = w.fetch;
+    w.fetch = async (url, options) => {
+      const response = await realFetch(url, options);
+      if (String(url).includes('/api/export/')) fetched.push({ url: String(url), status: response.status });
+      return response;
+    };
+    if (!w.URL.createObjectURL) w.URL.createObjectURL = () => 'blob:smoke';
+    if (!w.URL.revokeObjectURL) w.URL.revokeObjectURL = () => {};
+    const exported = async (button) => {
+      const before = fetched.length;
+      click(button);
+      await waitFor(() => fetched.length > before);
+      return fetched[fetched.length - 1] || { url: '', status: 0 };
+    };
+    const monthStart = `${today.slice(0, 8)}01`;
+    // All data allows at most 24 months. Let the last range change finish loading first: its reply redraws the
+    // (unfocused) date boxes and would put the old From back while the new dates wait out the typing pause.
+    await sleep(1500);
+    await waitFor(() => $('#status-text').textContent === 'Synced');
+    type($('#d-from'), monthStart); type($('#d-to'), today);
+    await waitFor(() => $('#f-from').value === monthStart && $('#f-to').value.slice(0, 8) === today.slice(0, 8));
+    let got = await exported($('[data-act="dashboard-data-export"]'));
+    ok(got.status === 200 && got.url.includes('/api/export/all/') && got.url.includes(`from=${monthStart}`) && got.url.includes(`to=${today.slice(0, 8)}`), `export: All data downloads for the Dashboard range`); // the Dashboard takes whole months
+    type($('#d-from'), rangeFrom); type($('#d-to'), rangeTo);
+    await waitFor(() => $('#f-from').value === rangeFrom && $('#f-to').value === rangeTo);
+    for (const [page, key] of [['hotels', 'hotels'], ['transport', 'transfers'], ['closures', 'closures'], ['disposal', 'disposal'], ['calculations', 'calculations']]) {
+      await go(page);
+      if (page === 'hotels') {
+        type($('#h-search'), 'ahmed');
+        await sleep(400);
+      }
+      got = await exported($(`#page-${page} [data-act="page-export"]`));
+      ok(got.status === 200 && got.url.includes(`/api/export/${key}/`) && !/[?&]page(_size)?=/.test(got.url), `export: ${page} Excel downloads all its filtered rows`);
+      if (page === 'hotels') {
+        ok(got.url.includes('q=ahmed'), 'export: the hotels file uses the page search');
+        type($('#h-search'), '');
+      }
+    }
+    w.fetch = realFetch;
+    await go('dashboard');
   }
 
   /** The change history: admins read it on the History page; everyone else gets no page and a 403. */

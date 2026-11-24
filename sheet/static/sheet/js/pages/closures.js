@@ -110,4 +110,12 @@ export async function deleteClosure(id) {
   return true;
 }
 
-export const closuresPage = { load };
+/** The list query without paging: what the Excel button exports (every row these filters show). */
+function exportQuery() {
+  const query = params();
+  query.delete('page');
+  query.delete('page_size');
+  return query;
+}
+
+export const closuresPage = { load, exportQuery };
