@@ -2,7 +2,7 @@
 import { initTheme } from './theme.js';
 import { actions, moveOption } from './actions.js';
 import { portOptionEls } from './components.js';
-import { ME, el } from './config.js';
+import { ME, el, myPorts, openPorts } from './config.js';
 import { loadAlerts, loadOptions, loadVessels, setDashboardFilter, setFilter } from './data.js';
 import { setChildren } from './dom.js';
 import { setStatus } from './feedback.js';
@@ -79,7 +79,10 @@ $('#menuBtn').addEventListener('click', () => {
   }
 });
 $('#scrim').addEventListener('click', () => document.body.classList.remove('nav-open'));
-$('#roleLabel').textContent = ME.port ? `${ME.role} port` : ME.role;
+{
+  const names = myPorts().map((p) => p.label);
+  $('#roleLabel').textContent = ME.isAdmin ? 'Admin' : names.length === 1 ? `${names[0]} port` : names.join(', ');
+}
 
 /* ---- vessels page: date range, chips, search, sorting, paging, add (the server does the filtering) ---- */
 $('#filters').addEventListener('click', (event) => {
@@ -145,14 +148,14 @@ if (ME.canEdit) $('#addVesselBtn').addEventListener('click', () => openVesselFor
 else $('#addVesselBtn').hidden = true;
 setupQuickAdd();
 
-/* ---- port selector (admin and read-only users see every port) ---- */
-if (ME.seesAll) {
+/* ---- port selector (Admins and Users of several ports) ---- */
+if (ME.multiPort) {
   document.body.classList.add('show-port');
   const select = $('#portSelect');
   setChildren(select, portOptionEls({ all: true }));
   select.hidden = false;
   select.addEventListener('change', () => {
-    if (ME.isAdmin && select.value !== 'ALL') {
+    if (select.value !== 'ALL' && openPorts().some((p) => p.key === select.value)) {
       $('#qa-port').value = select.value;
       fillQuickSelects();
     }

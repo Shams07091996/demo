@@ -4,7 +4,7 @@
 // admins switch a line Open / Closed. Two tick-box filters narrow by status and by accounting state.
 import { api, mutate } from '../api.js';
 import { portOptionEls, serviceStatusEl, sortIcon, tickFilterEl } from '../components.js';
-import { BILLING, IS_ACCOUNTING, ME, NO_AGENT, SERVICE_STATUS } from '../config.js';
+import { BILLING, ME, NO_AGENT, SERVICE_STATUS } from '../config.js';
 import { h, icon, optionEls, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { pagerEl } from '../render/pager.js';
@@ -80,7 +80,7 @@ function statusCell(row) {
 function accountingCell(row) {
   const label = row.closed ? 'Closed' : 'Open';
   if (!row.ref) return '—'; // garbage & sludge with nothing entered yet: nothing to close
-  if (!IS_ACCOUNTING) return h('span', { class: `acct-label ${row.closed ? 'closed' : ''}`.trim() }, label);
+  if (!ME.isAdmin) return h('span', { class: `acct-label ${row.closed ? 'closed' : ''}`.trim() }, label);
   return h('button', {
     class: `acct-switch ${row.closed ? 'closed' : ''}`.trim(),
     dataset: { act: 'acct-toggle', kind: row.ref.kind, id: row.ref.id, closed: row.closed ? '1' : '', vessel: row.vessel.id },
@@ -211,7 +211,7 @@ function setFilter(patch) {
 function wire() {
   if (wired) return;
   wired = true;
-  if (ME.seesAll) {
+  if (ME.multiPort) {
     const select = $('#c-port');
     setChildren(select, portOptionEls({ all: true }));
     select.hidden = false;

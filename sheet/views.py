@@ -127,14 +127,12 @@ def index(request):
     context = {
         "me": {
             "username": request.user.get_username(),
-            "role": "admin" if profile.is_admin else ", ".join(ports.label(p) for p in profile.ports),
-            "port": profile.ports[0] if not profile.is_admin and len(profile.ports) == 1 else None,
             "ports": ports.keys() if profile.is_admin else list(profile.ports),
-            "homePort": profile.home_port,
+            "homePort": "" if profile.is_admin else profile.home_port,
+            "multiPort": profile.is_admin or len(profile.ports) > 1,
             "canEdit": profile.can_edit,
             "isAdmin": profile.is_admin,
             "isSuperuser": request.user.is_superuser,
-            "seesAll": profile.is_admin or len(profile.ports) > 1,
         },
         "ports": [{"key": key, "label": name, "active": active} for key, name, active in ports.rows()],
         "service_types": SERVICE_TYPES,

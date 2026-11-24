@@ -139,7 +139,7 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
     if (wired) return;
     wired = true;
     $(id('add')).hidden = !ME.canEdit;
-    if (ME.seesAll) {
+    if (ME.multiPort) {
       const select = $(id('port'));
       setChildren(select, portOptionEls({ all: true }));
       select.hidden = false;

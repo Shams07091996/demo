@@ -1,5 +1,5 @@
 // Master data page: the OPR, POC, Agent, Hotel, Airport and Port lists.
-import { ME, OPTION_KINDS, PORTS, PORT_LABEL } from '../config.js';
+import { ME, OPTION_KINDS, openPorts, PORTS, PORT_LABEL } from '../config.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { state } from '../state.js';
 import { $, $$ } from '../util.js';
@@ -7,6 +7,9 @@ import { $, $$ } from '../util.js';
 // A port choice for admins: '' = All ports, else one port.
 const portSelect = (props, current) =>
   h('select', { class: 'select port-pick', ...props }, optionEls([['', 'All ports'], ...PORTS.map((p) => [p.key, p.label])], current));
+// Where a User of several ports adds a value: one of their turned-on ports (never All ports).
+const myPortSelect = (props, current) =>
+  h('select', { class: 'select port-pick', ...props }, optionEls(openPorts().map((p) => [p.key, p.label]), current));
 
 /** The port an admin last chose when adding to each list (kept while the page is open). */
 export const newValuePort = {};
@@ -43,7 +46,10 @@ function listPanel({ key, label }) {
       h('input', { class: 'input', dataset: { new: key }, attrs: { maxlength: 100, placeholder: `New ${label}…` } }), ' ',
       ME.isAdmin
         ? portSelect({ dataset: { newPort: key }, attrs: { 'aria-label': `Port for a new ${label}` } }, newValuePort[key] || '')
-        : null, ' ',
+        : ME.multiPort
+          ? myPortSelect({ dataset: { newPort: key }, attrs: { 'aria-label': `Port for a new ${label}` } },
+            newValuePort[key] || ME.homePort)
+          : null, ' ',
       h('button', { class: 'btn primary', dataset: { act: 'add-option', kind: key } }, 'Add'))
     : null;
   // Folded shut until its name is clicked (the page was too long with every list open).
@@ -57,9 +63,11 @@ const openLists = new Set();
 
 export function renderMasterPage() {
   $$('#master-grid details.master-list').forEach((d) => (d.open ? openLists.add(d.dataset.kind) : openLists.delete(d.dataset.kind)));
-  const note = ME.port
-    ? `Values you add are for ${PORT_LABEL[ME.port]} only; shared values are managed by an admin.`
-    : 'Choose a port for each value, or All ports to offer it everywhere.';
+  const note = ME.isAdmin
+    ? 'Choose a port for each value, or All ports to offer it everywhere.'
+    : ME.multiPort
+      ? 'Values you add are for the port you choose; shared values are managed by an admin.'
+      : `Values you add are for ${PORT_LABEL[ME.homePort]} only; shared values are managed by an admin.`;
   setChildren($('#master-grid'), OPTION_KINDS.map(listPanel),
     h('p', { class: 'help', style: { gridColumn: '1/-1', margin: '0' } }, note));
 }

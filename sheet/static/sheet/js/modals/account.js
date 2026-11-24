@@ -10,12 +10,19 @@ import { $, $$ } from '../util.js';
 
 const field = (label, control) => h('div', { class: 'field' }, h('label', null, label), control);
 
-// The home port's tick is always on (the home port is one of the account's ports) and can't be untaken.
+// The home port's tick is always on (the home port is one of the account's ports) and can't be untaken. A tick
+// that was only on because its port was the home port goes off again when another home port is chosen.
 function syncHomeTick() {
   const home = $('#account-form [name="home_port"]')?.value;
   $$('#account-form [data-port]').forEach((box) => {
     const isHome = box.dataset.port === home;
-    if (isHome) box.checked = true;
+    if (isHome && !box.checked) {
+      box.checked = true;
+      box.dataset.auto = '1';
+    } else if (!isHome && box.dataset.auto === '1') {
+      box.checked = false;
+      delete box.dataset.auto;
+    }
     box.disabled = isHome || box.dataset.locked === '1';
   });
 }

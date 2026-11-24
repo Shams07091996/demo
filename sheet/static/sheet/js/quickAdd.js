@@ -2,7 +2,7 @@
 // always added for a ship, so with none picked the New ship panel opens under the bar.
 import { api, mutate } from './api.js';
 import { portOptionEls } from './components.js';
-import { ME } from './config.js';
+import { ME, openPorts } from './config.js';
 import { afterVesselSaved } from './data.js';
 import { h, setChildren } from './dom.js';
 import { newShipPanel } from './modals/ship.js';
@@ -28,7 +28,7 @@ function closeNewShip() {
 
 async function openNewShip(name) {
   const box = $('#qa-newship');
-  const port = ME.isAdmin ? $('#qa-port').value || null : ME.port;
+  const port = ME.multiPort ? $('#qa-port').value || null : ME.homePort;
   const panel = await newShipPanel({
     name,
     port,
@@ -60,7 +60,7 @@ async function addVessel({ thenOpen }) {
     poc: $('#qa-poc').value,
     arrival_agent: $('#qa-agent').value, // the sailing agent stays empty until someone chooses it
   };
-  if (ME.isAdmin) payload.port = $('#qa-port').value;
+  if (ME.multiPort) payload.port = $('#qa-port').value;
 
   const vessel = await mutate(() => api('/api/vessels/', 'POST', payload));
   nameInput.value = '';
@@ -85,10 +85,11 @@ export function setupQuickAdd() {
   $('#qa-add').addEventListener('click', () => addVessel({ thenOpen: false }).catch(() => {}));
   $('#qa-edit').addEventListener('click', () => addVessel({ thenOpen: true }).catch(() => {}));
 
-  if (ME.isAdmin) {
+  if (ME.multiPort) {
     const select = $('#qa-port');
-    // No port assumed: an admin picks one (the header's port when one is chosen there).
-    setChildren(select, h('option', { value: '' }, 'Port'), portOptionEls());
+    // An Admin picks a port (the header's port when one is chosen there); a User starts on their home port.
+    setChildren(select, ME.isAdmin ? h('option', { value: '' }, 'Port') : null,
+      portOptionEls({ ports: openPorts(), selected: ME.homePort }));
     select.hidden = false;
   }
 }

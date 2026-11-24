@@ -116,7 +116,7 @@ function wire() {
   if (wired) return;
   wired = true;
   setChildren($('#sv-type'), optionEls([['', 'All services'], ...TYPES.map((t) => [t, t])], filter.type));
-  if (ME.seesAll) {
+  if (ME.multiPort) {
     const select = $('#sv-port');
     setChildren(select, portOptionEls({ all: true }));
     select.hidden = false;

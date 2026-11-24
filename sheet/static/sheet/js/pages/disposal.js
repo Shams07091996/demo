@@ -48,7 +48,7 @@ function rowEl(row) {
     h('td', null, dmy(row.vessel.date)),
     h('td', null, h('a', { href: '#disposal', dataset: { act: 'summary', id: row.vessel.id } }, row.vessel.name), flags(row)),
     h('td', null, row.vessel.opr || '—'),
-    ME.seesAll ? h('td', null, row.vessel.port_label) : null,
+    ME.multiPort ? h('td', null, row.vessel.port_label) : null,
     quantityCell(row, 'garbage'),
     quantityCell(row, 'sludge'),
     pair(row.revenue_egp, row.revenue_usd),
@@ -69,7 +69,7 @@ function totalsEl(t) {
 }
 
 function render() {
-  const heads = ['Date', 'Vessel', 'OPR', ...(ME.seesAll ? ['Port'] : []), 'Garbage m³', 'Sludge t', 'Revenue', 'Cost', 'Profit', ''];
+  const heads = ['Date', 'Vessel', 'OPR', ...(ME.multiPort ? ['Port'] : []), 'Garbage m³', 'Sludge t', 'Revenue', 'Cost', 'Profit', ''];
   setChildren($('#g-head'), h('tr', null, heads.map((title) => h('th', null, title))));
   setChildren($('#g-tbody'), data.rows.map(rowEl));
   $('#g-empty').hidden = data.rows.length > 0;
@@ -163,7 +163,7 @@ function wire() {
   filter = { from: '', to: '', port: 'ALL', show: 'all' };
   setChildren($('#g-show'), optionEls(SHOW, 'all'));
   $('#g-show').addEventListener('change', (event) => setFilter({ show: event.target.value }));
-  if (ME.seesAll) {
+  if (ME.multiPort) {
     const select = $('#g-port');
     setChildren(select, portOptionEls({ all: true }));
     select.hidden = false;
@@ -195,7 +195,7 @@ function wire() {
 function open() {
   wire();
   Object.assign(filter, { from: state.filter.from, to: state.filter.to, port: state.filter.port || 'ALL' });
-  if (ME.seesAll) $('#g-port').value = filter.port;
+  if (ME.multiPort) $('#g-port').value = filter.port;
   return load();
 }
 

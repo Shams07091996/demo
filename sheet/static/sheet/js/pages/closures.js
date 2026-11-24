@@ -12,7 +12,7 @@ const DATE_DELAY_MS = 400;
 const typingYear = (iso) => iso && Number(iso.slice(0, 4)) < 1900;
 
 const COLUMNS = [
-  ME.seesAll ? { title: 'Port', cell: (c) => c.port_label } : null,
+  ME.multiPort ? { title: 'Port', cell: (c) => c.port_label } : null,
   { title: 'Closed from', cell: (c) => fmtStamp(c.start_at) },
   { title: 'Reopened', cell: (c) => (c.end_at ? fmtStamp(c.end_at) : 'Still closed') },
   { title: 'Hours', cell: (c) => (c.hours === null ? '—' : c.hours.toFixed(1)) },
@@ -73,7 +73,7 @@ function setFilter(patch) {
 function wire() {
   if (wired) return;
   wired = true;
-  if (ME.seesAll) {
+  if (ME.multiPort) {
     const select = $('#pc-port');
     setChildren(select, portOptionEls({ all: true }));
     select.hidden = false;
