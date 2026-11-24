@@ -14,7 +14,7 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
   done in that range (by the new completed time). Filters: status ticks, missing, From–To, service, agent, vessel
   search, port (admins / accounting). "Sailed" marks an open service whose vessel has left. A row opens the
   service (edit roles; saving goes back to the list) or the vessel (read-only). **Excel** exports every filtered
-  row. 709 backend tests; `npm run check` green; smoke test passes for alex / admin / viewer / suez.
+  row. 713 backend tests; `npm run check` green; smoke test passes for alex / admin / viewer / suez.
 
 - **Ships, customers and billing (2026-11-24):** merged into `main` on 2026-11-24 (branch deleted); fresh review
   done (four findings fixed test-first). Needs migration **`0021_ships_customers`** on the user's database. Existing
@@ -201,6 +201,13 @@ Ideas raised along the way:
 
 ## Left open — small things the user hasn't decided on yet
 
+- **Services page (review of 2026-11-24, not fixed):** choosing Cancelled in a service opened from the Services
+  page and confirming its bookings goes to the vessel instead of back to the list; a From / To saved in the browser
+  that is not a real date makes the page show an error until the dates are cleared; the agent, search and port
+  filters are not remembered between visits (status, missing, service, dates and page size are); the Excel's
+  Completed column drops the "≈" mark for services completed before the time was tracked; a page size outside the
+  usual choices (1–200) is accepted from the address; a comment in the Calculations template is in the wrong place;
+  one condition in the page's row code is never needed.
 - **Ships / customers (review of 2026-11-24, not fixed):** two people adding the same IMO at the same instant: the
   second gets an error with a reference instead of "another ship already has this number" (customer names likewise
   have no database guard); the Ships page shows the first 200 ships by name with no "more" notice (search finds the

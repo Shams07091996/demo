@@ -10,7 +10,7 @@ import { openServiceForm } from '../modals/service.js';
 import { openVessel } from '../modals/vessel.js';
 import { pagerEl } from '../render/pager.js';
 import { PAGE_SIZES, rememberVessels, state } from '../state.js';
-import { $, dmy } from '../util.js';
+import { $, dmy, fmtStamp } from '../util.js';
 
 const STORE_KEY = 'sheet.services.filter';
 const SEARCH_DELAY_MS = 300;
@@ -64,7 +64,7 @@ function query({ paged }) {
 }
 
 function completedCell(row) {
-  if (row.completed_at) return dmy(row.completed_at.slice(0, 10));
+  if (row.completed_at) return fmtStamp(row.completed_at);
   return row.completed_guess ? `≈ ${dmy(row.vessel.date)}` : '—';
 }
 

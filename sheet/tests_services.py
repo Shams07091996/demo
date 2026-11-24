@@ -1,8 +1,9 @@
 """The Services page: when a service was completed, what it is missing, the list API and its Excel export."""
 
-from datetime import UTC
+from datetime import UTC, datetime
 
 from .models import Service
+from .serializers import local_iso
 from .tests import ApiTestCase
 
 
@@ -25,7 +26,7 @@ class CompletedAtTests(ApiTestCase):
     def test_new_completed_service_gets_time(self):
         service = self.add(self.login("alex"), status="completed")
         self.assertIsNotNone(self.stored(service["id"]))
-        self.assertEqual(service["completed_at"], self.stored(service["id"]).isoformat())
+        self.assertEqual(service["completed_at"], local_iso(self.stored(service["id"])))
 
     def test_completed_at_follows_status(self):
         alex = self.login("alex")
@@ -41,6 +42,26 @@ class CompletedAtTests(ApiTestCase):
         self.put(alex, service["id"], status="completed")
         self.assertIsNotNone(self.stored(service["id"]))
         self.assertGreaterEqual(self.stored(service["id"]), first)
+
+    def test_completed_before_tracking_stays_without_time(self):
+        """A service completed before migration 0022 has no time; editing it must not stamp today's date on it."""
+        alex = self.login("alex")
+        service = self.add(alex, status="completed")
+        Service.objects.filter(pk=service["id"]).update(completed_at=None)
+        self.put(alex, service["id"], status="completed", agent="")
+        self.assertIsNone(self.stored(service["id"]))
+        self.assertEqual(Service.objects.get(pk=service["id"]).version, 1)
+
+    def test_completed_time_is_cairo_local(self):
+        alex = self.login("alex")
+        service = self.add(alex, status="completed")
+        Service.objects.filter(pk=service["id"]).update(completed_at=datetime(2026, 11, 24, 23, 30, tzinfo=UTC))
+        status, vessel = self.call(alex, "get", f"/api/vessels/{self.alex_vessel.id}/")
+        self.assertEqual(next(s for s in vessel["services"] if s["id"] == service["id"])["completed_at"],
+                         "2026-11-25T01:30")
+        status, data = self.call(alex, "get", "/api/services/?status=completed")
+        self.assertEqual(next(r for r in data["services"] if r["id"] == service["id"])["completed_at"],
+                         "2026-11-25T01:30")
 
     def test_cancelled_has_none(self):
         service = self.add(self.login("alex"), status="cancelled", cancel_reason="Owner cancelled")

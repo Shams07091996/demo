@@ -262,7 +262,8 @@ dialog (now async: it loads customers) shows the rate under the billing fields.
 
 **Services page** (`services.py`, `GET /api/services/`, page `js/pages/services.js`, migration 0022): services as a
 work list. `Service.completed_at` is set only by the server (`services.stamp_completed`, in `service_create` /
-`service_detail`): becomes Completed → now, leaves it → None, else kept. `services.missing(service, month_rate,
+`service_detail`, and the admin inline in `VersionedAdmin.save_formset`, read-only there): becomes Completed → now,
+leaves it → None, else kept (one completed before 0022 stays None); JSON gives it as Cairo `local_iso`. `services.missing(service, month_rate,
 incomplete_uids)` gives, in order, `Agent`, `Cost`, `Revenue` (`money_gaps`: an **empty** box per type, a typed 0
 is filled in; Cash to Master has no cost, its revenue needs the amount and its percentage / fixed share), `Rate`
 (a `finance.service_lines` line `rate_missing`) and `Bookings` (Crew Change: a crew uid on a not-cancelled draft or

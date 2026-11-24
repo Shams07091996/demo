@@ -3,9 +3,10 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import UserChangeForm
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from . import twostep
+from . import services, twostep
 from .accounting import LOCKED, require_vessel_open
 from .errors import BadRequest
 from .models import (
@@ -48,9 +49,15 @@ class VersionedAdmin(admin.ModelAdmin):
 
     def save_formset(self, request, form, formset, change):
         if formset.model is Service:
+            now = timezone.now()
             for inline_form in formset.forms:
-                if inline_form.instance.pk and inline_form.has_changed():
-                    inline_form.instance.version += 1
+                if not inline_form.has_changed():
+                    continue
+                service = inline_form.instance
+                old_status = Service.objects.filter(pk=service.pk).values_list("status", flat=True).first()
+                services.stamp_completed(service, old_status, now)
+                if service.pk:
+                    service.version += 1
         super().save_formset(request, form, formset, change)
         booking = form.instance
         guests_changed = formset.new_objects or formset.changed_objects or formset.deleted_objects
@@ -93,7 +100,7 @@ class ServiceInline(admin.TabularInline):
     model = Service
     extra = 0
     formset = ServiceInlineFormSet
-    readonly_fields = ("version", "acct_closed")
+    readonly_fields = ("version", "acct_closed", "completed_at")
 
 
 @admin.register(Vessel)

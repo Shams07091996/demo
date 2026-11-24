@@ -8,14 +8,14 @@ from .constants import MULTI_TYPES, NO_AGENT, SERVICE_STATUSES, SERVICE_TYPES
 from .errors import BadRequest
 from .listing import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, date_param, int_param
 from .models import Guest, HotelStay, Service
-from .serializers import month_rates
+from .serializers import local_iso, month_rates
 
 
 def stamp_completed(service, old_status, now):
     """completed_at follows the status, never the payload: it becomes Completed -> now; it leaves Completed -> None;
     otherwise unchanged (a save that keeps it Completed keeps its time)."""
     if service.status == "completed":
-        if old_status != "completed" or service.completed_at is None:
+        if old_status != "completed":  # completed before tracking began: stays without a time
             service.completed_at = now
     else:
         service.completed_at = None
@@ -106,7 +106,7 @@ def _row(service, gaps, today, now):
         "agent": service.agent,
         "status": service.status,
         "cancel_reason": service.cancel_reason,
-        "completed_at": service.completed_at.isoformat() if service.completed_at else None,
+        "completed_at": local_iso(service.completed_at),
         "completed_guess": service.status == "completed" and service.completed_at is None,
         "sailed": service.status == "in_progress" and sailed(vessel, today, now),
         "missing": gaps,
