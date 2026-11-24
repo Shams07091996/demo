@@ -294,10 +294,24 @@ Two kinds of people:
 | Who | Sees | Can change |
 |---|---|---|
 | **Admin** (a superuser, 8.1) | Every port | Everything: accounts, ports, exchange rates, prices, shared (All ports) Master data, the History, the accounting **Open / Closed** switch on Calculations |
-| **User** | Their **home port** and any **extra ports** an Admin gives them | Everything in those ports: vessels, services, bookings, closures, garbage & sludge and those ports' Master data |
+| **User** | Their **home port** and any **extra ports** an Admin gives them, and only the **pages** ticked for them | In those ports, only what their **permissions** (the "Can" ticks) allow |
 
-Give each person only the ports they work in. An account with no port can sign in but sees only "Your account has
-no port yet. Ask an admin." (The finer per-person permissions — which pages, money — come with the next update.)
+Give each person only the ports they work in, and only the pages and permissions their job needs. An account with
+no port can sign in but sees only "Your account has no port yet. Ask an admin."
+
+**Templates** fill in the Pages and Can ticks in one go (you can change any tick afterwards; changing a template
+later never changes people who already have an account):
+
+| Template | Can | Pages (besides Vessels) |
+|---|---|---|
+| Marine employee | add / edit vessels and services, mark Completed, enter prices and costs | Services |
+| Operations employee | Marine + cancel a service, customers and ships, hotels & transport bookings | Services, Hotels, Transport, Ships, Customers |
+| Branch manager | all 16 | all |
+| Accounts employee | see money, exports, History, close / reopen lines | Services, Calculations, Dashboard, Exchange rates, History |
+
+Some ticks need another: Calculations, Exchange rates and History need **See money (overviews)**; **Close / reopen
+lines** needs the Calculations page. Vessels is always on. Everyone who had an account before this update keeps
+everything until an Admin changes their ticks.
 
 ### 8.3 Create each account (Accounts page)
 
@@ -305,8 +319,8 @@ Only **Admins** manage accounts. Sign in to the app as an Admin: the sidebar has
 else sees them). For each person on the list:
 
 1. [ ] **+ Add account**: username (3–30 letters, digits, `.` `_` `-`; capitals don't make a new name), first and last
-       name, **Home port**, any **Extra ports** (ticks; the home port's tick is always on), and a temporary password
-       (12+ characters, not a common one) → **Save**. Only ports that are turned on are offered. The page never makes
+       name, **Home port**, any **Extra ports** (ticks; the home port's tick is always on), a **Template** (or tick
+       **Pages** and **Can** yourself), and a temporary password (12+ characters, not a common one) → **Save**. Only ports that are turned on are offered. The page never makes
        anyone staff or superuser.
 2. [ ] Tell the person their username and temporary password **in person or by phone** (never in the same message as
        the site's address).
@@ -419,7 +433,9 @@ nssm restart MarineSheet                          # Linux: sudo systemctl restar
 `0023_port`: nothing to do, the four ports become a table; `0024_profile_ports`: every port account keeps its port as
 its home port, an "admin" account that isn't a superuser becomes a User of all four ports, **Read-only accounts are
 turned off** (they have no port), and nobody but a superuser keeps staff status — check the Accounts page afterwards; undoing it with
-`migrate sheet 0023` gives back each account's role, but not the staff flags or the turned-off accounts).
+`migrate sheet 0023` gives back each account's role, but not the staff flags or the turned-off accounts);
+`0025_profile_permissions`: every existing account gets all 16 permissions and every page — take away on the
+Accounts page what each job doesn't need).
 After an
 update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
 of date. Reload it and try again.").

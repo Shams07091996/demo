@@ -504,6 +504,16 @@ class SeedCommandTests(TestCase):
 
     @FAST_HASHER
     @override_settings(DEBUG=True)
+    def test_demo_marine_user_has_the_marine_template(self):
+        call_command("seed_demo", stdout=StringIO())
+        marine = Profile.objects.get(user__username="marine")
+        self.assertEqual((marine.ports, marine.permissions, marine.pages),
+                         (["alexandria"], ["vessels.edit", "services.edit", "services.complete", "money.edit"],
+                          ["vessels", "services"]))
+        self.assertEqual(Profile.objects.get(user__username="alex").permissions, list(PERMISSION_KEYS))
+
+    @FAST_HASHER
+    @override_settings(DEBUG=True)
     def test_seeds_reason_lists_and_closures(self):
         from .models import PortClosure
 

@@ -5,6 +5,18 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Access rework, piece 2 of 3 — permissions and pages (2026-11-25):** built on branch
+  **`feature/permissions-and-pages`**, **not merged** (waiting for the user's OK after a fresh review). Needs
+  migration **`0025_profile_permissions`** on the user's database: **every existing account gets all 16 permissions
+  and every page** (nobody loses anything); an Admin then takes away what each job doesn't need. Each User now has
+  16 permission ticks and page ticks on the Accounts page, filled in from four templates (Marine employee,
+  Operations employee, Branch manager, Accounts employee); the server refuses (403) anything not ticked, the sidebar
+  shows only their pages, buttons only what they may do. Exports follow the pages; a User with History sees only
+  their ports' records; the accounting Open / Closed switch is given to whoever has "Close / reopen lines". A new
+  account starts with nothing ticked (Vessels only). 809 backend tests; `npm run check` green; smoke test passes for
+  alex / admin / viewer / suez and the new demo user `marine`. **Next: piece 3** (money: what `money.view` /
+  `money.edit` hide). Plan: `plans/2026-11-25-permissions-and-pages.md`.
+
 - **Access rework, piece 1 of 3 — ports and people (2026-11-25):** **merged into `main`**
   (2026-11-25, after a fresh review — two findings fixed test-first — and the user's OK). Needs migrations **`0023_port`** (the four
   ports become a table) and **`0024_profile_ports`** on the user's database: each port account keeps its port as its

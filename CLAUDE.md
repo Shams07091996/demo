@@ -8,9 +8,10 @@ Marine Service Sheet: a Django 5.2 app replacing an Excel sheet of vessels and t
 deliveries, cash to master…), with cost / revenue / profit in EGP. One Django app (`sheet`) plus a vanilla ES-module
 front end with **no build step**. **Admins are the superusers** (made with `createsuperuser`, never by the app): every
 port, accounts, ports, rates, the History, accounting. Everyone else is a **User** with a home port and extra ports
-(`Profile.home_port` / `ports`) who works fully in each; no port → blocked ("no port yet"). The Read-only role is gone
-(migration 0024 turned those accounts off). This is piece 1 of the access rework
-(`specs/2026-11-24-access-rework-design.md`); pieces 2 (per-person permissions) and 3 (money) are still to build.
+(`Profile.home_port` / `ports`); no port → blocked ("no port yet"). The Read-only role is gone (migration 0024).
+In their ports a User does only what their **16 permissions** allow and sees only their **pages**
+(`Profile.permissions` / `pages`, piece 2 of the access rework, `specs/2026-11-24-access-rework-design.md`); piece 3
+(hiding money from people without `money.view` / `money.edit`) is still to build.
 See `README.md` and `SECURITY.md`.
 
 The project is a **git repository** (branch `main`; each feature on its own branch, merged only when the user agrees)
@@ -52,7 +53,7 @@ Dev tools are in `requirements-dev.txt` (ruff with the security rules `S`, pip-a
 ### Browser smoke test (`tools/ui_smoke_test.js`)
 
 Loads the real page in jsdom, signs in over HTTP and clicks through every page; run it for `alex` (port user),
-`admin` and `viewer` (a User of Alexandria, Port Said and Damietta). Run it against a **throwaway database**, never
+`admin`, `viewer` (a User of Alexandria, Port Said and Damietta), `suez` and `marine`. Run it against a **throwaway database**, never
 the user's `db.sqlite3`:
 
 ```bash
@@ -65,6 +66,7 @@ cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_sm
 - `suez` (a port user outside Alexandria) and `viewer` (the three-port User: port choices, a Damietta vessel, no Suez,
   no Open / Closed buttons) are short separate runs; the full script is written for alex / admin. The admin run also
   adds a `Smoke…` port on the Ports page each time (ports are never deleted).
+- `marine` (Alexandria, Marine template: Vessels + Services, no delete / cancel / exports) is a short separate run too.
 - `seed_demo` only sets passwords for users it creates; on a database that already has them, use a new database.
 - A run that fails part-way leaves its test vessels behind and later runs then fail on them: start from a fresh
   database (or delete the leftovers) before trusting a result.
@@ -98,8 +100,9 @@ exception into `{"error", "ref"}` 500 with the ref in the `sheet.security` log) 
 `access.asked_port`, so asking never widens). `access.ports_of(profile)` is None for Admins, else the User's keys;
 every record written into a port goes through `access.require_port(profile, key, new=...)` (403 for a port that isn't
 theirs, 400 "That port is turned off." for a new record in a turned-off one; `validators._record_port` for vessels and
-closures: sent port, else saved, else the User's home port). Writes call `access.require_edit` / `require_admin`
-(exchange rates are shared by all ports, so admin-only). Changes are recorded
+closures: sent port, else saved, else the User's home port). Writes call `access.require(profile, key)` (a
+permission) / `require_admin` (exchange rates, prices, moving Master data, deleting ships / customers); page-only
+routes call `access.require_page(profile, page)` (see **Permissions and pages**). Changes are recorded
 with `api.audit(...)`; values go through `api.log_safe`. `handler404` / `handler500` (`views.not_found` /
 `server_error`) answer JSON under `/api/`, plain pages elsewhere.
 
@@ -228,7 +231,7 @@ otherwise, 500 characters; a save without the key keeps the stored value). Exist
 cancelled service is skipped by `crewbookings.crew_members` (its drafts go, and come back if un-cancelled),
 `early_arrivals` and `listing.missing_details`; its money lines stay (the dialog sets the money to 0 on choosing
 Cancelled). **Accounting** (`accounting.py`, `POST /api/accounting/ {kind: service|hotel|transfer|disposal, id,
-closed}`, `access.require_accounting`: Admins only (until piece 2's `accounting.close` permission); only a thing with a line on Calculations, i.e. some
+closed}`, permission `accounting.close` (which needs the Calculations page); only a thing with a line on Calculations, i.e. some
 money, can be closed: `accounting.NO_MONEY`): `acct_closed` on Service, HotelStay, Transfer and
 VesselDisposal, never written by operations saves (`conflicts.UNTRACKED`); the flag alone never raises `version`
 (writing a kept rate on closing does, below). Closed =
@@ -288,16 +291,44 @@ page reads its own `data-tick` group inside its own box). A row opens `openServi
 'services'})` (edit roles; `afterServiceChange` closes the dialog and reloads the page) or the vessel (read-only);
 filters are kept in `localStorage` (`sheet.services.filter`).
 
+**Permissions and pages** (migration 0025, `constants.PERMISSIONS` / `PAGES` / `TEMPLATES`, `tests_permissions`):
+each User has `Profile.permissions` and `Profile.pages` (JSON lists of fixed keys); `Profile.can(key)` /
+`sees(page)` answer True for Admins, and re-apply the dependencies whatever is stored (`PERMISSION_NEEDS`:
+`history.view` needs `money.view`, `accounting.close` needs the Calculations page; `PAGE_NEEDS`: Calculations /
+Exchange rates need `money.view`, History = `history.view`; Vessels always). Writes: `vessels.edit` (create / update),
+`vessels.delete`, `services.edit` (create / update / delete) plus `services.status_permissions(old, new)` (to or from
+Cancelled `services.cancel`, to or from Completed `services.complete`; a new service counts from In progress),
+`cancel_bookings` also `bookings.edit`, the service's bookings list `services.cancel`, `documents` (LOG, receipt),
+`master.edit` (add / remove values), `customers.edit` (ships and customers; changed agreed rates also `money.edit`,
+`customers.save_customer(may_change_rates=)`), `closures.edit`, `bookings.edit`, `disposal.edit`, `accounting.close`.
+Page-only routes: `/api/services/` services, `/api/hotels|transfers/…` hotels / transport (crew picker: either),
+`/api/closures/…`, `/api/disposal/…`, `/api/calculations/`, `/api/dashboard/` + jobs, `/api/rates/` and
+`/api/disposal-prices/` (rates page). Vessels, alerts, options, ships and customers stay readable for dropdowns.
+Exports: `exports` + the page (`dataexport.EXPORT_PAGE`); the CSV `exports`; All data and the management Excel need
+the Dashboard page and leave out the sheets of pages not had (`dataexport.all_pages_for`, `report.data`); the
+alerts' `Hotel: …` / `Transport: …` lines follow those pages. History: `history.view`; a User gets only
+`history.PORT_TYPES` records of their ports (Profile records carry a home port, so types, not ports, keep people out;
+`port_of` gives PortClosure its port from 0025 on). Migration 0025 gave every existing Profile everything; a new
+account starts with nothing (Vessels only); `tests.make_user(..., permissions=None, pages=None)` gives all.
+`index` sends `me.permissions` / `me.pages` as they apply; the template shows only those nav items, Excel buttons
+with `exports`; JS uses `config.can(key)` / `sees(page)` (no `canEdit` any more), the router lands unseen pages on
+Vessels, the service dialog disables statuses `util.statusNeeds` (twin of the server rule, `parsing_test.js`) says
+are not allowed. `seed_demo` adds `marine` (Alexandria, Marine template); other demo Users have everything.
+
 **Accounts page** (`accounts.py`, `GET/POST /api/accounts/`, `PUT /api/accounts/<id>/`, page `js/pages/accounts.js`,
 dialog `js/modals/account.js`): **Admins (superusers) only** (`access.require_superuser(request)`, `me.isSuperuser`
 renders the nav item / page). Lists every account (on first, then username) with home port / ports (column "Ports":
 "Alexandria (home), Damietta", superusers "Admin · all ports"), `two_step` (`set_up` / `waiting` / `expired` /
-`exempt`), last sign-in; a GET never creates a Profile; the response's `ports` is `[[key, name, active]]`.
+`exempt`), last sign-in, "Can" (`8 of 16`); a GET never creates a Profile; the response's `ports` is
+`[[key, name, active]]`, plus `permissions` / `pages` (`[[key, label]]`) and `templates` (`[[key, label, perms,
+pages]]`).
 `validators.clean_account`: new → username (`USERNAME_RE`, unique ignoring case: `accounts.TAKEN`), names (150),
 `home_port` + `ports` (`_account_ports`: home required and put first; each must exist and be turned on unless the
-account already has it; at most 50), password through Django's `validate_password`; existing → names / ports /
-`active` only, anything else ignored. The dialog: Home port select + Extra ports ticks (the home's tick on and
-fixed). Superuser and staff accounts are
+account already has it; at most 50), `permissions` / `pages` (`_account_ticks`: known keys only, fixed order;
+Vessels added, History set from `history.view`; dependencies refused; absent on an existing account = kept),
+password through Django's `validate_password`; existing → names / ports / ticks / `active` only, anything else
+ignored. The dialog: Home port select + Extra ports ticks (the home's tick on and fixed), Template (fills the ticks,
+not saved), Pages and Can ticks (a tick that needs another is disabled and unticked without it). Superuser and staff accounts are
 refused (`accounts.LOCKED_ACCOUNT`, managed in the admin pages); the page never sets either flag. Turn off =
 `is_active=False` (Django drops the session on the next request) + the user's remembered computers deleted. The
 temporary password triggers `must_change_password` through the existing signal; History via the User / Profile
@@ -335,7 +366,7 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
 
 **Front end** (`static/sheet/js/`, entry `main.js`):
 - **The person's ports:** `me` (`json_script`) has `ports` (every key for Admins), `homePort` ("" for Admins),
-  `multiPort` (Admin or 2+ ports), `isAdmin`, `isSuperuser`, `canEdit`. `config.myPorts()` (filters) and
+  `multiPort` (Admin or 2+ ports), `isAdmin`, `isSuperuser`, `permissions`, `pages`. `config.myPorts()` (filters) and
   `openPorts()` (turned-on ones, for new records) are functions because the Ports page changes `PORTS` in place;
   `components.portOptionEls({all, selected, ports})` ("All my ports" for Users) and `formPorts(open, current)`.
   Port filters / Port columns show when `ME.multiPort`; forms start on the shown port, else the home port.

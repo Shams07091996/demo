@@ -104,7 +104,7 @@ location / {
 | Dashboard | Filters (dates, port, OPR, agent, service type); jobs per agent (chart + table, a row lists that agent's jobs), services per month (stacked chart + table), money per month (table), then the OPR charts and cards — all totalled by the server |
 | Master data | Add / remove the OPR, POC, Agent, Hotel, Airport and Port values used in the dropdowns (with "used by N"). Each value belongs to **one port or All ports**: admins choose when adding and can move it later; port users' values are for their port. Every dropdown offers only the item's port plus All-ports values |
 | Exchange rates | Monthly USD → EGP rates (shared by every port, so only admins can change them) |
-| History | **Admins only.** Every create / change / delete (vessels, services, bookings, guests, Master data, rates, ports, user accounts) with who, when, from which address and old → new; filter by date, what changed and user. Nobody can edit or delete it |
+| History | **Admins**, and Users with the History permission (their ports' records only). Every create / change / delete (vessels, services, bookings, guests, Master data, rates, ports, user accounts) with who, when, from which address and old → new; filter by date, what changed and user. Nobody can edit or delete it |
 
 Each vessel also records its **arrival agent** (who entered it), its **sailing agent** (who sailed it) and its **port-call times** (arrived, berthed, ops started, ops finished, sailed – Cairo
 time) with the time spent at berth / operating / in port. Operations may start before berthing (anchorage work); other
@@ -129,7 +129,7 @@ out-of-order times are rejected.
 | Who | Sees | Can edit |
 |---|---|---|
 | Admin (a superuser) | every port | everything: accounts, ports (add / rename / turn off, never delete), exchange rates, prices, All-ports master data, the History, the accounting Open / Closed switch |
-| User | their home port and extra ports | everything in those ports (and those ports' master-data values) |
+| User | their home port and extra ports, and only the **pages** an Admin ticks | in those ports, only what their **permissions** allow (16 ticks on the Accounts page, filled in from a template: Marine employee, Operations employee, Branch manager, Accounts employee) |
 
 Port restrictions are enforced on the server for every request, not just hidden in the page: asking for another
 port never shows more, and writing into a port that isn't theirs is refused. A turned-off port takes no new records.
@@ -147,7 +147,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 756 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
+python manage.py test sheet         # 809 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
