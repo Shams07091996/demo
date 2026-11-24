@@ -10,6 +10,7 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from . import ports
 from .access import profile_of
+from .constants import PAGES, PERMISSIONS, TEMPLATES
 from .errors import BadRequest
 from .models import Profile, RememberedComputer
 from .serializers import local_iso
@@ -49,6 +50,8 @@ def account_to_dict(user, now=None, confirmed=None):
         "last_name": user.last_name,
         "home_port": profile.home_port if profile else "",
         "ports": list(profile.ports) if profile else [],
+        "permissions": list(profile.permissions) if profile else [],
+        "pages": list(profile.pages) if profile else [],
         "superuser": user.is_superuser,
         "staff": user.is_staff,
         "active": user.is_active,
@@ -65,6 +68,10 @@ def list_response():
     return {
         "accounts": [account_to_dict(u, now, u.id in confirmed) for u in users],
         "ports": [[key, name, active] for key, name, active in ports.rows()],
+        "permissions": [list(p) for p in PERMISSIONS],
+        "pages": [list(p) for p in PAGES],
+        # Templates only fill in the dialog's ticks; nothing links a person to one.
+        "templates": [[key, label, list(perms), list(pages)] for key, label, perms, pages in TEMPLATES],
     }
 
 
@@ -81,7 +88,8 @@ def create_account(payload):
         raise BadRequest(TAKEN)
     user = User.objects.create_user(values["username"], password=values["password"],
                                     first_name=values["first_name"], last_name=values["last_name"])
-    _save_profile(Profile(user=user, home_port=values["home_port"], ports=values["ports"]))
+    _save_profile(Profile(user=user, home_port=values["home_port"], ports=values["ports"],
+                          permissions=values["permissions"], pages=values["pages"]))
     return user
 
 
@@ -89,11 +97,13 @@ def update_account(user, payload):
     if user.is_superuser or user.is_staff:
         raise BadRequest(LOCKED_ACCOUNT)
     values = clean_account(payload, existing=user)
-    if "ports" in values:
+    fields = [key for key in ("home_port", "ports", "permissions", "pages") if key in values]
+    if fields:
         profile = profile_of(user)
-        if (profile.home_port, profile.ports) != (values["home_port"], values["ports"]):
-            profile.home_port, profile.ports = values["home_port"], values["ports"]
-            _save_profile(profile)
+        if any(getattr(profile, key) != values[key] for key in fields):
+            for key in fields:
+                setattr(profile, key, values[key])
+            _save_profile(profile)  # one save, so the History has one record of the change
     changed = False
     for key in ("first_name", "last_name"):
         if key in values and getattr(user, key) != values[key]:

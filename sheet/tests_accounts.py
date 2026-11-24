@@ -232,3 +232,80 @@ class AccountApiTests(ApiTestCase):
             page = self.login(name).get("/").content.decode()
             self.assertNotIn('data-page="accounts"', page)
             self.assertNotIn('id="page-accounts"', page)
+
+
+class AccountPermissionTests(ApiTestCase):
+    """Piece 2: the Accounts page sets each person's permissions and pages; templates only fill in the ticks."""
+
+    def new(self, **extra):
+        return accounts.create_account({"username": "newbie", "first_name": "Nora", "home_port": "damietta",
+                                        "password": GOOD_PASSWORD, **extra}).profile
+
+    def refused(self, message, **extra):
+        with self.assertRaises(BadRequest) as caught:
+            self.new(**extra)
+        self.assertEqual(str(caught.exception), message)
+        self.assertFalse(User.objects.filter(username="newbie").exists())
+
+    def test_create_with_ticks(self):
+        profile = self.new(permissions=["services.edit", "vessels.edit", "vessels.edit"], pages=["services"])
+        self.assertEqual(profile.permissions, ["vessels.edit", "services.edit"])  # fixed order, once each
+        self.assertEqual(profile.pages, ["vessels", "services"])
+
+    def test_create_without_ticks_has_nothing(self):
+        profile = self.new()
+        self.assertEqual((profile.permissions, profile.pages), ([], ["vessels"]))
+
+    def test_unknown_keys_refused(self):
+        self.refused("Unknown permission.", permissions=["vessels.fly"])
+        self.refused("Unknown page.", pages=["accounts"])
+        self.refused("Unknown permission.", permissions="vessels.edit")
+        self.refused("Unknown page.", pages=[1])
+
+    def test_dependencies_refused(self):
+        self.refused("Calculations and Exchange rates need See money.", pages=["calculations"])
+        self.refused("Calculations and Exchange rates need See money.", pages=["rates"])
+        self.refused("History needs See money.", permissions=["history.view"])
+        self.refused("Close / reopen lines needs the Calculations page.",
+                     permissions=["accounting.close", "money.view"])
+
+    def test_vessels_always_and_history_follows_permission(self):
+        profile = self.new(permissions=["money.view", "history.view"], pages=[])
+        self.assertEqual(profile.pages, ["vessels", "history"])
+        accounts.update_account(profile.user, {"permissions": ["money.view"], "pages": ["history", "rates"]})
+        profile.refresh_from_db()
+        self.assertEqual(profile.pages, ["vessels", "rates"])  # History went with history.view
+
+    def test_update_without_lists_keeps_them(self):
+        profile = self.new(permissions=["vessels.edit"], pages=["services"])
+        accounts.update_account(profile.user, {"active": False})
+        accounts.update_account(profile.user, {"first_name": "Nadia", "home_port": "suez"})
+        profile.refresh_from_db()
+        self.assertEqual((profile.permissions, profile.pages), (["vessels.edit"], ["vessels", "services"]))
+
+    def test_list_has_ticks_and_templates(self):
+        self.new(permissions=["vessels.edit"])
+        body = accounts.list_response()
+        row = next(a for a in body["accounts"] if a["username"] == "newbie")
+        self.assertEqual((row["permissions"], row["pages"]), (["vessels.edit"], ["vessels"]))
+        self.assertEqual([key for key, _ in body["permissions"]][:2], ["vessels.edit", "vessels.delete"])
+        self.assertEqual(body["pages"][0], ["vessels", "Vessels"])
+        marine = next(t for t in body["templates"] if t[0] == "marine")
+        self.assertEqual(marine[1:], ["Marine employee", ["vessels.edit", "services.edit", "services.complete",
+                                                           "money.edit"], ["vessels", "services"]])
+
+    def test_tick_changes_are_in_history(self):
+        profile = self.new(permissions=["vessels.edit"])
+        accounts.update_account(profile.user, {"permissions": ["vessels.edit", "vessels.delete"]})
+        record = ChangeRecord.objects.filter(object_type="profile", object_id=profile.pk).order_by("id").last()
+        self.assertEqual(record.changes["permissions"], [["vessels.edit"], ["vessels.edit", "vessels.delete"]])
+
+    def test_api_round_trip(self):
+        client = self.login("admin")
+        body = {"username": "newbie", "first_name": "N", "last_name": "", "home_port": "alexandria", "ports": [],
+                "password": GOOD_PASSWORD, "permissions": ["vessels.edit"], "pages": ["services"]}
+        status, made = self.call(client, "post", "/api/accounts/", body)
+        self.assertEqual(status, 201, made)
+        self.assertEqual((made["permissions"], made["pages"]), (["vessels.edit"], ["vessels", "services"]))
+        status, made = self.call(client, "put", f"/api/accounts/{made['id']}/", {"pages": ["hotels"]})
+        self.assertEqual((status, made["pages"], made["permissions"]), (200, ["vessels", "hotels"], ["vessels.edit"]))
