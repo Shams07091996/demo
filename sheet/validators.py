@@ -18,6 +18,7 @@ from .constants import (
     MULTI_TYPES,
     OPTION_KINDS,
     PLACE_KEYS,
+    BILLING,
     PORT_KEYS,
     RATE_UNITS,
     SERVICE_STATUSES,
@@ -244,6 +245,23 @@ def clean_service_data(service_type, raw):
     if service_type == "Cash to Master":
         return _clean_cash_to_master(raw)
     return _clean_single(service_type, raw)
+
+
+def clean_service_billing(payload, vessel, existing=None):
+    """(billing, billing party) of a service. A save without a key keeps the stored value; a new service starts On
+    account, billed to its vessel's ship's customer. The party is a customer id (active, or the saved one) or null."""
+    billing = payload.get("billing", getattr(existing, "billing", "account"))
+    if not isinstance(billing, str) or billing not in BILLING:
+        raise BadRequest("Choose Cash or On account.")
+    current = getattr(existing, "billing_party", None)
+    if "billing_party" in payload:
+        party = pick_customer(payload.get("billing_party"), current, "Billing party")
+    elif existing is not None:
+        party = current
+    else:
+        ship = vessel.ship
+        party = ship.customer if ship is not None and ship.customer is not None and ship.customer.active else None
+    return billing, party
 
 
 RECEIPT_MAX_LINES = 40

@@ -36,6 +36,10 @@ def month_rates():
     return {(r.month.year, r.month.month): r.rate for r in ExchangeRate.objects.all()}
 
 
+def _party(customer):
+    return {"id": customer.id, "name": customer.name} if customer is not None else None
+
+
 def service_to_dict(service, month_rate):
     return {
         "id": service.id,
@@ -44,6 +48,8 @@ def service_to_dict(service, month_rate):
         "data": service.data,
         "status": service.status,
         "cancel_reason": service.cancel_reason,
+        "billing": service.billing,
+        "billing_party": _party(service.billing_party),
         "closed": service.acct_closed,
         "version": service.version,
         "calc": compute(service.service_type, service.data, month_rate),

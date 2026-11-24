@@ -75,6 +75,7 @@ from .validators import (
     clean_disposal_price,
     clean_disposal_quantities,
     clean_receipt,
+    clean_service_billing,
     clean_service_data,
     clean_service_status,
     clean_vessel,
@@ -274,8 +275,9 @@ def _read_service(request, vessel, existing=None):
         raise BadRequest("Choose a service type.")
     agent = clean_agent(payload.get("agent"), vessel.port, getattr(existing, "agent", ""))
     status, reason = clean_service_status(payload, existing)
+    billing, party = clean_service_billing(payload, vessel, existing)
     return {"service_type": service_type, "agent": agent, "data": clean_service_data(service_type, payload.get("data")),
-            "status": status, "cancel_reason": reason}
+            "status": status, "cancel_reason": reason, "billing": billing, "billing_party": party}
 
 
 @json_api
