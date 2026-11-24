@@ -215,7 +215,8 @@ def data_export(request, page):
         raise Http404
     ratelimit.check(request, "export")
     content = dataexport.page_file(page, request.profile, request.GET)
-    audit(request, "data.export", page=page, query=request.GET.urlencode()[:300])
+    # Which filters were used, not their values: a search is often a person's name.
+    audit(request, "data.export", page=page, filters=",".join(sorted(request.GET))[:200])
     today = timezone.localdate().isoformat()
     return _xlsx_response(content, f"{dataexport.TITLES[page]} {today}.xlsx")
 

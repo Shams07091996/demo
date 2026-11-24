@@ -107,9 +107,17 @@ BUILDERS = {"hotels": _hotels, "transfers": _transfers, "closures": _closures, "
             "calculations": _calculations}
 
 
+def _plain(value):
+    """Numbers (ids, money, rates, quantities, hours) shown exactly as stored: a CSV saved from Excel keeps them."""
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return xlsx.Number(value)
+    return value
+
+
 def sheet(page, profile, params):
     """One page's rows (its list query, all pages of it) as an xlsx.Sheet: header row, then one row per record."""
     head, rows = BUILDERS[page](profile, params)
+    rows = [[_plain(value) for value in row] for row in rows]
     return xlsx.Sheet(TITLES[page], [head, *rows], widths=[16] * len(head))
 
 

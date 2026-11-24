@@ -174,3 +174,21 @@ class DownloadTests(ApiTestCase):
         for _ in range(2):
             self.assertEqual(viewer.get("/api/export/closures/").status_code, 200)
         self.assertEqual(viewer.get("/api/export/closures/").status_code, 429)
+
+
+@override_settings(RATE_LIMIT_EXPORTS_PER_USER=50)
+class PlainNumberTests(ApiTestCase):
+    def test_numbers_shown_as_stored(self):
+        stay = HotelStay.objects.create(vessel=self.alex_vessel, hotel="H", check_in=date(2026, 11, 13), nights=1,
+                                        exchange_rate=Decimal("48.6512"))
+        data = self.login("viewer").get("/api/export/hotels/").content
+        sheet = zipfile.ZipFile(io.BytesIO(data)).read("xl/worksheets/sheet1.xml").decode()
+        self.assertIn(f'<c r="A2"><v>{stay.id}</v></c>', sheet)  # an id: General, never "1,234"
+        self.assertIn("<v>48.6512</v></c>", sheet)
+        self.assertNotRegex(sheet, r'<c r="N2" s="')
+
+    def test_search_text_not_logged(self):
+        with self.assertLogs("sheet.audit", "INFO") as logs:
+            self.login("viewer").get("/api/export/hotels/", {"q": "JOHN SMITH", "from": "2026-11-01"})
+        self.assertNotIn("SMITH", logs.output[-1])
+        self.assertIn("from", logs.output[-1])

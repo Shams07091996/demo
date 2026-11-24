@@ -48,6 +48,14 @@ class Hours:
 
 
 @dataclass(frozen=True)
+class Number:
+    """A number shown exactly as stored (General format: no thousands separator, no rounding on show), as other
+    programs and Excel's own CSV save need it. None: an empty cell."""
+
+    value: float | int | None
+
+
+@dataclass(frozen=True)
 class Day:
     """A calendar date, shown dd/mm/yyyy (a real Excel date). None: an empty cell."""
 
@@ -118,6 +126,8 @@ def _cell(ref, value):
     """One <c> element, or "" for an empty cell."""
     if value is None:
         return ""
+    if isinstance(value, Number):
+        return "" if value.value is None else f'<c r="{ref}"><v>{_number(value.value)}</v></c>'
     if isinstance(value, Day | Moment):
         if value.value is None:
             return ""

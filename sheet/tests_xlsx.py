@@ -125,3 +125,12 @@ class DateCellTests(SimpleTestCase):
         for tag, child in (("numFmts", "numFmt"), ("cellXfs", "xf")):
             block = re.search(rf"<{tag} count=\"(\d+)\">(.*?)</{tag}>", styles)
             self.assertEqual(int(block.group(1)), block.group(2).count(f"<{child} "), tag)
+
+
+class NumberCellTests(SimpleTestCase):
+    def test_number_cell_has_general_format(self):
+        sheet = open_parts(xlsx.build([xlsx.Sheet("S", [[xlsx.Number(1234), xlsx.Number(48.6512), xlsx.Number(None)]])]))
+        sheet = sheet["xl/worksheets/sheet1.xml"]
+        self.assertIn('<c r="A1"><v>1234</v></c>', sheet)  # no thousands separator, no 2-decimal rounding on show
+        self.assertIn('<c r="B1"><v>48.6512</v></c>', sheet)
+        self.assertNotIn('r="C1"', sheet)
