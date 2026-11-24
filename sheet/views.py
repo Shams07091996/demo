@@ -20,6 +20,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from . import (
+    accounting,
     branding,
     calculations,
     closures,
@@ -36,7 +37,7 @@ from . import (
     twostep,
 )
 from . import dashboard as dashboard_figures
-from .access import profile_of, require_admin, require_edit, scoped_closures, scoped_vessels
+from .access import profile_of, require_accounting, require_admin, require_edit, scoped_closures, scoped_vessels
 from .api import audit, json_api, read_json, server_error_response
 from .constants import (
     NO_AGENT,
@@ -51,14 +52,26 @@ from .constants import (
     TIME_KEYS,
 )
 from .errors import BadRequest, Forbidden, TooManyRequests
-from .models import ChangeRecord, DisposalPrice, ExchangeRate, HotelStay, Option, Service, Transfer, Vessel
+from .models import (
+    ChangeRecord,
+    DisposalPrice,
+    ExchangeRate,
+    HotelStay,
+    Option,
+    Service,
+    Transfer,
+    Vessel,
+    VesselDisposal,
+)
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import (
     clean_agent,
+    clean_booking_refs,
     clean_disposal_price,
     clean_disposal_quantities,
     clean_receipt,
     clean_service_data,
+    clean_service_status,
     clean_vessel,
 )
 
@@ -193,6 +206,7 @@ def vessel_detail(request, pk):
 
     require_edit(request.profile)
     if request.method == "DELETE":
+        accounting.require_vessel_open(vessel)
         vessel.delete()
         audit(request, "vessel.delete", id=pk)
         return JsonResponse({"ok": True})
@@ -212,14 +226,16 @@ def vessel_detail(request, pk):
 # ---- services -------------------------------------------------------------------------------
 
 
-def _read_service(request, vessel, current_agent=""):
-    """(type, agent, data) of a service sent by the browser for `vessel`."""
+def _read_service(request, vessel, existing=None):
+    """{service_type, agent, data, status, cancel_reason} of a service sent by the browser for `vessel`."""
     payload = read_json(request)
     service_type = payload.get("type")
     if service_type not in SERVICE_TYPES:
         raise BadRequest("Choose a service type.")
-    agent = clean_agent(payload.get("agent"), vessel.port, current_agent)
-    return service_type, agent, clean_service_data(service_type, payload.get("data"))
+    agent = clean_agent(payload.get("agent"), vessel.port, getattr(existing, "agent", ""))
+    status, reason = clean_service_status(payload, existing)
+    return {"service_type": service_type, "agent": agent, "data": clean_service_data(service_type, payload.get("data")),
+            "status": status, "cancel_reason": reason}
 
 
 @json_api
@@ -227,10 +243,10 @@ def _read_service(request, vessel, current_agent=""):
 def service_create(request, pk):
     require_edit(request.profile)
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
-    service_type, agent, data = _read_service(request, vessel)
-    service = Service.objects.create(vessel=vessel, service_type=service_type, agent=agent, data=data)
+    fields = _read_service(request, vessel)
+    service = Service.objects.create(vessel=vessel, **fields)
     crewbookings.sync(vessel)
-    audit(request, "service.create", id=service.id, vessel=vessel.id, type=service_type)
+    audit(request, "service.create", id=service.id, vessel=vessel.id, type=service.service_type)
     return _vessel_json(vessel.pk, status=201)
 
 
@@ -241,17 +257,34 @@ def service_detail(request, pk):
     allowed = scoped_vessels(request.profile, prefetch=False)
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed), pk=pk)
     if request.method == "DELETE":
+        accounting.require_open(service)
         service.delete()
         audit(request, "service.delete", id=pk, vessel=service.vessel_id)
     else:
-        service = conflicts.locked(service, read_json(request), request.user)
+        payload = read_json(request)
+        service = conflicts.locked(service, payload, request.user)
+        accounting.require_open(service)  # the fresh row: a dialog opened before accounting closed it is refused too
+        refs = clean_booking_refs(payload.get("cancel_bookings"))
         before = conflicts.snapshot(service)
-        service.service_type, service.agent, service.data = _read_service(request, service.vessel, service.agent)
+        for field, value in _read_service(request, service.vessel, service).items():
+            setattr(service, field, value)
         conflicts.bump_if_changed(service, before)
         service.save()
-        audit(request, "service.update", id=service.id, vessel=service.vessel_id)
+        cancelled = crewbookings.cancel_bookings(service, refs)
+        extra = {"cancelled_bookings": ",".join(f"{kind}:{pk}" for kind, pk in cancelled)} if cancelled else {}
+        audit(request, "service.update", id=service.id, vessel=service.vessel_id, **extra)
     crewbookings.sync(service.vessel)  # automatic bookings follow the crew (a deleted service drops its drafts)
     return _vessel_json(service.vessel_id)
+
+
+@json_api
+@require_http_methods(["GET"])
+def service_bookings(request, pk):
+    """A Crew Change's saved hotel stays and transfers, for the dialog's "cancel these too" list."""
+    allowed = scoped_vessels(request.profile, prefetch=False)
+    service = get_object_or_404(Service.objects.filter(vessel__in=allowed), pk=pk)
+    bookings = crewbookings.saved_bookings(service)
+    return JsonResponse({"bookings": [crewbookings.booking_ref(kind, booking) for kind, booking in bookings]})
 
 
 # ---- LOG letter (see logpdf.py) --------------------------------------------------------------
@@ -423,6 +456,7 @@ def disposal_list(request):
 def disposal_update(request, vessel_id):
     require_edit(request.profile)
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=vessel_id)
+    accounting.require_open(VesselDisposal.objects.filter(vessel=vessel).select_for_update().first())
     changes = clean_disposal_quantities(read_json(request))
     result = disposal.save(vessel, changes)
     audit(request, "disposal.save", vessel=vessel.id, **changes)
@@ -648,11 +682,14 @@ def booking_detail(request, kind, pk):
         return JsonResponse(logistics.booking_to_dict(kind, booking, profile))
     require_edit(profile)
     if request.method == "DELETE":
+        accounting.require_open(booking)
         booking.delete()
         audit(request, f"{_AUDIT_NAME[kind]}.delete", id=pk)
         return JsonResponse({"ok": True})
     payload = read_json(request)
-    booking = logistics.save_booking(kind, profile, payload, existing=conflicts.locked(booking, payload, request.user))
+    existing = conflicts.locked(booking, payload, request.user)
+    accounting.require_open(existing)
+    booking = logistics.save_booking(kind, profile, payload, existing=existing)
     audit(request, f"{_AUDIT_NAME[kind]}.update", id=booking.id)
     return JsonResponse(logistics.booking_to_dict(kind, booking, profile))
 
@@ -666,6 +703,17 @@ def vessel_crew(request, pk):
 
 
 # ---- calculations (see calculations.py) --------------------------------------------------------
+
+
+@json_api
+@require_http_methods(["POST"])
+def accounting_set(request):
+    """Close or reopen one Calculations row (accounting.py): read-only (accounting) and admins only."""
+    require_accounting(request.profile)
+    kind, pk, closed = accounting.clean_request(read_json(request))
+    accounting.set_closed(request.profile, kind, pk, closed)
+    audit(request, "accounting.close" if closed else "accounting.open", kind=kind, id=pk)
+    return JsonResponse({"ok": True, "closed": closed})
 
 
 @json_api

@@ -25,6 +25,10 @@ SERVICE_TYPES = [
     "Others / Remarks",
 ]
 
+# Operations status of a service (2026-11-23): key -> label. New services start in progress.
+SERVICE_STATUSES = {"in_progress": "In progress", "completed": "Completed", "cancelled": "Cancelled"}
+CANCEL_REASON_MAX = 500
+
 # Services made of several priced entries (AWB / weight / cost / revenue).
 MULTI_TYPES = ("Delivery Parcels", "Delivery Courier", "Landing")
 # Single-priced services and the one extra descriptive field each of them has.

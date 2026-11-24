@@ -42,6 +42,9 @@ def service_to_dict(service, month_rate):
         "type": service.service_type,
         "agent": service.agent,
         "data": service.data,
+        "status": service.status,
+        "cancel_reason": service.cancel_reason,
+        "closed": service.acct_closed,
         "version": service.version,
         "calc": compute(service.service_type, service.data, month_rate),
     }

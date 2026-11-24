@@ -120,6 +120,20 @@ function renderMonths({ months, service_types: types, totals }) {
   setChildren($('#tbl-money'), figTable(heads, moneyRows));
 }
 
+/** Services per operations status and Calculations lines per accounting state, per month (dashboard.status). */
+function renderStatus({ months, totals }) {
+  if (!months.length) {
+    setChildren($('#tbl-status'), noData());
+    return;
+  }
+  const heads = ['', ...months.map((m) => monthLabel(m.month)), 'Total'];
+  const rows = [
+    ['In progress', 'in_progress'], ['Completed', 'completed'], ['Cancelled', 'cancelled'],
+    ['Open lines', 'open'], ['Closed lines', 'closed'],
+  ].map(([label, key]) => [[label, ...months.map((m) => m[key]), totals[key]]]);
+  setChildren($('#tbl-status'), figTable(heads, rows));
+}
+
 export function renderDashboard() {
   const data = state.dashboard;
   const { count, oprs } = data;
@@ -127,6 +141,7 @@ export function renderDashboard() {
   renderFilters();
   renderAgents(data);
   renderMonths(data);
+  renderStatus(data.status);
   const labels = oprs.map((o) => o.opr);
   const column = (key) => oprs.map((o) => o[key]);
   renderBars('#chart-vessels', labels, column('vessels'), (n) => n);

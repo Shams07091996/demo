@@ -18,6 +18,12 @@ def require_edit(profile):
         raise Forbidden("Your account is read-only.")
 
 
+def require_accounting(profile):
+    """Accounting (Open / Closed on Calculations): the read-only accounts are the accountants; admins too."""
+    if not (profile.is_admin or profile.role == "readonly"):
+        raise Forbidden("Only accounting can change this.")
+
+
 def require_admin(profile):
     """For data shared by every port (e.g. exchange rates): only admins may change it."""
     if not profile.is_admin:

@@ -161,3 +161,42 @@ class DashboardJobsTests(ApiTestCase):
         )
         _, data = self.jobs(NOV + "&agent=BUSY")
         self.assertEqual((len(data["jobs"]), data["truncated"]), (500, True))
+
+
+@FAST_HASHER
+class StatusCountTests(ApiTestCase):
+    """Service status (In progress / Completed / Cancelled) and accounting (Open / Closed rows) per month."""
+
+    def setUp(self):
+        Vessel.objects.all().delete()
+        self.v1 = Vessel.objects.create(name="V1", date=date(2026, 9, 10), port="alexandria", arrival_agent="DELTA")
+        self.v2 = Vessel.objects.create(name="V2", date=date(2026, 11, 12), port="alexandria")
+        Service.objects.create(vessel=self.v1, service_type="Fresh Water", agent="DELTA", status="completed",
+                               data=WATER, acct_closed=True)
+        Service.objects.create(vessel=self.v2, service_type="Fresh Water", agent="NILE", data=WATER)
+        Service.objects.create(vessel=self.v2, service_type="Landing", agent="DELTA", status="cancelled",
+                               cancel_reason="x", data={"entries": [{"cost": 1}, {"cost": 2}]})
+        HotelStay.objects.create(vessel=self.v2, hotel="H", check_in=date(2026, 11, 12), nights=1,
+                                 cost_per_night=5)
+
+    def status(self, query="?from=2026-09-01&to=2026-11-30"):
+        status, data = self.call(self.login("admin"), "get", f"/api/dashboard/{query}")
+        self.assertEqual(status, 200, data)
+        return data["status"]
+
+    def test_status_counts_per_month(self):
+        counts = self.status()
+        zero = {"in_progress": 0, "completed": 0, "cancelled": 0, "open": 0, "closed": 0}
+        self.assertEqual(counts["months"], [
+            {"month": "2026-09", **zero, "completed": 1, "closed": 1},
+            {"month": "2026-10", **zero},
+            {"month": "2026-11", **zero, "in_progress": 1, "cancelled": 1, "open": 4},  # water, 2 landing, hotel
+        ])
+        self.assertEqual(counts["totals"], {"in_progress": 1, "completed": 1, "cancelled": 1, "open": 4, "closed": 1})
+
+    def test_status_counts_follow_agent_filter(self):
+        totals = self.status("?from=2026-09-01&to=2026-11-30&agent=DELTA")["totals"]
+        # DELTA's services: V1 water (closed) and V2 landing (2 open rows); no bookings once narrowed
+        self.assertEqual(totals, {"in_progress": 0, "completed": 1, "cancelled": 1, "open": 2, "closed": 1})
+        self.assertEqual(self.status("?from=2026-01-01&to=2026-01-31"), {
+            "months": [], "totals": {"in_progress": 0, "completed": 0, "cancelled": 0, "open": 0, "closed": 0}})

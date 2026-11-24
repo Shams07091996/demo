@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
-from .constants import OPTION_KINDS, PLACES, PORT_KEYS, PORTS, ROLES, SERVICE_TYPES
+from .constants import CANCEL_REASON_MAX, OPTION_KINDS, PLACES, PORT_KEYS, PORTS, ROLES, SERVICE_STATUSES, SERVICE_TYPES
 
 SETUP_WINDOW = timedelta(hours=72)  # how long after creation / a reset a person may set up their Authenticator
 EXEMPT_REFUSED = "Remove the two-step exception first."
@@ -99,6 +99,9 @@ class Service(models.Model):
     service_type = models.CharField(max_length=40, choices=[(t, t) for t in SERVICE_TYPES])
     agent = models.CharField("Agent", max_length=100, blank=True)  # who did this service
     data = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=12, choices=list(SERVICE_STATUSES.items()), default="in_progress")
+    cancel_reason = models.CharField(max_length=CANCEL_REASON_MAX, blank=True)
+    acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the service
     created_at = models.DateTimeField(auto_now_add=True)
     version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 
@@ -177,6 +180,10 @@ class VesselDisposal(models.Model):
     garbage = models.DecimalField("Garbage (m³)", max_digits=12, decimal_places=3, null=True, blank=True)
     sludge = models.DecimalField("Sludge (t)", max_digits=12, decimal_places=3, null=True, blank=True)
     hidden = models.BooleanField(default=False)
+    acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the quantities
+    # Written when accounting closes it (then kept, also after reopening): the month's rate and price at that time.
+    exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    frozen_price = models.JSONField(null=True, blank=True)
 
     def __str__(self):
         return f"Garbage & Sludge of vessel {self.vessel_id}"
@@ -233,6 +240,8 @@ class HotelStay(models.Model):
     revenue_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     draft = models.BooleanField(default=False)  # made automatically from a crew change, not completed yet
+    cancelled = models.BooleanField(default=False)  # did not happen: kept for its record, no alert, money 0 or a fee
+    acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the booking
     created_at = models.DateTimeField(auto_now_add=True)
     version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 
@@ -263,6 +272,8 @@ class Transfer(models.Model):
     revenue_currency = models.CharField(max_length=3, choices=CURRENCIES, default="EGP")
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     draft = models.BooleanField(default=False)  # made automatically from a crew change, not completed yet
+    cancelled = models.BooleanField(default=False)  # did not happen: kept for its record, no alert, money 0 or a fee
+    acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the booking
     created_at = models.DateTimeField(auto_now_add=True)
     version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 

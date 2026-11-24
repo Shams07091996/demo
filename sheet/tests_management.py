@@ -69,6 +69,17 @@ class MoneyAndCountTests(ManagementFixture):
         self.assertIn("Money includes hotels, transport and garbage & sludge.", notes)
         self.assertIn("1 money lines used USD 1:1 (no exchange rate for that month).", notes)
 
+    def test_workbook_has_service_status_sheet(self):
+        Service.objects.filter(vessel=self.v_oct, service_type="Landing").update(status="cancelled", cancel_reason="x",
+                                                                                 acct_closed=True)
+        sheet = report.data(profile("admin"), RANGE)["service_status"]
+        status = sheet["tables"][0]
+        self.assertEqual(sheet["title"], "Service status")
+        self.assertEqual(status["head"], ["Month", "In progress", "Completed", "Cancelled", "Open", "Closed"])
+        self.assertEqual([row[0] for row in status["rows"]], ["2026-09", "2026-10", "2026-11", "2026-12"])
+        self.assertEqual(status["rows"][1], ["2026-10", 1, 0, 1, 2, 1])  # water open; landing (1 row) closed; garbage
+        self.assertEqual(status["total"], ["Total", 4, 0, 1, 7, 1])  # + the base fixture's November service
+
     def test_summary_rows_per_port(self):
         rows = table(report.data(profile("admin"), RANGE), "summary")["rows"]
         self.assertEqual([r[0] for r in rows], ["Alexandria", "Suez"])
@@ -197,7 +208,7 @@ class OperationsTests(ManagementFixture):
 
 
 SHEETS = ["Summary", "By month", "By line", "Profit by service", "Port performance", "Port closures", "Agents",
-          "Crew", "Garbage &amp; Sludge"]
+          "Crew", "Garbage &amp; Sludge", "Service status"]
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -213,7 +224,7 @@ class ExportTests(ManagementFixture):
     def get(self, username, **params):
         return self.login(username).get(self.URL, {**PARAMS, **params})
 
-    def test_export_downloads_nine_sheets(self):
+    def test_export_downloads_ten_sheets(self):
         response = self.get("admin")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], XLSX)

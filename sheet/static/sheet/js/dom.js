@@ -67,7 +67,7 @@ export function setChildren(el, ...children) {
 export const ICONS = Object.freeze([
   'anchor', 'ship', 'bed', 'car', 'calculator', 'chart', 'database', 'swap', 'clock', 'key', 'log-out', 'bell', 'trash',
   'pencil', 'plus', 'x', 'check', 'alert', 'menu', 'sun', 'moon', 'chevron-down', 'chevron-up', 'sort', 'calendar',
-  'users', 'printer', 'file', 'phone', 'ban',
+  'users', 'printer', 'file', 'phone', 'ban', 'lock',
 ]);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const ICON_NAME = /^[a-z0-9-]+$/;

@@ -1,5 +1,7 @@
 """The Calculations page: every money line — services (one per multi-service entry), hotel stays and transfers — of
-the vessels in a date range (on the vessel date), OPR and port, with totals. Worked out on each request from the same
+the vessels in a date range (on the vessel date), OPR and port, with totals. Each row also carries its service's
+operations status and its accounting state (Open / Closed, with `ref` naming what /api/accounting/ closes); both
+narrow the rows and the totals. Worked out on each request from the same
 maths as the vessel figures (finance.service_lines / logistics.booking_line), so the two can never disagree.
 """
 
@@ -8,10 +10,12 @@ from datetime import date
 
 from . import disposal
 from .access import scoped_vessels
+from .constants import SERVICE_STATUSES
 from .errors import BadRequest
 from .finance import service_lines
 from .listing import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, date_param, int_param
 from .logistics import booking_line
+from .models import VesselDisposal
 from .serializers import month_rates
 
 SORT_KEYS = {
@@ -35,6 +39,19 @@ class Params:
     desc: bool
     page: int
     page_size: int
+    statuses: set | None = None    # only rows of services with one of these statuses (bookings / disposal left out)
+    accounting: set | None = None  # only rows that are "open" / "closed"
+
+
+ACCOUNTING = ("open", "closed")
+
+
+def _choice_list(params, key, allowed, message):
+    """A comma list of allowed values (empty items ignored); None when absent or empty; anything unknown refused."""
+    items = {item.strip() for item in (params.get(key) or "").split(",") if item.strip()}
+    if items - set(allowed):
+        raise BadRequest(message)
+    return items or None
 
 
 def parse_params(params):
@@ -47,6 +64,8 @@ def parse_params(params):
         desc=True,
         page=int_param(params, "page", 1, 1, 10**9, "Page must be a whole number from 1."),
         page_size=int_param(params, "page_size", DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE, "Rows per page must be 1–200."),
+        statuses=_choice_list(params, "status", SERVICE_STATUSES, "Unknown status."),
+        accounting=_choice_list(params, "accounting", ACCOUNTING, "Unknown accounting status."),
     )
     if p.date_from and p.date_to and p.date_from > p.date_to:
         raise BadRequest("From must be on or before To.")
@@ -78,7 +97,14 @@ def _usd(item):
     return cost, revenue, round(revenue - cost, 2)
 
 
-def _row(vessel, kind, item):
+def _state(obj, kind, status=None, reason=""):
+    """What a row says about its thing: operations status (services only), accounting state and what closes it."""
+    if obj is None:  # garbage & sludge with nothing entered yet: nothing to close
+        return {"status": None, "cancel_reason": "", "closed": False, "ref": None}
+    return {"status": status, "cancel_reason": reason, "closed": obj.acct_closed, "ref": {"kind": kind, "id": obj.id}}
+
+
+def _row(vessel, kind, item, state):
     usd = _usd(item)
     return {
         "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "opr": vessel.opr,
@@ -97,6 +123,7 @@ def _row(vessel, kind, item):
         "rate_source": item["rate_source"],
         "rate_missing": item["rate_missing"],
         "price_missing": item.get("price_missing", False),
+        **state,
     }
 
 
@@ -105,14 +132,21 @@ def _vessel_rows(vessel, rate, price):
     rows = []
     for service in vessel.services.all():
         lines = service_lines(service.service_type, service.data, rate)
-        rows += [_row(vessel, service.service_type, item) for item in lines]
-    rows += [_row(vessel, "Garbage & Sludge", item) for item in disposal.calculation_lines(vessel, rate, price)]
-    for kind, label, bookings in (("hotels", "Hotel stay", vessel.hotel_stays.all()),
-                                  ("transfers", "Transfer", vessel.transfers.all())):
+        state = _state(service, "service", service.status, service.cancel_reason)
+        rows += [_row(vessel, service.service_type, item, state) for item in lines]
+    try:
+        record = vessel.disposal
+    except VesselDisposal.DoesNotExist:
+        record = None
+    state = _state(record, "disposal")
+    rows += [_row(vessel, "Garbage & Sludge", item, state) for item in disposal.calculation_lines(vessel, rate, price)]
+    for kind, ref, label, bookings in (("hotels", "hotel", "Hotel stay", vessel.hotel_stays.all()),
+                                       ("transfers", "transfer", "Transfer", vessel.transfers.all())):
         for booking in bookings:
             item = booking_line(kind, booking, rate)
             if item["cost"] or item["revenue"]:
-                rows.append(_row(vessel, label, item))
+                status = "cancelled" if booking.cancelled else None
+                rows.append(_row(vessel, label, item, _state(booking, ref, status)))
     return rows
 
 
@@ -141,6 +175,10 @@ def response(profile, params):
     if p.opr is not None:
         vessels = vessels.filter(opr=p.opr)
     rows = rows_for(vessels)
+    if p.statuses is not None:
+        rows = [r for r in rows if r["status"] in p.statuses]
+    if p.accounting is not None:
+        rows = [r for r in rows if ("closed" if r["closed"] else "open") in p.accounting]
     rows.sort(key=SORT_KEYS[p.sort], reverse=p.desc)  # stable: ties keep newest vessel first, lines in order
     totals = {
         "revenue_egp": round(sum(r["revenue_egp"] for r in rows), 2),
@@ -149,6 +187,8 @@ def response(profile, params):
         "lines": len(rows),
         "rate_missing_lines": sum(1 for r in rows if r["rate_missing"]),
         "price_missing_lines": sum(1 for r in rows if r["price_missing"]),
+        "open": sum(1 for r in rows if not r["closed"]),
+        "closed": sum(1 for r in rows if r["closed"]),
         # USD totals of the lines that are wholly in USD (the EGP totals above cover every line).
         **{f"{key}_usd": round(sum(r[f"{key}_usd"] for r in rows if r[f"{key}_usd"] is not None), 2)
            for key in ("cost", "revenue", "profit")},

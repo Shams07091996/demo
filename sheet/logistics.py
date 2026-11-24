@@ -110,6 +110,8 @@ def booking_to_dict(kind, obj, profile):
         "guests": [_guest_dict(g) for g in obj.guests.all()],
         "hotel": obj.hotel,
         "draft": obj.draft,
+        "cancelled": obj.cancelled,
+        "closed": obj.acct_closed,
         "version": obj.version,
     }
     if kind == "hotels":
@@ -209,6 +211,8 @@ def save_booking(kind, profile, data, existing=None):
     changes; a new booking's vessel must be one the profile may see (else 404)."""
     cleaned = CLEANERS[kind](data)
     guests = cleaned.pop("guests")
+    if cleaned["cancelled"] is None:  # not sent: a new booking is not cancelled, a saved one keeps its state
+        cleaned["cancelled"] = existing.cancelled if existing else False
     with transaction.atomic():
         obj = existing or KINDS[kind](vessel=_vessel_for(profile, data.get("vessel")))
         check_booking_lists(cleaned, obj.vessel.port, existing)

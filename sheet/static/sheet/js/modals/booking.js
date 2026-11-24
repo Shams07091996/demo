@@ -14,7 +14,7 @@ import { $, $$, dmy } from '../util.js';
 const PLACES = [['airport', 'Airport'], ['hotel', 'Hotel'], ['port', 'Port']];
 // The API names of the cost / revenue amounts (per room per night for hotels, per trip for transfers).
 const MONEY_KEYS = { hotels: ['cost_per_night', 'revenue_per_night'], transfers: ['cost', 'revenue'] };
-const MONEY_FORM = { cost: '', cost_currency: 'EGP', revenue: '', revenue_currency: 'EGP', exchange_rate: '' };
+const MONEY_FORM = { cost: '', cost_currency: 'EGP', revenue: '', revenue_currency: 'EGP', exchange_rate: '', cancelled: false };
 const SEARCH_DELAY_MS = 300;
 const MAX_GUESTS = 6; // keep in step with MAX_GUESTS in sheet/constants.py
 
@@ -64,6 +64,7 @@ export async function openBookingDialog(kind, id = null) {
     });
     for (const key of Object.keys(form)) if (key in booking) form[key] = booking[key] ?? '';
     form.nights = String(booking.nights ?? form.nights);
+    form.cancelled = Boolean(booking.cancelled);
     const [costKey, revenueKey] = MONEY_KEYS[kind];
     form.cost = booking[costKey] ?? '';
     form.revenue = booking[revenueKey] ?? '';
@@ -176,6 +177,8 @@ function detailsBlock() {
   const usd = form.cost_currency === 'USD' || form.revenue_currency === 'USD';
   const per = isHotel() ? ' per night' : '';
   const price = [
+    h('label', { class: 'check' },
+      h('input', { attrs: { type: 'checkbox' }, dataset: { bf: 'cancelled' }, checked: Boolean(form.cancelled) }), ' Cancelled'),
     h('div', { class: 'section-title' }, h('span', null, `Money ${isHotel() ? '(per room per night)' : '(per trip)'} — optional`)),
     h('div', { class: 'row three' },
       field(`Cost${per} (we pay)`, amount('cost')),
@@ -291,6 +294,13 @@ export function onBookingInput(event) {
   }
   if (!input.dataset.bf) return;
   const form = ctx().form;
+  if (input.dataset.bf === 'cancelled') {
+    if (event.type !== 'change') return;
+    form.cancelled = input.checked;
+    if (input.checked) Object.assign(form, { cost: '0', revenue: '0' }); // a fee can still be typed
+    render();
+    return;
+  }
   const before = form[input.dataset.bf];
   form[input.dataset.bf] = input.value;
   if (before === input.value) return;

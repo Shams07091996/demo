@@ -14,7 +14,7 @@ from django.utils import timezone
 from . import calculations, crewbookings, xlsx
 from . import dashboard as dashboard_figures
 from .access import scoped_closures, scoped_vessels
-from .constants import PORT_LABELS, PORTS, SERVICE_TYPES, is_delayed
+from .constants import PORT_LABELS, PORTS, SERVICE_STATUSES, SERVICE_TYPES, is_delayed
 from .xlsx import Bold, Hours
 
 NO_LINE, NO_AGENT_LABEL = "(no line)", "(no agent)"
@@ -281,6 +281,24 @@ def _disposal(objects, rows, r):
     ], ["Vessels marked as having no garbage or sludge are left out."])
 
 
+STATUS_HEAD = ["Month", "In progress", "Completed", "Cancelled", "Open", "Closed"]
+
+
+def _service_status(objects, rows, r):
+    """Services per operations status and Calculations rows Open / Closed, per vessel-date month."""
+    months = {month: [0, 0, 0, 0, 0] for month in _months(r)}
+    order = list(SERVICE_STATUSES)
+    for vessel in objects:
+        for service in vessel.services.all():
+            months[f"{vessel.date:%Y-%m}"][order.index(service.status)] += 1
+    for row in rows:
+        months[row["vessel"]["date"][:7]][4 if row["closed"] else 3] += 1
+    table_rows = [[month, *counts] for month, counts in months.items()]
+    total = ["Total", *(sum(row[i] for row in table_rows) for i in range(1, 6))]
+    return _sheet("Service status", [_table(STATUS_HEAD, table_rows, total)],
+                  ["Open / Closed: the Calculations rows (lines with money), as accounting marked them."])
+
+
 def _vessels(profile, r):
     """(queryset, Vessel objects with services / bookings / disposal, plain vessel dicts) in the range and scope."""
     queryset = scoped_vessels(profile, r.port, prefetch=False).filter(date__gte=r.date_from, date__lte=r.date_to)
@@ -291,7 +309,8 @@ def _vessels(profile, r):
 
 
 def data(profile, r, now=None):
-    """Every sheet's tables, keyed: summary, months, lines, services, ports_perf, closures, agents, crew, disposal."""
+    """Every sheet's tables, keyed: summary, months, lines, services, ports_perf, closures, agents, crew, disposal,
+    service_status."""
     queryset, objects, vessels = _vessels(profile, r)
     known = {v["id"] for v in vessels}
     # Only the vessels read above: one saved into the range meanwhile must not crash the report (or be half in it).
@@ -307,6 +326,7 @@ def data(profile, r, now=None):
         "agents": _agents(profile, r),
         "crew": _crew(objects, rows),
         "disposal": _disposal(objects, rows, r),
+        "service_status": _service_status(objects, rows, r),
     }
 
 
@@ -325,6 +345,7 @@ CHARTS = {
     "agents": ("bar", "Jobs per agent", 0, [-1]),
     "crew": ("column", "On- and off-signers per line", 0, [2, 3]),
     "disposal": ("column", "Garbage (m³) and sludge (t) per month", 1, [1, 2]),
+    "service_status": ("column", "Services per status per month", 0, [1, 2, 3]),
 }
 
 
@@ -371,6 +392,6 @@ def subtitle(r, now):
 
 
 def workbook(profile, r, now):
-    """The management workbook (.xlsx bytes): nine sheets, each with its tables, notes and one chart."""
+    """The management workbook (.xlsx bytes): ten sheets, each with its tables, notes and one chart."""
     line = subtitle(r, now)
     return xlsx.build([_layout(key, sheet, line) for key, sheet in data(profile, r, now).items()])

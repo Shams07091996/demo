@@ -1,5 +1,5 @@
 // Small building blocks shared by several screens. They return elements (built with h()), never HTML strings.
-import { PORTS, PORT_LABEL, STATUS_LABEL, TIME_FIELDS } from './config.js';
+import { PORTS, PORT_LABEL, SERVICE_STATUS, SERVICE_STATUS_CLASS, STATUS_LABEL, TIME_FIELDS } from './config.js';
 import { h, icon, optionEls } from './dom.js';
 import { optionValues } from './state.js';
 import { dmy, fmt, fmtDuration, fmtStamp, oprClass, sign } from './util.js';
@@ -12,6 +12,19 @@ export function tagLabel(service) {
   const data = service.data || {};
   return `Crew Change (${(data.onSigners || []).length} on / ${(data.offSigners || []).length} off)`;
 }
+
+/** A service's operations status as a small coloured label. */
+export const serviceStatusEl = (status) =>
+  h('span', { class: `svc-status ${SERVICE_STATUS_CLASS[status] || ''}`.trim() }, SERVICE_STATUS[status] || status);
+
+/** "N in progress" (amber) for a vessel's services still in progress; nothing when there are none. */
+export function inProgressTagEl(services) {
+  const open = services.filter((s) => s.status === 'in_progress').length;
+  return open ? h('span', { class: 'svc-status st-progress' }, `${open} in progress`) : null;
+}
+
+/** The note on anything accounting has closed (it can't be changed until accounting reopens it). */
+export const closedNoteEl = () => h('span', { class: 'closed-note' }, icon('lock'), ' Closed by accounting');
 
 export const statusChipEl = (status) =>
   h('span', { class: `status-chip st-${status}` }, STATUS_LABEL[status] || status);

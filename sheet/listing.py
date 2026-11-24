@@ -194,7 +194,8 @@ def gap_filter():
 
 def missing_details(profile, port, today):
     """Vessels dated before today (Cairo) with a gap, oldest first: any port-call time, a delay reason when berthing
-    was more than 2 hours after arrival, the arrival / sailing agent, or an agent on any service (every type needs one).
+    was more than 2 hours after arrival, the arrival / sailing agent, or an agent on any service that is not cancelled
+    (every type needs one).
 
     `missing` names the gaps in this order: the time labels (TIME_FIELDS order), "Delay reason", "Arrival agent",
     "Sailing agent", then "<service type> agent" once per type in SERVICE_TYPES order. Only these four fields are sent,
@@ -202,7 +203,7 @@ def missing_details(profile, port, today):
     order = {name: i for i, name in enumerate(SERVICE_TYPES)}
     found = []
     # No look-back limit, so keep the query light: only vessels with a possible gap, and only the columns needed.
-    light_services = Service.objects.only("id", "vessel_id", "service_type", "agent")
+    light_services = Service.objects.exclude(status="cancelled").only("id", "vessel_id", "service_type", "agent")
     vessels = (
         scoped_vessels(profile, port, prefetch=False)
         .filter(date__lt=today)

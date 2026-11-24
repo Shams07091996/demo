@@ -10,7 +10,7 @@ import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import { downloadReceipt, openReceipt } from './modals/receipt.js';
 import {
-  entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
+  cancelBookingRefs, entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
   renumberEntries, updatePreview,
 } from './modals/service.js';
 import {
@@ -51,7 +51,13 @@ async function reloadServiceForm(id) {
  *  An edit sends the version the form opened with (`version`: the one from a conflict, for "Save mine anyway"). */
 async function saveService(version) {
   const { type, serviceId } = state.ctx;
-  const payload = { type, agent: $('#svc-form [name=agent]').value, data: readServiceForm() };
+  const status = $('#svc-form [name=status]').value;
+  const payload = {
+    type, agent: $('#svc-form [name=agent]').value, status, data: readServiceForm(),
+    cancel_reason: status === 'cancelled' ? $('#svc-form [name=cancel_reason]').value : '',
+  };
+  const refs = status === 'cancelled' ? cancelBookingRefs() : [];
+  if (refs.length) payload.cancel_bookings = refs;
   if (serviceId) payload.version = version ?? state.ctx.version;
   const vessel = await mutate(() => (serviceId
     ? api(`/api/services/${serviceId}/`, 'PUT', payload)
@@ -213,6 +219,7 @@ export const actions = {
   'booking-open': (b) => openBookingDialog(b.dataset.kind, Number(b.dataset.id)),
   'booking-page': (b) => bookingsPage(b.dataset.kind).step(Number(b.dataset.step)),
   'calc-page': (b) => calculationsPage.step(Number(b.dataset.step)),
+  'acct-toggle': (b) => calculationsPage.toggleClosed(b),
   'disposal-hide': (b) => disposalPage.hide(b.dataset.id),
   'disposal-show': (b) => disposalPage.show(b.dataset.id),
   'history-page': (b) => historyPage.step(Number(b.dataset.step)),

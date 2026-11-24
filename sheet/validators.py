@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 
 from .constants import (
+    CANCEL_REASON_MAX,
     GUEST_GROUPS,
     MAX_GUESTS,
     MAX_NIGHTS,
@@ -16,6 +17,7 @@ from .constants import (
     OPTION_KINDS,
     PLACE_KEYS,
     PORT_KEYS,
+    SERVICE_STATUSES,
     SINGLE_EXTRAS,
     SUMMARY_FIELDS,
     TIME_KEYS,
@@ -243,6 +245,21 @@ def clean_service_data(service_type, raw):
 RECEIPT_MAX_LINES = 40
 
 
+def clean_service_status(payload, existing=None):
+    """(status, cancel reason) of a service. A save without the key keeps the stored value (a new service starts In
+    progress). The reason is required when Cancelled and refused otherwise (the dialog clears it)."""
+    status = payload.get("status", getattr(existing, "status", "in_progress"))
+    if not isinstance(status, str) or status not in SERVICE_STATUSES:
+        raise BadRequest("Choose a status: In progress, Completed or Cancelled.")
+    sent = payload.get("cancel_reason", getattr(existing, "cancel_reason", "") if status == "cancelled" else "")
+    reason = _short(sent, CANCEL_REASON_MAX, "The cancellation reason")
+    if status == "cancelled" and not reason:
+        raise BadRequest("Write why the service was cancelled.")
+    if status != "cancelled" and reason:
+        raise BadRequest("Only a cancelled service has a cancellation reason: clear it.")
+    return status, reason
+
+
 def clean_receipt(raw):
     """The master receipt's edited text (never stored): limits refused, not cut; the services are required."""
     raw = _as_dict(raw)
@@ -441,6 +458,29 @@ def _price_fields(data, cost_key, revenue_key):
     }
 
 
+def clean_booking_refs(raw):
+    """The bookings a crew change's cancellation cancels too: [(kind, id)]; absent → []."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > 200:
+        raise BadRequest("Unknown booking.")
+    refs = []
+    for item in raw:
+        kind, pk = (item.get("kind"), item.get("id")) if isinstance(item, dict) else (None, None)
+        if kind not in ("hotel", "transfer") or not isinstance(pk, int) or isinstance(pk, bool) or pk < 1:
+            raise BadRequest("Unknown booking.")
+        refs.append((kind, pk))
+    return refs
+
+
+def _cancelled(data):
+    """A booking's Cancelled tick: true / false, or None when not sent (the stored value stays)."""
+    value = data.get("cancelled")
+    if value is not None and not isinstance(value, bool):
+        raise BadRequest("Say whether the booking is cancelled (true or false).")
+    return value
+
+
 def clean_hotel_stay(data):
     """One room: hotel, check-in, nights (1..MAX_NIGHTS), optional cost / revenue per room per night, guests."""
     guests = clean_guests(data.get("guests"))  # first: the guests are the first part of the form
@@ -463,6 +503,7 @@ def clean_hotel_stay(data):
         "check_in": check_in,
         "nights": nights,
         **_price_fields(data, "cost_per_night", "revenue_per_night"),
+        "cancelled": _cancelled(data),
         "guests": guests,
     }
 
@@ -498,6 +539,7 @@ def clean_transfer(data):
         **named,
         "at": at,
         **_price_fields(data, "cost", "revenue"),
+        "cancelled": _cancelled(data),
         "guests": guests,
     }
 
