@@ -18,18 +18,18 @@
     </div>
     <nav class="nav" id="nav" aria-label="Pages">
       <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessels</span></a>
-      <a class="nav-item" data-page="services" href="#services"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span>Services</span></a>
-      <a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>
-      <a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>
-      <a class="nav-item" data-page="closures" href="#closures"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ban"></use></svg></span><span>Port closures</span></a>
-      <a class="nav-item" data-page="disposal" href="#disposal"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-trash"></use></svg></span><span>Garbage &amp; Sludge</span></a>
-      <a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>
-      <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>
-      <a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>
-      <a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>
-      <a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>
-      <a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>
-      {% if me.isAdmin %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
+      {% if "services" in me.pages %}<a class="nav-item" data-page="services" href="#services"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span>Services</span></a>{% endif %}
+      {% if "hotels" in me.pages %}<a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>{% endif %}
+      {% if "transport" in me.pages %}<a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>{% endif %}
+      {% if "closures" in me.pages %}<a class="nav-item" data-page="closures" href="#closures"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ban"></use></svg></span><span>Port closures</span></a>{% endif %}
+      {% if "disposal" in me.pages %}<a class="nav-item" data-page="disposal" href="#disposal"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-trash"></use></svg></span><span>Garbage &amp; Sludge</span></a>{% endif %}
+      {% if "calculations" in me.pages %}<a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>{% endif %}
+      {% if "dashboard" in me.pages %}<a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>{% endif %}
+      {% if "ships" in me.pages %}<a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>{% endif %}
+      {% if "customers" in me.pages %}<a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>{% endif %}
+      {% if "master" in me.pages %}<a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>{% endif %}
+      {% if "rates" in me.pages %}<a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>{% endif %}
+      {% if "history" in me.pages %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
       {% if me.isSuperuser %}<a class="nav-item" data-page="accounts" href="#accounts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Accounts</span></a>{% endif %}
       {% if me.isAdmin %}<a class="nav-item" data-page="ports" href="#ports"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ports</span></a>{% endif %}
     </nav>
@@ -125,7 +125,7 @@
         <label>From <input class="input" type="date" id="{{ p }}-from"></label>
         <label>To <input class="input" type="date" id="{{ p }}-to"></label>
         <button class="btn ghost small" id="{{ p }}-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
-        <button class="btn ghost small" data-act="page-export" data-page="{{ kind }}"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
+        {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="{{ kind }}"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
       </div>
       <div class="toolbar">
         <div class="tools">
@@ -149,7 +149,7 @@
           <input class="input search" id="sh-q" type="search" maxlength="120" aria-label="Search ships">
           <select class="select" id="sh-active" aria-label="Active"><option value="all">All ships</option><option value="active">Active only</option></select>
         </div>
-        {% if me.canEdit %}<div class="tools"><button class="btn primary" data-act="ship-new">+ Ship</button></div>{% endif %}
+        {% if "customers.edit" in me.permissions %}<div class="tools"><button class="btn primary" data-act="ship-new">+ Ship</button></div>{% endif %}
       </div>
       <div class="table-wrap">
         <table><thead id="sh-head"></thead><tbody id="sh-tbody"></tbody></table>
@@ -159,7 +159,7 @@
 
     <!-- ===== Customers (drawn by js/pages/customers.js) ===== -->
     <main class="page" id="page-customers" hidden>
-      {% if me.isAdmin %}<div class="toolbar"><div class="tools"></div><div class="tools"><button class="btn primary" data-act="customer-new">+ Customer</button></div></div>{% endif %}
+      {% if "customers.edit" in me.permissions %}<div class="toolbar"><div class="tools"></div><div class="tools"><button class="btn primary" data-act="customer-new">+ Customer</button></div></div>{% endif %}
       <div class="table-wrap">
         <table><thead id="cu-head"></thead><tbody id="cu-tbody"></tbody></table>
         <div class="empty" id="cu-empty" hidden>No customers.</div>
@@ -172,11 +172,11 @@
         <label>From <input class="input" type="date" id="pc-from"></label>
         <label>To <input class="input" type="date" id="pc-to"></label>
         <button class="btn ghost small" id="pc-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
-        <button class="btn ghost small" data-act="page-export" data-page="closures"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
+        {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="closures"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
       </div>
       <div class="toolbar">
         <div class="tools"><select id="pc-port" class="select" hidden aria-label="Port"></select></div>
-        {% if me.canEdit %}<div class="tools"><button class="btn primary" data-act="closure-new">+ Add closure</button></div>{% endif %}
+        {% if "closures.edit" in me.permissions %}<div class="tools"><button class="btn primary" data-act="closure-new">+ Add closure</button></div>{% endif %}
       </div>
       <div class="table-wrap">
         <table><thead id="pc-head"></thead><tbody id="pc-tbody"></tbody></table>
@@ -191,7 +191,7 @@
         <label>To <input class="input" type="date" id="g-to"></label>
         <select id="g-show" class="select" aria-label="Show"></select>
         <select id="g-port" class="select" hidden aria-label="Port"></select>
-        <button class="btn ghost small" data-act="page-export" data-page="disposal"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
+        {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="disposal"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
       </div>
       <div class="calc-totals" id="g-totals" role="status"></div>
       <div class="table-wrap">
@@ -212,7 +212,7 @@
         <select id="sv-agent" class="select" aria-label="Agent"></select>
         <input class="input" type="search" id="sv-q" aria-label="Search vessel">
         <select id="sv-port" class="select" hidden aria-label="Port"></select>
-        <button class="btn ghost small" data-act="page-export" data-page="services"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
+        {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="services"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
       </div>
       <div class="table-wrap">
         <table><thead id="sv-head"></thead><tbody id="sv-tbody"></tbody></table>
@@ -230,7 +230,7 @@
         <select id="c-party" class="select" aria-label="Billing party"></select>
         <select id="c-port" class="select" hidden aria-label="Port"></select>
         <span id="c-ticks"></span>
-        <button class="btn ghost small" data-act="page-export" data-page="calculations"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
+        {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="calculations"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
       </div>
       <div class="calc-totals" id="c-totals" role="status"></div>
       <div class="table-wrap">
@@ -240,8 +240,8 @@
       <div class="pager" id="c-pager"></div>
     </main>
 
-    {% if me.isAdmin %}
-    <!-- ===== History, admins only (drawn by js/pages/history.js) ===== -->
+    {% if "history" in me.pages %}
+    <!-- ===== History: Admins, and Users with history.view (drawn by js/pages/history.js) ===== -->
     <main class="page" id="page-history" hidden>
       <div class="date-range" role="group" aria-label="History filters">
         <label>From <input class="input" type="date" id="hi-from"></label>
@@ -301,8 +301,8 @@
           <select class="select" id="d-opr" aria-label="OPR"></select>
           <select class="select" id="d-agent" aria-label="Agent"></select>
           <select class="select" id="d-service" aria-label="Service type"></select>
-          <button class="btn ghost small" data-act="dashboard-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
-          <button class="btn ghost small" data-act="dashboard-data-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> All data</button>
+          {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="dashboard-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
+          {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="dashboard-data-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> All data</button>{% endif %}
         </div>
         <div class="count flush"><strong id="dash-count">0</strong> vessels in selection</div>
       </div>

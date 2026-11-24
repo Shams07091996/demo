@@ -428,3 +428,36 @@ class HistoryTests(Limited):
         self.assertEqual(record.port, "alexandria")
         self.assertIn(("portclosure", closure.id),
                       {(r["object_type"], r["object_id"]) for r in self.records(self.without())})
+
+
+class IndexTests(Limited):
+    """The page names only the person's pages in the sidebar and carries their ticks for the screens."""
+
+    def me(self, response):
+        import json
+        import re
+        found = re.search(r'<script id="me-data" type="application/json">(.*?)</script>', response.content.decode())
+        return json.loads(found[1])
+
+    def test_marine_sidebar_and_ticks(self):
+        marine = next(t for t in TEMPLATES if t[0] == "marine")
+        make_user("marine", "alexandria", permissions=list(marine[2]), pages=list(marine[3]))
+        response = self.login("marine").get("/")
+        html = response.content.decode()
+        self.assertIn('data-page="services"', html)
+        for page in ("hotels", "transport", "closures", "disposal", "calculations", "dashboard", "ships",
+                     "customers", "master", "rates", "history"):
+            self.assertNotIn(f'class="nav-item" data-page="{page}"', html, page)
+        me = self.me(response)
+        self.assertEqual(me["permissions"], list(marine[2]))
+        self.assertEqual(me["pages"], ["vessels", "services"])
+        self.assertNotIn("canEdit", me)
+
+    def test_admin_has_everything(self):
+        me = self.me(self.login("admin").get("/"))
+        self.assertEqual((me["permissions"], me["pages"]), (list(PERMISSION_KEYS), list(PAGE_KEYS)))
+
+    def test_effective_lists_apply_dependencies(self):
+        make_user("odd", "alexandria", permissions=["accounting.close"], pages=["calculations"])
+        me = self.me(self.login("odd").get("/"))
+        self.assertEqual((me["permissions"], me["pages"]), ([], ["vessels"]))

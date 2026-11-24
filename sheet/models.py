@@ -93,10 +93,6 @@ class Profile(models.Model):
             return self.can(need)
         return page in (self.pages or []) and (need is None or self.can(need))
 
-    @property
-    def can_edit(self):
-        return self.is_admin or bool(self.ports)
-
 
 class Customer(models.Model):
     """Who we bill (e.g. the ship's owner / manager), separate from the OPR; shared by all ports."""

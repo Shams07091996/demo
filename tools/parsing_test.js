@@ -15,7 +15,7 @@ function load(entry) {
   return require(file);
 }
 const { parsePersonal, parseFlightText } = load('crewParsing.js');
-const { isDelayed, limitRows, tickSummary } = load('util.js');
+const { isDelayed, limitRows, statusNeeds, tickSummary } = load('util.js');
 const { fillRevenue, rateFor } = load('rates.js');
 
 let failed = 0;
@@ -105,6 +105,15 @@ check(rateFor(blue, 'Others / Remarks', UNITS) === null, 'others has no rate');
 const original = { entries: [{ revenue: '' }] };
 fill('Landing', original);
 check(original.entries[0].revenue === '', 'fill returns a copy');
+
+/* ---------- service status needs (same rule as services.status_permissions) ---------- */
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+check(same(statusNeeds('cancelled', 'cancelled'), []), 'status: unchanged needs nothing');
+check(same(statusNeeds('in_progress', 'cancelled'), ['services.cancel']), 'status: to Cancelled needs cancel');
+check(same(statusNeeds('cancelled', 'in_progress'), ['services.cancel']), 'status: from Cancelled needs cancel');
+check(same(statusNeeds('in_progress', 'completed'), ['services.complete']), 'status: to Completed needs complete');
+check(same(statusNeeds('completed', 'in_progress'), ['services.complete']), 'status: from Completed needs complete');
+check(same(statusNeeds('cancelled', 'completed'), ['services.cancel', 'services.complete']), 'status: both');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

@@ -1,5 +1,5 @@
 // Sidebar navigation. The page lives in the URL hash (#vessels, #master…), so refresh and Back work.
-import { ME } from './config.js';
+import { ME, sees } from './config.js';
 import { loadDashboard, loadOptions, loadRates } from './data.js';
 import { hotelsPage, transportPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
@@ -41,9 +41,9 @@ const pageFromHash = () => {
 
 export async function showPage(requested) {
   let name = requested;
-  if (name === 'history' && !ME.isAdmin) name = 'vessels'; // the change history is for admins only
   if (name === 'accounts' && !ME.isSuperuser) name = 'vessels'; // accounts: superusers only
-  if (name === 'ports' && !ME.isAdmin) name = 'vessels'; // ports: Admins only
+  else if (name === 'ports' && !ME.isAdmin) name = 'vessels'; // ports: Admins only
+  else if (name !== 'accounts' && name !== 'ports' && !sees(name)) name = 'vessels'; // a page not given
   state.page = name;
   $$('.page').forEach((page) => { page.hidden = page.id !== `page-${name}`; });
   $$('#nav .nav-item').forEach((link) => link.classList.toggle('active', link.dataset.page === name));

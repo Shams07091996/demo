@@ -1,5 +1,5 @@
 // Master data page: the OPR, POC, Agent, Hotel, Airport and Port lists.
-import { ME, OPTION_KINDS, openPorts, PORTS, PORT_LABEL } from '../config.js';
+import { ME, OPTION_KINDS, can, openPorts, PORTS, PORT_LABEL } from '../config.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { state } from '../state.js';
 import { $, $$ } from '../util.js';
@@ -19,7 +19,7 @@ const BOOKING_KINDS = ['hotel', 'airport', 'port'];
 export const usageUnit = (kind, n) => `${kind === 'closure' ? 'closure' : BOOKING_KINDS.includes(kind) ? 'booking' : 'vessel'}${n === 1 ? '' : 's'}`;
 
 function optionRow(option) {
-  const canRemove = ME.canEdit && option.editable;
+  const canRemove = can('master.edit') && option.editable;
   let scope = null;
   if (ME.isAdmin) {
     scope = portSelect({ dataset: { optionPort: '', id: option.id }, attrs: { 'aria-label': `Port of ${option.value}` } }, option.port);
@@ -41,7 +41,7 @@ function optionRow(option) {
 
 function listPanel({ key, label }) {
   const rows = state.options.filter((o) => o.kind === key).map(optionRow);
-  const adder = ME.canEdit
+  const adder = can('master.edit')
     ? h('div', { class: 'add-row' },
       h('input', { class: 'input', dataset: { new: key }, attrs: { maxlength: 100, placeholder: `New ${label}…` } }), ' ',
       ME.isAdmin

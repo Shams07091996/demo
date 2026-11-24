@@ -83,6 +83,16 @@ export const isDelayed = (arrival, berthing) => {
 };
 
 /** A tick-box filter's label: "Status: All", "Status: All except Completed" or the ticked names (pure). */
+/** The permissions a change of a service's status needs (same rule as services.status_permissions): to or from
+ * Cancelled services.cancel, to or from Completed services.complete; nothing when it stays the same. */
+export function statusNeeds(from, to) {
+  if (from === to) return [];
+  const needs = [];
+  if (from === 'cancelled' || to === 'cancelled') needs.push('services.cancel');
+  if (from === 'completed' || to === 'completed') needs.push('services.complete');
+  return needs;
+}
+
 export function tickSummary(title, labels, ticked) {
   const all = Object.keys(labels);
   if (ticked.length === all.length) return `${title}: All`;

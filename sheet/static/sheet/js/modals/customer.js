@@ -2,7 +2,7 @@
 // RATE_UNITS) and the linked ships. Admins edit; everyone else sees it read-only.
 import { api, mutate } from '../api.js';
 import { headEl } from '../components.js';
-import { ME, RATE_UNITS } from '../config.js';
+import { ME, RATE_UNITS, can } from '../config.js';
 import { h, optionEls } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
 import { loadCustomers } from '../parties.js';
@@ -13,8 +13,11 @@ const UNIT_LABEL = { service: 'per service', unit: 'per unit', line: 'per line',
 const CURRENCIES = [['USD', 'USD'], ['EGP', 'EGP']];
 const MAX_CONTACTS = 20;
 
-const input = (name, value, attrs = {}) =>
-  h('input', { attrs: { name, ...attrs }, value, disabled: !ME.isAdmin });
+// customers.edit: names, notes, contacts; the agreed rates are money and also need money.edit.
+const mayEdit = () => can('customers.edit');
+const mayRate = () => mayEdit() && can('money.edit');
+const input = (name, value, attrs = {}, editable = mayEdit()) =>
+  h('input', { attrs: { name, ...attrs }, value, disabled: !editable });
 
 function contactRowEl(c = {}) {
   return h('div', { class: 'contact-row row four' },
@@ -22,15 +25,15 @@ function contactRowEl(c = {}) {
     input('c_role', c.role, { maxlength: 60, 'aria-label': 'Role' }),
     input('c_email', c.email, { maxlength: 254, type: 'email', 'aria-label': 'Email' }),
     h('div', { class: 'with-btn' }, input('c_phone', c.phone, { maxlength: 40, type: 'tel', 'aria-label': 'Phone' }),
-      ME.isAdmin ? h('button', { class: 'btn ghost small', attrs: { type: 'button', title: 'Remove' }, dataset: { act: 'contact-remove' } }, 'Remove') : null));
+      mayEdit() ? h('button', { class: 'btn ghost small', attrs: { type: 'button', title: 'Remove' }, dataset: { act: 'contact-remove' } }, 'Remove') : null));
 }
 
 function rateRowEl(type, rate) {
   const unit = RATE_UNITS[type];
   return h('div', { class: 'rate-row', dataset: { type } },
     h('span', { class: 'rate-type' }, type),
-    input('r_amount', rate?.amount ?? '', { type: 'number', min: 0, step: '0.01', 'aria-label': `${type} rate` }),
-    unit === 'percent' ? h('span') : h('select', { attrs: { name: 'r_currency' }, disabled: !ME.isAdmin },
+    input('r_amount', rate?.amount ?? '', { type: 'number', min: 0, step: '0.01', 'aria-label': `${type} rate` }, mayRate()),
+    unit === 'percent' ? h('span') : h('select', { attrs: { name: 'r_currency' }, disabled: !mayRate() },
       optionEls(CURRENCIES, rate?.currency || 'USD')),
     h('span', { class: 'none' }, UNIT_LABEL[unit]));
 }
@@ -38,16 +41,16 @@ function rateRowEl(type, rate) {
 export function openCustomerDialog(customer, onDone) {
   state.ctx = { view: 'customer', customerId: customer?.id ?? null, onDone };
   const btn = (cls, act, label) => h('button', { class: `btn ${cls}`, dataset: { act } }, label);
-  const title = customer ? (ME.isAdmin ? 'Edit customer' : customer.name) : 'Add customer';
+  const title = customer ? (mayEdit() ? 'Edit customer' : customer.name) : 'Add customer';
   openModal(
     headEl(title),
     h('div', { class: 'm-body', id: 'customer-form' },
       h('div', { class: 'row two' },
         h('div', { class: 'field' }, h('label', null, 'Name'), input('name', customer?.name, { maxlength: 120 })),
         h('div', { class: 'field' }, h('label', null, 'Notes'), input('notes', customer?.notes, { maxlength: 500 }))),
-      h('label', { class: 'tick' }, h('input', { attrs: { type: 'checkbox', name: 'active' }, checked: customer ? customer.active : true, disabled: !ME.isAdmin }), ' Active'),
+      h('label', { class: 'tick' }, h('input', { attrs: { type: 'checkbox', name: 'active' }, checked: customer ? customer.active : true, disabled: !mayEdit() }), ' Active'),
       h('div', { class: 'section-title' }, h('span', null, 'Contacts'),
-        ME.isAdmin ? h('button', { class: 'btn ghost small', attrs: { type: 'button' }, dataset: { act: 'contact-add' } }, '+ Contact') : null),
+        mayEdit() ? h('button', { class: 'btn ghost small', attrs: { type: 'button' }, dataset: { act: 'contact-add' } }, '+ Contact') : null),
       h('div', { class: 'contact-row row four contact-head' }, ['Name', 'Role', 'Email', 'Phone'].map((t) => h('span', { class: 'none' }, t))),
       h('div', { id: 'cu-contacts' }, (customer?.contacts || []).map(contactRowEl)),
       h('div', { class: 'section-title' }, h('span', null, 'Agreed rates')),
@@ -61,8 +64,8 @@ export function openCustomerDialog(customer, onDone) {
         : null),
     h('div', { class: 'm-foot' },
       customer && ME.isAdmin ? btn('danger', 'customer-del', 'Delete') : h('span'),
-      h('div', { class: 'right' }, btn('ghost', 'close', ME.isAdmin ? 'Cancel' : 'Close'),
-        ME.isAdmin ? ' ' : null, ME.isAdmin ? btn('primary', 'customer-save', 'Save') : null)),
+      h('div', { class: 'right' }, btn('ghost', 'close', mayEdit() ? 'Cancel' : 'Close'),
+        mayEdit() ? ' ' : null, mayEdit() ? btn('primary', 'customer-save', 'Save') : null)),
   );
 }
 

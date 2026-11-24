@@ -2,7 +2,7 @@
 // quantity saves when its box is left; the server works out revenue / cost / profit in EGP and USD (/api/disposal/).
 import { api, mutate } from '../api.js';
 import { closedNoteEl, portOptionEls } from '../components.js';
-import { ME } from '../config.js';
+import { ME, can } from '../config.js';
 import { h, icon, optionEls, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { state } from '../state.js';
@@ -24,7 +24,7 @@ const pair = (egp, usd, cls = '') => h('td', { class: `num ${cls}`.trim() },
 
 function quantityCell(row, kind) {
   const value = row[kind];
-  if (!ME.canEdit || row.hidden || row.closed) return h('td', { class: 'num' }, value === null ? '—' : String(value));
+  if (!can('disposal.edit') || row.hidden || row.closed) return h('td', { class: 'num' }, value === null ? '—' : String(value));
   return h('td', { class: 'num' }, h('input', {
     class: 'input qty',
     attrs: { type: 'number', step: 'any', min: 0, name: kind, 'aria-label': kind === 'garbage' ? 'Garbage m³' : 'Sludge t' },
@@ -41,7 +41,7 @@ function flags(row) {
 }
 
 function rowEl(row) {
-  const action = row.closed ? closedNoteEl() : !ME.canEdit ? null : row.hidden
+  const action = row.closed ? closedNoteEl() : !can('disposal.edit') ? null : row.hidden
     ? h('button', { class: 'btn ghost small', dataset: { act: 'disposal-show', id: row.vessel.id } }, 'Bring back')
     : h('button', { class: 'btn ghost small', dataset: { act: 'disposal-hide', id: row.vessel.id }, attrs: { title: 'No garbage or sludge' } }, icon('ban'), ' Hide');
   return h('tr', { dataset: { vessel: row.vessel.id } },

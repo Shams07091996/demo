@@ -3,7 +3,7 @@
 // Everything is worked out by the server (/api/services/). The filters are remembered in this browser only.
 import { api } from '../api.js';
 import { portOptionEls, serviceStatusEl, tickFilterEl } from '../components.js';
-import { ME, NO_AGENT, SERVICE_STATUS, TYPES } from '../config.js';
+import { ME, NO_AGENT, SERVICE_STATUS, TYPES, can } from '../config.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { openServiceForm } from '../modals/service.js';
@@ -188,7 +188,7 @@ export const servicesPage = {
     }
     rememberVessels([vessel]);
     const service = vessel.services.find((s) => s.id === id);
-    if (!ME.canEdit || !service) {
+    if (!can('services.edit') || !service) {
       openVessel(vessel.id);
       return;
     }

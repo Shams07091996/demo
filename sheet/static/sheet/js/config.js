@@ -15,6 +15,11 @@ export const NO_AGENT = readJson('no-agent-data');            // Dashboard agent
 
 export const PORT_LABEL = Object.fromEntries(PORTS.map((p) => [p.key, p.label]));
 
+// What this person may do and which pages they have (the server's lists as they apply; Admins: everything). The
+// screens only hide what the server would refuse anyway.
+export const can = (key) => ME.permissions.includes(key);
+export const sees = (page) => ME.pages.includes(page);
+
 // The ports this person works in (Admins: every port), in page order: the port filters. Functions, because the
 // Ports page changes PORTS in place.
 export const myPorts = () => PORTS.filter((p) => ME.isAdmin || ME.ports.includes(p.key));
