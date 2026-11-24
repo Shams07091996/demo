@@ -1,8 +1,8 @@
 // The add / edit dialog for a port closure. The server checks everything again (port, times, reason from Master data).
 import { api, mutate } from '../api.js';
 import { showConflict } from '../conflict.js';
-import { headEl, optionChoicesEl, portOptionEls } from '../components.js';
-import { ME } from '../config.js';
+import { formPorts, headEl, optionChoicesEl, portOptionEls } from '../components.js';
+import { ME, openPorts } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
 import { closureById, closuresPage, deleteClosure } from '../pages/closures.js';
@@ -20,12 +20,14 @@ export function openClosureDialog(id = null) {
   const closure = id ? closureById(id) : null;
   if (id && !closure) return;
   state.ctx = { view: 'closure', closureId: id, version: closure?.version };
-  const port = closure ? closure.port : ME.port || 'alexandria';
+  const open = openPorts();
+  const port = closure ? closure.port : ME.homePort || open[0]?.key || '';
   openModal(
     headEl(closure ? 'Edit port closure' : 'Add port closure'),
     h('div', { class: 'm-body', id: 'closure-form' },
-      ME.isAdmin
-        ? h('div', { class: 'field' }, h('label', null, 'Port'), h('select', { attrs: { name: 'port' } }, portOptionEls({ selected: port })))
+      ME.multiPort
+        ? h('div', { class: 'field' }, h('label', null, 'Port'),
+          h('select', { attrs: { name: 'port' } }, portOptionEls({ ports: formPorts(open, closure?.port), selected: port })))
         : null,
       h('div', { class: 'row two' },
         timeField('start_at', 'Closed from', closure?.start_at), timeField('end_at', 'Reopened', closure?.end_at)),
@@ -39,7 +41,7 @@ export function openClosureDialog(id = null) {
   );
 }
 
-/** Admin changed the port: offer that port's closure reasons (keeping the chosen one). */
+/** The port was changed: offer that port's closure reasons (keeping the chosen one). */
 export function onClosureFormChange(event) {
   if (state.ctx.view !== 'closure' || event.target.name !== 'port') return;
   const select = $('#closure-form [name="reason"]');

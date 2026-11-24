@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils import timezone
 
+from . import access, ports
 from .constants import (
     BILLING,
     CANCEL_REASON_MAX,
@@ -19,9 +20,7 @@ from .constants import (
     MULTI_TYPES,
     OPTION_KINDS,
     PLACE_KEYS,
-    PORT_KEYS,
     RATE_UNITS,
-    ROLES,
     SERVICE_STATUSES,
     SINGLE_EXTRAS,
     SUMMARY_FIELDS,
@@ -30,7 +29,7 @@ from .constants import (
     is_delayed,
 )
 from .errors import BadRequest
-from .models import Customer, Option, Ship
+from .models import Customer, DisposalPrice, Option, Port, Ship
 
 MAX_ENTRIES = 100
 MAX_CREW = 60
@@ -363,8 +362,20 @@ def clean_agent(value, port, current=""):
     return listed("agent", value, port, current)
 
 
+def _record_port(data, profile, existing):
+    """The port of a vessel / closure being saved: the one sent, else the saved one, else a User's home port (an
+    Admin's new record names its port, never assumed). It must be one the profile works in (403 otherwise); a
+    record going into a port (new, or moved there) needs the port turned on."""
+    saved = existing.port if existing is not None else ""
+    port = data.get("port") or saved or ("" if profile.is_admin else profile.home_port)
+    if not port:
+        raise BadRequest("Choose a port.")
+    return access.require_port(profile, port, new=port != saved)
+
+
 def clean_vessel(data, profile, existing=None):
-    """Validate vessel input. Port users are always pinned to their own port."""
+    """Validate vessel input. The port is the one sent, else the saved one, else (a User's new vessel) their home
+    port; it must be one the profile works in, and a vessel going into it needs it turned on."""
     name = _short(data.get("name"), 120, "Vessel name")
     if not name:
         raise BadRequest("Vessel name is required.")
@@ -373,14 +384,7 @@ def clean_vessel(data, profile, existing=None):
     except ValueError:
         raise BadRequest("Enter a valid date.") from None
 
-    if profile.port:
-        port = profile.port
-    else:
-        port = data.get("port") or (existing.port if existing else "")
-        if not port:  # an admin's new vessel: the port is chosen, never assumed
-            raise BadRequest("Choose a port.")
-        if port not in PORT_KEYS:
-            raise BadRequest("Unknown port.")
+    port = _record_port(data, profile, existing)
 
     times = {key: _local_datetime(data.get(key), TIME_LABELS[key]) for key in TIME_KEYS}
     _check_time_order(times)
@@ -484,8 +488,10 @@ def clean_ship(data, profile, existing=None):
     current_opr = getattr(existing, "opr", "")
     opr = _short(data.get("opr"), 100, "OPR")
     if opr and opr != current_opr:
-        if profile.port:
-            listed("opr", opr, profile.port, current_opr)
+        mine = access.ports_of(profile)
+        if mine is not None:
+            if not Option.objects.filter(kind="opr", value=opr, port__in=["", *mine]).exists():
+                raise BadRequest("OPR: choose a value from the Master data OPR list for your ports.")
         elif not Option.objects.filter(kind="opr", value=opr).exists():
             raise BadRequest("OPR: choose a value from the Master data OPR list.")
     active = data.get("active", getattr(existing, "active", True))
@@ -732,15 +738,10 @@ def clean_transfer(data):
 
 
 def clean_closure(data, profile, existing=None):
-    """Validate a port closure. Port users are always pinned to their own port; the reason is from the Master data
+    """Validate a port closure. The port is chosen like a vessel's (`_record_port`); the reason is from the Master data
     "closure" list of that port (or All ports); an empty Reopened means the port is still closed."""
     data = _as_dict(data)
-    if profile.port:
-        port = profile.port
-    else:
-        port = data.get("port") or (existing.port if existing else "")
-        if port not in PORT_KEYS:
-            raise BadRequest("Unknown port.")
+    port = _record_port(data, profile, existing)
     start_at = _local_datetime(data.get("start_at"), "Closed from")
     if start_at is None:
         raise BadRequest("Closed from is required.")
@@ -779,8 +780,11 @@ def clean_disposal_price(data):
     except ValueError:
         raise BadRequest("Enter a month.") from None
     port = data.get("port")
-    if port not in PORT_KEYS:
+    if not ports.exists(port):
         raise BadRequest("Unknown port.")
+    if not ports.exists(port, active_only=True) and not DisposalPrice.objects.filter(
+            month=first_of_month, port=port).exists():
+        raise BadRequest("That port is turned off.")  # a month already priced can still be corrected
     fields = {}
     for kind, label, unit in DISPOSAL_KINDS:
         for side in ("revenue", "cost"):
@@ -819,10 +823,27 @@ USERNAME_RE = re.compile(r"[A-Za-z0-9._-]{3,30}")
 ACCOUNT_NAMES = (("first_name", "First name"), ("last_name", "Last name"))
 
 
+def _account_ports(data, existing):
+    """Home port (required) + extra ports: Port keys; a turned-off port only if the account already has it."""
+    profile = getattr(existing, "profile", None) if existing is not None else None
+    had = set(profile.ports) if profile is not None else set()
+    home = data.get("home_port", profile.home_port if profile is not None else "")
+    extra = data.get("ports", list(had))
+    if not isinstance(home, str) or not home:
+        raise BadRequest("Choose a home port.")
+    if not isinstance(extra, list) or not all(isinstance(p, str) for p in extra) or len(extra) > 50:
+        raise BadRequest("Unknown port.")
+    chosen = [home, *[p for p in dict.fromkeys(extra) if p != home]]
+    for key in chosen:
+        if not ports.exists(key) or (key not in had and not ports.exists(key, active_only=True)):
+            raise BadRequest("Unknown or turned-off port.")
+    return {"home_port": home, "ports": chosen}
+
+
 def clean_account(data, existing=None):
-    """An account from the Accounts page. New: username (3-30 letters / digits / . _ -), names, role and a temporary
-    password that passes Django's password rules. Existing: only names, role and active (absent keys are kept);
-    anything else sent (username, password, superuser / staff) is ignored."""
+    """An account from the Accounts page. New: username (3-30 letters / digits / . _ -), names, home port, extra
+    ports and a temporary password that passes Django's password rules. Existing: only names, ports and active
+    (absent keys are kept); anything else sent (username, password, superuser / staff) is ignored."""
     from django.contrib.auth.models import User
     from django.contrib.auth.password_validation import validate_password
 
@@ -830,11 +851,8 @@ def clean_account(data, existing=None):
     for key, label in ACCOUNT_NAMES:
         if existing is None or key in data:
             values[key] = _short(data.get(key), 150, label)
-    if existing is None or "role" in data:
-        role = data.get("role")
-        if role not in dict(ROLES):
-            raise BadRequest("Choose a role.")
-        values["role"] = role
+    if existing is None or "home_port" in data or "ports" in data:
+        values.update(_account_ports(data, existing))
     if existing is not None:
         if "active" in data:
             if not isinstance(data["active"], bool):
@@ -854,4 +872,29 @@ def clean_account(data, existing=None):
     except ValidationError as error:
         raise BadRequest(" ".join(error.messages)) from None
     values["password"] = password
+    return values
+
+
+# ---- ports (the Ports page) -----------------------------------------------------------------
+
+
+def clean_port(data, existing=None):
+    """A port's name (2-40 characters, unique ignoring case) and On / Off. The key is never sent or changed."""
+    data = _as_dict(data)
+    values = {}
+    if existing is None or "name" in data:
+        name = data.get("name")
+        name = name.strip() if isinstance(name, str) else ""
+        if len(name) < 2:
+            raise BadRequest("Enter the port's name.")
+        if len(name) > 40:
+            raise BadRequest("The name is too long (at most 40 characters).")
+        clash = Port.objects.filter(name__iexact=name).exclude(pk=getattr(existing, "pk", None))
+        if clash.exists():
+            raise BadRequest("Another port already has this name.")
+        values["name"] = name
+    if "active" in data:
+        if not isinstance(data["active"], bool):
+            raise BadRequest("On / Off must be yes or no.")
+        values["active"] = data["active"]
     return values

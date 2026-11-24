@@ -14,9 +14,9 @@ from django.db import transaction
 from django.http import Http404
 from django.utils import timezone
 
-from . import conflicts, finance, history
+from . import conflicts, finance, history, ports
 from .access import scoped_vessels
-from .constants import MAX_NIGHTS, PORT_LABELS
+from .constants import MAX_NIGHTS
 from .errors import BadRequest
 from .listing import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MAX_QUERY, date_param, int_param
 from .models import Guest, HotelStay, Transfer, Vessel
@@ -106,7 +106,7 @@ def booking_to_dict(kind, obj, profile):
     row = {
         "id": obj.id,
         "vessel": {"id": vessel.id, "name": vessel.name, "port": vessel.port,
-                   "port_label": PORT_LABELS.get(vessel.port, vessel.port)},
+                   "port_label": ports.label(vessel.port)},
         "guests": [_guest_dict(g) for g in obj.guests.all()],
         "hotel": obj.hotel,
         "draft": obj.draft,

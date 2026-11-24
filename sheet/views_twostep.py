@@ -88,6 +88,11 @@ def blocked(request):
     return render(request, "sheet/two_step_blocked.html")
 
 
+@login_required
+def no_port(request):
+    return render(request, "sheet/two_step_blocked.html", {"message": "Your account has no port yet. Ask an admin."})
+
+
 @require_POST
 @login_required
 def forget(request):

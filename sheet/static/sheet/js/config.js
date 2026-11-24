@@ -15,6 +15,12 @@ export const NO_AGENT = readJson('no-agent-data');            // Dashboard agent
 
 export const PORT_LABEL = Object.fromEntries(PORTS.map((p) => [p.key, p.label]));
 
+// The ports this person works in (Admins: every port), in page order: the port filters. Functions, because the
+// Ports page changes PORTS in place.
+export const myPorts = () => PORTS.filter((p) => ME.isAdmin || ME.ports.includes(p.key));
+// Where a new record can go: their ports that are turned on.
+export const openPorts = () => myPorts().filter((p) => p.active);
+
 // Service kinds (must match sheet/constants.py).
 export const MULTI = ['Delivery Parcels', 'Delivery Courier', 'Landing'];
 export const SINGLE_EXTRA = {
@@ -27,9 +33,6 @@ export const SINGLE_EXTRA = {
 export const BILLING = { account: 'On account', cash: 'Cash' }; // constants.BILLING
 export const SERVICE_STATUS = { in_progress: 'In progress', completed: 'Completed', cancelled: 'Cancelled' };
 export const SERVICE_STATUS_CLASS = { in_progress: 'st-progress', completed: 'st-done', cancelled: 'st-cancel' };
-
-// Who may close / reopen Calculations rows: accounting (the read-only accounts) and admins.
-export const IS_ACCOUNTING = ME.isAdmin || ME.role === 'readonly';
 
 export const STATUS_LABEL = {
   scheduled: 'Scheduled',

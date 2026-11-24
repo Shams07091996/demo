@@ -13,6 +13,7 @@ urlpatterns = [
     path("login/code/", views_twostep.code, name="two_step_code"),
     path("login/setup/", views_twostep.setup, name="two_step_setup"),
     path("login/blocked/", views_twostep.blocked, name="two_step_blocked"),
+    path("login/no-port/", views_twostep.no_port, name="two_step_no_port"),
     path("login/forget/", views_twostep.forget, name="two_step_forget"),
     path(
         "password/",
@@ -50,6 +51,8 @@ urlpatterns = [
     path("api/options/<int:pk>/", views.option_detail, name="api_option"),
     path("api/accounts/", views.accounts_list, name="api_accounts"),
     path("api/accounts/<int:pk>/", views.account_detail, name="api_account"),
+    path("api/ports/", views.ports_list, name="api_ports"),
+    path("api/ports/<str:key>/", views.port_detail, name="api_port"),
     path("api/ships/", views.ships_list, name="api_ships"),
     path("api/ships/<int:pk>/", views.ship_detail, name="api_ship"),
     path("api/customers/", views.customers_list, name="api_customers"),

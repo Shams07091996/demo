@@ -9,8 +9,8 @@ paging), so port users get only their port. `all_file` puts the five in one work
 
 from datetime import date, datetime
 
-from . import calculations, closures, disposal, logistics, services, xlsx
-from .constants import BILLING, PORT_LABELS, SERVICE_STATUSES
+from . import calculations, closures, disposal, logistics, ports, services, xlsx
+from .constants import BILLING, SERVICE_STATUSES
 
 TITLES = {"hotels": "Hotels", "transfers": "Transport", "closures": "Port closures", "disposal": "Garbage & Sludge",
           "calculations": "Calculations", "services": "Services"}
@@ -19,7 +19,7 @@ ALL_PAGES = PAGES[:5]  # the All data file's sheets, in order (the Services list
 
 
 def _port(key):
-    return PORT_LABELS.get(key, key)
+    return ports.label(key)
 
 
 def _num(value):

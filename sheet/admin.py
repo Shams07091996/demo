@@ -131,10 +131,11 @@ class ProfileInline(admin.StackedInline):
     can_delete = False
 
     def get_readonly_fields(self, request, obj=None):
-        """The setup window is opened by a reset only; the two-step settings are for superusers only."""
+        """The setup window is opened by a reset only; the two-step settings are for superusers only; ports are
+        changed on the Accounts page, which checks them (never typed here)."""
         if request.user.is_superuser:
-            return ("setup_until",)
-        return ("setup_until", *TWO_STEP_FIELDS)
+            return ("setup_until", "home_port", "ports")
+        return ("setup_until", "home_port", "ports", *TWO_STEP_FIELDS)
 
 
 class UserForm(UserChangeForm):

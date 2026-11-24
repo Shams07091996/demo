@@ -14,8 +14,8 @@ This money is not part of the vessel figures (finance.compute), like hotel stays
 from dataclasses import dataclass
 from datetime import date
 
+from . import ports
 from .access import scoped_vessels
-from .constants import PORT_LABELS
 from .errors import BadRequest
 from .finance import line, money, num
 from .listing import date_param
@@ -50,7 +50,7 @@ def price_to_dict(price):
         "month": price.month.strftime("%Y-%m"),
         "label": price.month.strftime("%m.%Y"),
         "port": price.port,
-        "port_label": PORT_LABELS.get(price.port, price.port),
+        "port_label": ports.label(price.port),
         **blocks,
     }
 
@@ -62,8 +62,8 @@ def prices_map():
 
 def prices_for(profile):
     prices = DisposalPrice.objects.all()
-    if profile.port:  # port users see their own port's prices only
-        prices = prices.filter(port=profile.port)
+    if not profile.is_admin:  # Users see their own ports' prices only
+        prices = prices.filter(port__in=profile.ports)
     return [price_to_dict(p) for p in prices]
 
 
@@ -197,7 +197,7 @@ def row(vessel, rates, prices):
     price, rate = kept(disposal, prices.get((*month, vessel.port)), rates.get(month))
     return {
         "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "opr": vessel.opr,
-                   "port": vessel.port, "port_label": PORT_LABELS.get(vessel.port, vessel.port)},
+                   "port": vessel.port, "port_label": ports.label(vessel.port)},
         "garbage": float(disposal.garbage) if disposal and disposal.garbage is not None else None,
         "sludge": float(disposal.sludge) if disposal and disposal.sludge is not None else None,
         "hidden": bool(disposal and disposal.hidden),

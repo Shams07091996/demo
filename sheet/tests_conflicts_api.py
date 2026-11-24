@@ -175,10 +175,6 @@ class ConflictApiTests(ApiTestCase):
                 status, data = self.raw(suez, "put", url, {**body, "version": 1})
                 self.assertEqual(status, 404)
                 self.assertNotIn("conflict", data)
-        viewer = self.login("viewer")
-        status, data = self.raw(viewer, "put", self.updates()[0][0], {**self.updates()[0][1], "version": 1})
-        self.assertEqual(status, 403)
-        self.assertNotIn("conflict", data)
 
     def test_service_version_in_vessel_json(self):
         status, data = self.call(self.alex, "get", f"/api/vessels/{self.alex_vessel.id}/")

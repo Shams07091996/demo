@@ -205,9 +205,6 @@ class LogViewTests(ApiTestCase):
         self.assertIn(b"(EMIRATES)", pdf)
         self.assertNotIn(b"TUE 17", pdf.split(b"(DATE:)")[0])
 
-    def test_viewer_refused(self):
-        self.assertEqual(self.get("viewer").status_code, 403)
-
     def test_other_port_not_found(self):
         self.assertEqual(self.get("suezuser").status_code, 404)
 

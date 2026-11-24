@@ -26,7 +26,7 @@ function shipFieldsEl(ship, { name = '', port = null, withActive = false } = {})
       h('div', { class: 'field' }, h('label', null, 'IMO'), imo,
         h('label', { class: 'tick' }, tick, ' No IMO'))),
     h('div', { class: 'row two' },
-      field('OPR', h('select', { attrs: { name: 'opr' } }, optionChoicesEl('opr', ship?.opr || '', ME.isAdmin ? null : port))),
+      field('OPR', h('select', { attrs: { name: 'opr' } }, optionChoicesEl('opr', ship?.opr || '', port))),
       field('Customer', h('select', { attrs: { name: 'customer' } }, customerOptionEls(ship?.customer?.id ?? null)))),
     withActive
       ? h('label', { class: 'tick' }, h('input', { attrs: { type: 'checkbox', name: 'active' }, checked: ship ? ship.active : true }), ' Active')
@@ -84,7 +84,7 @@ export async function openShipDialog(ship, onDone) {
   const btn = (cls, act, label) => h('button', { class: `btn ${cls}`, dataset: { act } }, label);
   openModal(
     headEl(ship ? 'Edit ship' : 'Add ship'),
-    h('div', { class: 'm-body', id: 'ship-form' }, shipFieldsEl(ship, { port: ME.port, withActive: true }),
+    h('div', { class: 'm-body', id: 'ship-form' }, shipFieldsEl(ship, { port: ME.multiPort ? null : ME.homePort, withActive: true }),
       ship ? h('div', { class: 'none' }, `${ship.calls} port call${ship.calls === 1 ? '' : 's'}`) : null),
     h('div', { class: 'm-foot' },
       ship && ME.isAdmin ? btn('danger', 'ship-del', 'Delete') : h('span'),

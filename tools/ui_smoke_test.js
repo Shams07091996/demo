@@ -2,7 +2,7 @@
 //
 //   python manage.py seed_demo --password "some-long-password" --two-step-key <32 base32 characters>
 //   python manage.py runserver 8765          (in another terminal)
-//   UI_TEST_PASSWORD="some-long-password" UI_TEST_TOTP_KEY=<the same key> node ui_smoke_test.js [alex|admin|viewer]
+//   UI_TEST_PASSWORD="some-long-password" UI_TEST_TOTP_KEY=<the same key> node ui_smoke_test.js [alex|admin|viewer|suez]
 //
 // It creates and removes its own vessels, master-data values and a January-2020 exchange rate.
 const crypto = require('crypto');
@@ -251,10 +251,62 @@ async function login() {
     return finish();
   }
 
+  // A User of three ports (run: node ui_smoke_test.js viewer): Alexandria (home), Port Said and Damietta, never Suez.
+  // A short, separate run: the full edit flows are walked by alex.
+  if (ROLE === 'viewer') {
+    const labels = (el) => [...el.options].map((o) => o.textContent).join();
+    ok(!$('#nav [data-page="history"]') && !$('#nav [data-page="accounts"]') && !$('#nav [data-page="ports"]'),
+      'three-port user: no History, Accounts or Ports in the sidebar');
+    ok($('#roleLabel').textContent === 'Alexandria, Port Said, Damietta', 'three-port user: the sidebar names their ports');
+    ok(shown($('#portSelect')) && labels($('#portSelect')) === 'All my ports,Alexandria,Port Said,Damietta',
+      'three-port user: the port filter offers exactly their three ports');
+    ok(shown($('#qa-port')) && labels($('#qa-port')) === 'Alexandria,Port Said,Damietta' && $('#qa-port').value === 'alexandria',
+      'three-port user: quick add offers their ports, starting on Alexandria');
+    click($('#addVesselBtn'));
+    ok(await waitFor(() => $('#vessel-form [name=port]')) && labels($('#vessel-form [name=port]')) === 'Alexandria,Port Said,Damietta'
+      && $('#vessel-form [name=port]').value === 'alexandria', 'three-port user: the vessel form offers their ports, default Alexandria');
+    closeModal();
+    // A vessel saved in Damietta (one of their extra ports) appears; no Suez vessel anywhere.
+    const { ships } = await (await w.fetch('/api/ships/?limit=200')).json();
+    const ship = ships.find((s) => s.name === 'MSC AURORA');
+    const name = `SMOKE DAMI ${Date.now().toString(36).toUpperCase()}`;
+    const { options } = await (await w.fetch('/api/options/')).json();
+    const poc = options.find((o) => o.kind === 'poc' && ['', 'damietta'].includes(o.port))?.value || '';
+    const res = await w.fetch('/api/vessels/', { method: 'POST', headers: { 'X-CSRFToken': meta(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, ship_id: ship.id, date: localNow(), port: 'damietta', opr: ship.opr, poc }) });
+    const made = await res.json();
+    ok(res.status === 201 && made.port === 'damietta', `three-port user: a vessel is saved in Damietta${res.ok ? '' : `: ${made.error}`}`);
+    type($('#portSelect'), 'damietta');
+    ok(await waitFor(() => rowFor(name)), 'three-port user: the Damietta vessel is listed');
+    type($('#portSelect'), 'ALL');
+    const { vessels } = await (await w.fetch('/api/vessels/?page_size=100&port=suez')).json();
+    ok(vessels.length > 0 && vessels.every((v) => v.port !== 'suez'), 'three-port user: asking for Suez never shows a Suez vessel');
+    await waitFor(() => $$('#tbody tr').length > 0);
+    ok(!$('#tbody').textContent.includes('Suez'), 'three-port user: no Suez vessel in the list');
+    const refused = await w.fetch('/api/vessels/', { method: 'POST', headers: { 'X-CSRFToken': meta(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'SMOKE SUEZ', ship_id: ship.id, date: localNow(), port: 'suez', opr: ship.opr }) });
+    ok(refused.status === 403, 'three-port user: a vessel in Suez is refused');
+    // Port closures: both seeded closures (Alexandria, Port Said) are theirs; the dialog offers their three ports.
+    await go('closures');
+    click($('#pc-clear'));
+    ok(await waitFor(() => $$('#pc-tbody tr').length >= 2) && /Port/.test($('#pc-head').textContent), 'three-port user: closures of their ports, with a Port column');
+    click($('[data-act="closure-new"]'));
+    ok(await waitFor(() => $('#closure-form [name=port]')) && labels($('#closure-form [name=port]')) === 'Alexandria,Port Said,Damietta',
+      'three-port user: the closure dialog offers their ports');
+    closeModal();
+    // Calculations: money is shown, but Open / Closed is the Admins' switch.
+    await go('calculations');
+    ok(await waitFor(() => $$('#c-tbody tr').length > 0) && !$('#c-tbody [data-act="acct-toggle"]') && !!$('#c-tbody .acct-label'),
+      'three-port user: Calculations has no Open / Closed buttons');
+    ok((await w.fetch(`/api/vessels/${made.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } })).ok, 'three-port user: the Damietta vessel is deleted');
+    await checkHistory();
+    return finish();
+  }
+
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 14 : 12), 'sidebar lists the pages (admins also have History, the superuser Accounts; no Bulk add)');
-  const pageOrder = 'vessels,services,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates' + (ROLE === 'admin' ? ',history,accounts' : '');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 15 : 12), 'sidebar lists the pages (Admins also have History, Accounts and Ports; no Bulk add)');
+  const pageOrder = 'vessels,services,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates' + (ROLE === 'admin' ? ',history,accounts,ports' : '');
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Port closures and Calculations sit after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
@@ -1508,9 +1560,10 @@ async function login() {
       ok(await waitFor(() => $('#pageTitle').textContent === 'Vessels'), `history: ${ROLE} opening #history lands on Vessels`);
     }
     await checkAccounts();
+    await checkPorts();
   }
 
-  /** Accounts: the superuser (seed_demo's admin) adds one, changes its role, turns it off and on; others get 403. */
+  /** Accounts: an Admin (seed_demo's admin) adds one, changes its ports, turns it off and on; others get 403. */
   async function checkAccounts() {
     const status = (await w.fetch('/api/accounts/')).status;
     if (ROLE !== 'admin') {
@@ -1527,16 +1580,23 @@ async function login() {
     ok(await waitFor(() => $('#account-form')), 'accounts: + Add account opens the dialog');
     type($('#account-form [name=username]'), username);
     type($('#account-form [name=first_name]'), 'Smoke');
-    type($('#account-form [name=role]'), 'damietta');
+    const tick = (key) => $(`#account-form [data-port="${key}"]`);
+    ok(!!$('#account-form [name=home_port]') && ['alexandria', 'portsaid', 'damietta', 'suez'].every((k) => tick(k)),
+      'accounts: the dialog has Home port and Extra ports');
+    type($('#account-form [name=home_port]'), 'damietta');
+    ok(tick('damietta').checked && tick('damietta').disabled, "accounts: the home port's tick is on and fixed");
+    tick('portsaid').checked = true;
     type($('#account-form [name=password]'), 'Smoke-test-password-2026');
     click($('[data-act="account-save"]'));
-    ok(await waitFor(() => acRow(username)?.textContent.includes('Damietta') && acRow(username).textContent.includes('Waiting')),
-      'accounts: a new account is listed with its role, waiting for its Authenticator');
+    ok(await waitFor(() => acRow(username)?.textContent.includes('Damietta (home), Port Said') && acRow(username).textContent.includes('Waiting')),
+      'accounts: a new account is listed with its ports, waiting for its Authenticator');
     click(acRow(username));
     ok(await waitFor(() => $('#account-form') && !$('#account-form [name=password]')), 'accounts: an account opens without a password box');
-    type($('#account-form [name=role]'), 'suez');
+    type($('#account-form [name=home_port]'), 'suez');
+    tick('damietta').checked = false;
+    tick('portsaid').checked = false;
     click($('[data-act="account-save"]'));
-    ok(await waitFor(() => acRow(username)?.textContent.includes('Suez')), 'accounts: the role changes');
+    ok(await waitFor(() => acRow(username)?.children[2].textContent === 'Suez (home)'), 'accounts: the ports change');
     click(acRow(username));
     await waitFor(() => $('[data-act="account-toggle"]'));
     click($('[data-act="account-toggle"]'));
@@ -1549,6 +1609,36 @@ async function login() {
     ok(await waitFor(() => $('#account-form') && !$('[data-act="account-save"]') && !$('[data-act="account-toggle"]')),
       'accounts: a superuser account is read-only here');
     closeModal();
+  }
+
+  /** Ports: an Admin lists the four ports, adds one, renames it and turns it off (ports are never deleted). */
+  async function checkPorts() {
+    const status = (await w.fetch('/api/ports/')).status;
+    if (ROLE !== 'admin') {
+      ok(status === 403 && !$('#nav [data-page="ports"]') && !$('#page-ports'), `ports: ${ROLE} has no Ports page`);
+      return;
+    }
+    await go('ports');
+    const ptRow = (name) => $$('#pt-tbody tr').find((r) => r.children[0].textContent === name);
+    ok(await waitFor(() => ['Alexandria', 'Port Said', 'Damietta', 'Suez'].every((n) => ptRow(n))), 'ports: the page lists the four ports');
+    ok(ptRow('Alexandria').children[1].textContent === 'alexandria' && Number(ptRow('Alexandria').children[3].textContent) > 0,
+      'ports: a row shows the key and its vessels');
+    const name = `Smoke${Date.now().toString(36)}`;
+    click($('[data-act="port-new"]'));
+    await waitFor(() => $('#port-form'));
+    type($('#port-form [name=name]'), name);
+    click($('[data-act="port-save"]'));
+    ok(await waitFor(() => ptRow(name)?.children[2].textContent === 'On'), 'ports: + Add port adds a turned-on port');
+    click(ptRow(name));
+    await waitFor(() => $('#port-form'));
+    type($('#port-form [name=name]'), `${name} R`);
+    click($('[data-act="port-save"]'));
+    ok(await waitFor(() => ptRow(`${name} R`)), 'ports: a port is renamed');
+    click(ptRow(`${name} R`));
+    await waitFor(() => $('[data-act="port-toggle"]')?.textContent === 'Turn off');
+    click($('[data-act="port-toggle"]'));
+    ok(await waitFor(() => ptRow(`${name} R`)?.classList.contains('inactive') && ptRow(`${name} R`).children[2].textContent === 'Off'),
+      'ports: Turn off greys it');
   }
 
   function finish() {

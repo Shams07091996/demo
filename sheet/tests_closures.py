@@ -69,8 +69,9 @@ class ClosureApiTests(ApiTestCase):
         self.assertEqual(status, 200)
         return [c["id"] for c in data["closures"]]
 
-    def test_port_user_creates_closure_for_own_port_whatever_port_sent(self):
-        status, closure = self.post(self.alex, port="suez", notes="Strong wind")
+    def test_port_user_creates_closures_in_own_port_only(self):
+        self.assertEqual(self.post(self.alex, port="suez")[0], 403)
+        status, closure = self.post(self.alex, port="", notes="Strong wind")
         self.assertEqual((status, closure["port"], closure["notes"]), (201, "alexandria", "Strong wind"))
 
     def test_admin_creates_closure_for_any_port(self):
@@ -80,15 +81,12 @@ class ClosureApiTests(ApiTestCase):
     def test_admin_unknown_port_refused(self):
         self.assertEqual(self.post(self.login("admin"), port="atlantis")[0], 400)
 
-    def test_viewer_cannot_write_but_sees_every_port(self):
-        viewer = self.login("viewer")
-        self.assertEqual(self.post(viewer)[0], 403)
-        a, s = self.make("alexandria", "2026-11-13T06:00"), self.make("suez", "2026-11-12T06:00")
-        self.assertEqual(self.listed_ids(viewer), [a.id, s.id])
-        self.assertEqual(self.listed_ids(viewer, "?port=suez"), [s.id])
-        closure = self.make("suez", "2026-11-11T06:00")
-        self.assertEqual(self.call(viewer, "put", f"/api/closures/{closure.id}/", {"reason": "WEATHER"})[0], 403)
-        self.assertEqual(self.call(viewer, "delete", f"/api/closures/{closure.id}/")[0], 403)
+    def test_other_ports_closures_cannot_be_changed(self):
+        suez = self.login("suezuser")
+        closure = self.make("alexandria", "2026-11-11T06:00")
+        self.assertEqual(self.call(suez, "put", f"/api/closures/{closure.id}/", {"reason": "WEATHER"})[0], 404)
+        self.assertEqual(self.call(suez, "delete", f"/api/closures/{closure.id}/")[0], 404)
+        self.assertTrue(PortClosure.objects.filter(pk=closure.pk).exists())
 
     def test_port_user_cannot_see_or_edit_other_port(self):
         suez = self.make("suez", "2026-11-13T06:00")
@@ -143,7 +141,7 @@ class ClosureApiTests(ApiTestCase):
         _, closure = self.post(self.alex)
         allow("closure", "FOG")
         status, edited = self.call(self.alex, "put", f"/api/closures/{closure['id']}/",
-                                   {**closure, "reason": "FOG", "port": "suez"})
+                                   {**closure, "reason": "FOG"})
         self.assertEqual((status, edited["reason"], edited["port"]), (200, "FOG", "alexandria"))
         self.assertEqual(self.call(self.alex, "delete", f"/api/closures/{closure['id']}/")[0], 200)
         actions = ChangeRecord.objects.filter(object_type="portclosure", object_id=closure["id"])
@@ -163,8 +161,3 @@ class ClosurePageTests(ApiTestCase):
         self.assertIn('data-page="closures"', page)
         self.assertIn('id="page-closures"', page)
         self.assertIn('data-act="closure-new"', page)
-
-    def test_viewer_page_has_no_add_button(self):
-        page = self.login("viewer").get("/").content.decode()
-        self.assertIn('id="page-closures"', page)
-        self.assertNotIn('data-act="closure-new"', page)

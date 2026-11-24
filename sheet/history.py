@@ -23,6 +23,7 @@ from .models import (
     Guest,
     HotelStay,
     Option,
+    Port,
     PortClosure,
     Profile,
     RememberedComputer,
@@ -45,6 +46,7 @@ TRACKED = (
     DisposalPrice,
     VesselDisposal,
     PortClosure,
+    Port,
     Ship,
     Customer,
     CustomerContact,
@@ -129,7 +131,7 @@ def port_of(instance):
         vessel_id = booking_model._base_manager.filter(pk=booking_id).values_list("vessel_id", flat=True).first()
         return _vessel_port(vessel_id)
     if isinstance(instance, Profile):
-        return instance.port or ""
+        return instance.home_port or ""
     return ""
 
 

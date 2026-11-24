@@ -1,8 +1,8 @@
 # Marine Service Sheet
 
 A Django web app that replaces the vessel/services Excel sheet: every vessel in one table, and a click opens a
-modal to record its services (zero or many). Data lives in a real database; users sign in and see only what their
-role allows.
+modal to record its services (zero or many). Data lives in a real database; users sign in and see only their own
+ports.
 
 **Putting it on a server and creating everyone's account:** `docs/DEPLOYMENT.md` (step by step, with backups and what happens when the database stops or two people edit the same thing).
 
@@ -22,15 +22,16 @@ python manage.py runserver
 start instead of running in debug mode with a public secret key. `runserver` and `test` switch it on by themselves; other
 commands (`migrate`, `seed_demo`, `createsuperuser`) need the `DJANGO_DEBUG=1` line above when you run them locally.
 
-Open http://127.0.0.1:8000/ and sign in. For real accounts use `python manage.py createsuperuser`, then give each
-user a role in the admin (`/admin/` -> Users -> Profile). **New users start read-only.**
+Open http://127.0.0.1:8000/ and sign in. The Admins are the superusers (`python manage.py createsuperuser`); an
+Admin adds everyone else on the **Accounts** page with a home port and any extra ports. **An account with no port can
+do nothing** until an Admin gives it one.
 
 **Two-step login:** after the password everyone types a six-digit code from **Microsoft Authenticator** (any
 authenticator app works). At the first sign-in the person scans a QR code; this is only possible within 72 hours of
 the account being created or reset. "Remember this computer" skips the code on that browser for 30 days (Forget this
 computer in the sidebar). A person whose password was set by someone else must choose their own first. A lost phone:
 a superuser picks the person in `/admin/` -> Users -> action "Reset two-step login", or on the server
-`python manage.py reset_two_step <username>`. A superuser can make a non-admin an exception (password only). Keep at
+`python manage.py reset_two_step <username>`. A superuser can make a non-Admin an exception (password only). Keep at
 least two superusers with Authenticator set up (`check --deploy --database default` warns, `sheet.W002`).
 
 ## PostgreSQL
@@ -97,13 +98,13 @@ location / {
 | Page | What it is for |
 |---|---|
 | Vessels | The vessel table for a **From – To date range** (this month by default), quick-add bar, search / ARK–MSK filters, sorting and paging (10 / 25 / 50 / 100 rows) – all done by the server – a *Summary of services* button on every vessel, CSV export of everything matching |
-| Hotels | Every hotel stay (one room, 1–6 crew guests, check-in, nights, hotel from Master data) with guest and vessel, for a date range and port; cost and revenue per night; editors add / edit / delete, read-only users only see |
+| Hotels | Every hotel stay (one room, 1–6 crew guests, check-in, nights, hotel from Master data) with guest and vessel, for a date range and port; cost and revenue per night; Users add / edit / delete in their ports |
 | Transport | Every transfer between an airport, a hotel and a port — saying which one of each, from Master data — with date and time, 1–6 guests, flight and vessel; same rules as Hotels |
-| Calculations | Every money line — each service (each entry of Parcels / Courier / Landing), hotel stay and transfer — for a vessel-date range, OPR and port, showing its working (amount × rate = EGP) and one totals line (revenue, cost, profit, lines without an exchange rate). Every role can see it |
+| Calculations | Every money line — each service (each entry of Parcels / Courier / Landing), hotel stay and transfer — for a vessel-date range, OPR and port, showing its working (amount × rate = EGP) and one totals line (revenue, cost, profit, lines without an exchange rate). Everyone sees their ports' lines |
 | Dashboard | Filters (dates, port, OPR, agent, service type); jobs per agent (chart + table, a row lists that agent's jobs), services per month (stacked chart + table), money per month (table), then the OPR charts and cards — all totalled by the server |
 | Master data | Add / remove the OPR, POC, Agent, Hotel, Airport and Port values used in the dropdowns (with "used by N"). Each value belongs to **one port or All ports**: admins choose when adding and can move it later; port users' values are for their port. Every dropdown offers only the item's port plus All-ports values |
 | Exchange rates | Monthly USD → EGP rates (shared by every port, so only admins can change them) |
-| History | **Admins only.** Every create / change / delete (vessels, services, bookings, guests, Master data, rates, user roles) with who, when, from which address and old → new; filter by date, what changed and user. Nobody can edit or delete it |
+| History | **Admins only.** Every create / change / delete (vessels, services, bookings, guests, Master data, rates, ports, user accounts) with who, when, from which address and old → new; filter by date, what changed and user. Nobody can edit or delete it |
 
 Each vessel also records its **arrival agent** (who entered it), its **sailing agent** (who sailed it) and its **port-call times** (arrived, berthed, ops started, ops finished, sailed – Cairo
 time) with the time spent at berth / operating / in port. Operations may start before berthing (anchorage work); other
@@ -123,19 +124,19 @@ out-of-order times are rejected.
 | Excel | The Dashboard's management workbook; an **Excel** button on Hotels, Transport, Port closures, Garbage & Sludge and Calculations (every row the page's filters show, as a plain table for other programs) and **All data** (the five in one file for a From – To range) |
 | Alerts | Bell + banner for vessels dated today or tomorrow |
 
-### Roles
+### Who can do what
 
-| Role | Sees | Can edit |
+| Who | Sees | Can edit |
 |---|---|---|
-| admin | all ports | everything, including shared master data |
-| readonly | all ports, money included (vessels, hotels, transport, Calculations) | only the accounting Open / Closed switch on Calculations (the read-only accounts are accounting) |
-| alexandria / portsaid / damietta / suez | own port only | own port only (and that port's master-data values; exchange rates are admin-only) |
+| Admin (a superuser) | every port | everything: accounts, ports (add / rename / turn off, never delete), exchange rates, prices, All-ports master data, the History, the accounting Open / Closed switch |
+| User | their home port and extra ports | everything in those ports (and those ports' master-data values) |
 
-Port restrictions are enforced on the server for every request, not just hidden in the page.
+Port restrictions are enforced on the server for every request, not just hidden in the page: asking for another
+port never shows more, and writing into a port that isn't theirs is refused. A turned-off port takes no new records.
 
 ## Security
 
-Short version: role- and port-based access control on every request, CSRF protection, brute-force lock-out (also on the
+Short version: port-based access control on every request, CSRF protection, brute-force lock-out (also on the
 admin login), API rate limits, 60-minute idle sessions, 12+ character passwords, `__Host-` cookies, strict
 Content-Security-Policy with no third-party scripts, **two-step login (Authenticator codes) for everyone**, hash-locked dependencies, encrypted database connection, audit and
 security logs, a tamper-proof change history, alerting, JSON errors with a reference, validated input and escaped output.
@@ -146,7 +147,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 732 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
+python manage.py test sheet         # 756 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
@@ -175,7 +176,8 @@ UI_TEST_PASSWORD="a-long-password" UI_TEST_TOTP_KEY=<same key> node ui_smoke_tes
 ```
 config/                 settings and database setup (all environment-driven), urls
 sheet/
-  constants.py          ports, roles, service types
+  constants.py          service types, lists
+  ports.py              the Port table (labels, keys) and the Ports page
   models.py             Vessel, Service, ExchangeRate, Option, Profile, bookings, LoginAttempt, RateCounter,
                         ChangeRecord
   validators.py         cleaning of everything the browser sends

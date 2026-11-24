@@ -148,9 +148,10 @@ class CalculationsApiTests(ApiTestCase):
         self.assertEqual({r["vessel"]["port"] for r in self.get("alex", port="suez")["rows"]}, {"alexandria"})
 
     def test_every_role_can_read_and_totals_cover_every_page(self):
-        page = self.get("viewer", page_size=1)
+        page = self.get("admin", page_size=1)
         self.assertEqual((len(page["rows"]), page["totals"]["lines"]), (1, page["count"]))
         self.assertEqual(page["count"], 6)  # ALEX SHIP's 5 + SUEZ SHIP's fresh water
+        self.assertEqual(self.get("viewer")["count"], 5)  # not Suez
 
     def test_sorting_and_bad_parameters(self):
         rows = self.get("admin", sort="profit", dir="desc")["rows"]

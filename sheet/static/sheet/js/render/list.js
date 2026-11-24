@@ -7,7 +7,7 @@ import { state } from '../state.js';
 import { $, $$, dmy, oprClass } from '../util.js';
 
 export function renderPortBanner() {
-  const port = ME.port || (state.filter.port !== 'ALL' ? state.filter.port : null);
+  const port = !ME.multiPort ? ME.homePort : state.filter.port !== 'ALL' ? state.filter.port : null;
   const banner = $('#portBanner');
   banner.hidden = !port;
   if (!port) return;
@@ -62,7 +62,7 @@ export function renderTable() {
 
 /** Refill every OPR / POC / Agent dropdown outside dialogs (the quick-add bar), for its port. */
 export function fillQuickSelects() {
-  const port = ME.isAdmin ? $('#qa-port')?.value || null : ME.port;
+  const port = ME.multiPort ? $('#qa-port')?.value || null : ME.homePort;
   for (const kind of ['opr', 'poc', 'agent']) {
     const select = $(`#qa-${kind}`);
     setChildren(select, optionChoicesEl(kind, select.value, port));

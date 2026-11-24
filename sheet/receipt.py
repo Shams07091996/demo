@@ -5,7 +5,7 @@ The service's revenue is written as "cost": what ARKAS earns is what the vessel 
 
 from django.utils import timezone
 
-from .constants import PORT_LABELS
+from . import ports
 from .finance import service_lines
 
 
@@ -39,7 +39,7 @@ def services_line(service):
 def prefill(service):
     vessel = service.vessel
     return {
-        "port": PORT_LABELS.get(vessel.port, vessel.port),
+        "port": ports.label(vessel.port),
         "date": timezone.localdate().strftime("%d/%m/%Y"),
         "vessel": vessel.name,
         "services": services_line(service),

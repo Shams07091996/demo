@@ -11,9 +11,6 @@ from .constants import (
     CANCEL_REASON_MAX,
     OPTION_KINDS,
     PLACES,
-    PORT_KEYS,
-    PORTS,
-    ROLES,
     SERVICE_STATUSES,
     SERVICE_TYPES,
 )
@@ -27,10 +24,12 @@ def default_setup_until():
 
 
 class Profile(models.Model):
-    """A user's role: admin, read-only, or tied to one port (edits only that port), and their two-step login state."""
+    """A user's ports and their two-step login state. Admins are the superusers (every port, everything); everyone
+    else works in `ports` (Port keys, always including `home_port`, where the screens open). No ports: blocked."""
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
-    role = models.CharField(max_length=20, choices=ROLES, default="readonly")
+    home_port = models.CharField(max_length=20, blank=True)
+    ports = models.JSONField(default=list, blank=True)
     # Two-step login (sheet/twostep.py). Only superusers change these, in the admin pages.
     two_step_exempt = models.BooleanField(
         "Two-step exception", default=False, help_text="Signs in with the password only. Never for admins."
@@ -43,12 +42,12 @@ class Profile(models.Model):
     )
 
     def __str__(self):
-        return f"{self.user} ({self.role})"
+        return f"{self.user} ({'admin' if self.is_admin else ', '.join(self.ports) or 'no port'})"
 
     def may_be_exempt(self):
-        """Admins (role admin, superusers, anyone who can open the admin pages) always need the code."""
+        """Admins (superusers) and anyone who can open the admin pages always need the code."""
         user = self.user
-        return not (self.role == "admin" or user.is_superuser or user.is_staff)
+        return not (user.is_superuser or user.is_staff)
 
     def clean(self):
         if self.two_step_exempt and not self.may_be_exempt():
@@ -63,17 +62,12 @@ class Profile(models.Model):
         super().save(*args, **kwargs)
 
     @property
-    def port(self):
-        """The one port this user is restricted to, or None for admin / read-only."""
-        return self.role if self.role in PORT_KEYS else None
-
-    @property
     def is_admin(self):
-        return self.role == "admin"
+        return self.user.is_superuser
 
     @property
     def can_edit(self):
-        return self.is_admin or self.port is not None
+        return self.is_admin or bool(self.ports)
 
 
 class Customer(models.Model):
@@ -141,6 +135,22 @@ class Ship(models.Model):
         return f"{self.name} ({self.imo or 'no IMO'})"
 
 
+class Port(models.Model):
+    """A port the company works in. `key` is stored on records and never changes; `name` can be renamed; a turned-off
+    port takes no new records (sheet/ports.py)."""
+
+    key = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=40)
+    active = models.BooleanField(default=True)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Vessel(models.Model):
     name = models.CharField(max_length=120)
     opr = models.CharField("OPR", max_length=100, blank=True)
@@ -156,7 +166,7 @@ class Vessel(models.Model):
     sailing_at = models.DateTimeField(null=True, blank=True)
     # From the Master data "delay" list; required when berthing is more than 2 hours after arrival (validators).
     delay_reason = models.CharField("Delay reason", max_length=100, blank=True)
-    port = models.CharField(max_length=20, choices=PORTS, default="alexandria", db_index=True)
+    port = models.CharField(max_length=20, default="alexandria", db_index=True)  # a Port key
     summary = models.JSONField(default=dict, blank=True)  # optional vendor / invoice notes
     ship = models.ForeignKey(Ship, on_delete=models.PROTECT, null=True, blank=True, related_name="vessels")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -228,7 +238,7 @@ class DisposalPrice(models.Model):
     ton above the minimum (disposal.block_amount)."""
 
     month = models.DateField()
-    port = models.CharField(max_length=20, choices=PORTS)
+    port = models.CharField(max_length=20)  # a Port key
     garbage_revenue_min_qty = _price_qty("Garbage revenue: minimum quantity (m³)")
     garbage_revenue_min = _price_amount("Garbage revenue: minimum amount")
     garbage_revenue_currency = _price_currency("Garbage revenue: currency", "USD")
@@ -290,7 +300,7 @@ class Option(models.Model):
 class PortClosure(models.Model):
     """A port closed from start_at until end_at (empty while still closed). Not linked to vessels."""
 
-    port = models.CharField(max_length=20, choices=PORTS, db_index=True)
+    port = models.CharField(max_length=20, db_index=True)  # a Port key
     start_at = models.DateTimeField("Closed from")
     end_at = models.DateTimeField("Reopened", null=True, blank=True)
     reason = models.CharField(max_length=100)  # from the Master data "closure" list

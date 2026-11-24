@@ -2,7 +2,8 @@
 
 from django.utils import timezone
 
-from .constants import PORT_LABELS, TIME_KEYS
+from . import ports
+from .constants import TIME_KEYS
 from .finance import compute
 from .models import ExchangeRate
 
@@ -75,7 +76,7 @@ def vessel_to_dict(vessel, rates):
         "arrival_agent": vessel.arrival_agent,
         "sailing_agent": vessel.sailing_agent,
         "port": vessel.port,
-        "port_label": PORT_LABELS.get(vessel.port, vessel.port),
+        "port_label": ports.label(vessel.port),
         "date": vessel.date.isoformat(),
         "summary": vessel.summary or {},
         **{key: local_iso(getattr(vessel, key)) for key in TIME_KEYS},
@@ -105,7 +106,7 @@ def rate_to_dict(rate):
 
 def option_to_dict(option, profile, used=0):
     """`used` = how many vessels (that this user can see) currently carry this value."""
-    editable = profile.is_admin or (profile.port is not None and option.port == profile.port)
+    editable = profile.is_admin or (option.port != "" and option.port in profile.ports)
     return {
         "id": option.id,
         "kind": option.kind,

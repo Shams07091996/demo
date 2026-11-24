@@ -1,5 +1,5 @@
 // Small building blocks shared by several screens. They return elements (built with h()), never HTML strings.
-import { PORTS, PORT_LABEL, SERVICE_STATUS, SERVICE_STATUS_CLASS, STATUS_LABEL, TIME_FIELDS } from './config.js';
+import { ME, myPorts, PORT_LABEL, SERVICE_STATUS, SERVICE_STATUS_CLASS, STATUS_LABEL, TIME_FIELDS } from './config.js';
 import { h, icon, optionEls } from './dom.js';
 import { optionValues } from './state.js';
 import { dmy, fmt, fmtDuration, fmtStamp, oprClass, sign, tickSummary } from './util.js';
@@ -42,9 +42,14 @@ export const sortIcon = (active, dir) => {
   return dir === 'asc' ? icon('chevron-up') : icon('chevron-down');
 };
 
-/** Port <option>s; with `all`, a first "All ports" option (value ALL). */
-export const portOptionEls = ({ all = false, selected = '' } = {}) =>
-  optionEls([...(all ? [['ALL', 'All ports']] : []), ...PORTS.map((p) => [p.key, p.label])], selected);
+/** Port <option>s of `ports` (default: the person's own); with `all`, a first "All ports" option (value ALL). */
+export const portOptionEls = ({ all = false, selected = '', ports = myPorts() } = {}) =>
+  optionEls([...(all ? [['ALL', ME.isAdmin ? 'All ports' : 'All my ports']] : []), ...ports.map((p) => [p.key, p.label])],
+    selected);
+
+/** The ports a new or edited record may be put in: the turned-on ones of the person, plus the record's own. */
+export const formPorts = (open, current) =>
+  (current && !open.some((p) => p.key === current) ? [...open, { key: current, label: PORT_LABEL[current] || current }] : open);
 
 /** Dialog header: title, optional meta line (nodes or text), close button. */
 export const headEl = (title, meta = null) =>

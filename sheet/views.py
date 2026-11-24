@@ -35,6 +35,7 @@ from . import (
     listing,
     logistics,
     logpdf,
+    ports,
     ratelimit,
     receipt,
     report,
@@ -44,10 +45,12 @@ from . import (
 )
 from . import dashboard as dashboard_figures
 from .access import (
+    asked_port,
     profile_of,
     require_accounting,
     require_admin,
     require_edit,
+    require_port,
     require_superuser,
     scoped_closures,
     scoped_vessels,
@@ -57,9 +60,6 @@ from .constants import (
     NO_AGENT,
     OPTION_KIND_KEYS,
     OPTION_KINDS,
-    PORT_KEYS,
-    PORT_LABELS,
-    PORTS,
     RATE_UNITS,
     SERVICE_TYPES,
     SUMMARY_FIELDS,
@@ -74,6 +74,7 @@ from .models import (
     ExchangeRate,
     HotelStay,
     Option,
+    Port,
     Service,
     Ship,
     Transfer,
@@ -86,6 +87,7 @@ from .validators import (
     clean_booking_refs,
     clean_disposal_price,
     clean_disposal_quantities,
+    clean_port,
     clean_receipt,
     clean_service_billing,
     clean_service_data,
@@ -125,14 +127,14 @@ def index(request):
     context = {
         "me": {
             "username": request.user.get_username(),
-            "role": profile.role,
-            "port": profile.port,
+            "ports": ports.keys() if profile.is_admin else list(profile.ports),
+            "homePort": "" if profile.is_admin else profile.home_port,
+            "multiPort": profile.is_admin or len(profile.ports) > 1,
             "canEdit": profile.can_edit,
             "isAdmin": profile.is_admin,
             "isSuperuser": request.user.is_superuser,
-            "seesAll": profile.port is None,
         },
-        "ports": [{"key": key, "label": label} for key, label in PORTS],
+        "ports": [{"key": key, "label": name, "active": active} for key, name, active in ports.rows()],
         "service_types": SERVICE_TYPES,
         "rate_units": RATE_UNITS,
         "no_agent": NO_AGENT,
@@ -201,7 +203,10 @@ def _export_range(request):
         raise BadRequest("From must be on or before To.")
     if (date_to.year * 12 + date_to.month) - (date_from.year * 12 + date_from.month) >= 24:
         raise BadRequest("Choose a range of at most 24 months.")
-    port = request.profile.port or (request.GET.get("port") if request.GET.get("port") in PORT_LABELS else None)
+    profile = request.profile
+    port = asked_port(profile, request.GET.get("port"))
+    if port is None and not profile.is_admin and len(profile.ports) == 1:
+        port = profile.ports[0]  # a one-port User's files are named after that port
     return date_from, date_to, port
 
 
@@ -215,8 +220,8 @@ def _xlsx_response(content, filename):
 @json_api
 @require_http_methods(["GET"])
 def dashboard_export(request):
-    """The management workbook (.xlsx) for a From–To range and port. Every role may download it; port users get
-    their own port whatever they ask."""
+    """The management workbook (.xlsx) for a From–To range and port. Everyone may download it; a User gets their
+    own ports whatever they ask."""
     ratelimit.check(request, "export")
     date_from, date_to, port = _export_range(request)
     r = report.Range(date_from, date_to, port)
@@ -248,7 +253,7 @@ def data_export_all(request):
     date_from, date_to, port = _export_range(request)
     content = dataexport.all_file(request.profile, date_from, date_to, port)
     audit(request, "data.export", page="all", date_from=date_from, date_to=date_to, port=port or "all")
-    label = PORT_LABELS.get(port, "All ports") if port else "All ports"
+    label = ports.label(port) if port else "All ports"
     return _xlsx_response(content, f"All data {label} {date_from.isoformat()} to {date_to.isoformat()}.xlsx")
 
 
@@ -572,8 +577,8 @@ BOOKING_KINDS = ("hotel", "airport", "port")
 
 def _options_json(profile):
     queryset = Option.objects.all()
-    if profile.port:
-        queryset = queryset.filter(port__in=["", profile.port])
+    if not profile.is_admin:
+        queryset = queryset.filter(port__in=["", *profile.ports])
     usage = _usage_counts(profile)
     options = [option_to_dict(o, profile, usage[o.kind].get(o.value, 0)) for o in queryset]
     return JsonResponse({"options": options})
@@ -592,9 +597,12 @@ def options(request):
             raise BadRequest("The value is too long (at most 100 characters).")
         if kind not in OPTION_KIND_KEYS or not value:
             raise BadRequest("Enter a value.")
-        scope = profile.port or payload.get("port") or ""
-        if scope and scope not in PORT_KEYS:
-            raise BadRequest("Unknown port.")
+        scope = payload.get("port") or ""
+        if profile.is_admin:
+            if scope:
+                require_port(profile, scope, new=True)
+        else:  # a User adds to one of their ports (home when none is named), never to All ports
+            scope = require_port(profile, scope or profile.home_port, new=True)
         last = Option.objects.filter(kind=kind).order_by("-position").first()
         _, created = Option.objects.get_or_create(
             kind=kind, value=value, port=scope, defaults={"position": last.position + 1 if last else 0}
@@ -615,16 +623,16 @@ def option_detail(request, pk):
     if request.method == "PATCH":
         require_admin(profile)
         port = read_json(request).get("port") or ""
-        if port and port not in PORT_KEYS:
-            raise BadRequest("Unknown port.")
+        if port and port != option.port:
+            require_port(profile, port, new=True)
         if Option.objects.filter(kind=option.kind, value=option.value, port=port).exclude(pk=pk).exists():
             raise BadRequest("That value already exists for that port.")
         option.port = port
         option.save(update_fields=["port"])
         audit(request, "option.port", id=pk, port=port or "all")
         return _options_json(profile)
-    if not profile.is_admin and option.port != profile.port:
-        raise Forbidden("You can only remove options for your own port.")
+    if not profile.is_admin and (option.port == "" or option.port not in profile.ports):
+        raise Forbidden("You can only remove options for your own ports.")
     option.delete()
     audit(request, "option.delete", id=pk)
     return _options_json(profile)
@@ -678,7 +686,7 @@ def export_csv(request):
                 _csv_safe(data["poc"]),
                 _csv_safe(data["arrival_agent"]),
                 _csv_safe(data["sailing_agent"]),
-                PORT_LABELS.get(data["port"], data["port"]),
+                ports.label(data["port"]),
                 date.fromisoformat(data["date"]).strftime("%d.%m.%Y"),
                 data["status"],
                 *[_display_time(data[key]) for key in TIME_KEYS],
@@ -960,3 +968,26 @@ def account_detail(request, pk):
     user = accounts.update_account(user, read_json(request))
     audit(request, "account.update", id=user.id, username=user.username)
     return JsonResponse(accounts.account_to_dict(user))
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def ports_list(request):
+    """Every port with its vessel / User counts (GET) or a new port (POST): Admins only."""
+    require_admin(request.profile)
+    if request.method == "GET":
+        return JsonResponse(ports.list_response())
+    port = ports.save_port(clean_port(read_json(request)))
+    audit(request, "port.create", key=port.key, name=port.name)
+    return JsonResponse(ports.port_to_dict(port), status=201)
+
+
+@json_api
+@require_http_methods(["PUT"])
+def port_detail(request, key):
+    """Rename a port or turn it off / on (its key never changes; ports are never deleted): Admins only."""
+    require_admin(request.profile)
+    port = get_object_or_404(Port, key=key)
+    port = ports.save_port(clean_port(read_json(request), existing=port), existing=port)
+    audit(request, "port.update", key=port.key, name=port.name, active=port.active)
+    return JsonResponse(ports.port_to_dict(port))

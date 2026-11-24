@@ -32,20 +32,20 @@ class TwoStepModelTests(TestCase):
             admin.profile.two_step_exempt = True
             admin.profile.save()
         for flag in ("is_superuser", "is_staff"):
-            user = make_user(f"u_{flag}", "readonly")
+            user = make_user(f"u_{flag}", "alexandria")
             setattr(user, flag, True)
             user.save()
             user.profile.two_step_exempt = True
             with self.assertRaisesMessage(ValidationError, "Remove the two-step exception first."):
                 user.profile.save()
-        viewer = make_user("plain", "readonly")
+        viewer = make_user("plain", "alexandria")
         viewer.profile.two_step_exempt = True
         viewer.profile.save()  # allowed
         self.assertTrue(Profile.objects.get(user=viewer).two_step_exempt)
 
     def test_new_profile_gets_setup_window(self):
         before = timezone.now()
-        user = make_user("newbie", "readonly")
+        user = make_user("newbie", "alexandria")
         window = user.profile.setup_until - before
         self.assertGreaterEqual(window, timedelta(hours=72) - timedelta(seconds=5))
         self.assertLessEqual(window, timedelta(hours=72) + timedelta(seconds=5))
@@ -53,7 +53,7 @@ class TwoStepModelTests(TestCase):
         self.assertFalse(user.profile.must_change_password)
 
     def test_device_history_has_no_key(self):
-        user = make_user("dev", "readonly")
+        user = make_user("dev", "alexandria")
         device = TOTPDevice.objects.create(user=user, name="Authenticator", confirmed=False)
         device.confirmed = True
         device.save()
@@ -65,14 +65,14 @@ class TwoStepModelTests(TestCase):
         self.assertEqual(records[1].changes, {"confirmed": [False, True]})
 
     def test_wrong_code_writes_no_history(self):
-        user = make_user("dev2", "readonly")
+        user = make_user("dev2", "alexandria")
         device = TOTPDevice.objects.create(user=user, name="Authenticator", confirmed=True)
         before = ChangeRecord.objects.count()
         self.assertFalse(device.verify_token("000000") and device.verify_token("111111"))
         self.assertEqual(ChangeRecord.objects.count(), before)
 
     def test_remembered_history_has_no_hash(self):
-        user = make_user("rem", "readonly")
+        user = make_user("rem", "alexandria")
         row = RememberedComputer.objects.create(
             user=user, token_hash="a" * 64, expires_at=timezone.now() + timedelta(days=30), ip="1.2.3.4", agent="X"
         )
@@ -203,7 +203,7 @@ class SignInTests(TestCase):
         self.assertEqual(client.get("/api/vessels/").status_code, 401)
 
     def test_exempt_user_goes_straight_in(self):
-        viewer = make_user("viewer", "readonly")
+        viewer = make_user("viewer", "alexandria")
         viewer.profile.two_step_exempt = True
         viewer.profile.save()
         client = self.password_only("viewer")
@@ -290,7 +290,7 @@ class SignInTests(TestCase):
 @FAST_HASHER
 class SetupTests(TestCase):
     def setUp(self):
-        self.user = make_user("viewer", "readonly")
+        self.user = make_user("viewer", "alexandria")
         self.client.login(username="viewer", password=PASSWORD)
 
     def test_setup_shows_qr_and_confirms(self):
@@ -479,7 +479,7 @@ class AdminPagesTests(TestCase):
         return client.post(self.users_url(), data)
 
     def test_reset_action_superuser_only(self):
-        staff = make_user("staff", "readonly")
+        staff = make_user("staff", "alexandria")
         staff.is_staff = True
         staff.save()
         staff.user_permissions.add(*Permission.objects.filter(codename__in=["view_user", "change_user"]))
@@ -522,7 +522,7 @@ class AdminPagesTests(TestCase):
         self.assertNotIn(self.device.key, user_page)
 
     def test_staff_cannot_edit_two_step_fields(self):
-        staff = make_user("staff", "readonly")
+        staff = make_user("staff", "alexandria")
         staff.is_staff = True
         staff.save()
         staff.user_permissions.add(*Permission.objects.filter(codename__in=["view_user", "change_user"]))
@@ -611,7 +611,7 @@ class ReviewFindingsTests(TestCase):
     """Found by the final review (2026-11-18)."""
 
     def setUp(self):
-        self.user = make_user("viewer", "readonly")
+        self.user = make_user("viewer", "alexandria")
 
     def setup_device(self, client):
         client.get("/login/setup/")
@@ -699,7 +699,7 @@ class ReviewFindingsTests(TestCase):
 
     def test_staff_direct_post_of_reset_does_nothing(self):
         device = TOTPDevice.objects.create(user=self.user, name="Authenticator", confirmed=True)
-        staff = make_user("staff", "readonly")
+        staff = make_user("staff", "alexandria")
         staff.is_staff = True
         staff.save()
         staff.user_permissions.add(*Permission.objects.filter(codename__in=["view_user", "change_user"]))

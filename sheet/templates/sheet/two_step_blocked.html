@@ -10,7 +10,7 @@
 {% include "sheet/icons.svg" %}
   <div class="login-card">
     <div class="login-logo"><span class="anchor"><svg class="ic" aria-hidden="true"><use href="#i-phone"></use></svg></span><h1>TWO-STEP <span>LOGIN</span></h1></div>
-    <div class="login-error">Ask an administrator to reset your two-step login.</div>
+    <div class="login-error">{% if message %}{{ message }}{% else %}Ask an administrator to reset your two-step login.{% endif %}</div>
     <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost wide" type="submit">Log out</button></form>
   </div>
 </body>

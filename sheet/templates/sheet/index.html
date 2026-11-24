@@ -31,6 +31,7 @@
       <a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>
       {% if me.isAdmin %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
       {% if me.isSuperuser %}<a class="nav-item" data-page="accounts" href="#accounts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Accounts</span></a>{% endif %}
+      {% if me.isAdmin %}<a class="nav-item" data-page="ports" href="#ports"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ports</span></a>{% endif %}
     </nav>
     <div class="sidebar-foot">
       <div class="user-line"><strong>{{ request.user.get_username }}</strong><small id="roleLabel"></small></div>
@@ -269,6 +270,20 @@
       <div class="table-wrap">
         <table><thead id="ac-head"></thead><tbody id="ac-tbody"></tbody></table>
         <div class="empty" id="ac-empty" hidden>No accounts.</div>
+      </div>
+    </main>
+    {% endif %}
+
+    {% if me.isAdmin %}
+    <!-- ===== Ports, Admins only (drawn by js/pages/ports.js) ===== -->
+    <main class="page" id="page-ports" hidden>
+      <div class="toolbar">
+        <div class="tools"></div>
+        <div class="tools"><button class="btn primary" data-act="port-new">+ Add port</button></div>
+      </div>
+      <div class="table-wrap">
+        <table><thead id="pt-head"></thead><tbody id="pt-tbody"></tbody></table>
+        <div class="empty" id="pt-empty" hidden>No ports.</div>
       </div>
     </main>
     {% endif %}

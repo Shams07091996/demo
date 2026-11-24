@@ -1,9 +1,9 @@
 // Vessel details (port call + services) and the add / edit vessel form.
 import {
-  closedNoteEl, headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass,
+  closedNoteEl, formPorts, headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass,
   serviceStatusEl, statusChipEl,
 } from '../components.js';
-import { ME, MULTI, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
+import { ME, MULTI, openPorts, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
 import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { attachShipPicker } from '../shipPicker.js';
@@ -141,11 +141,15 @@ const timeField = ({ key, label }, vessel) =>
 
 export function openVesselForm(vessel) {
   state.ctx = { view: 'vessel-form', vesselId: vessel ? vessel.id : null, version: vessel?.version };
-  const selectedPort = vessel ? vessel.port : ME.port || (state.filter.port !== 'ALL' ? state.filter.port : ''); // admins on All ports choose
+  const open = openPorts();
+  const shown = state.filter.port !== 'ALL' && open.some((p) => p.key === state.filter.port) ? state.filter.port : '';
+  // An Admin on All ports chooses; a User starts on the port shown, else their home port.
+  const selectedPort = vessel ? vessel.port : shown || ME.homePort;
   const summary = (vessel && vessel.summary) || {};
-  const portField = ME.isAdmin
+  const portField = ME.multiPort
     ? h('div', { class: 'field' }, h('label', null, 'Port'), h('select', { attrs: { name: 'port' } },
-      h('option', { value: '' }, '—'), portOptionEls({ selected: selectedPort })))
+      ME.isAdmin ? h('option', { value: '' }, '—') : null,
+      portOptionEls({ ports: formPorts(open, vessel?.port), selected: selectedPort })))
     : null;
 
   openModal(
@@ -199,7 +203,7 @@ function closeFormNewShip() {
 /** The vessel name box searches the ship list; the chosen ship is sent as ship_id (vesselPayload). */
 function attachFormPicker(ship) {
   const input = $('#vessel-form [name="name"]');
-  const formPort = () => (ME.isAdmin ? $('#vessel-form [name="port"]')?.value || null : ME.port);
+  const formPort = () => (ME.multiPort ? $('#vessel-form [name="port"]')?.value || null : ME.homePort);
   const chose = (picked) => {
     state.ctx.shipId = picked ? picked.id : null;
     $('#vf-imo').textContent = shipNote(picked);

@@ -22,12 +22,12 @@ The steps are written for a **Windows server** (what this project is developed o
 | Kind | Who has one | Where it lives | Created how |
 |---|---|---|---|
 | **PostgreSQL logins** | Only **three**: `postgres` (the database's own administrator), `marine_app` (the app itself), `marine_backup` (the nightly backup) | PostgreSQL | Once, with SQL (step 2) |
-| **App accounts** | **Every person** who uses the site (admins, read-only, port users) | Also stored in PostgreSQL (tables `auth_user` and `sheet_profile`), but made **through the app** | `createsuperuser` for the first two, then the admin pages (step 8) |
+| **App accounts** | **Every person** who uses the site (Admins and Users) | Also stored in PostgreSQL (tables `auth_user` and `sheet_profile`), but made **through the app** | `createsuperuser` for the Admins, then the Accounts page (step 8) |
 
 **People never get a PostgreSQL login.** They sign in to the website; the app talks to the database for them,
-and only lets each person see and change what their role allows. A person with a PostgreSQL login could bypass every
-rule of the app (roles, ports, the change history, two-step login). Never create users by writing SQL either: the
-passwords are scrambled (hashed), and the role, two-step setup and history would be skipped.
+and only lets each person see and change what their ports allow. A person with a PostgreSQL login could bypass every
+rule of the app (ports, the change history, two-step login). Never create users by writing SQL either: the
+passwords are scrambled (hashed), and the ports, two-step setup and history would be skipped.
 
 ---
 
@@ -262,7 +262,7 @@ The Master data, exchange rate and LOG checks come after the first admin can sig
 
 ## 8. Accounts for everyone
 
-### 8.1 The first two superusers (on the server)
+### 8.1 The Admins (superusers, on the server)
 
 In PowerShell on the server, with the settings loaded (step 4):
 
@@ -270,8 +270,9 @@ In PowerShell on the server, with the settings loaded (step 4):
 python manage.py createsuperuser
 ```
 
-It asks for a username, an e-mail (optional) and a password of **at least 12 characters**. A superuser is
-automatically an **admin** in the app. Then in a browser:
+It asks for a username, an e-mail (optional) and a password of **at least 12 characters**. **An Admin is a
+superuser**: there is no other way to be one, and the app itself never makes anyone an Admin. Keep them to the 2–3
+trusted people who run the system. Then in a browser:
 
 1. [ ] Sign in at `https://sheet.company.com/` with that username and password.
 2. [ ] Scan the QR code with **Microsoft Authenticator** (any authenticator app works) and type the six-digit code —
@@ -283,28 +284,29 @@ automatically an **admin** in the app. Then in a browser:
 
 Before typing anything, write the list (on paper or in a spreadsheet that is **not** shared by e-mail):
 
-| Name | Username | Role |
+| Name | Username | Home port | Extra ports |
+|---|---|---|---|
+| e.g. Ahmed Hassan | `ahassan` | Alexandria | — |
+| e.g. Mona Ali | `mali` | Port Said | Damietta |
+
+Two kinds of people:
+
+| Who | Sees | Can change |
 |---|---|---|
-| e.g. Ahmed Hassan | `ahassan` | Alexandria |
-| e.g. Mona Ali | `mali` | Read-only |
+| **Admin** (a superuser, 8.1) | Every port | Everything: accounts, ports, exchange rates, prices, shared (All ports) Master data, the History, the accounting **Open / Closed** switch on Calculations |
+| **User** | Their **home port** and any **extra ports** an Admin gives them | Everything in those ports: vessels, services, bookings, closures, garbage & sludge and those ports' Master data |
 
-Roles:
-
-| Role | Sees | Can change |
-|---|---|---|
-| **Admin** | All ports | Everything, including exchange rates, prices and shared Master data |
-| **Read-only** | All ports, money included | Only the **Open / Closed** accounting switch on Calculations — give this role to **accounting** (every new account starts here) |
-| **Alexandria / Port Said / Damietta / Suez** | Their port only | Their port's vessels, services, bookings, closures and Master data |
-
-Give each person the **least** they need: most people are a port role or Read-only; keep Admin to a few.
+Give each person only the ports they work in. An account with no port can sign in but sees only "Your account has
+no port yet. Ask an admin." (The finer per-person permissions — which pages, money — come with the next update.)
 
 ### 8.3 Create each account (Accounts page)
 
-Only **superusers** manage accounts (keep them to the 2–3 trusted people of 8.1). Sign in to the app as a superuser:
-the sidebar has **Accounts** (nobody else sees it). For each person on the list:
+Only **Admins** manage accounts. Sign in to the app as an Admin: the sidebar has **Accounts** and **Ports** (nobody
+else sees them). For each person on the list:
 
 1. [ ] **+ Add account**: username (3–30 letters, digits, `.` `_` `-`; capitals don't make a new name), first and last
-       name, **Role**, and a temporary password (12+ characters, not a common one) → **Save**. The page never makes
+       name, **Home port**, any **Extra ports** (ticks; the home port's tick is always on), and a temporary password
+       (12+ characters, not a common one) → **Save**. Only ports that are turned on are offered. The page never makes
        anyone staff or superuser.
 2. [ ] Tell the person their username and temporary password **in person or by phone** (never in the same message as
        the site's address).
@@ -314,6 +316,18 @@ the sidebar has **Accounts** (nobody else sees it). For each person on the list:
 
 Superuser and staff accounts are shown read-only on the Accounts page; change them in the admin pages
 (`https://sheet.company.com/admin/`, or your `DJANGO_ADMIN_URL`).
+
+### 8.3b Ports (Ports page)
+
+The four ports (Alexandria, Port Said, Damietta, Suez) are already there. On the **Ports** page an Admin can:
+
+- **+ Add port**: its name (2–40 characters, not the same as another port's). The app gives it a fixed key from the
+  name (shown in the Key column); renaming never changes the key, so every record stays with its port.
+- **Rename** a port: every screen, receipt and Excel file shows the new name at once.
+- **Turn off** a port: nobody can add a new vessel, closure, Master-data value or garbage price month there, and it is
+  no longer offered for new accounts. Everything already in it stays visible and editable. **Turn on** undoes it.
+
+Ports are never deleted.
 
 ### 8.4 First admin tasks
 
@@ -333,8 +347,8 @@ Superuser and staff accounts are shown read-only on the Accounts page; change th
 | Lost or new phone | Admin pages → Users → tick the person → action **"Reset two-step login (lost phone)"** → Go. They set up Authenticator again within 72 hours. On the server: `python manage.py reset_two_step <username>` |
 | Forgotten password | Admin pages → Users → the person → **Reset password** (under Password). They choose their own at the next sign-in |
 | Someone leaves | **Accounts** page → the person → **Turn off**. They are signed out at once and can't sign in; **don't delete** the user: the History keeps who did what. **Turn on** brings them back |
-| Change what someone may do | **Accounts** page → the person → **Role** → Save (takes effect on their next click) |
-| Password only, no Authenticator | A superuser may tick *Two-step exception* in the Profile (never for admins). Avoid it |
+| Change someone's ports | **Accounts** page → the person → **Home port** / **Extra ports** → Save (takes effect on their next click) |
+| Password only, no Authenticator | An Admin may tick *Two-step exception* in the Profile (never for Admins). Avoid it |
 
 Every one of these changes is itself recorded in the History (who changed which account, when, from where).
 
@@ -343,12 +357,12 @@ Every one of these changes is itself recorded in the History (who changed which 
 To see the list from the database (e.g. for an audit), in psql connected to `marine_sheet`:
 
 ```sql
-SELECT u.username, u.is_active, u.is_superuser, p.role, u.last_login
+SELECT u.username, u.is_active, u.is_superuser, p.home_port, p.ports, u.last_login
 FROM auth_user u LEFT JOIN sheet_profile p ON p.user_id = u.id
 ORDER BY u.username;
 ```
 
-Only **read** these tables. Create, change and disable accounts in the admin pages, never with `INSERT` / `UPDATE`.
+Only **read** these tables. Create, change and turn off accounts on the Accounts page, never with `INSERT` / `UPDATE`.
 
 ---
 
@@ -401,7 +415,11 @@ nssm restart MarineSheet                          # Linux: sudo systemctl restar
 `docs/STATUS.md` lists, for each change, whether it needs a migration and anything to do after it (for example
 `0019_service_status`: every service already there becomes Completed; `0020_cancel_and_frozen`: nothing to do;
 `0021_ships_customers`: existing vessels have no ship and keep working, add ships and customers afterwards;
-`0022_service_completed_at`: nothing to do, services completed before it show their vessel date).
+`0022_service_completed_at`: nothing to do, services completed before it show their vessel date;
+`0023_port`: nothing to do, the four ports become a table; `0024_profile_ports`: every port account keeps its port as
+its home port, an "admin" account that isn't a superuser becomes a User of all four ports, **Read-only accounts are
+turned off** (they have no port), and nobody but a superuser keeps staff status — check the Accounts page afterwards; undoing it with
+`migrate sheet 0023` gives back each account's role, but not the staff flags or the turned-off accounts).
 After an
 update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
 of date. Reload it and try again.").

@@ -205,13 +205,6 @@ class DraftBookingTests(ApiTestCase):
         record = ChangeRecord.objects.filter(object_type="hotelstay", action="create").latest("id")
         self.assertEqual(record.username, "alex")
 
-    def test_viewer_cannot_create(self):
-        payload = {"type": "Crew Change", "data": {"onSigners": [member("J SMITH")], "offSigners": []}}
-        viewer = self.login("viewer")
-        self.assertEqual(self.call(viewer, "post", f"/api/vessels/{self.vessel.id}/services/", payload)[0], 403)
-        self.assertFalse(self.transfers().exists())
-
-
     def test_vessel_save_refreshes_drafts(self):
         self.post_crew(off=[member("A OFF", landing="", needsHotel=True)])
         payload = {"name": "ALEX SHIP", "date": "2026-11-13", "sailing_at": "2026-12-02T10:00"}

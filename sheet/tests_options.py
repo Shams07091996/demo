@@ -28,7 +28,10 @@ class OptionPortTests(ApiTestCase):
         self.assertEqual(Option.objects.get(pk=option.id).port, "alexandria")
 
     def test_port_users_still_add_to_their_own_port_only(self):
-        _, data = self.call(self.login("alex"), "post", "/api/options/", {"kind": "agent", "value": "LOCAL", "port": "suez"})
+        alex = self.login("alex")
+        status, _ = self.call(alex, "post", "/api/options/", {"kind": "agent", "value": "LOCAL", "port": "suez"})
+        self.assertEqual(status, 403)
+        _, data = self.call(alex, "post", "/api/options/", {"kind": "agent", "value": "LOCAL"})
         self.assertEqual(next(o for o in data["options"] if o["value"] == "LOCAL")["port"], "alexandria")
 
 
