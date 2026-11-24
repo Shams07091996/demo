@@ -1,4 +1,4 @@
-// The Accounts page (superusers only): every account with its role, two-step state, last sign-in and On / Off.
+// The Accounts page (Admins only): every account with its ports, two-step state, last sign-in and On / Off.
 // A row opens its dialog; "+ Add account" opens an empty one. The server decides everything (/api/accounts/).
 import { api } from '../api.js';
 import { h, setChildren } from '../dom.js';
@@ -6,12 +6,15 @@ import { setStatus } from '../feedback.js';
 import { openAccountDialog } from '../modals/account.js';
 import { $, fmtStamp } from '../util.js';
 
-let data = { accounts: [], roles: [] };
+let data = { accounts: [], ports: [] };
 let ticket = 0;
 
-export const roleLabel = (account, roles) => {
-  const label = Object.fromEntries(roles)[account.role] || account.role;
-  if (account.superuser) return `${label} · Superuser`;
+// "Alexandria (home), Damietta"; an Admin (superuser) works in every port.
+export const portsLabel = (account, ports) => {
+  if (account.superuser) return 'Admin · all ports';
+  const name = Object.fromEntries(ports.map(([key, label]) => [key, label]));
+  const list = account.ports.map((key) => (key === account.home_port ? `${name[key] || key} (home)` : name[key] || key));
+  const label = list.join(', ') || 'No port';
   return account.staff ? `${label} · Staff` : label;
 };
 
@@ -23,12 +26,12 @@ export function twoStepLabel(account) {
 }
 
 function render() {
-  const heads = ['Username', 'Name', 'Role', 'Two-step', 'Last sign-in', 'State'];
+  const heads = ['Username', 'Name', 'Ports', 'Two-step', 'Last sign-in', 'State'];
   setChildren($('#ac-head'), h('tr', null, heads.map((t) => h('th', null, t))));
   const row = (a) => h('tr', { class: a.active ? 'clickable' : 'clickable inactive', dataset: { act: 'account-open', id: a.id } },
     h('td', null, a.username),
     h('td', null, [a.first_name, a.last_name].filter(Boolean).join(' ') || '—'),
-    h('td', null, roleLabel(a, data.roles)),
+    h('td', null, portsLabel(a, data.ports)),
     h('td', null, twoStepLabel(a)),
     h('td', null, a.last_login ? fmtStamp(a.last_login) : '—'),
     h('td', null, a.active ? 'On' : 'Off'));
@@ -51,6 +54,6 @@ export const accountsPage = {
   open(id) {
     const account = id ? data.accounts.find((a) => a.id === id) : null;
     if (id && !account) return;
-    openAccountDialog(account, data.roles, () => accountsPage.load());
+    openAccountDialog(account, data.ports, () => accountsPage.load());
   },
 };
