@@ -9,7 +9,7 @@ paging), so port users get only their port. `all_file` puts the five in one work
 from datetime import date
 
 from . import calculations, closures, disposal, logistics, xlsx
-from .constants import PORT_LABELS, SERVICE_STATUSES
+from .constants import BILLING, PORT_LABELS, SERVICE_STATUSES
 
 TITLES = {"hotels": "Hotels", "transfers": "Transport", "closures": "Port closures", "disposal": "Garbage & Sludge",
           "calculations": "Calculations"}
@@ -88,8 +88,8 @@ def _calculations(profile, params):
     head = ["Vessel id", "Vessel", "Vessel date", "OPR", "Port", "Item", "Line", "Note", "Record", "Record id",
             "Cost", "Cost currency", "Revenue", "Revenue currency", "Cost EGP", "Revenue EGP", "Profit EGP",
             "Cost USD", "Revenue USD", "Profit USD", "Rate source", "Rate missing", "Price missing", "Status",
-            "Cancellation reason", "Accounting"]
-    _p, found, _oprs = calculations.filtered(profile, params)
+            "Cancellation reason", "Accounting", "Billing party", "Billing"]
+    _p, found, _oprs, _parties = calculations.filtered(profile, params)
     rows = []
     for r in found:
         v, ref = r["vessel"], r["ref"] or {}
@@ -99,7 +99,8 @@ def _calculations(profile, params):
                      round(r["cost_egp"], 2), round(r["revenue_egp"], 2), round(r["profit_egp"], 2),
                      r["cost_usd"], r["revenue_usd"], r["profit_usd"], r["rate_source"], r["rate_missing"],
                      r["price_missing"], SERVICE_STATUSES.get(r["status"], ""), r["cancel_reason"],
-                     _accounting(r["closed"])])
+                     _accounting(r["closed"]), (r["billing_party"] or {}).get("name", ""),
+                     BILLING.get(r["billing"], "")])
     return head, rows
 
 

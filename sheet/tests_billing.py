@@ -1,6 +1,9 @@
 """Billing party and Cash / On account on services; their Calculations columns and filters."""
 
-from .models import ChangeRecord, Customer, Service, Ship
+from datetime import date
+
+from .models import ChangeRecord, Customer, HotelStay, Service, Ship
+from .tests_dataexport import read
 from .tests import ApiTestCase
 
 
@@ -80,3 +83,62 @@ class ServiceBillingTests(ApiTestCase):
         status, body = self.put(alex, service, billing="cash")
         self.assertEqual(status, 400)
         self.assertIn("Accounting has closed this", body["error"])
+
+
+class CalculationsBillingTests(ApiTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.blue = Customer.objects.create(name="Blue Owners")
+        money = {"revenue": 100, "revenueCurrency": "EGP", "cost": 40, "costCurrency": "EGP"}
+        cls.cash = Service.objects.create(vessel=cls.alex_vessel, service_type="Certificates", data=money,
+                                          billing="cash", billing_party=cls.blue)
+        cls.account = Service.objects.create(vessel=cls.alex_vessel, service_type="Medical Treatment", data=money)
+        HotelStay.objects.create(vessel=cls.alex_vessel, hotel="H", check_in=date(2026, 11, 13), nights=1,
+                                 cost_per_night=10, revenue_per_night=20)
+
+    def rows(self, **params):
+        response = self.login("admin").get("/api/calculations/", {"port": "alexandria", "page_size": 200, **params})
+        return response.status_code, response.json()
+
+    def test_rows_carry_billing(self):
+        _, body = self.rows()
+        by_kind = {r["kind"]: r for r in body["rows"]}
+        self.assertEqual((by_kind["Certificates"]["billing"], by_kind["Certificates"]["billing_party"]),
+                         ("cash", {"id": self.blue.id, "name": "Blue Owners"}))
+        self.assertEqual((by_kind["Medical Treatment"]["billing"], by_kind["Medical Treatment"]["billing_party"]),
+                         ("account", None))
+        self.assertEqual((by_kind["Hotel stay"]["billing"], by_kind["Hotel stay"]["billing_party"]), (None, None))
+
+    def test_billing_filter_keeps_other_rows_and_refuses_junk(self):
+        _, body = self.rows(billing="account")
+        self.assertEqual(sorted(r["kind"] for r in body["rows"]), ["Hotel stay", "Medical Treatment"])
+        _, body = self.rows(billing="cash,")
+        self.assertEqual(sorted(r["kind"] for r in body["rows"]), ["Certificates", "Hotel stay"])
+        status, body = self.rows(billing="junk")
+        self.assertEqual((status, body["error"]), (400, "Unknown billing."))
+
+    def test_party_filter_and_parties_list(self):
+        _, body = self.rows()
+        self.assertEqual(body["parties"], [{"id": self.blue.id, "name": "Blue Owners"}])
+        _, body = self.rows(party=str(self.blue.id))
+        self.assertEqual([r["kind"] for r in body["rows"]], ["Certificates"])
+        self.assertEqual(body["parties"], [{"id": self.blue.id, "name": "Blue Owners"}])
+        _, body = self.rows(party="__none__")
+        self.assertEqual([r["kind"] for r in body["rows"]], ["Medical Treatment"])
+        for bad in ("999999", "abc"):
+            self.assertEqual(self.rows(party=bad)[0], 400)
+
+    def test_totals_follow_billing_filter(self):
+        _, body = self.rows(billing="account")
+        self.assertEqual(body["totals"]["revenue_egp"], 120)
+
+    def test_calculations_export_has_billing_columns(self):
+        content = self.login("admin").get("/api/export/calculations/", {"port": "alexandria"}).content
+        sheet = read(content)["Calculations"]
+        head = sheet[0]
+        self.assertEqual(head[head.index("Accounting") + 1:], ["Billing party", "Billing"])
+        cash = next(r for r in sheet[1:] if r[head.index("Item")] == "Certificates")
+        hotel = next(r for r in sheet[1:] if r[head.index("Item")] == "Hotel stay")
+        self.assertEqual(cash[-2:], ["Blue Owners", "Cash"])
+        self.assertEqual([c or "" for c in hotel[-2:]], ["", ""])

@@ -10,12 +10,12 @@ from datetime import date
 
 from . import disposal
 from .access import scoped_vessels
-from .constants import SERVICE_STATUSES
+from .constants import BILLING, NO_AGENT, SERVICE_STATUSES
 from .errors import BadRequest
 from .finance import service_lines
 from .listing import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, date_param, int_param
 from .logistics import booking_line
-from .models import VesselDisposal
+from .models import Customer, VesselDisposal
 from .serializers import month_rates
 
 SORT_KEYS = {
@@ -41,6 +41,8 @@ class Params:
     page_size: int
     statuses: set | None = None    # only rows of services with one of these statuses (bookings / disposal left out)
     accounting: set | None = None  # only rows that are "open" / "closed"
+    billing: set | None = None     # only service rows billed "account" / "cash" (bookings / disposal kept)
+    party: int | str | None = None  # only service rows billed to this customer id, or NO_AGENT ("__none__") for none
 
 
 ACCOUNTING = ("open", "closed")
@@ -52,6 +54,17 @@ def _choice_list(params, key, allowed, message):
     if items - set(allowed):
         raise BadRequest(message)
     return items or None
+
+
+def _party_param(params):
+    value = (params.get("party") or "").strip()
+    if not value:
+        return None
+    if value == NO_AGENT:
+        return NO_AGENT
+    if not value.isdigit() or not Customer.objects.filter(pk=int(value)).exists():
+        raise BadRequest("Unknown billing party.")
+    return int(value)
 
 
 def parse_params(params):
@@ -66,6 +79,8 @@ def parse_params(params):
         page_size=int_param(params, "page_size", DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE, "Rows per page must be 1–200."),
         statuses=_choice_list(params, "status", SERVICE_STATUSES, "Unknown status."),
         accounting=_choice_list(params, "accounting", ACCOUNTING, "Unknown accounting status."),
+        billing=_choice_list(params, "billing", BILLING, "Unknown billing."),
+        party=_party_param(params),
     )
     if p.date_from and p.date_to and p.date_from > p.date_to:
         raise BadRequest("From must be on or before To.")
@@ -98,10 +113,17 @@ def _usd(item):
 
 
 def _state(obj, kind, status=None, reason=""):
-    """What a row says about its thing: operations status (services only), accounting state and what closes it."""
+    """What a row says about its thing: operations status and billing (services only), accounting state and what
+    closes it."""
+    billing = {"billing": None, "billing_party": None}
+    if kind == "service":
+        party = obj.billing_party
+        billing = {"billing": obj.billing,
+                   "billing_party": {"id": party.id, "name": party.name} if party is not None else None}
     if obj is None:  # garbage & sludge with nothing entered yet: nothing to close
-        return {"status": None, "cancel_reason": "", "closed": False, "ref": None}
-    return {"status": status, "cancel_reason": reason, "closed": obj.acct_closed, "ref": {"kind": kind, "id": obj.id}}
+        return {"status": None, "cancel_reason": "", "closed": False, "ref": None, **billing}
+    return {"status": status, "cancel_reason": reason, "closed": obj.acct_closed, "ref": {"kind": kind, "id": obj.id},
+            **billing}
 
 
 def _row(vessel, kind, item, state):
@@ -153,7 +175,7 @@ def _vessel_rows(vessel, rate, price):
 def rows_for(vessels):
     """Every money line of these vessels (a Vessel queryset), newest vessel first, lines in order. Also feeds the
     management workbook, so its money always equals this page's."""
-    vessels = vessels.prefetch_related("services", "hotel_stays", "transfers").select_related("disposal")
+    vessels = vessels.prefetch_related("services__billing_party", "hotel_stays", "transfers").select_related("disposal")
     rates, prices = month_rates(), disposal.prices_map()
     rows = []
     for vessel in vessels.order_by("-date", "-id"):
@@ -176,16 +198,25 @@ def filtered(profile, params):
     if p.opr is not None:
         vessels = vessels.filter(opr=p.opr)
     rows = rows_for(vessels)
+    # The billing party dropdown offers the customers billed in this range (not narrowed by the row filters).
+    found = {r["billing_party"]["id"]: r["billing_party"] for r in rows if r["billing_party"]}
+    parties = sorted(found.values(), key=lambda c: (c["name"].casefold(), c["id"]))
+    if p.billing is not None:
+        rows = [r for r in rows if r["billing"] is None or r["billing"] in p.billing]
+    if p.party == NO_AGENT:
+        rows = [r for r in rows if r["billing"] is not None and r["billing_party"] is None]
+    elif p.party is not None:
+        rows = [r for r in rows if r["billing_party"] and r["billing_party"]["id"] == p.party]
     if p.statuses is not None:
         rows = [r for r in rows if r["status"] in p.statuses]
     if p.accounting is not None:
         rows = [r for r in rows if ("closed" if r["closed"] else "open") in p.accounting]
     rows.sort(key=SORT_KEYS[p.sort], reverse=p.desc)  # stable: ties keep newest vessel first, lines in order
-    return p, rows, oprs
+    return p, rows, oprs, parties
 
 
 def response(profile, params):
-    p, rows, oprs = filtered(profile, params)
+    p, rows, oprs, parties = filtered(profile, params)
     totals = {
         "revenue_egp": round(sum(r["revenue_egp"] for r in rows), 2),
         "cost_egp": round(sum(r["cost_egp"] for r in rows), 2),
@@ -212,4 +243,5 @@ def response(profile, params):
         "pages": max(1, -(-len(rows) // p.page_size)),
         "totals": totals,
         "oprs": oprs,
+        "parties": parties,
     }
