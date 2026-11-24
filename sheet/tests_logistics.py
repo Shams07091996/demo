@@ -92,14 +92,11 @@ class BookingApiTests(BookingData):
         self.assertEqual((trip_row["at"], trip_row["from_place"], trip_row["hotel"], trip_row["cost"]),
                          ("2026-11-15T14:30", "airport", "HILTON", 900.0))
 
-    def test_read_only_sees_booking_money_but_cannot_write(self):
-        """User decision: read-only users can see money everywhere; they still can't change anything."""
-        row = next(b for b in self.list("viewer", "hotels")["bookings"] if b["id"] == self.stay.id)
+    def test_port_user_sees_booking_money(self):
+        row = next(b for b in self.list("alex", "hotels")["bookings"] if b["id"] == self.stay.id)
         self.assertEqual((row["cost_per_night"], row["cost_currency"], row["revenue_per_night"]), (80.0, "USD", None))
-        trip_row = self.list("viewer", "transfers")["bookings"][0]
+        trip_row = self.list("alex", "transfers")["bookings"][0]
         self.assertEqual((trip_row["cost"], trip_row["revenue"], trip_row["revenue_currency"]), (900.0, 1200.0, "EGP"))
-        self.assertEqual(self.call(self.login("viewer"), "post", "/api/hotels/", self.payload())[0], 403)
-        self.assertEqual(self.call(self.login("viewer"), "delete", f"/api/hotels/{self.stay.id}/")[0], 403)
 
     def test_port_user_is_kept_to_own_port(self):
         alex = self.login("alex")

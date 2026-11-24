@@ -29,7 +29,7 @@ export const SERVICE_STATUS = { in_progress: 'In progress', completed: 'Complete
 export const SERVICE_STATUS_CLASS = { in_progress: 'st-progress', completed: 'st-done', cancelled: 'st-cancel' };
 
 // Who may close / reopen Calculations rows: accounting (the read-only accounts) and admins.
-export const IS_ACCOUNTING = ME.isAdmin || ME.role === 'readonly';
+export const IS_ACCOUNTING = ME.isAdmin;
 
 export const STATUS_LABEL = {
   scheduled: 'Scheduled',

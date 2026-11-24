@@ -6,11 +6,13 @@ from .models import PortClosure, Profile, Vessel
 
 
 def profile_of(user):
-    """The user's Profile, created on first use. New accounts start read-only (least privilege)."""
-    profile, _ = Profile.objects.get_or_create(
-        user=user, defaults={"role": "admin" if user.is_superuser else "readonly"}
-    )
-    return profile
+    """The user's Profile, created on first use with no ports (least privilege: an admin gives them ports)."""
+    try:
+        return user.profile  # the same object the rest of the request sees
+    except Profile.DoesNotExist:
+        profile, _ = Profile.objects.get_or_create(user=user)
+        user.profile = profile
+        return profile
 
 
 def require_edit(profile):
@@ -19,9 +21,9 @@ def require_edit(profile):
 
 
 def require_accounting(profile):
-    """Accounting (Open / Closed on Calculations): the read-only accounts are the accountants; admins too."""
-    if not (profile.is_admin or profile.role == "readonly"):
-        raise Forbidden("Only accounting can change this.")
+    """Accounting (Open / Closed on Calculations): admins only."""
+    if not profile.is_admin:
+        raise Forbidden("Only an admin can change this.")
 
 
 def require_superuser(request):

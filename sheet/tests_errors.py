@@ -6,7 +6,7 @@ from unittest import mock
 from django.core import mail
 from django.test import Client, override_settings
 
-from .tests import FAST_HASHER, NEEDED, ApiTestCase, pass_two_step
+from .tests import FAST_HASHER, ApiTestCase, pass_two_step
 
 
 @FAST_HASHER
@@ -63,29 +63,29 @@ class ErrorResponseTests(ApiTestCase):
 class AlertTests(ApiTestCase):
     def deny(self, client, times):
         for _ in range(times):
-            self.assertEqual(self.call(client, "post", "/api/vessels/", {**NEEDED, "name": "X", "date": "2026-11-13"})[0], 403)
+            self.assertEqual(self.call(client, "post", "/api/rates/", {"month": "2026-10", "rate": "50"})[0], 403)
 
     def test_ten_denied_requests_raise_exactly_one_alert(self):
-        viewer = self.login("viewer")
+        alex = self.login("alex")
         with self.assertLogs("sheet.alert", level="ERROR") as logs:
-            self.deny(viewer, 11)
+            self.deny(alex, 11)
         self.assertEqual(len(logs.records), 1)
         self.assertIn("denied", logs.output[0])
 
     def test_nine_denied_requests_raise_none(self):
-        viewer = self.login("viewer")
+        alex = self.login("alex")
         with self.assertNoLogs("sheet.alert", level="ERROR"):
-            self.deny(viewer, 9)
+            self.deny(alex, 9)
 
     @override_settings(ADMINS=[("Security", "security@example.com")])
     def test_alert_is_mailed_when_admins_are_set(self):
-        self.deny(self.login("viewer"), 10)
+        self.deny(self.login("alex"), 10)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("denied", mail.outbox[0].subject)
 
     @override_settings(ADMINS=[])
     def test_no_mail_without_admins(self):
-        self.deny(self.login("viewer"), 10)
+        self.deny(self.login("alex"), 10)
         self.assertEqual(len(mail.outbox), 0)
 
     def test_server_errors_are_counted_too(self):

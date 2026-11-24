@@ -13,6 +13,7 @@ urlpatterns = [
     path("login/code/", views_twostep.code, name="two_step_code"),
     path("login/setup/", views_twostep.setup, name="two_step_setup"),
     path("login/blocked/", views_twostep.blocked, name="two_step_blocked"),
+    path("login/no-port/", views_twostep.no_port, name="two_step_no_port"),
     path("login/forget/", views_twostep.forget, name="two_step_forget"),
     path(
         "password/",

@@ -26,7 +26,7 @@ from sheet.validators import clean_service_data
 
 DEMO_USERS = [
     ("admin", "admin"),
-    ("viewer", "readonly"),
+    ("viewer", ["alexandria", "portsaid", "damietta"]),
     ("alex", "alexandria"),
     ("portsaid", "portsaid"),
     ("damietta", "damietta"),
@@ -83,8 +83,11 @@ class Command(BaseCommand):
                 user.set_password(password)
                 user.is_staff = user.is_superuser = role == "admin"
                 user.save()
-                self.stdout.write(f"  {username:<9} {role:<10} password: {password}")
-            Profile.objects.update_or_create(user=user, defaults={"role": role})
+                self.stdout.write(f"  {username:<9} {', '.join(role) if isinstance(role, list) else role:<10}"
+                                  f" password: {password}")
+            ports = [] if role == "admin" else ([role] if isinstance(role, str) else list(role))
+            Profile.objects.update_or_create(user=user, defaults={"home_port": ports[0] if ports else "",
+                                                                  "ports": ports})
 
     def _create_vessels(self):
         today = date.today()

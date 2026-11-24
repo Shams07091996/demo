@@ -70,6 +70,9 @@ class LoginThrottleMiddleware:
         return self.get_response(request)
 
 
+NO_PORT = "Your account has no port yet. Ask an admin."
+
+
 class TwoStepMiddleware:
     """The one gate of the two-step login: a signed-in person who hasn't passed the code step (or must still choose
     their own password) reaches only the page of that step, the sign-in pages, Log out and static files. API calls
@@ -86,6 +89,8 @@ class TwoStepMiddleware:
         if step is None or request.path == reverse(step):
             return self.get_response(request)
         if request.path.startswith("/api/"):
+            if step == twostep.NO_PORT_STEP:
+                return JsonResponse({"error": NO_PORT}, status=403)
             return JsonResponse({"error": "Please log in again."}, status=401)
         if request.path == reverse("export_csv"):
             return HttpResponse(status=401)

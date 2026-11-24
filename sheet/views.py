@@ -123,7 +123,7 @@ def index(request):
     context = {
         "me": {
             "username": request.user.get_username(),
-            "role": profile.role,
+            "role": "admin" if profile.is_admin else ", ".join(ports.label(p) for p in profile.ports),
             "port": profile.port,
             "canEdit": profile.can_edit,
             "isAdmin": profile.is_admin,

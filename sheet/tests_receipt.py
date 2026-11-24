@@ -86,12 +86,6 @@ class ReceiptTests(ApiTestCase):
         self.assertEqual(self.post(client, service, {**EDITED, "services": "\n".join(["x"] * 41)}).status_code, 400)
         self.assertEqual(self.post(client, service, {**EDITED, "vessel": "x" * 81}).status_code, 400)
 
-    def test_viewer_refused(self):
-        service = self.service("Fresh Water", {})
-        client = self.login("viewer")
-        self.assertEqual(self.call(client, "get", self.url(service))[0], 403)
-        self.assertEqual(self.post(client, service, EDITED).status_code, 403)
-
     def test_other_port_not_found(self):
         service = self.service("Fresh Water", {})
         client = self.login("suezuser")

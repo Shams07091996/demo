@@ -11,7 +11,6 @@ PORTS = [
 PORT_KEYS = [key for key, _ in PORTS]
 PORT_LABELS = dict(PORTS)
 
-ROLES = [("admin", "Admin"), ("readonly", "Read-only")] + PORTS
 
 SERVICE_TYPES = [
     "Crew Change",

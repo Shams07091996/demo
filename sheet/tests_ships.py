@@ -51,12 +51,10 @@ class ShipApiTests(ApiTestCase):
         self.assertEqual(self.call(self.login("alex"), "post", "/api/ships/", {**AURORA, "opr": "NOT LISTED"})[0], 400)
         self.assertEqual(self.call(self.login("admin"), "post", "/api/ships/", {**AURORA, "opr": "SUEZ ONLY"})[0], 201)
 
-    def test_viewer_reads_but_cannot_write(self):
+    def test_users_read_every_ship(self):
         Ship.objects.create(name="MSC AURORA", imo="9074729")
-        viewer = self.login("viewer")
-        status, body = self.call(viewer, "get", "/api/ships/")
+        status, body = self.call(self.login("suezuser"), "get", "/api/ships/")
         self.assertEqual((status, [s["name"] for s in body["ships"]]), (200, ["MSC AURORA", "TEST SHIP"]))
-        self.assertEqual(self.call(viewer, "post", "/api/ships/", AURORA)[0], 403)
 
     def test_search_and_active_filter(self):
         Ship.objects.create(name="MSC AURORA", imo="9074729")

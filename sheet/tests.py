@@ -62,20 +62,29 @@ def allow(kind, *values, port=""):
         Option.objects.get_or_create(kind=kind, value=value, port=port)
 
 
-def make_user(username, role):
+def make_user(username, ports):
+    """"admin": a superuser (an Admin, every port); a port key or a list of keys: a User of those ports (the first
+    is the home port)."""
+    if ports == "admin":
+        user = User.objects.create_superuser(username, password=PASSWORD)
+        Profile.objects.create(user=user)
+        return user
+    ports = [ports] if isinstance(ports, str) else list(ports)
     user = User.objects.create_user(username, password=PASSWORD)
-    Profile.objects.create(user=user, role=role)
+    Profile.objects.create(user=user, home_port=ports[0], ports=ports)
     return user
 
 
 @FAST_HASHER
 class ApiTestCase(TestCase):
-    """Base class: one user per role plus a vessel in two ports."""
+    """Base class: an Admin, a three-port User (viewer: Alexandria, Port Said, Damietta), two one-port Users and a
+    vessel in two ports."""
 
     @classmethod
     def setUpTestData(cls):
-        for name, role in [("admin", "admin"), ("viewer", "readonly"), ("alex", "alexandria"), ("suezuser", "suez")]:
-            make_user(name, role)
+        for name, ports in [("admin", "admin"), ("viewer", ["alexandria", "portsaid", "damietta"]), ("alex", "alexandria"),
+                            ("suezuser", "suez")]:
+            make_user(name, ports)
         allow("opr", NEEDED["opr"])
         allow("poc", NEEDED["poc"])
         # New vessels need a ship: `call` adds this one to a vessel POST that names none (tests_ships checks the rule).
@@ -245,13 +254,14 @@ class AccessTests(ApiTestCase):
         )
         self.assertEqual(vessel["port"], "alexandria")
 
-    def test_read_only_user_can_read_but_not_write(self):
-        viewer = self.login("viewer")
-        self.assertEqual(len(self.call(viewer, "get", "/api/vessels/")[1]["vessels"]), 2)
-        self.assertEqual(self.call(viewer, "post", "/api/vessels/", {**NEEDED, "name": "X", "date": "2026-11-13"})[0], 403)
-        self.assertEqual(self.call(viewer, "delete", f"/api/services/{self.suez_service.id}/")[0], 403)
-        self.assertEqual(self.call(viewer, "post", "/api/rates/", {"month": "2026-10", "rate": "50"})[0], 403)
-        self.assertEqual(self.call(viewer, "post", "/api/options/", {"kind": "opr", "value": "X"})[0], 403)
+    def test_users_cannot_do_admin_things(self):
+        """Exchange rates, All-ports Master data and accounting belong to the Admins, whatever ports a User has."""
+        for name in ("viewer", "alex"):
+            user = self.login(name)
+            self.assertEqual(self.call(user, "post", "/api/rates/", {"month": "2026-10", "rate": "50"})[0], 403)
+            self.assertEqual(self.call(user, "get", "/api/history/")[0], 403)
+            self.assertEqual(self.call(user, "post", "/api/accounting/",
+                                       {"kind": "service", "id": self.suez_service.id, "closed": True})[0], 403)
 
     def test_only_admins_change_exchange_rates(self):
         """Rates are shared by every port, so a port user must not be able to change them."""
@@ -271,14 +281,16 @@ class AccessTests(ApiTestCase):
         self.assertEqual(len(self.call(admin, "get", "/api/vessels/")[1]["vessels"]), 2)
         self.assertEqual(len(self.call(admin, "get", "/api/vessels/?port=suez")[1]["vessels"]), 1)
 
-    def test_new_users_default_to_read_only(self):
+    def test_new_users_have_no_port(self):
+        """Least privilege: an account nobody gave a port can't do anything (an admin gives it ports)."""
         user = User.objects.create_user("fresh", password=PASSWORD)
         client = Client(enforce_csrf_checks=True)
         client.login(username="fresh", password=PASSWORD)
         pass_two_step(client, "fresh")
-        client.get("/")
+        client.get("/", follow=True)  # sent to the "no port yet" page, which sets the CSRF cookie
         self.assertEqual(self.call(client, "post", "/api/vessels/", {**NEEDED, "name": "X", "date": "2026-11-13"})[0], 403)
-        self.assertEqual(user.profile.role, "readonly")
+        self.assertEqual(self.call(client, "get", "/api/vessels/")[0], 403)
+        self.assertEqual((user.profile.home_port, user.profile.ports), ("", []))
 
 
 class RequestHardeningTests(ApiTestCase):

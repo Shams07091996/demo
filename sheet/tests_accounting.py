@@ -1,4 +1,4 @@
-"""Accounting status (Open / Closed) on Calculations rows, set by read-only (accounting) and admins, and the lock."""
+"""Accounting status (Open / Closed) on Calculations rows, set by admins only, and the lock."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -15,7 +15,7 @@ AT = datetime(2026, 11, 13, 8, tzinfo=UTC)
 
 class AccountingTests(ApiTestCase):
     def setUp(self):
-        self.viewer, self.alex = self.login("viewer"), self.login("alex")
+        self.viewer, self.alex = self.login("admin"), self.login("alex")
         self.service = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water",
                                               data=WATER["data"], status="completed")
 
@@ -26,7 +26,7 @@ class AccountingTests(ApiTestCase):
         self.service.refresh_from_db()
         return self.service
 
-    def test_readonly_and_admin_can_close(self):
+    def test_admin_can_close_and_reopen(self):
         status, body = self.close(self.viewer, "service", self.service.id)
         self.assertEqual((status, body), (200, {"ok": True, "closed": True}))
         self.assertTrue(self.refresh().acct_closed)
@@ -35,8 +35,9 @@ class AccountingTests(ApiTestCase):
         self.assertFalse(self.refresh().acct_closed)
 
     def test_port_user_cannot_close(self):
-        status, _ = self.close(self.alex, "service", self.service.id)
-        self.assertEqual(status, 403)
+        for client in (self.alex, self.login("viewer")):  # a User of several ports is no accountant either
+            status, _ = self.close(client, "service", self.service.id)
+            self.assertEqual(status, 403)
         self.assertFalse(self.refresh().acct_closed)
 
     def test_accounting_rights_and_scope(self):
@@ -219,7 +220,7 @@ class OddInputTests(ApiTestCase):
     is on Calculations (has money) can be closed."""
 
     def test_odd_status_and_kind_refused(self):
-        alex, viewer = self.login("alex"), self.login("viewer")
+        alex, viewer = self.login("alex"), self.login("admin")
         for status in ([], {}, 1, None):
             code, _ = self.call(alex, "post", f"/api/vessels/{self.alex_vessel.id}/services/", {**WATER, "status": status})
             self.assertEqual(code, 400, status)
@@ -228,7 +229,7 @@ class OddInputTests(ApiTestCase):
             self.assertEqual(code, 400, kind)
 
     def test_only_lines_with_money_can_be_closed(self):
-        viewer = self.login("viewer")
+        viewer = self.login("admin")
         empty = Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water", data={})
         draft = HotelStay.objects.create(vessel=self.alex_vessel, hotel="", check_in=AT, nights=1, draft=True)
         for kind, pk in (("service", empty.id), ("hotel", draft.id)):
@@ -248,7 +249,7 @@ class KeepRateTests(ApiTestCase):
     NEEDS_PRICE = "Add this month's Garbage & Sludge price first."
 
     def setUp(self):
-        self.viewer = self.login("viewer")
+        self.viewer = self.login("admin")
 
     def close(self, kind, pk, closed=True):
         return self.call(self.viewer, "post", "/api/accounting/", {"kind": kind, "id": pk, "closed": closed})
@@ -261,7 +262,7 @@ class KeepRateTests(ApiTestCase):
         ExchangeRate.objects.update_or_create(month=date(2026, 11, 1), defaults={"rate": Decimal(value)})
 
     def line(self, kind, pk):
-        rows = self.login("viewer").get("/api/calculations/", {"page_size": 200}).json()["rows"]
+        rows = self.login("admin").get("/api/calculations/", {"page_size": 200}).json()["rows"]
         return next(r for r in rows if r["ref"] == {"kind": kind, "id": pk})
 
     def test_close_needs_a_rate(self):
@@ -325,7 +326,7 @@ class KeepRateTests(ApiTestCase):
         self.rate("60")
         self.price("20")
         self.assertEqual(self.line("disposal", record.id)["revenue_egp"], before)
-        page = self.login("viewer").get("/api/disposal/", {"from": "2026-11-01", "to": "2026-11-30"}).json()
+        page = self.login("admin").get("/api/disposal/", {"from": "2026-11-01", "to": "2026-11-30"}).json()
         row = next(r for r in page["rows"] if r["vessel"]["id"] == self.alex_vessel.id)
         self.assertEqual(row["revenue_egp"], before)
 

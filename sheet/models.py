@@ -11,8 +11,6 @@ from .constants import (
     CANCEL_REASON_MAX,
     OPTION_KINDS,
     PLACES,
-    PORT_KEYS,
-    ROLES,
     SERVICE_STATUSES,
     SERVICE_TYPES,
 )
@@ -26,10 +24,12 @@ def default_setup_until():
 
 
 class Profile(models.Model):
-    """A user's role: admin, read-only, or tied to one port (edits only that port), and their two-step login state."""
+    """A user's ports and their two-step login state. Admins are the superusers (every port, everything); everyone
+    else works in `ports` (Port keys, always including `home_port`, where the screens open). No ports: blocked."""
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
-    role = models.CharField(max_length=20, choices=ROLES, default="readonly")
+    home_port = models.CharField(max_length=20, blank=True)
+    ports = models.JSONField(default=list, blank=True)
     # Two-step login (sheet/twostep.py). Only superusers change these, in the admin pages.
     two_step_exempt = models.BooleanField(
         "Two-step exception", default=False, help_text="Signs in with the password only. Never for admins."
@@ -42,12 +42,12 @@ class Profile(models.Model):
     )
 
     def __str__(self):
-        return f"{self.user} ({self.role})"
+        return f"{self.user} ({'admin' if self.is_admin else ', '.join(self.ports) or 'no port'})"
 
     def may_be_exempt(self):
-        """Admins (role admin, superusers, anyone who can open the admin pages) always need the code."""
+        """Admins (superusers) and anyone who can open the admin pages always need the code."""
         user = self.user
-        return not (self.role == "admin" or user.is_superuser or user.is_staff)
+        return not (user.is_superuser or user.is_staff)
 
     def clean(self):
         if self.two_step_exempt and not self.may_be_exempt():
@@ -63,16 +63,18 @@ class Profile(models.Model):
 
     @property
     def port(self):
-        """The one port this user is restricted to, or None for admin / read-only."""
-        return self.role if self.role in PORT_KEYS else None
+        """Until every caller reads `ports`: the one port of a single-port user, else None."""
+        if self.is_admin or len(self.ports) != 1:
+            return None
+        return self.ports[0]
 
     @property
     def is_admin(self):
-        return self.role == "admin"
+        return self.user.is_superuser
 
     @property
     def can_edit(self):
-        return self.is_admin or self.port is not None
+        return self.is_admin or bool(self.ports)
 
 
 class Customer(models.Model):

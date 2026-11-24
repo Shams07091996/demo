@@ -21,7 +21,6 @@ from .constants import (
     OPTION_KINDS,
     PLACE_KEYS,
     RATE_UNITS,
-    ROLES,
     SERVICE_STATUSES,
     SINGLE_EXTRAS,
     SUMMARY_FIELDS,
@@ -819,10 +818,27 @@ USERNAME_RE = re.compile(r"[A-Za-z0-9._-]{3,30}")
 ACCOUNT_NAMES = (("first_name", "First name"), ("last_name", "Last name"))
 
 
+def _account_ports(data, existing):
+    """Home port (required) + extra ports: Port keys; a turned-off port only if the account already has it."""
+    profile = getattr(existing, "profile", None) if existing is not None else None
+    had = set(profile.ports) if profile is not None else set()
+    home = data.get("home_port", profile.home_port if profile is not None else "")
+    extra = data.get("ports", list(had))
+    if not isinstance(home, str) or not home:
+        raise BadRequest("Choose a home port.")
+    if not isinstance(extra, list) or not all(isinstance(p, str) for p in extra) or len(extra) > 50:
+        raise BadRequest("Unknown port.")
+    chosen = [home, *[p for p in dict.fromkeys(extra) if p != home]]
+    for key in chosen:
+        if not ports.exists(key) or (key not in had and not ports.exists(key, active_only=True)):
+            raise BadRequest("Unknown or turned-off port.")
+    return {"home_port": home, "ports": chosen}
+
+
 def clean_account(data, existing=None):
-    """An account from the Accounts page. New: username (3-30 letters / digits / . _ -), names, role and a temporary
-    password that passes Django's password rules. Existing: only names, role and active (absent keys are kept);
-    anything else sent (username, password, superuser / staff) is ignored."""
+    """An account from the Accounts page. New: username (3-30 letters / digits / . _ -), names, home port, extra
+    ports and a temporary password that passes Django's password rules. Existing: only names, ports and active
+    (absent keys are kept); anything else sent (username, password, superuser / staff) is ignored."""
     from django.contrib.auth.models import User
     from django.contrib.auth.password_validation import validate_password
 
@@ -830,11 +846,8 @@ def clean_account(data, existing=None):
     for key, label in ACCOUNT_NAMES:
         if existing is None or key in data:
             values[key] = _short(data.get(key), 150, label)
-    if existing is None or "role" in data:
-        role = data.get("role")
-        if role not in dict(ROLES):
-            raise BadRequest("Choose a role.")
-        values["role"] = role
+    if existing is None or "home_port" in data or "ports" in data:
+        values.update(_account_ports(data, existing))
     if existing is not None:
         if "active" in data:
             if not isinstance(data["active"], bool):

@@ -1,15 +1,15 @@
-"""The Accounts page (superusers only): every account, adding a person, changing their names / role, turning them
-off or on. Superuser and staff accounts are read-only here (they are managed in the admin pages); the page never
-sets either flag. Passwords go in once, at creation, and never come back out. The History records every change
-through the User / Profile signals (history.py)."""
+"""The Accounts page (Admins = superusers only): every account, adding a person, changing their names / ports,
+turning them off or on. Superuser and staff accounts are read-only here (they are managed in the admin pages); the
+page never sets either flag. Passwords go in once, at creation, and never come back out. The History records every
+change through the User / Profile signals (history.py)."""
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.utils import timezone
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
+from . import ports
 from .access import profile_of
-from .constants import ROLES
 from .errors import BadRequest
 from .models import Profile, RememberedComputer
 from .serializers import local_iso
@@ -42,13 +42,13 @@ def account_to_dict(user, now=None, confirmed=None):
     if confirmed is None:
         confirmed = TOTPDevice.objects.filter(user=user, confirmed=True).exists()
     profile = _stored_profile(user)
-    role = profile.role if profile else ("admin" if user.is_superuser else "readonly")
     return {
         "id": user.id,
         "username": user.username,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "role": role,
+        "home_port": profile.home_port if profile else "",
+        "ports": list(profile.ports) if profile else [],
         "superuser": user.is_superuser,
         "staff": user.is_staff,
         "active": user.is_active,
@@ -64,13 +64,13 @@ def list_response():
     users = User.objects.select_related("profile").order_by("-is_active", "username", "id")
     return {
         "accounts": [account_to_dict(u, now, u.id in confirmed) for u in users],
-        "roles": [list(r) for r in ROLES],
+        "ports": [[key, name, active] for key, name, active in ports.rows()],
     }
 
 
 def _save_profile(profile):
     try:
-        profile.save()  # Profile.save runs clean(): no Admin role while the two-step exception is on
+        profile.save()  # Profile.save runs clean() (the two-step exception rule)
     except ValidationError as error:
         raise BadRequest(" ".join(error.messages)) from None
 
@@ -81,7 +81,7 @@ def create_account(payload):
         raise BadRequest(TAKEN)
     user = User.objects.create_user(values["username"], password=values["password"],
                                     first_name=values["first_name"], last_name=values["last_name"])
-    _save_profile(Profile(user=user, role=values["role"]))
+    _save_profile(Profile(user=user, home_port=values["home_port"], ports=values["ports"]))
     return user
 
 
@@ -89,10 +89,10 @@ def update_account(user, payload):
     if user.is_superuser or user.is_staff:
         raise BadRequest(LOCKED_ACCOUNT)
     values = clean_account(payload, existing=user)
-    if "role" in values:
+    if "ports" in values:
         profile = profile_of(user)
-        if profile.role != values["role"]:
-            profile.role = values["role"]
+        if (profile.home_port, profile.ports) != (values["home_port"], values["ports"]):
+            profile.home_port, profile.ports = values["home_port"], values["ports"]
             _save_profile(profile)
     changed = False
     for key in ("first_name", "last_name"):

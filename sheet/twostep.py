@@ -70,6 +70,9 @@ def confirmed_device(user):
     return TOTPDevice.objects.filter(user=user, confirmed=True).first()
 
 
+NO_PORT_STEP = "two_step_no_port"  # signed in, but an admin hasn't given them a port yet
+
+
 def next_step(request):
     """URL name of the page this signed-in person must see first, or None when they may use the app."""
     user = request.user
@@ -91,6 +94,8 @@ def next_step(request):
         return "password_change"
     if not passed:
         return "two_step_setup" if setup_open(profile) else "two_step_blocked"
+    if not profile.is_admin and not profile.ports:
+        return NO_PORT_STEP
     return None
 
 
