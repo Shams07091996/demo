@@ -1,4 +1,5 @@
 // Adding / editing a service: the type picker, the per-type forms, the live profit preview and the crew editor.
+import { api } from '../api.js';
 import { calcLocal } from '../calc.js';
 import { closedNoteEl, headEl, optionChoicesEl } from '../components.js';
 import { ME, MULTI, SERVICE_STATUS, SINGLE_EXTRA, TYPES } from '../config.js';
@@ -38,8 +39,32 @@ const agentStatusFields = (vessel, service) => {
     h('div', { class: 'field', id: 'svc-reason', hidden: status !== 'cancelled' },
       h('label', null, 'Cancellation reason'),
       h('textarea', { attrs: { name: 'cancel_reason', maxlength: 500 }, value: service?.cancel_reason || '' })),
+    h('div', { class: 'field', id: 'svc-bookings', hidden: true }),
   ];
 };
+
+/** On choosing Cancelled for a saved Crew Change: its saved hotel stays and transfers, ticked to be cancelled too. */
+async function showCrewBookings() {
+  const mine = state.ctx;
+  const box = () => (state.ctx === mine ? $('#svc-bookings') : null);
+  let bookings;
+  try {
+    ({ bookings } = await api(`/api/services/${mine.serviceId}/bookings/`));
+  } catch {
+    return; // nothing listed: the crew change is still cancelled, its bookings stay as they are
+  }
+  if (!box() || $('#svc-form [name=status]').value !== 'cancelled' || !bookings.length) return;
+  const item = (b) => h('label', { class: 'bkd-crew-item' },
+    h('input', { attrs: { type: 'checkbox' }, dataset: { bk: b.kind, bkId: b.id }, checked: !b.cancelled && !b.closed,
+      disabled: b.cancelled || b.closed }),
+    ` ${b.label}${b.guests ? ` · ${b.guests}` : ''}`, b.cancelled ? ' · already cancelled' : '', b.closed ? [' ', closedNoteEl()] : null);
+  setChildren(box(), h('label', null, 'Cancel these bookings too'), bookings.map(item));
+  box().hidden = false;
+}
+
+/** The ticked bookings to cancel with the crew change: [{kind, id}]. */
+export const cancelBookingRefs = () => $$('#svc-bookings input[data-bk]:checked:not(:disabled)')
+  .map((input) => ({ kind: input.dataset.bk, id: Number(input.dataset.bkId) }));
 
 // Choosing Cancelled sets the money to 0 (someone can still type an amount afterwards).
 const MONEY_INPUTS = '[name=cost], [name=revenue], [name=amount], [name=fixedRevenue], [data-f=cost], [data-f=revenue]';
@@ -291,6 +316,9 @@ export function onModalChange(event) {
     const cancelled = target.value === 'cancelled';
     $('#svc-reason').hidden = !cancelled;
     if (cancelled) $$(MONEY_INPUTS, $('#svc-form')).forEach((input) => { input.value = '0'; });
+    setChildren($('#svc-bookings'));
+    $('#svc-bookings').hidden = true;
+    if (cancelled && state.ctx.type === 'Crew Change' && state.ctx.serviceId) showCrewBookings();
   }
   if (target.name === 'shareMode') {
     const fixed = target.value === 'fixed';

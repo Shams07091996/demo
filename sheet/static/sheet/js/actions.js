@@ -10,7 +10,7 @@ import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import { downloadReceipt, openReceipt } from './modals/receipt.js';
 import {
-  entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
+  cancelBookingRefs, entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
   renumberEntries, updatePreview,
 } from './modals/service.js';
 import {
@@ -56,6 +56,8 @@ async function saveService(version) {
     type, agent: $('#svc-form [name=agent]').value, status, data: readServiceForm(),
     cancel_reason: status === 'cancelled' ? $('#svc-form [name=cancel_reason]').value : '',
   };
+  const refs = status === 'cancelled' ? cancelBookingRefs() : [];
+  if (refs.length) payload.cancel_bookings = refs;
   if (serviceId) payload.version = version ?? state.ctx.version;
   const vessel = await mutate(() => (serviceId
     ? api(`/api/services/${serviceId}/`, 'PUT', payload)

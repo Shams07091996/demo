@@ -295,6 +295,19 @@ async function login() {
   setTick('status', 'in_progress', true); setTick('status', 'completed', true);
   ok(await waitFor(() => $('#c-status-filter summary').textContent === 'Status: All' && waterRow()), 'calculations: ticking everything again shows every line');
   ok(/Open \d+ · Closed \d+/.test($('#c-totals').textContent), 'calculations: totals count Open and Closed lines');
+  const setMonthRate = async (rate) => {
+    await go('rates');
+    type($('#rate-form [name=month]'), localNow().slice(0, 7)); type($('#rate-form [name=rate]'), rate);
+    click($('[data-act="save-rate"]'));
+    await waitFor(() => $('#rates-panel').textContent.includes(rate));
+    await go('calculations');
+    await waitFor(() => waterRow());
+  };
+  if (ROLE === 'admin') {
+    // Rates are stored with 4 decimals; the working shows them in full so the multiplication adds up.
+    await setMonthRate('48.2525');
+    ok(await waitFor(() => waterRow()?.textContent.includes('USD 900.00 × 48.2525 = 43,427.25')), 'calculations: a 4-decimal rate is shown in full');
+  }
   if (ROLE === 'viewer' || ROLE === 'admin') {
     click(waterRow().querySelector('[data-act="acct-toggle"]'));
     ok(await waitFor(() => waterRow()?.querySelector('.acct-switch.closed')), 'accounting: the switch closes a line');
@@ -318,6 +331,25 @@ async function login() {
     }
     click(waterRow().querySelector('[data-act="acct-toggle"]'));
     ok(await waitFor(() => waterRow()?.querySelector('.acct-switch:not(.closed)')), 'accounting: the switch reopens the line');
+    if (ROLE === 'admin') {
+      await setMonthRate('50');
+      ok(await waitFor(() => waterRow()?.textContent.includes('× 48.2525 = 43,427.25')), 'accounting: the rate kept on closing stays after reopening and a new month rate');
+      // A person clears the kept rate: the line follows the month rate again (and the next role sees the seeded figures).
+      click(waterRow().querySelector('[data-act="summary"]'));
+      await waitFor(() => $('#modal [data-act="open-vessel"]'));
+      click($('#modal [data-act="open-vessel"]'));
+      const waterCard = () => $$('.svc-card').find((c) => c.textContent.includes('Fresh Water'));
+      await waitFor(() => waterCard());
+      click(waterCard().querySelector('[data-act="edit-service"]'));
+      await waitFor(() => $('#svc-form [name=exchangeRate]'));
+      ok($('#svc-form [name=exchangeRate]').value === '48.2525', 'accounting: the kept rate shows in the service form');
+      type($('#svc-form [name=exchangeRate]'), '');
+      click($('[data-act="save-service"]'));
+      await waitFor(() => !$('#svc-form'));
+      closeModal();
+      await go('calculations');
+      ok(await waitFor(() => waterRow()?.textContent.includes('USD 900.00 × 50.00 = 45,000.00')), 'accounting: clearing the kept rate goes back to the month rate');
+    }
   } else {
     ok(waterRow().querySelector('.acct-label') && !$('#c-tbody [data-act="acct-toggle"]'), 'accounting: port users see Open / Closed but cannot switch it');
   }
@@ -348,19 +380,6 @@ async function login() {
     ok(await waitFor(() => rowFor('MSC AURORA')?.textContent.includes('in progress')), 'status: the vessel list shows how many services are in progress');
     await go('calculations');
     await waitFor(() => waterRow());
-  }
-  if (ROLE === 'admin') {
-    // Rates are stored with 4 decimals; the working shows them in full so the multiplication adds up.
-    await go('rates');
-    type($('#rate-form [name=month]'), localNow().slice(0, 7)); type($('#rate-form [name=rate]'), '48.2525');
-    click($('[data-act="save-rate"]'));
-    await waitFor(() => $('#rates-panel').textContent.includes('48.2525'));
-    await go('calculations');
-    ok(await waitFor(() => waterRow()?.textContent.includes('USD 900.00 × 48.2525 = 43,427.25')), 'calculations: a 4-decimal rate is shown in full');
-    await go('rates');
-    type($('#rate-form [name=month]'), localNow().slice(0, 7)); type($('#rate-form [name=rate]'), '50');
-    click($('[data-act="save-rate"]'));
-    await waitFor(() => /\b50\b/.test($('#rates-panel').textContent));
   }
   await go('vessels');
   ok($$('#tbody tr').length > 0, 'vessel table renders');
@@ -989,6 +1008,42 @@ async function login() {
   type($('[data-bf="nights"]'), '3');
   click($('[data-act="booking-save"]'));
   ok(await waitFor(() => stayRow()?.textContent.includes(dmyOf(plusDays(todayIso, 3)))), 'hotels: editing nights moves the check-out');
+
+  if (ROLE === 'alex') {
+    // Choosing Cancelled on the crew change lists its saved bookings, ticked (closed without saving here).
+    await go('vessels');
+    await openRow('MSC AURORA');
+    const crewCard = () => $$('.svc-card').find((c) => c.textContent.includes('Crew Change'));
+    click(crewCard().querySelector('[data-act="edit-service"]'));
+    await waitFor(() => $('#svc-form [name=status]'));
+    ok($('#svc-bookings').hidden, 'cancel bookings: no list while the crew change is not cancelled');
+    type($('#svc-form [name=status]'), 'cancelled');
+    const listed = () => $$('#svc-bookings input[data-bk]').find((i) => i.closest('label').textContent.includes('SMOKE HOTEL'));
+    ok(await waitFor(() => !$('#svc-bookings').hidden && listed()?.checked), 'cancel bookings: the saved hotel stay is listed, ticked');
+    ok(!$$('#svc-bookings label').some((l) => l.textContent.includes('no hotel yet')), 'cancel bookings: drafts are not listed');
+    type($('#svc-form [name=status]'), 'completed');
+    ok($('#svc-bookings').hidden && !$('#svc-bookings input'), 'cancel bookings: the list goes when Cancelled is unchosen');
+    closeModal();
+    await go('hotels');
+    await waitFor(() => stayRow());
+
+    // A booking's own Cancelled tick: money to 0, the row says Cancelled; unticking keeps what was typed.
+    click(stayRow());
+    await waitFor(() => $('[data-bf="cancelled"]'));
+    ok(!$('[data-bf="cancelled"]').checked, 'booking: not cancelled by default');
+    click($('[data-bf="cancelled"]'));
+    ok(await waitFor(() => $('[data-bf="cancelled"]')?.checked && $('[data-bf="cost"]').value === '0' && $('[data-bf="revenue"]').value === '0'), 'booking: ticking Cancelled sets the money to 0');
+    type($('[data-bf="cost"]'), '15'); // a cancellation fee
+    click($('[data-act="booking-save"]'));
+    ok(await waitFor(() => stayRow()?.querySelector('.svc-status')?.textContent === 'Cancelled'), 'booking: the row shows Cancelled');
+    click(stayRow());
+    await waitFor(() => $('[data-bf="cancelled"]')?.checked);
+    click($('[data-bf="cancelled"]'));
+    await waitFor(() => !$('[data-bf="cancelled"]').checked);
+    type($('[data-bf="cost"]'), '80'); type($('[data-bf="revenue"]'), '4500');
+    click($('[data-act="booking-save"]'));
+    ok(await waitFor(() => !stayRow()?.querySelector('.svc-status') && stayRow()?.textContent.includes('EGP 4,500.00')), 'booking: unticked, it is a normal booking again');
+  }
 
   // Markup-like texts in bookings: the vessel picker, a guest and the hotels table show them literally.
   if (hostileId) {
