@@ -212,3 +212,12 @@ class AccountApiTests(ApiTestCase):
         alex_id = User.objects.get(username="alex").id
         self.assertEqual(self.call(self.login("boss"), "put", f"/api/accounts/{alex_id}/", {"role": "suez"})[0], 200)
         self.assertEqual(ports(), {"suez"})
+
+    def test_nav_only_for_superusers(self):
+        page = self.login("boss").get("/").content.decode()
+        self.assertIn('data-page="accounts"', page)
+        self.assertIn('id="page-accounts"', page)
+        for name in ("admin", "alex", "viewer"):
+            page = self.login(name).get("/").content.decode()
+            self.assertNotIn('data-page="accounts"', page)
+            self.assertNotIn('id="page-accounts"', page)

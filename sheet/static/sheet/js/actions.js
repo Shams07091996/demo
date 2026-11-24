@@ -4,6 +4,7 @@ import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from '.
 import { conflictAction, showConflict } from './conflict.js';
 import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
+import { saveAccountDialog, toggleAccount } from './modals/account.js';
 import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { addContactRow, deleteCustomerDialog, saveCustomerDialog } from './modals/customer.js';
@@ -24,6 +25,7 @@ import { calculationsPage } from './pages/calculations.js';
 import { closuresPage } from './pages/closures.js';
 import { customersPage } from './pages/customers.js';
 import { disposalPage } from './pages/disposal.js';
+import { accountsPage } from './pages/accounts.js';
 import { historyPage } from './pages/history.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { copyLastMonth, readPriceForm, renderRatesPage } from './pages/rates.js';
@@ -270,6 +272,10 @@ export const actions = {
   'contact-add': () => addContactRow(),
   'contact-remove': (b) => b.closest('.contact-row')?.remove(),
   'customer-ship': (b) => shipsPage.openById(Number(b.dataset.id)),
+  'account-new': () => accountsPage.open(null),
+  'account-open': (b) => accountsPage.open(Number(b.dataset.id)),
+  'account-save': () => saveAccountDialog(),
+  'account-toggle': () => toggleAccount(),
   'ship-new': () => shipsPage.open(null),
   'ship-open': (b) => shipsPage.open(Number(b.dataset.id)),
   'ship-save': () => saveShipDialog(),

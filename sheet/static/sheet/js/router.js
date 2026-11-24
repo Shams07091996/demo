@@ -6,6 +6,7 @@ import { calculationsPage } from './pages/calculations.js';
 import { closuresPage } from './pages/closures.js';
 import { customersPage } from './pages/customers.js';
 import { disposalPage } from './pages/disposal.js';
+import { accountsPage } from './pages/accounts.js';
 import { historyPage } from './pages/history.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
@@ -28,6 +29,7 @@ const TITLES = {
   master: 'Master data',
   rates: 'Exchange rates',
   history: 'History',
+  accounts: 'Accounts',
 };
 
 const pageFromHash = () => {
@@ -38,6 +40,7 @@ const pageFromHash = () => {
 export async function showPage(requested) {
   let name = requested;
   if (name === 'history' && !ME.isAdmin) name = 'vessels'; // the change history is for admins only
+  if (name === 'accounts' && !ME.isSuperuser) name = 'vessels'; // accounts: superusers only
   state.page = name;
   $$('.page').forEach((page) => { page.hidden = page.id !== `page-${name}`; });
   $$('#nav .nav-item').forEach((link) => link.classList.toggle('active', link.dataset.page === name));
@@ -51,6 +54,7 @@ export async function showPage(requested) {
   if (name === 'disposal') await disposalPage.load();
   if (name === 'calculations') await calculationsPage.load();
   if (name === 'history') await historyPage.load();
+  if (name === 'accounts') await accountsPage.load();
   if (name === 'services') await servicesPage.load();
   if (name === 'ships') await shipsPage.load();
   if (name === 'customers') await customersPage.load();

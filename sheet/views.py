@@ -129,6 +129,7 @@ def index(request):
             "port": profile.port,
             "canEdit": profile.can_edit,
             "isAdmin": profile.is_admin,
+            "isSuperuser": request.user.is_superuser,
             "seesAll": profile.port is None,
         },
         "ports": [{"key": key, "label": label} for key, label in PORTS],
