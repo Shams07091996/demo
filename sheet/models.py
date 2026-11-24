@@ -3,9 +3,10 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
-from .constants import CANCEL_REASON_MAX, OPTION_KINDS, PLACES, PORT_KEYS, PORTS, ROLES, SERVICE_STATUSES, SERVICE_TYPES
+from .constants import BILLING, CANCEL_REASON_MAX, OPTION_KINDS, PLACES, PORT_KEYS, PORTS, ROLES, SERVICE_STATUSES, SERVICE_TYPES
 
 SETUP_WINDOW = timedelta(hours=72)  # how long after creation / a reset a person may set up their Authenticator
 EXEMPT_REFUSED = "Remove the two-step exception first."
@@ -65,6 +66,71 @@ class Profile(models.Model):
         return self.is_admin or self.port is not None
 
 
+class Customer(models.Model):
+    """Who we bill (e.g. the ship's owner / manager), separate from the OPR; shared by all ports."""
+
+    name = models.CharField(max_length=120)
+    notes = models.CharField(max_length=500, blank=True)
+    active = models.BooleanField(default=True)  # inactive: kept on old records, left out of dropdowns
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+
+    def __str__(self):
+        return self.name
+
+
+class CustomerContact(models.Model):
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="contacts")
+    name = models.CharField(max_length=100)
+    role = models.CharField(max_length=60, blank=True)
+    email = models.CharField(max_length=254, blank=True)
+    phone = models.CharField(max_length=40, blank=True)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self):
+        return f"{self.name} ({self.customer})"
+
+
+class CustomerRate(models.Model):
+    """The agreed rate for one service type; its meaning per type is constants.RATE_UNITS."""
+
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="rates")
+    service_type = models.CharField(max_length=40, choices=[(t, t) for t in SERVICE_TYPES])
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default="USD")
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["customer", "service_type"], name="unique_customer_rate")]
+
+    def __str__(self):
+        return f"{self.customer}: {self.service_type} {self.amount} {self.currency}"
+
+
+class Ship(models.Model):
+    """One real ship, reused by every port call (Vessel). Shared by all ports. The IMO is empty only for a ship
+    marked "No IMO"."""
+
+    name = models.CharField(max_length=120)
+    imo = models.CharField("IMO", max_length=7, blank=True)
+    opr = models.CharField("OPR", max_length=100, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, null=True, blank=True, related_name="ships")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+        constraints = [models.UniqueConstraint(fields=["imo"], condition=~Q(imo=""), name="unique_imo")]
+
+    def __str__(self):
+        return f"{self.name} ({self.imo or 'no IMO'})"
+
+
 class Vessel(models.Model):
     name = models.CharField(max_length=120)
     opr = models.CharField("OPR", max_length=100, blank=True)
@@ -82,6 +148,7 @@ class Vessel(models.Model):
     delay_reason = models.CharField("Delay reason", max_length=100, blank=True)
     port = models.CharField(max_length=20, choices=PORTS, default="alexandria", db_index=True)
     summary = models.JSONField(default=dict, blank=True)  # optional vendor / invoice notes
+    ship = models.ForeignKey(Ship, on_delete=models.PROTECT, null=True, blank=True, related_name="vessels")
     created_at = models.DateTimeField(auto_now_add=True)
     version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 
@@ -102,6 +169,10 @@ class Service(models.Model):
     status = models.CharField(max_length=12, choices=list(SERVICE_STATUSES.items()), default="in_progress")
     cancel_reason = models.CharField(max_length=CANCEL_REASON_MAX, blank=True)
     acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the service
+    billing_party = models.ForeignKey(
+        Customer, on_delete=models.PROTECT, null=True, blank=True, related_name="services"
+    )  # who pays; the dialog starts it at the ship's customer
+    billing = models.CharField(max_length=8, choices=list(BILLING.items()), default="account")  # a label only
     created_at = models.DateTimeField(auto_now_add=True)
     version = models.PositiveIntegerField(default=1)  # edit conflicts: +1 per person save that changes it
 

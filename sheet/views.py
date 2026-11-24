@@ -35,6 +35,7 @@ from . import (
     ratelimit,
     receipt,
     report,
+    ships,
     twostep,
 )
 from . import dashboard as dashboard_figures
@@ -60,6 +61,7 @@ from .models import (
     HotelStay,
     Option,
     Service,
+    Ship,
     Transfer,
     Vessel,
     VesselDisposal,
@@ -662,6 +664,37 @@ def export_csv(request):
 
 
 # ---- port closures (see closures.py) -----------------------------------------------------------
+
+
+# ---- ships and customers (see ships.py, customers.py) ------------------------------------------
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def ships_list(request):
+    profile = request.profile
+    if request.method == "GET":
+        return JsonResponse(ships.list_response(request.GET))
+    require_edit(profile)
+    ship = ships.save_ship(profile, read_json(request))
+    audit(request, "ship.create", id=ship.id)
+    return JsonResponse(ships.ship_to_dict(ship), status=201)
+
+
+@json_api
+@require_http_methods(["PUT", "DELETE"])
+def ship_detail(request, pk):
+    profile = request.profile
+    require_edit(profile)
+    ship = get_object_or_404(Ship, pk=pk)
+    if request.method == "DELETE":
+        require_admin(profile)
+        ships.delete_ship(ship)
+        audit(request, "ship.delete", id=pk)
+        return JsonResponse({"ok": True})
+    ship = ships.save_ship(profile, read_json(request), existing=ship)
+    audit(request, "ship.update", id=ship.id)
+    return JsonResponse(ships.ship_to_dict(ship))
 
 
 @json_api

@@ -25,7 +25,7 @@ from .constants import (
     is_delayed,
 )
 from .errors import BadRequest
-from .models import Option
+from .models import Customer, Option, Ship
 
 MAX_ENTRIES = 100
 MAX_CREW = 60
@@ -382,6 +382,72 @@ def clean_vessel(data, profile, existing=None):
         "summary": clean_summary(data.get("summary")),
         "delay_reason": clean_delay_reason(data, times, port, existing),
         **times,
+    }
+
+
+# ---- ships ----------------------------------------------------------------------------------
+
+IMO_RE = re.compile(r"^[0-9]{7}$")
+
+
+def imo_valid(text):
+    """A real IMO number: 7 digits whose last is the check digit (first six weighted 7..2, sum mod 10)."""
+    if not isinstance(text, str) or not IMO_RE.match(text):
+        return False
+    total = sum(int(digit) * weight for digit, weight in zip(text[:6], range(7, 1, -1)))
+    return total % 10 == int(text[6])
+
+
+def _flag(value):
+    return value is True
+
+
+def pick_customer(value, current=None, label="Customer"):
+    """A customer by id (active, or the one already saved), or None when empty."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise BadRequest(f"{label}: choose one from the list.")
+    if current is not None and value == current.id:
+        return current
+    found = Customer.objects.filter(pk=value, active=True).first()
+    if found is None:
+        raise BadRequest(f"{label}: choose one from the list.")
+    return found
+
+
+def clean_ship(data, profile, existing=None):
+    """A ship: name (upper case), IMO (required unless "No IMO" is ticked), OPR from Master data, customer."""
+    name = _short(data.get("name"), 120, "Ship name").upper()
+    if not name:
+        raise BadRequest("Ship name is required.")
+    if _flag(data.get("no_imo")):
+        imo = ""
+    else:
+        imo = _short(data.get("imo"), 20, "IMO").replace(" ", "")
+        if not imo:
+            raise BadRequest("Enter the IMO number, or tick No IMO.")
+        if not imo_valid(imo):
+            raise BadRequest("IMO: enter the 7-digit IMO number (its last digit doesn't match).")
+        clash = Ship.objects.filter(imo=imo).exclude(pk=getattr(existing, "pk", None))
+        if clash.exists():
+            raise BadRequest("IMO: another ship already has this number.")
+    current_opr = getattr(existing, "opr", "")
+    opr = _short(data.get("opr"), 100, "OPR")
+    if opr and opr != current_opr:
+        if profile.port:
+            listed("opr", opr, profile.port, current_opr)
+        elif not Option.objects.filter(kind="opr", value=opr).exists():
+            raise BadRequest("OPR: choose a value from the Master data OPR list.")
+    active = data.get("active", getattr(existing, "active", True))
+    if not isinstance(active, bool):
+        raise BadRequest("Active must be yes or no.")
+    return {
+        "name": name,
+        "imo": imo,
+        "opr": opr,
+        "customer": pick_customer(data.get("customer"), getattr(existing, "customer", None)),
+        "active": active,
     }
 
 

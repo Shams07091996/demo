@@ -29,6 +29,20 @@ SERVICE_TYPES = [
 SERVICE_STATUSES = {"in_progress": "In progress", "completed": "Completed", "cancelled": "Cancelled"}
 CANCEL_REASON_MAX = 500
 
+# How a service is paid (2026-11-24): a label only; Calculations can filter on it.
+BILLING = {"account": "On account", "cash": "Cash"}
+# What a customer's agreed rate means per service type (Others / Remarks has no rate).
+RATE_UNITS = {
+    "Crew Change": "service",
+    "Medical Treatment": "service",
+    "Certificates": "service",
+    "Fresh Water": "unit",
+    "Delivery Parcels": "line",
+    "Delivery Courier": "line",
+    "Landing": "line",
+    "Cash to Master": "percent",
+}
+
 # Services made of several priced entries (AWB / weight / cost / revenue).
 MULTI_TYPES = ("Delivery Parcels", "Delivery Courier", "Landing")
 # Single-priced services and the one extra descriptive field each of them has.

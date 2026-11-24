@@ -11,6 +11,9 @@ from .errors import BadRequest
 from .models import (
     EXEMPT_REFUSED,
     ChangeRecord,
+    Customer,
+    CustomerContact,
+    CustomerRate,
     DisposalPrice,
     ExchangeRate,
     Guest,
@@ -20,6 +23,7 @@ from .models import (
     Profile,
     RememberedComputer,
     Service,
+    Ship,
     Transfer,
     Vessel,
     VesselDisposal,
@@ -211,6 +215,10 @@ admin.site.register(User, UserWithProfile)
 admin.site.register(ExchangeRate)
 admin.site.register(DisposalPrice)
 admin.site.register(Option)
+admin.site.register(Ship)
+admin.site.register(Customer)
+admin.site.register(CustomerContact)
+admin.site.register(CustomerRate)
 
 
 @admin.register(VesselDisposal)
