@@ -10,6 +10,8 @@ from .constants import (
     BILLING,
     CANCEL_REASON_MAX,
     OPTION_KINDS,
+    PAGE_NEEDS,
+    PERMISSION_NEEDS,
     PLACES,
     SERVICE_STATUSES,
     SERVICE_TYPES,
@@ -30,6 +32,9 @@ class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     home_port = models.CharField(max_length=20, blank=True)
     ports = models.JSONField(default=list, blank=True)
+    # What a User may do and which pages they have (constants.PERMISSIONS / PAGES keys; Admins: everything).
+    permissions = models.JSONField(default=list, blank=True)
+    pages = models.JSONField(default=list, blank=True)
     # Two-step login (sheet/twostep.py). Only superusers change these, in the admin pages.
     two_step_exempt = models.BooleanField(
         "Two-step exception", default=False, help_text="Signs in with the password only. Never for admins."
@@ -64,6 +69,29 @@ class Profile(models.Model):
     @property
     def is_admin(self):
         return self.user.is_superuser
+
+    def can(self, key):
+        """May this person do `key` (constants.PERMISSIONS)? A permission that needs another one (or a page) only
+        counts with it, whatever is stored."""
+        if self.is_admin:
+            return True
+        if key not in (self.permissions or []):
+            return False
+        need = PERMISSION_NEEDS.get(key)
+        if need is None:
+            return True
+        kind, other = need
+        return self.can(other) if kind == "permission" else self.sees(other)
+
+    def sees(self, page):
+        """Does this person have `page` (constants.PAGES)? Vessels always; History exactly with history.view;
+        Calculations / Exchange rates only with money.view."""
+        if self.is_admin or page == "vessels":
+            return True
+        need = PAGE_NEEDS.get(page)
+        if page == "history":
+            return self.can(need)
+        return page in (self.pages or []) and (need is None or self.can(need))
 
     @property
     def can_edit(self):

@@ -1,6 +1,7 @@
 """Who may see and change what."""
 
 from . import ports
+from .constants import PAGE_LABELS, PERMISSION_LABELS
 from .errors import BadRequest, Forbidden
 from .models import PortClosure, Profile, Vessel
 
@@ -13,6 +14,18 @@ def profile_of(user):
         profile, _ = Profile.objects.get_or_create(user=user)
         user.profile = profile
         return profile
+
+
+def require(profile, key):
+    """403 unless the person has permission `key` (constants.PERMISSIONS)."""
+    if not profile.can(key):
+        raise Forbidden(f"You don't have permission: {PERMISSION_LABELS[key]}.")
+
+
+def require_page(profile, page):
+    """403 unless the person has `page` (constants.PAGES): the routes that only serve that page."""
+    if not profile.sees(page):
+        raise Forbidden(f"You don't have access to {PAGE_LABELS[page]}.")
 
 
 def require_edit(profile):

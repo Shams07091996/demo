@@ -95,3 +95,63 @@ MAX_NIGHTS = 60
 
 # Dashboard filter value meaning "jobs nobody was assigned to" (an empty agent).
 NO_AGENT = "__none__"
+
+
+# ---- Access rework piece 2: per-person permissions and pages (Profile.permissions / pages) ----------------------
+
+# key -> label, in the order the Accounts dialog shows them. Admins (superusers) have all of them always.
+PERMISSIONS = (
+    ("vessels.edit", "Add / edit vessels"),
+    ("vessels.delete", "Delete vessels"),
+    ("services.edit", "Add / edit services"),
+    ("services.cancel", "Cancel a service"),
+    ("services.complete", "Mark a service Completed"),
+    ("money.view", "See money (overviews)"),
+    ("money.edit", "Enter / edit prices and costs"),
+    ("bookings.edit", "Hotels & transport bookings"),
+    ("customers.edit", "Customers and ships: add / edit"),
+    ("master.edit", "Master data"),
+    ("closures.edit", "Port closures"),
+    ("disposal.edit", "Garbage & sludge quantities"),
+    ("exports", "Excel / data exports"),
+    ("documents", "LOG letter and master receipt"),
+    ("history.view", "History"),
+    ("accounting.close", "Close / reopen lines"),
+)
+PERMISSION_KEYS = tuple(key for key, _ in PERMISSIONS)
+PERMISSION_LABELS = dict(PERMISSIONS)
+
+# The pages a person can be given (Ports and Accounts are Admin-only and never ticked). Vessels is always on; History
+# is on exactly when the person has history.view.
+PAGES = (
+    ("vessels", "Vessels"),
+    ("services", "Services"),
+    ("hotels", "Hotels"),
+    ("transport", "Transport"),
+    ("closures", "Port closures"),
+    ("disposal", "Garbage & Sludge"),
+    ("calculations", "Calculations"),
+    ("dashboard", "Dashboard"),
+    ("ships", "Ships"),
+    ("customers", "Customers"),
+    ("master", "Master data"),
+    ("rates", "Exchange rates"),
+    ("history", "History"),
+)
+PAGE_KEYS = tuple(key for key, _ in PAGES)
+PAGE_LABELS = dict(PAGES)
+# A page or permission that only works together with another permission / page.
+PAGE_NEEDS = {"calculations": "money.view", "rates": "money.view", "history": "history.view"}
+PERMISSION_NEEDS = {"history.view": ("permission", "money.view"), "accounting.close": ("page", "calculations")}
+
+_MARINE = ("vessels.edit", "services.edit", "services.complete", "money.edit")
+_OPERATIONS = (*_MARINE, "services.cancel", "customers.edit", "bookings.edit")
+# (key, label, permissions, pages): they only fill in the Accounts dialog's ticks; nothing links a person to one.
+TEMPLATES = (
+    ("marine", "Marine employee", _MARINE, ("vessels", "services")),
+    ("operations", "Operations employee", _OPERATIONS,
+     ("vessels", "services", "hotels", "transport", "ships", "customers")),
+    ("manager", "Branch manager", PERMISSION_KEYS, PAGE_KEYS),
+    ("accounts", "Accounts employee", ("money.view", "exports", "history.view", "accounting.close"),
+     ("vessels", "services", "calculations", "dashboard", "rates", "history")),
+)

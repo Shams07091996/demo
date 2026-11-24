@@ -17,6 +17,7 @@ from django.test import Client, SimpleTestCase, TestCase, override_settings
 from config.database import build_database_settings
 
 from . import finance, throttle
+from .constants import PAGE_KEYS, PERMISSION_KEYS
 from .errors import BadRequest
 from .models import (
     ExchangeRate,
@@ -62,16 +63,18 @@ def allow(kind, *values, port=""):
         Option.objects.get_or_create(kind=kind, value=value, port=port)
 
 
-def make_user(username, ports):
+def make_user(username, ports, permissions=None, pages=None):
     """"admin": a superuser (an Admin, every port); a port key or a list of keys: a User of those ports (the first
-    is the home port)."""
+    is the home port) with `permissions` and `pages` (None: all of them)."""
     if ports == "admin":
         user = User.objects.create_superuser(username, password=PASSWORD)
         Profile.objects.create(user=user)
         return user
     ports = [ports] if isinstance(ports, str) else list(ports)
     user = User.objects.create_user(username, password=PASSWORD)
-    Profile.objects.create(user=user, home_port=ports[0], ports=ports)
+    Profile.objects.create(user=user, home_port=ports[0], ports=ports,
+                           permissions=list(PERMISSION_KEYS if permissions is None else permissions),
+                           pages=list(PAGE_KEYS if pages is None else pages))
     return user
 
 
