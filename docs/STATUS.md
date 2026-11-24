@@ -13,7 +13,7 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
   admins edit, everyone reads). Each service has an optional **billing party** (a customer; a new service starts
   with its ship's customer) and **Cash / On account** (a label); the billing party's agreed rate fills in the
   revenue, which the person can change. Calculations has Billing party / Billing columns, a Billing tick filter and
-  a billing party dropdown; the Calculations data export has the two columns. 682 backend tests; `npm run check`
+  a billing party dropdown; the Calculations data export has the two columns. 685 backend tests; `npm run check`
   green; smoke test passes for alex / admin / viewer / suez. After the update: add the company's ships and customers
   (Ships / Customers pages) before people add vessels.
 
@@ -186,6 +186,12 @@ Ideas raised along the way:
 
 ## Left open — small things the user hasn't decided on yet
 
+- **Ships / customers (review of 2026-11-24, not fixed):** two people adding the same IMO at the same instant: the
+  second gets an error with a reference instead of "another ship already has this number" (customer names likewise
+  have no database guard); the Ships page shows the first 200 ships by name with no "more" notice (search finds the
+  rest); a rates payload with the same service type twice keeps the last one instead of being refused; port users
+  see each ship's port calls counted over all ports; the service dialog can open a moment after a quick second click
+  while customers load.
 Edit-conflict warning (from the final review, minor):
 - "Guests" can be missing from the field list when another save in between changed other booking fields.
 - Field names are the stored ones ("Draft" can appear; "On signers" rather than the form's "On-signers").

@@ -29,20 +29,50 @@ def list_response():
 
 
 def save_customer(payload, existing=None):
-    """Create or update a customer; its contacts and rates are replaced by what was sent (in the request's one
-    transaction, so a refused payload changes nothing)."""
+    """Create or update a customer; its contacts and rates become what was sent (in the request's one transaction,
+    so a refused payload changes nothing). Only rows that really change are written, so the History shows just
+    what someone changed."""
     values = clean_customer(payload, existing)
     customer = existing or Customer()
     for key in ("name", "notes", "active"):
         setattr(customer, key, values[key])
     customer.save()
-    customer.contacts.all().delete()
-    customer.rates.all().delete()
-    for position, contact in enumerate(values["contacts"]):
-        CustomerContact.objects.create(customer=customer, position=position, **contact)
-    for rate in values["rates"]:
-        CustomerRate.objects.create(customer=customer, **rate)
+    _save_contacts(customer, values["contacts"])
+    _save_rates(customer, values["rates"])
     return Customer.objects.prefetch_related("contacts", "rates", "ships").get(pk=customer.pk)
+
+
+CONTACT_FIELDS = ("name", "role", "email", "phone")
+
+
+def _save_contacts(customer, contacts):
+    """Contacts are an ordered list: changed rows in place, extra rows added, missing rows deleted."""
+    stored = list(customer.contacts.order_by("position", "id"))
+    for position, contact in enumerate(contacts):
+        if position < len(stored):
+            row = stored[position]
+            if any(getattr(row, f) != contact[f] for f in CONTACT_FIELDS):
+                for f in CONTACT_FIELDS:
+                    setattr(row, f, contact[f])
+                row.save()
+        else:
+            CustomerContact.objects.create(customer=customer, position=position, **contact)
+    for row in stored[len(contacts):]:
+        row.delete()
+
+
+def _save_rates(customer, rates):
+    """One rate per service type: changed ones updated, new ones added, the others deleted."""
+    stored = {r.service_type: r for r in customer.rates.all()}
+    for rate in rates:
+        row = stored.pop(rate["service_type"], None)
+        if row is None:
+            CustomerRate.objects.create(customer=customer, **rate)
+        elif (row.amount, row.currency) != (rate["amount"], rate["currency"]):
+            row.amount, row.currency = rate["amount"], rate["currency"]
+            row.save()
+    for row in stored.values():
+        row.delete()
 
 
 def delete_customer(customer):

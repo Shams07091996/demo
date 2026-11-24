@@ -525,9 +525,7 @@ def _clean_contact(raw, number):
 
 
 def _clean_rates(raw):
-    if raw in (None, ""):
-        return []
-    if not isinstance(raw, dict):
+    if not isinstance(raw, dict):  # missing or not an object: refused, never read as "no rates" (a save replaces them)
         raise BadRequest("Rates: send one rate per service type.")
     rates = []
     for service_type, value in raw.items():
@@ -553,7 +551,9 @@ def clean_customer(data, existing=None):
         raise BadRequest("Customer name is required.")
     if Customer.objects.filter(name__iexact=name).exclude(pk=getattr(existing, "pk", None)).exists():
         raise BadRequest("Another customer already has this name.")
-    contacts = _as_list(data.get("contacts"))
+    contacts = data.get("contacts")
+    if not isinstance(contacts, list):  # missing or not a list: refused, never read as "no contacts"
+        raise BadRequest("Contacts: send the list of contacts.")
     if len(contacts) > MAX_CONTACTS:
         raise BadRequest(f"At most {MAX_CONTACTS} contacts per customer.")
     active = data.get("active", getattr(existing, "active", True))

@@ -721,6 +721,16 @@ async function login() {
   click($('#modal [data-act="edit-vessel"]'));
   ok($('#vessel-form [name=arrival_agent]').value === 'SMOKE AGENT' && $('#vessel-form [name=sailing_agent]').value === '', 'quick add set only the arrival agent');
   ok(modalText().includes('Arrival agent') && modalText().includes('Sailing agent'), 'the dialog lists both agents');
+  // Typing over the name of a linked vessel clears its ship: the save asks for one, picking it again works.
+  type($('#vessel-form [name=name]'), `${NAME} II`);
+  ok($('#vf-imo').textContent === '', 'vessel form: typing over the name clears the ship');
+  click($('[data-act="save-vessel"]'));
+  ok(await waitFor(() => /Choose a ship/.test($('#modal .error')?.textContent || '')), 'vessel form: a renamed vessel must pick its ship again');
+  type($('#vessel-form [name=name]'), NAME);
+  const ownShip = () => $$('#vessel-form .ship-opt').find((o) => o.textContent.startsWith(`${NAME} ·`));
+  ok(await waitFor(() => ownShip()), 'vessel form: the name box lists the ship again');
+  ownShip().dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true }));
+  ok($('#vf-imo').textContent === 'IMO none', 'vessel form: the ship is picked again');
   click($('[data-act="time-now"][data-target="arrival_at"]'));
   ok(/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test($('[name=arrival_at]').value), '"Now" fills a time');
   const times = { arrival_at: '2020-01-15T06:00', berthing_at: '2020-01-15T08:30', ops_start_at: '2020-01-15T09:00', ops_end_at: '2020-01-15T15:00', sailing_at: '2020-01-15T05:00' };
@@ -796,6 +806,11 @@ async function login() {
   ok($('#svc-rate').textContent === 'Agreed rate: USD 50 per unit', 'service: the billing party\'s agreed rate shows');
   type($('[name=quantity]'), '40');
   ok($('[name=revenue]').value === '2000' && $('[name=revenueCurrency]').value === 'USD', 'service: revenue filled from the rate (40 x USD 50)');
+  const partyValue = (name) => [...$('#svc-form [name=billing_party]').options].find((o) => o.textContent === name).value;
+  type($('#svc-form [name=billing_party]'), partyValue('Red Managers'));
+  ok($('[name=revenue]').value === '' && $('#svc-rate').textContent === '', 'service: a payer with no rate clears the filled revenue');
+  type($('#svc-form [name=billing_party]'), partyValue('Blue Owners'));
+  ok($('[name=revenue]').value === '2000', 'service: back to the payer with a rate fills it again');
   type($('#svc-form [name=billing]'), 'cash');
   type($('[name=revenue]'), '100');
   type($('[name=quantity]'), '41'); type($('[name=quantity]'), '40');

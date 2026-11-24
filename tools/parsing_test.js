@@ -79,6 +79,19 @@ d = fill('Fresh Water', { quantity: 9, revenue: 900, revenueCurrency: 'USD' }, f
 check(d.revenue === 900 && d.revenueCurrency === 'USD', 'fill keeps saved non-zero revenue');
 check(fill('Fresh Water', { quantity: 2, revenue: 0 }, false).revenue === 24.7, 'fill a saved 0 revenue');
 check(fill('Crew Change', { revenue: 5 }, true, new Set(['revenue'])).revenue === 5, 'fill skips touched revenue');
+// Switching to a payer with no rate for this type: what the previous rate filled is cleared (new service only).
+const was = (serviceType) => rateFor(blue, serviceType, UNITS);
+const clear = (serviceType, data, isNew = true, touched = none) =>
+  fillRevenue({ rate: null, previous: was(serviceType), data, isNew, touched });
+d = clear('Crew Change', { revenue: 300, revenueCurrency: 'USD' });
+check(d.revenue === '' && d.revenueCurrency === 'USD', 'no rate: the previous service rate is cleared');
+check(clear('Fresh Water', { quantity: 3, revenue: 37.05 }).revenue === '', 'no rate: the previous unit rate is cleared');
+d = clear('Landing', { entries: [{ revenue: 7 }, { revenue: 40 }] }, true, new Set(['entry:0']));
+check(d.entries[0].revenue === 7 && d.entries[1].revenue === '', 'no rate: untouched lines cleared, typed ones kept');
+check(clear('Cash to Master', { shareMode: 'percent', percentage: 5 }).percentage === '', 'no rate: the previous percentage is cleared');
+check(clear('Crew Change', { revenue: 300 }, true, new Set(['revenue'])).revenue === 300, 'no rate: a typed revenue stays');
+check(clear('Crew Change', { revenue: 300 }, false).revenue === 300, 'no rate: a saved service keeps its revenue');
+check(fillRevenue({ rate: null, previous: null, data: { revenue: 9 }, isNew: true, touched: none }).revenue === 9, 'no rate and none before: nothing changes');
 const plain = { revenue: 1 };
 check(fillRevenue({ serviceType: 'Landing', rate: null, data: plain, isNew: true, touched: none }).revenue === 1, 'no rate leaves data unchanged');
 check(rateFor(blue, 'Others / Remarks', UNITS) === null, 'others has no rate');

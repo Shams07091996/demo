@@ -93,3 +93,44 @@ class CustomerApiTests(ApiTestCase):
         for customer in (by_ship, by_service):
             status, body = self.call(admin, "delete", f"/api/customers/{customer.id}/")
             self.assertEqual((status, body["error"]), (400, "In use: mark it inactive instead."))
+
+
+class CustomerSaveReviewTests(ApiTestCase):
+    """A save never wipes contacts or rates by accident, and leaves unchanged ones alone (the History stays readable)."""
+
+    def setUp(self):
+        self.admin = self.login("admin")
+        status, self.customer = self.call(self.admin, "post", "/api/customers/", BLUE)
+        self.assertEqual(status, 201, self.customer)
+        self.url = f"/api/customers/{self.customer['id']}/"
+
+    def test_missing_or_malformed_contacts_or_rates_refused_and_nothing_lost(self):
+        base = {"name": "Blue Owners", "contacts": BLUE["contacts"], "rates": BLUE["rates"]}
+        for bad in ({k: v for k, v in base.items() if k != "contacts"}, {**base, "contacts": {}},
+                    {**base, "contacts": "Mona"}, {k: v for k, v in base.items() if k != "rates"},
+                    {**base, "rates": None}, {**base, "rates": ""}):
+            status, body = self.call(self.admin, "put", self.url, bad)
+            self.assertEqual(status, 400, (bad, body))
+        self.assertEqual(CustomerContact.objects.count(), 2)
+        self.assertEqual(CustomerRate.objects.count(), 2)
+
+    def test_unchanged_save_touches_no_contact_or_rate(self):
+        from .models import ChangeRecord
+        before = ChangeRecord.objects.count()
+        ids = sorted(CustomerContact.objects.values_list("id", flat=True)), sorted(CustomerRate.objects.values_list("id", flat=True))
+        status, _ = self.call(self.admin, "put", self.url, {**BLUE, "notes": "Pays weekly"})
+        self.assertEqual(status, 200)
+        self.assertEqual((sorted(CustomerContact.objects.values_list("id", flat=True)),
+                          sorted(CustomerRate.objects.values_list("id", flat=True))), ids)
+        self.assertEqual(list(ChangeRecord.objects.filter(id__gt=before).values_list("object_type", flat=True)
+                              if before else []), ["customer"])
+
+    def test_one_changed_rate_is_one_update(self):
+        from .models import ChangeRecord
+        before = ChangeRecord.objects.order_by("-id").first().id
+        rates = {**BLUE["rates"], "Fresh Water": {"amount": 13, "currency": "USD"}, "Landing": {"amount": 40, "currency": "EGP"}}
+        status, body = self.call(self.admin, "put", self.url, {**BLUE, "rates": rates})
+        self.assertEqual(status, 200, body)
+        changes = sorted(ChangeRecord.objects.filter(id__gt=before).values_list("object_type", "action"))
+        self.assertEqual(changes, [("customerrate", "create"), ("customerrate", "update")])
+        self.assertEqual(body["rates"]["Fresh Water"]["amount"], 13.0)

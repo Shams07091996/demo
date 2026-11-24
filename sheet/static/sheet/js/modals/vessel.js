@@ -234,7 +234,9 @@ export function vesselPayload() {
   $$('[name]', root).forEach((input) => { // not the New ship panel's own fields
     if (!input.closest('#vf-newship')) payload[input.name] = input.value;
   });
-  if (state.ctx.shipId) payload.ship_id = state.ctx.shipId;
+  // Always sent: typing over the name of a linked vessel clears the pick, and the server then asks for a ship
+  // (it never keeps the old link under a new name).
+  payload.ship_id = state.ctx.shipId ?? null;
   payload.summary = {};
   $$('[data-sum]', root).forEach((input) => {
     if (input.value.trim()) payload.summary[input.dataset.sum] = input.value.trim();

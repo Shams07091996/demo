@@ -67,10 +67,13 @@ export function applyRate({ fill = true } = {}) {
   const rate = rateFor(customerById(partyId), state.ctx.type, RATE_UNITS);
   $('#svc-rate').textContent = rate
     ? `Agreed rate: ${rate.unit === 'percent' ? '' : `${rate.currency} `}${rate.amount}${UNIT_TEXT[rate.unit]}` : '';
-  if (!fill || !rate || $('[name=status]', root).value === 'cancelled') return;
+  if (!fill || $('[name=status]', root).value === 'cancelled') return;
+  const previous = state.ctx.lastRate; // the rate this dialog filled from last (a new payer without one clears it)
+  state.ctx.lastRate = rate;
+  if (!rate && !previous) return;
   const touched = new Set(state.ctx.touched);
   $$('#entries .entry', root).forEach((row, i) => { if (row.dataset.touched) touched.add(`entry:${i}`); });
-  const filled = fillRevenue({ rate, data: readServiceForm(), isNew: state.ctx.isNew, touched });
+  const filled = fillRevenue({ rate, previous, data: readServiceForm(), isNew: state.ctx.isNew, touched });
   const set = (selector, value, el = root) => { const input = $(selector, el); if (input && value !== undefined) input.value = value; };
   set('[name=revenue]', filled.revenue);
   set('[name=revenueCurrency]', filled.revenueCurrency);
@@ -267,7 +270,7 @@ export async function openServiceForm(type, service) {
   }
   state.ctx = {
     view: 'service-form', vesselId: vessel.id, type, serviceId: service ? service.id : null, version: service?.version,
-    isNew: !service, touched: new Set(),
+    isNew: !service, touched: new Set(), lastRate: null,
   };
   if (type === 'Crew Change') {
     state.crew = JSON.parse(JSON.stringify({ onSigners: data.onSigners || [], offSigners: data.offSigners || [] }));
