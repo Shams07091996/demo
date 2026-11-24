@@ -5,8 +5,8 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Access rework, piece 1 of 3 — ports and people (2026-11-25):** built on branch **`feature/ports-and-people`**,
-  **not merged yet** (waiting for a fresh review and the user's OK). Needs migrations **`0023_port`** (the four
+- **Access rework, piece 1 of 3 — ports and people (2026-11-25):** **merged into `main`**
+  (2026-11-25, after a fresh review — two findings fixed test-first — and the user's OK). Needs migrations **`0023_port`** (the four
   ports become a table) and **`0024_profile_ports`** on the user's database: each port account keeps its port as its
   home port, an "admin" account that isn't a superuser becomes a User of all four ports, **Read-only accounts are
   turned off** (no port), and only superusers keep staff status. Now: **Admins are the superusers** (made with
@@ -101,7 +101,7 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
-| 2026-11-25 | **Ports and people** (access rework piece 1, not merged): Admins = superusers; Users have a home port + extra ports; Ports page (add / rename / turn off); Accounts page with ports; Read-only role removed | `specs/2026-11-24-access-rework-design.md` |
+| 2026-11-25 | **Ports and people** (access rework piece 1, merged 2026-11-25): Admins = superusers; Users have a home port + extra ports; Ports page (add / rename / turn off); Accounts page with ports; Read-only role removed | `specs/2026-11-24-access-rework-design.md` |
 | 2026-11-24 | **Accounts page**: superusers add accounts, change names / role, turn them off / on | `specs/2026-11-24-accounts-page-design.md` |
 | 2026-11-24 | **Services page**: work list of services with status / missing / date / service / agent / search / port filters, what each one is missing, Sailed mark, completed time (`Service.completed_at`), Excel export | `specs/2026-11-24-services-page-design.md` |
 | 2026-11-24 | **Ships, customers and billing** (merged 2026-11-24): Ships page and ship picker on the vessel name (quick-add and vessel form, + New ship inline, IMO checked with its check digit, No IMO tick); Customers page (contacts, agreed rates, linked ships); billing party and Cash / On account on every service; agreed rate fills the revenue; Calculations billing columns / filters | `specs/2026-11-24-ships-customers-design.md` |
@@ -237,6 +237,11 @@ Ideas raised along the way:
 
 ## Left open — small things the user hasn't decided on yet
 
+- **Ports and people (review of 2026-11-25, not fixed):** a User of several ports whose home port is turned off
+  gets the home port's dropdown lists in new vessel / closure forms; two Admins adding a port of the same name at
+  once → one gets "Something went wrong"; migration 0024's changes aren't in the History (their remembered computers
+  stay); `constants.PORTS` / `PORT_KEYS` / `PORT_LABELS` are unused by app code; a several-port User's Excel title /
+  filename says "All ports"; the port filter at the top shows a newly added port only after a reload.
 - **Accounts page (review of 2026-11-24, not fixed):** two superusers adding the same username at the same instant:
   the second gets "Something went wrong" (or, differing only in capitals, both get made); an old account with no
   profile shows "Setup expired" although its first sign-in opens a fresh 72-hour window, and giving it a role records
