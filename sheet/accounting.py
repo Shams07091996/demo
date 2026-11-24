@@ -3,8 +3,9 @@ transfer, a vessel's garbage & sludge — is Open (default) or Closed (settled).
 and admins set it on the Calculations page; nobody else.
 
 A Closed thing is locked: no edit or delete of it, no change to that vessel's garbage / sludge, no deleting its
-vessel, for every role — accounting reopens it first. Setting the flag never raises `version` (an accounting click must
-not make an operations dialog conflict) and operations saves never write it (conflicts.UNTRACKED).
+vessel, for every role — accounting reopens it first. Setting the flag alone never raises `version` (an accounting
+click must not make an operations dialog conflict; writing the kept rate does, below) and operations saves never
+write it (conflicts.UNTRACKED).
 
 Closing needs a rate (the month's, or one written on the line) for anything in USD, and garbage & sludge needs its
 month's price. A line that used the month's rate gets it written on as its own rate (as if typed, version raised), and

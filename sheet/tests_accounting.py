@@ -328,3 +328,15 @@ class KeepRateTests(ApiTestCase):
         page = self.login("viewer").get("/api/disposal/", {"from": "2026-11-01", "to": "2026-11-30"}).json()
         row = next(r for r in page["rows"] if r["vessel"]["id"] == self.alex_vessel.id)
         self.assertEqual(row["revenue_egp"], before)
+
+
+class KeptNumbersAdminTests(ApiTestCase):
+    def test_kept_price_and_rate_are_read_only_in_admin(self):
+        from django.contrib import admin
+        from django.contrib.auth.models import User
+        from django.test import RequestFactory
+
+        request = RequestFactory().get("/")
+        request.user = User.objects.create_superuser("kept-admin", password=None)
+        fields = admin.site._registry[VesselDisposal].get_readonly_fields(request, None)
+        self.assertTrue({"exchange_rate", "frozen_price"} <= set(fields))

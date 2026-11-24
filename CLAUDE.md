@@ -208,7 +208,8 @@ cancelled service is skipped by `crewbookings.crew_members` (its drafts go, and 
 Cancelled). **Accounting** (`accounting.py`, `POST /api/accounting/ {kind: service|hotel|transfer|disposal, id,
 closed}`, `access.require_accounting`: admin or role `readonly`; only a thing with a line on Calculations, i.e. some
 money, can be closed: `accounting.NO_MONEY`): `acct_closed` on Service, HotelStay, Transfer and
-VesselDisposal, never written by operations saves (`conflicts.UNTRACKED`) and never raising `version`. Closed =
+VesselDisposal, never written by operations saves (`conflicts.UNTRACKED`); the flag alone never raises `version`
+(writing a kept rate on closing does, below). Closed =
 locked for every role: `accounting.require_open` on service PUT / DELETE, booking PUT / DELETE and the disposal PUT,
 `require_vessel_open` on vessel DELETE (message `accounting.LOCKED`); `crewbookings.sync` leaves closed bookings
 alone. Dashboard `response()["status"]` (`dashboard.status_counts`: services per status, Calculations rows Open /

@@ -210,8 +210,16 @@ admin.site.unregister(User)
 admin.site.register(User, UserWithProfile)
 admin.site.register(ExchangeRate)
 admin.site.register(DisposalPrice)
-admin.site.register(VesselDisposal, AccountingLockAdmin)
 admin.site.register(Option)
+
+
+@admin.register(VesselDisposal)
+class VesselDisposalAdmin(AccountingLockAdmin):
+    """The rate and price kept when accounting closed it are shown, never typed here (a wrong shape would break the
+    Calculations, Garbage & Sludge and Excel pages)."""
+
+    def get_readonly_fields(self, request, obj=None):
+        return (*super().get_readonly_fields(request, obj), "exchange_rate", "frozen_price")
 
 
 class StayGuestInline(admin.TabularInline):
