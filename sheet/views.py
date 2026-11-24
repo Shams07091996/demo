@@ -49,6 +49,7 @@ from .access import (
     profile_of,
     require,
     require_admin,
+    require_page,
     require_port,
     require_superuser,
     scoped_closures,
@@ -181,12 +182,14 @@ def vessel_alerts(request):
 @json_api
 @require_http_methods(["GET"])
 def dashboard(request):
+    require_page(request.profile, "dashboard")
     return JsonResponse(dashboard_figures.response(request.profile, request.GET))
 
 
 @json_api
 @require_http_methods(["GET"])
 def dashboard_jobs(request):
+    require_page(request.profile, "dashboard")
     return JsonResponse(dashboard_figures.jobs_response(request.profile, request.GET))
 
 
@@ -220,7 +223,10 @@ def _xlsx_response(content, filename):
 @require_http_methods(["GET"])
 def dashboard_export(request):
     """The management workbook (.xlsx) for a From–To range and port. Everyone may download it; a User gets their
-    own ports whatever they ask."""
+    own ports whatever they ask. Needs the Dashboard page and exports; sheets of pages the person doesn't have are
+    left out (report.data)."""
+    require_page(request.profile, "dashboard")
+    require(request.profile, "exports")
     ratelimit.check(request, "export")
     date_from, date_to, port = _export_range(request)
     r = report.Range(date_from, date_to, port)
@@ -236,6 +242,8 @@ def data_export(request, page):
     """One page's rows (its own list query, every page of it) as a plain-table .xlsx for other programs."""
     if page not in dataexport.PAGES:
         raise Http404
+    require_page(request.profile, dataexport.EXPORT_PAGE[page])
+    require(request.profile, "exports")
     ratelimit.check(request, "export")
     content = dataexport.page_file(page, request.profile, request.GET)
     # Which filters were used, not their values: a search is often a person's name.
@@ -247,7 +255,12 @@ def data_export(request, page):
 @json_api
 @require_http_methods(["GET"])
 def data_export_all(request):
-    """The five pages' rows for a From–To range and port, one sheet each."""
+    """The five pages' rows for a From–To range and port, one sheet each (only the pages the person has; the button
+    is beside the Dashboard's Excel)."""
+    require_page(request.profile, "dashboard")
+    require(request.profile, "exports")
+    if not dataexport.all_pages_for(request.profile):
+        raise Forbidden("None of these pages is open to you.")
     ratelimit.check(request, "export")
     date_from, date_to, port = _export_range(request)
     content = dataexport.all_file(request.profile, date_from, date_to, port)
@@ -353,6 +366,7 @@ def service_detail(request, pk):
 @require_http_methods(["GET"])
 def services_list(request):
     """The Services page: services as a work list (In progress by default) with what each one is missing."""
+    require_page(request.profile, "services")
     return JsonResponse(services.list_response(request.profile, request.GET))
 
 
@@ -481,6 +495,7 @@ def _read_rate(payload):
 @json_api
 @require_http_methods(["GET", "POST"])
 def rates(request):
+    require_page(request.profile, "rates")
     if request.method == "POST":
         require_admin(request.profile)  # one rate per month, shared by every port
         first_of_month, rate = _read_rate(read_json(request))
@@ -508,6 +523,7 @@ def _disposal_prices_json(profile):
 @json_api
 @require_http_methods(["GET", "POST"])
 def disposal_prices_list(request):
+    require_page(request.profile, "rates")  # the prices are kept on the Exchange rates page
     if request.method == "POST":
         require_admin(request.profile)  # money settings, like exchange rates
         month, port, fields = clean_disposal_price(read_json(request))
@@ -528,12 +544,14 @@ def disposal_price_delete(request, pk):
 @json_api
 @require_http_methods(["GET"])
 def disposal_list(request):
+    require_page(request.profile, "disposal")
     return JsonResponse(disposal.response(request.profile, request.GET))
 
 
 @json_api
 @require_http_methods(["PUT"])
 def disposal_update(request, vessel_id):
+    require_page(request.profile, "disposal")
     require(request.profile, "disposal.edit")
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=vessel_id)
     accounting.require_open(VesselDisposal.objects.filter(vessel=vessel).select_for_update().first())
@@ -672,6 +690,9 @@ def export_csv(request):
     except TooManyRequests as error:
         return JsonResponse({"error": str(error)}, status=error.status)
     profile = profile_of(request.user)
+    if not profile.can("exports"):
+        return HttpResponse("You don't have permission: Excel / data exports.", status=403,
+                            content_type="text/plain; charset=utf-8")
     try:
         filters = listing.parse_filters(request.GET, paged=False)
     except BadRequest as error:
@@ -773,6 +794,7 @@ def customer_detail(request, pk):
 @require_http_methods(["GET", "POST"])
 def closures_list(request):
     profile = request.profile
+    require_page(profile, "closures")
     if request.method == "GET":
         return JsonResponse(closures.list_response(profile, request.GET))
     require(profile, "closures.edit")
@@ -785,6 +807,7 @@ def closures_list(request):
 @require_http_methods(["PUT", "DELETE"])
 def closure_detail(request, pk):
     profile = request.profile
+    require_page(profile, "closures")
     require(profile, "closures.edit")
     closure = closures.get_closure(profile, pk)
     if request.method == "DELETE":
@@ -800,12 +823,14 @@ def closure_detail(request, pk):
 # ---- hotels and transport (see logistics.py) ---------------------------------------------------
 
 _AUDIT_NAME = {"hotels": "hotel", "transfers": "transfer"}
+_BOOKING_PAGE = {"hotels": "hotels", "transfers": "transport"}
 
 
 @json_api
 @require_http_methods(["GET", "POST"])
 def bookings(request, kind):
     profile = request.profile
+    require_page(profile, _BOOKING_PAGE[kind])
     if request.method == "GET":
         return JsonResponse(logistics.list_response(kind, profile, request.GET))
     require(profile, "bookings.edit")
@@ -818,6 +843,7 @@ def bookings(request, kind):
 @require_http_methods(["GET", "PUT", "DELETE"])
 def booking_detail(request, kind, pk):
     profile = request.profile
+    require_page(profile, _BOOKING_PAGE[kind])
     booking = logistics.get_booking(kind, profile, pk)
     if request.method == "GET":
         return JsonResponse(logistics.booking_to_dict(kind, booking, profile))
@@ -838,7 +864,9 @@ def booking_detail(request, kind, pk):
 @json_api
 @require_http_methods(["GET"])
 def vessel_crew(request, pk):
-    """The vessel's crew-change guests, for picking hotel / transfer guests."""
+    """The vessel's crew-change guests, for picking hotel / transfer guests (the booking dialog of either page)."""
+    if not (request.profile.sees("hotels") or request.profile.sees("transport")):
+        require_page(request.profile, "hotels")
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
     return JsonResponse({"crew": logistics.crew_of(vessel)})
 
@@ -860,7 +888,8 @@ def accounting_set(request):
 @json_api
 @require_http_methods(["GET"])
 def calculations_list(request):
-    """Every money line of the vessels in range / OPR / port, with totals. Every role may read it."""
+    """Every money line of the vessels in range / OPR / port, with totals: the Calculations page."""
+    require_page(request.profile, "calculations")
     return JsonResponse(calculations.response(request.profile, request.GET))
 
 

@@ -16,6 +16,14 @@ TITLES = {"hotels": "Hotels", "transfers": "Transport", "closures": "Port closur
           "calculations": "Calculations", "services": "Services"}
 PAGES = tuple(TITLES)
 ALL_PAGES = PAGES[:5]  # the All data file's sheets, in order (the Services list is exported from its page only)
+# The page (constants.PAGES) each export belongs to: a person exports only pages they have.
+EXPORT_PAGE = {"hotels": "hotels", "transfers": "transport", "closures": "closures", "disposal": "disposal",
+               "calculations": "calculations", "services": "services"}
+
+
+def all_pages_for(profile):
+    """The All data file's sheets this person may have."""
+    return [page for page in ALL_PAGES if profile.sees(EXPORT_PAGE[page])]
 
 
 def _port(key):
@@ -150,4 +158,4 @@ def page_file(page, profile, params):
 def all_file(profile, date_from, date_to, port):
     """The five pages for one From–To range and port, one sheet each (each page reads the range its own way)."""
     params = {"from": date_from.isoformat(), "to": date_to.isoformat(), "port": port or ""}
-    return xlsx.build([sheet(page, profile, params) for page in ALL_PAGES])
+    return xlsx.build([sheet(page, profile, params) for page in all_pages_for(profile)])

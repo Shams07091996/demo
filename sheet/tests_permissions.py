@@ -1,15 +1,29 @@
 """Access rework piece 2: per-person permissions and pages (constants.PERMISSIONS / PAGES, Profile.can / sees)."""
 
+from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 
 from .constants import PAGE_KEYS, PERMISSION_KEYS, TEMPLATES
-from .models import Customer, HotelStay, Option, PortClosure, Profile, Service, Vessel, VesselDisposal
+from .models import (
+    Customer,
+    Guest,
+    HotelStay,
+    Option,
+    PortClosure,
+    Profile,
+    Service,
+    Transfer,
+    Vessel,
+    VesselDisposal,
+)
 from .tests import NEEDED, allow, make_user
+from .tests_dataexport import read
 from .tests_logistics import BookingData, stay, trip
 from .validators import clean_service_data
 
@@ -286,3 +300,88 @@ class WritePermissionTests(Limited):
         self.assertFalse(Service.objects.get(pk=service.pk).acct_closed)
         status, result = self.call(self.without(), "post", "/api/accounting/", body)
         self.assertEqual((status, result), (200, {"ok": True, "closed": True}))
+
+
+ALL_PAGES_BUT = lambda *gone: [p for p in PAGE_KEYS if p not in gone]  # noqa: E731
+RANGE = {"from": "2026-11-01", "to": "2026-11-30"}
+
+
+@override_settings(RATE_LIMIT_EXPORTS_PER_USER=100)
+class PageTests(Limited):
+    """A page not ticked is refused on the routes that only serve it; exports and alerts follow the pages."""
+
+    def status(self, client, url, params=None):
+        return client.get(url, params or {}).status_code
+
+    def test_page_reads_need_the_page(self):
+        for page, url in (("services", "/api/services/"), ("hotels", "/api/hotels/"),
+                          ("transport", "/api/transfers/"), ("closures", "/api/closures/"),
+                          ("disposal", "/api/disposal/"), ("calculations", "/api/calculations/"),
+                          ("dashboard", "/api/dashboard/"), ("dashboard", "/api/dashboard/jobs/"),
+                          ("rates", "/api/rates/"), ("rates", "/api/disposal-prices/")):
+            self.assertEqual(self.status(self.without(pages=ALL_PAGES_BUT(page)), url, RANGE), 403, url)
+            self.assertNotEqual(self.status(self.without(), url, RANGE), 403, url)  # jobs: 400 without an agent
+        url = f"/api/hotels/{self.stay.id}/"
+        self.assertEqual(self.status(self.without(pages=ALL_PAGES_BUT("hotels")), url), 403)
+        url = f"/api/disposal/{self.alex_vessel.id}/"
+        client = self.without(pages=ALL_PAGES_BUT("disposal"))
+        self.assertEqual(self.call(client, "put", url, {"garbage": 2})[0], 403)
+
+    def test_shared_lists_stay_readable(self):
+        client = self.without(*PERMISSION_KEYS, pages=["vessels"])
+        for url in ("/api/vessels/", "/api/vessels/alerts/", "/api/options/", "/api/ships/", "/api/customers/",
+                    f"/api/vessels/{self.alex_vessel.id}/"):
+            self.assertEqual(self.status(client, url), 200, url)
+
+    def test_crew_picker_needs_a_booking_page(self):
+        url = f"/api/vessels/{self.alex_vessel.id}/crew/"
+        self.assertEqual(self.status(self.without(pages=ALL_PAGES_BUT("hotels", "transport")), url), 403)
+        self.assertEqual(self.status(self.without(pages=ALL_PAGES_BUT("hotels")), url), 200)
+
+    def test_page_export_needs_page_and_exports(self):
+        for name, page in (("hotels", "hotels"), ("transfers", "transport"), ("closures", "closures"),
+                           ("disposal", "disposal"), ("calculations", "calculations"), ("services", "services")):
+            url = f"/api/export/{name}/"
+            self.assertEqual(self.status(self.without(pages=ALL_PAGES_BUT(page)), url, RANGE), 403, name)
+            self.assertEqual(self.status(self.without("exports"), url, RANGE), 403, name)
+            self.assertEqual(self.status(self.without(), url, RANGE), 200, name)
+
+    def test_csv_needs_exports(self):
+        self.assertEqual(self.status(self.without("exports"), "/export.csv"), 403)
+        self.assertEqual(self.status(self.without(), "/export.csv"), 200)
+
+    def test_all_data_leaves_out_pages_not_had(self):
+        response = self.without(pages=ALL_PAGES_BUT("hotels", "calculations")).get("/api/export/all/", RANGE)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(read(response.content)), ["Transport", "Port closures", "Garbage & Sludge"])
+        client = self.without(pages=ALL_PAGES_BUT("hotels", "transport", "closures", "disposal", "calculations"))
+        self.assertEqual(self.status(client, "/api/export/all/", RANGE), 403)
+        self.assertEqual(self.status(self.without("exports"), "/api/export/all/", RANGE), 403)
+        self.assertEqual(self.status(self.without(pages=ALL_PAGES_BUT("dashboard")), "/api/export/all/", RANGE), 403)
+
+    def test_management_excel_leaves_out_closures_and_disposal(self):
+        url = "/api/dashboard/export/"
+        full = read(self.without().get(url, RANGE).content)
+        self.assertIn("Port closures", full)
+        self.assertIn("Garbage & Sludge", full)
+        names = read(self.without(pages=ALL_PAGES_BUT("closures", "disposal")).get(url, RANGE).content)
+        self.assertEqual(set(full) - set(names), {"Port closures", "Garbage & Sludge"})
+        self.assertEqual(self.status(self.without("exports"), url, RANGE), 403)
+        self.assertEqual(self.status(self.without(pages=ALL_PAGES_BUT("dashboard")), url, RANGE), 403)
+
+    def test_booking_alert_lines_follow_pages(self):
+        gone = Vessel.objects.create(name="GONE", date=date(2026, 1, 5), port="alexandria", arrival_agent="A",
+                                     sailing_agent="B")
+        hotel = HotelStay.objects.create(vessel=gone, hotel="HILTON", check_in=date(2026, 1, 5), nights=1)
+        Guest.objects.create(stay=hotel, name="J SMITH")
+        car = Transfer.objects.create(vessel=gone, from_place="airport", to_place="port", airport="BORG EL ARAB",
+                                      at=timezone.now())
+        Guest.objects.create(transfer=car, name="A OFF")
+
+        def missing(client):
+            rows = [r for r in self.call(client, "get", "/api/vessels/alerts/")[1]["missing"] if r["id"] == gone.id]
+            return [item for item in rows[0]["missing"] if ": " in item]  # the line stays for the missing times
+
+        self.assertEqual(missing(self.without()), ["Hotel: J SMITH", "Transport: A OFF"])
+        self.assertEqual(missing(self.without(pages=ALL_PAGES_BUT("hotels"))), ["Transport: A OFF"])
+        self.assertEqual(missing(self.without(pages=ALL_PAGES_BUT("hotels", "transport"))), [])

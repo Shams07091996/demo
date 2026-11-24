@@ -317,18 +317,20 @@ def data(profile, r, now=None):
     # Only the vessels read above: one saved into the range meanwhile must not crash the report (or be half in it).
     rows = [row for row in calculations.rows_for(queryset) if row["vessel"]["id"] in known]
     money = {v["id"]: (0.0, 0.0, 0.0) for v in vessels} | _money_by_vessel(rows)
-    return {
+    sheets = {
         "summary": _summary(vessels, money, rows),
         "months": _by_month(vessels, money, rows, r),
         "lines": _by_line(vessels, money),
         "services": _by_service(rows),
         "ports_perf": _ports_perf(objects, r),
-        "closures": _closures(profile, r, now or timezone.now()),
+        "closures": _closures(profile, r, now or timezone.now()) if profile.sees("closures") else None,
         "agents": _agents(profile, r),
         "crew": _crew(objects, rows),
-        "disposal": _disposal(objects, rows, r),
+        "disposal": _disposal(objects, rows, r) if profile.sees("disposal") else None,
         "service_status": _service_status(objects, rows, r),
     }
+    # Sheets of pages the person doesn't have are left out (access rework piece 2).
+    return {key: sheet for key, sheet in sheets.items() if sheet is not None}
 
 
 def port_label(r):

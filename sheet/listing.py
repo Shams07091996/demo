@@ -226,7 +226,12 @@ def missing_details(profile, port, today):
     # Bookings still incomplete once the vessel has sailed join that vessel's line (or make one).
     rows = {row["id"]: row for row in found}
     gaps = booking_gaps(scoped_vessels(profile, port, prefetch=False), today, timezone.now())
+    shown = tuple(f"{label}: " for label, page in (("Hotel", "hotels"), ("Transport", "transport"))
+                  if profile.sees(page))
     for vessel, items in gaps.items():
+        items = [item for item in items if item.startswith(shown)]
+        if not items:
+            continue
         if vessel.id not in rows:
             rows[vessel.id] = {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "missing": []}
             found.append(rows[vessel.id])
