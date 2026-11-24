@@ -26,6 +26,7 @@ from . import (
     closures,
     conflicts,
     crewbookings,
+    dataexport,
     disposal,
     history,
     listing,
@@ -172,12 +173,8 @@ def dashboard_jobs(request):
 XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-@json_api
-@require_http_methods(["GET"])
-def dashboard_export(request):
-    """The management workbook (.xlsx) for a From–To range and port. Every role may download it; port users get
-    their own port whatever they ask."""
-    ratelimit.check(request, "export")
+def _export_range(request):
+    """(from, to, port) of a workbook request: both dates required, at most 24 months; port users get their port."""
     date_from, date_to = listing.date_param(request.GET, "from"), listing.date_param(request.GET, "to")
     if not date_from or not date_to:
         raise BadRequest("Choose a From and To date.")
@@ -185,16 +182,54 @@ def dashboard_export(request):
         raise BadRequest("From must be on or before To.")
     if (date_to.year * 12 + date_to.month) - (date_from.year * 12 + date_from.month) >= 24:
         raise BadRequest("Choose a range of at most 24 months.")
-    profile = request.profile
-    port = profile.port or (request.GET.get("port") if request.GET.get("port") in PORT_LABELS else None)
-    r = report.Range(date_from, date_to, port)
-    content = report.workbook(profile, r, timezone.now())
-    audit(request, "dashboard.export", date_from=date_from, date_to=date_to, port=port or "all")
+    port = request.profile.port or (request.GET.get("port") if request.GET.get("port") in PORT_LABELS else None)
+    return date_from, date_to, port
+
+
+def _xlsx_response(content, filename):
     response = HttpResponse(content, content_type=XLSX_TYPE)
-    response["Content-Disposition"] = (f'attachment; filename="Management {report.port_label(r)} '
-                                       f'{date_from.isoformat()} to {date_to.isoformat()}.xlsx"')
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
     response["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+@json_api
+@require_http_methods(["GET"])
+def dashboard_export(request):
+    """The management workbook (.xlsx) for a From–To range and port. Every role may download it; port users get
+    their own port whatever they ask."""
+    ratelimit.check(request, "export")
+    date_from, date_to, port = _export_range(request)
+    r = report.Range(date_from, date_to, port)
+    content = report.workbook(request.profile, r, timezone.now())
+    audit(request, "dashboard.export", date_from=date_from, date_to=date_to, port=port or "all")
+    return _xlsx_response(content, f"Management {report.port_label(r)} {date_from.isoformat()} to "
+                                   f"{date_to.isoformat()}.xlsx")
+
+
+@json_api
+@require_http_methods(["GET"])
+def data_export(request, page):
+    """One page's rows (its own list query, every page of it) as a plain-table .xlsx for other programs."""
+    if page not in dataexport.PAGES:
+        raise Http404
+    ratelimit.check(request, "export")
+    content = dataexport.page_file(page, request.profile, request.GET)
+    audit(request, "data.export", page=page, query=request.GET.urlencode()[:300])
+    today = timezone.localdate().isoformat()
+    return _xlsx_response(content, f"{dataexport.TITLES[page]} {today}.xlsx")
+
+
+@json_api
+@require_http_methods(["GET"])
+def data_export_all(request):
+    """The five pages' rows for a From–To range and port, one sheet each."""
+    ratelimit.check(request, "export")
+    date_from, date_to, port = _export_range(request)
+    content = dataexport.all_file(request.profile, date_from, date_to, port)
+    audit(request, "data.export", page="all", date_from=date_from, date_to=date_to, port=port or "all")
+    label = PORT_LABELS.get(port, "All ports") if port else "All ports"
+    return _xlsx_response(content, f"All data {label} {date_from.isoformat()} to {date_to.isoformat()}.xlsx")
 
 
 @json_api

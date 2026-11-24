@@ -7,6 +7,8 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from xml.sax.saxutils import unescape
 
+from django.test import override_settings
+
 from . import dataexport
 from .models import Guest, HotelStay, PortClosure, Service, Transfer
 from .tests import ApiTestCase
@@ -123,3 +125,52 @@ class SheetTests(ApiTestCase):
         sheets = read(dataexport.all_file(self.profile, date(2026, 11, 1), date(2026, 11, 30), None))
         self.assertEqual(list(sheets), ["Hotels", "Transport", "Port closures", "Garbage & Sludge", "Calculations"])
         self.assertEqual([rows[0] for rows in sheets.values()], list(HEADERS.values()))
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@override_settings(RATE_LIMIT_EXPORTS_PER_USER=50)
+class DownloadTests(ApiTestCase):
+    def test_page_download(self):
+        with self.assertLogs("sheet.audit", "INFO") as logs:
+            response = self.login("viewer").get("/api/export/hotels/", {"q": "x"})
+        self.assertEqual((response.status_code, response["Content-Type"]), (200, XLSX))
+        self.assertRegex(response["Content-Disposition"], r'^attachment; filename="Hotels \d{4}-\d\d-\d\d\.xlsx"$')
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(list(read(response.content)), ["Hotels"])
+        self.assertIn("action=data.export page=hotels", logs.output[-1])
+
+    def test_all_download(self):
+        response = self.login("admin").get("/api/export/all/", {"from": "2026-11-01", "to": "2026-11-30"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Disposition"],
+                         'attachment; filename="All data All ports 2026-11-01 to 2026-11-30.xlsx"')
+        self.assertEqual(len(read(response.content)), 5)
+
+    def test_port_user_gets_only_their_port(self):
+        Service.objects.create(vessel=self.alex_vessel, service_type="Fresh Water", data={"cost": 7, "costCurrency": "EGP"})
+        alex = self.login("alex")
+        page = read(alex.get("/api/export/calculations/", {"port": "suez"}).content)["Calculations"]
+        self.assertTrue(page[1:] and all(r[4] == "Alexandria" for r in page[1:]))
+        response = alex.get("/api/export/all/", {"from": "2026-11-01", "to": "2026-11-30", "port": "suez"})
+        self.assertIn("Alexandria", response["Content-Disposition"])
+        rows = read(response.content)["Calculations"]
+        self.assertTrue(all(r[4] == "Alexandria" for r in rows[1:]))
+
+    def test_bad_requests(self):
+        client = self.login("admin")
+        self.assertEqual(client.get("/api/export/vessels/").status_code, 404)
+        self.assertEqual(client.get("/api/export/all/").json()["error"], "Choose a From and To date.")
+        response = client.get("/api/export/all/", {"from": "2025-01-01", "to": "2027-01-31"})
+        self.assertEqual(response.json()["error"], "Choose a range of at most 24 months.")
+        self.assertEqual(client.get("/api/export/hotels/", {"from": "nope"}).status_code, 400)
+        self.assertEqual(client.get("/api/export/calculations/", {"status": "odd"}).status_code, 400)
+        self.assertIn(client.post("/api/export/hotels/").status_code, (403, 405))  # GET only
+
+    @override_settings(RATE_LIMIT_EXPORTS_PER_USER=2)
+    def test_export_rate_limited(self):
+        viewer = self.login("viewer")
+        for _ in range(2):
+            self.assertEqual(viewer.get("/api/export/closures/").status_code, 200)
+        self.assertEqual(viewer.get("/api/export/closures/").status_code, 429)
