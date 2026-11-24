@@ -24,6 +24,7 @@ export const SINGLE_EXTRA = {
 };
 
 // Operations status of a service (sheet/constants.py SERVICE_STATUSES) and its label colour (app.css).
+export const BILLING = { account: 'On account', cash: 'Cash' }; // constants.BILLING
 export const SERVICE_STATUS = { in_progress: 'In progress', completed: 'Completed', cancelled: 'Cancelled' };
 export const SERVICE_STATUS_CLASS = { in_progress: 'st-progress', completed: 'st-done', cancelled: 'st-cancel' };
 

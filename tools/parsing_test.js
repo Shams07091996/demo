@@ -16,6 +16,7 @@ function load(entry) {
 }
 const { parsePersonal, parseFlightText } = load('crewParsing.js');
 const { isDelayed, limitRows } = load('util.js');
+const { fillRevenue, rateFor } = load('rates.js');
 
 let failed = 0;
 const check = (cond, label) => { console.log(`${cond ? 'PASS' : 'FAIL'} ${label}`); if (!cond) failed += 1; };
@@ -54,6 +55,36 @@ check(isDelayed('2026-11-13T08:00', '2026-11-13T10:00') === false, 'isDelayed: e
 check(isDelayed('2026-11-13T08:00', '2026-11-13T10:01') === true, 'isDelayed: 2:01 is delayed');
 check(isDelayed('2026-11-13T23:00', '2026-11-14T02:00') === true, 'isDelayed: across midnight');
 check(isDelayed('', '2026-11-13T10:01') === false && isDelayed('2026-11-13T08:00', '') === false, 'isDelayed: a missing time is never delayed');
+
+/* ---------- agreed rates fill in the revenue (js/rates.js) ---------- */
+const UNITS = { 'Crew Change': 'service', 'Fresh Water': 'unit', Landing: 'line', 'Cash to Master': 'percent' };
+const blue = { rates: { 'Crew Change': { amount: 300, currency: 'USD' }, 'Fresh Water': { amount: 12.35, currency: 'EGP' },
+  Landing: { amount: 40, currency: 'USD' }, 'Cash to Master': { amount: 5, currency: 'USD' } } };
+const none = new Set();
+const fill = (serviceType, data, isNew = true, touched = none) =>
+  fillRevenue({ serviceType, rate: rateFor(blue, serviceType, UNITS), data, isNew, touched });
+check(rateFor(blue, 'Fresh Water', UNITS).unit === 'unit' && rateFor(null, 'Landing', UNITS) === null
+  && rateFor(blue, 'Medical Treatment', UNITS) === null, 'rateFor: the payer\'s rate with its unit, or null');
+let d = fill('Crew Change', { revenue: '', revenueCurrency: 'EGP' });
+check(d.revenue === 300 && d.revenueCurrency === 'USD', 'fill service rate on new');
+d = fill('Fresh Water', { quantity: 3 });
+check(d.revenue === 37.05 && d.revenueCurrency === 'EGP', 'fill unit rate times quantity rounds to cent');
+check(fill('Fresh Water', { quantity: '' }).revenue === undefined, 'fill unit rate waits for a quantity');
+check(fill('Fresh Water', { quantity: 0.333 }).revenue === 4.11, 'fill unit rate: 12.35 x 0.333 = 4.11');
+d = fill('Landing', { entries: [{ revenue: 7 }, { revenue: '' }] }, true, new Set(['entry:0']));
+check(d.entries[0].revenue === 7 && d.entries[1].revenue === 40 && d.entries[1].revenueCurrency === 'USD', 'fill line rate skips touched entries');
+check(fill('Cash to Master', { shareMode: 'percent' }).percentage === 5, 'fill percent in percent mode');
+check(fill('Cash to Master', { shareMode: 'fixed', percentage: '' }).percentage === '', 'fill percent only in percent mode');
+d = fill('Fresh Water', { quantity: 9, revenue: 900, revenueCurrency: 'USD' }, false);
+check(d.revenue === 900 && d.revenueCurrency === 'USD', 'fill keeps saved non-zero revenue');
+check(fill('Fresh Water', { quantity: 2, revenue: 0 }, false).revenue === 24.7, 'fill a saved 0 revenue');
+check(fill('Crew Change', { revenue: 5 }, true, new Set(['revenue'])).revenue === 5, 'fill skips touched revenue');
+const plain = { revenue: 1 };
+check(fillRevenue({ serviceType: 'Landing', rate: null, data: plain, isNew: true, touched: none }).revenue === 1, 'no rate leaves data unchanged');
+check(rateFor(blue, 'Others / Remarks', UNITS) === null, 'others has no rate');
+const original = { entries: [{ revenue: '' }] };
+fill('Landing', original);
+check(original.entries[0].revenue === '', 'fill returns a copy');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

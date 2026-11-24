@@ -4,7 +4,7 @@
 // admins switch a line Open / Closed. Two tick-box filters narrow by status and by accounting state.
 import { api, mutate } from '../api.js';
 import { portOptionEls, serviceStatusEl, sortIcon } from '../components.js';
-import { IS_ACCOUNTING, ME, SERVICE_STATUS } from '../config.js';
+import { BILLING, IS_ACCOUNTING, ME, NO_AGENT, SERVICE_STATUS } from '../config.js';
 import { h, icon, optionEls, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { pagerEl } from '../render/pager.js';
@@ -24,6 +24,8 @@ const COLUMNS = [
   { title: 'Revenue', sort: 'revenue' },
   { title: 'Profit LE', sort: 'profit' },
   { title: 'Status' },
+  { title: 'Billing party' },
+  { title: 'Billing' },
   { title: 'Accounting' },
 ];
 const ACCOUNTING = { open: 'Open', closed: 'Closed' };
@@ -40,8 +42,9 @@ function savedSize() {
 const filter = {
   ...defaultRange(), opr: '', port: 'ALL', sort: 'date', dir: 'desc', page: 1, pageSize: savedSize(),
   status: Object.keys(SERVICE_STATUS), accounting: Object.keys(ACCOUNTING), // ticked values; all ticked = no filter
+  billing: Object.keys(BILLING), party: '',
 };
-let data = { rows: [], count: 0, pages: 1, page: 1, totals: null, oprs: [] };
+let data = { rows: [], count: 0, pages: 1, page: 1, totals: null, oprs: [], parties: [] };
 let ticket = 0;
 let wired = false;
 
@@ -96,6 +99,8 @@ function rowEl(row) {
     h('td', { class: `num ${row.profit_egp < 0 ? 'neg' : ''}`.trim() }, fmt(row.profit_egp),
       row.profit_usd != null ? h('div', { class: 'none calc-note' }, `USD ${fmt(row.profit_usd)}`) : null),
     h('td', null, statusCell(row)),
+    h('td', null, row.billing_party ? row.billing_party.name : '—'),
+    h('td', null, row.billing ? BILLING[row.billing] : '—'),
     h('td', null, accountingCell(row)));
 }
 
@@ -117,7 +122,8 @@ function tickFilterEl(name, title, labels) {
 }
 
 function renderTicks() {
-  for (const [name, title, labels] of [['status', 'Status', SERVICE_STATUS], ['accounting', 'Accounting', ACCOUNTING]]) {
+  for (const [name, title, labels] of [['status', 'Status', SERVICE_STATUS], ['accounting', 'Accounting', ACCOUNTING],
+    ['billing', 'Billing', BILLING]]) {
     const old = $(`#c-${name}-filter`);
     const fresh = tickFilterEl(name, title, labels);
     fresh.open = Boolean(old?.open);
@@ -156,6 +162,9 @@ function render() {
   setChildren($('#c-totals'), totalsEls(data.totals));
   const oprs = filter.opr && !data.oprs.includes(filter.opr) ? [...data.oprs, filter.opr] : data.oprs;
   setChildren($('#c-opr'), optionEls([['', 'All OPRs'], ...oprs.map((o) => [o, o])], filter.opr));
+  const parties = data.parties.map((c) => [String(c.id), c.name]);
+  if (filter.party && filter.party !== NO_AGENT && !parties.some(([id]) => id === filter.party)) parties.push([filter.party, 'Chosen party']);
+  setChildren($('#c-party'), optionEls([['', 'All billing parties'], [NO_AGENT, 'No billing party'], ...parties], filter.party));
   setChildren($('#c-pager'), pagerEl({
     count: data.count, pages: data.pages, page: data.page, size: filter.pageSize, noun: 'lines', sizeId: 'c-page-size',
     prev: { act: 'calc-page', step: -1 }, next: { act: 'calc-page', step: 1 },
@@ -175,6 +184,8 @@ function params() {
     // all ticked = no filter (so lines without a status, the bookings and garbage, stay)
     status: filter.status.length < Object.keys(SERVICE_STATUS).length ? filter.status.join(',') : '',
     accounting: filter.accounting.length < Object.keys(ACCOUNTING).length ? filter.accounting.join(',') : '',
+    billing: filter.billing.length < Object.keys(BILLING).length ? filter.billing.join(',') : '',
+    party: filter.party,
   };
   return new URLSearchParams(Object.entries(values).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 }
@@ -223,6 +234,7 @@ function wire() {
     select.addEventListener('change', () => setFilter({ port: select.value }));
   }
   $('#c-opr').addEventListener('change', (event) => setFilter({ opr: event.target.value }));
+  $('#c-party').addEventListener('change', (event) => setFilter({ party: event.target.value }));
   let dateTimer;
   const onDate = () => {
     clearTimeout(dateTimer);

@@ -12,7 +12,7 @@ import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import { downloadReceipt, openReceipt } from './modals/receipt.js';
 import {
-  cancelBookingRefs, entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
+  applyRate, cancelBookingRefs, entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
   renumberEntries, updatePreview,
 } from './modals/service.js';
 import {
@@ -59,6 +59,8 @@ async function saveService(version) {
   const status = $('#svc-form [name=status]').value;
   const payload = {
     type, agent: $('#svc-form [name=agent]').value, status, data: readServiceForm(),
+    billing: $('#svc-form [name=billing]').value,
+    billing_party: Number($('#svc-form [name=billing_party]').value) || null,
     cancel_reason: status === 'cancelled' ? $('#svc-form [name=cancel_reason]').value : '',
   };
   const refs = status === 'cancelled' ? cancelBookingRefs() : [];
@@ -166,7 +168,7 @@ export const actions = {
   },
   'save-service': () => saveService(),
   'del-service': deleteService,
-  'add-entry': () => { $('#entries').append(entryRowEl(state.ctx.type)); renumberEntries(); updatePreview(); },
+  'add-entry': () => { $('#entries').append(entryRowEl(state.ctx.type)); renumberEntries(); updatePreview(); applyRate(); },
   'rm-entry': (b) => { b.closest('.entry').remove(); renumberEntries(); updatePreview(); },
 
   'add-crew': (b) => { state.crew[b.dataset.group].push(newCrewMember()); renderCrewEditor(); },

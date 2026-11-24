@@ -2,10 +2,12 @@
 import { api } from '../api.js';
 import { calcLocal } from '../calc.js';
 import { closedNoteEl, headEl, optionChoicesEl } from '../components.js';
-import { ME, MULTI, SERVICE_STATUS, SINGLE_EXTRA, TYPES } from '../config.js';
+import { BILLING, ME, MULTI, RATE_UNITS, SERVICE_STATUS, SINGLE_EXTRA, TYPES } from '../config.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
+import { customerById, customerOptionEls, loadCustomers } from '../parties.js';
+import { fillRevenue, rateFor } from '../rates.js';
 import { getVessel, state } from '../state.js';
 import { $, $$, fmt, formValues, sign } from '../util.js';
 
@@ -42,6 +44,51 @@ const agentStatusFields = (vessel, service) => {
     h('div', { class: 'field', id: 'svc-bookings', hidden: true }),
   ];
 };
+
+// Who pays and how (a label only). A new service starts billed to its ship's customer.
+const billingFields = (vessel, service) => {
+  const ship = customerById(vessel.ship?.customer_id ?? null);
+  const party = service ? service.billing_party?.id ?? null : (ship?.active ? ship.id : null);
+  return [
+    h('div', { class: 'row two' },
+      field('Billing party', h('select', { attrs: { name: 'billing_party' } }, customerOptionEls(party))),
+      field('Billing', h('select', { attrs: { name: 'billing' } }, optionEls(Object.entries(BILLING), service?.billing || 'account')))),
+    h('div', { class: 'none rate-note', id: 'svc-rate' }),
+  ];
+};
+
+const UNIT_TEXT = { service: '', unit: ' per unit', line: ' per line', percent: '%' };
+
+/** Fill the revenue from the billing party's agreed rate (js/rates.js decides which boxes may be filled). */
+export function applyRate({ fill = true } = {}) {
+  if (state.ctx.view !== 'service-form') return;
+  const root = $('#svc-form');
+  const partyId = Number($('[name=billing_party]', root).value) || null;
+  const rate = rateFor(customerById(partyId), state.ctx.type, RATE_UNITS);
+  $('#svc-rate').textContent = rate
+    ? `Agreed rate: ${rate.unit === 'percent' ? '' : `${rate.currency} `}${rate.amount}${UNIT_TEXT[rate.unit]}` : '';
+  if (!fill || !rate || $('[name=status]', root).value === 'cancelled') return;
+  const touched = new Set(state.ctx.touched);
+  $$('#entries .entry', root).forEach((row, i) => { if (row.dataset.touched) touched.add(`entry:${i}`); });
+  const filled = fillRevenue({ rate, data: readServiceForm(), isNew: state.ctx.isNew, touched });
+  const set = (selector, value, el = root) => { const input = $(selector, el); if (input && value !== undefined) input.value = value; };
+  set('[name=revenue]', filled.revenue);
+  set('[name=revenueCurrency]', filled.revenueCurrency);
+  set('[name=percentage]', filled.percentage);
+  $$('#entries .entry', root).forEach((row, i) => {
+    set('[data-f=revenue]', filled.entries?.[i]?.revenue, row);
+    set('[data-f=revenueCurrency]', filled.entries?.[i]?.revenueCurrency, row);
+  });
+  updatePreview();
+}
+
+/** Typing in a revenue box: the agreed rate never overwrites it afterwards (in this dialog). */
+function noteTouched(field) {
+  if (['revenue', 'revenueCurrency', 'percentage'].includes(field.name)) {
+    state.ctx.touched.add(field.name === 'percentage' ? 'percentage' : 'revenue');
+  }
+  if (field.matches('[data-f=revenue], [data-f=revenueCurrency]')) field.closest('.entry').dataset.touched = '1';
+}
 
 /** On choosing Cancelled for a saved Crew Change: its saved hotel stays and transfers, ticked to be cancelled too. */
 async function showCrewBookings() {
@@ -210,10 +257,18 @@ function formFields(type, vessel, d) {
   return [extraField, money()];
 }
 
-export function openServiceForm(type, service) {
+export async function openServiceForm(type, service) {
   const vessel = getVessel(state.ctx.vesselId);
   const data = service ? service.data || {} : {};
-  state.ctx = { view: 'service-form', vesselId: vessel.id, type, serviceId: service ? service.id : null, version: service?.version };
+  try {
+    await loadCustomers();
+  } catch {
+    // no customers: the billing party list is empty and nothing is filled in
+  }
+  state.ctx = {
+    view: 'service-form', vesselId: vessel.id, type, serviceId: service ? service.id : null, version: service?.version,
+    isNew: !service, touched: new Set(),
+  };
   if (type === 'Crew Change') {
     state.crew = JSON.parse(JSON.stringify({ onSigners: data.onSigners || [], offSigners: data.offSigners || [] }));
   }
@@ -222,12 +277,14 @@ export function openServiceForm(type, service) {
     h('div', { class: 'm-body', id: 'svc-form' },
       service?.closed ? h('div', { class: 'svc-reason' }, closedNoteEl()) : null,
       agentStatusFields(vessel, service),
+      billingFields(vessel, service),
       formFields(type, vessel, data)),
     footer(h('button', { class: 'btn primary', dataset: { act: 'save-service' } }, 'Save')),
   );
   if (type === 'Crew Change') renderCrewEditor();
   renumberEntries();
   updatePreview();
+  applyRate({ fill: state.ctx.isNew }); // a new service gets the agreed rate; opening a saved one only shows it
 }
 
 /** The service data typed into the form, ready to send to the server. */
@@ -235,7 +292,8 @@ export function readServiceForm() {
   const root = $('#svc-form');
   const { type } = state.ctx;
   // the agent and the status are sent beside the data, not in it
-  const { agent: _agent, status: _status, cancel_reason: _reason, ...values } = formValues(root);
+  const { agent: _agent, status: _status, cancel_reason: _reason, billing: _billing, billing_party: _party, ...values } =
+    formValues(root);
   const money = {
     cost: values.cost, costCurrency: values.costCurrency, revenue: values.revenue,
     revenueCurrency: values.revenueCurrency, exchangeRate: values.exchangeRate,
@@ -276,7 +334,10 @@ export function updatePreview() {
 export function onModalInput(event) {
   const field = event.target;
   if (!field.matches('[data-crew]')) {
-    if (state.ctx.view === 'service-form') updatePreview();
+    if (state.ctx.view !== 'service-form') return;
+    noteTouched(field);
+    if (field.name === 'quantity') applyRate();
+    updatePreview();
     return;
   }
   const card = field.closest('.crew-card');
@@ -320,6 +381,8 @@ export function onModalChange(event) {
     $('#svc-bookings').hidden = true;
     if (cancelled && state.ctx.type === 'Crew Change' && state.ctx.serviceId) showCrewBookings();
   }
+  if (state.ctx.view === 'service-form') noteTouched(target);
+  if (target.name === 'billing_party') applyRate();
   if (target.name === 'shareMode') {
     const fixed = target.value === 'fixed';
     $('#pct-wrap').hidden = fixed;
