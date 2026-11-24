@@ -15,7 +15,7 @@ function load(entry) {
   return require(file);
 }
 const { parsePersonal, parseFlightText } = load('crewParsing.js');
-const { isDelayed, limitRows } = load('util.js');
+const { isDelayed, limitRows, tickSummary } = load('util.js');
 const { fillRevenue, rateFor } = load('rates.js');
 
 let failed = 0;
@@ -45,6 +45,13 @@ const leg = parseFlightText(itinerary);
 check(leg.length === 1 && leg[0].flightNo === 'TK689', 'pasted itinerary: only the Egypt departure leg is kept');
 check(leg[0].airline === 'Turkish Airlines' && leg[0].arrivalCity === 'Istanbul Airport', 'pasted itinerary airline and destination');
 check(leg[0].departureTime === '05 Apr 2026 08:55', 'pasted itinerary departure date and time');
+/* ---------- tickSummary: the label of a tick-box filter (Calculations, Services) ---------- */
+const STATUSES = { in_progress: 'In progress', completed: 'Completed', cancelled: 'Cancelled' };
+check(tickSummary('Status', STATUSES, ['in_progress', 'completed', 'cancelled']) === 'Status: All', 'tickSummary: all ticked');
+check(tickSummary('Status', STATUSES, ['in_progress', 'cancelled']) === 'Status: All except Completed', 'tickSummary: all but one of three');
+check(tickSummary('Status', STATUSES, ['in_progress']) === 'Status: In progress', 'tickSummary: one of three');
+check(tickSummary('Billing', { account: 'On account', cash: 'Cash' }, ['cash']) === 'Billing: Cash', 'tickSummary: one of two');
+
 /* ---------- limitRows: the alerts banner shows at most 20 missing-agent rows ---------- */
 const many = limitRows(Array.from({ length: 25 }, (_, i) => i), 20);
 check(many.shown.length === 20 && many.shown[19] === 19 && many.more === 5, 'limitRows: 25 rows → 20 shown, 5 more');

@@ -3,7 +3,7 @@
 // Each line shows its service's operations status and its accounting state; accounting (read-only accounts) and
 // admins switch a line Open / Closed. Two tick-box filters narrow by status and by accounting state.
 import { api, mutate } from '../api.js';
-import { portOptionEls, serviceStatusEl, sortIcon } from '../components.js';
+import { portOptionEls, serviceStatusEl, sortIcon, tickFilterEl } from '../components.js';
 import { BILLING, IS_ACCOUNTING, ME, NO_AGENT, SERVICE_STATUS } from '../config.js';
 import { h, icon, optionEls, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
@@ -104,28 +104,12 @@ function rowEl(row) {
     h('td', null, accountingCell(row)));
 }
 
-/** "All", "All except Completed" or the ticked names. */
-function tickSummary(title, labels, ticked) {
-  const all = Object.keys(labels);
-  if (ticked.length === all.length) return `${title}: All`;
-  const left = all.filter((key) => !ticked.includes(key));
-  if (left.length === 1 && all.length > 2) return `${title}: All except ${labels[left[0]]}`;
-  return `${title}: ${ticked.map((key) => labels[key]).join(', ')}`;
-}
-
-function tickFilterEl(name, title, labels) {
-  return h('details', { class: 'tick-filter', id: `c-${name}-filter` },
-    h('summary', null, tickSummary(title, labels, filter[name])),
-    h('div', { class: 'tick-list' }, Object.entries(labels).map(([key, label]) => h('label', null,
-      h('input', { attrs: { type: 'checkbox' }, dataset: { tick: name }, value: key, checked: filter[name].includes(key) }),
-      label))));
-}
 
 function renderTicks() {
   for (const [name, title, labels] of [['status', 'Status', SERVICE_STATUS], ['accounting', 'Accounting', ACCOUNTING],
     ['billing', 'Billing', BILLING]]) {
     const old = $(`#c-${name}-filter`);
-    const fresh = tickFilterEl(name, title, labels);
+    const fresh = tickFilterEl({ id: `c-${name}-filter`, group: name, title, labels, ticked: filter[name] });
     fresh.open = Boolean(old?.open);
     if (old) old.replaceWith(fresh);
     else $('#c-ticks').append(fresh);
@@ -262,7 +246,7 @@ function wire() {
     const box = event.target.closest('[data-tick]');
     if (!box) return;
     const name = box.dataset.tick;
-    const ticked = [...document.querySelectorAll(`[data-tick=${name}]`)].filter((b) => b.checked).map((b) => b.value);
+    const ticked = [...$('#c-ticks').querySelectorAll(`[data-tick=${name}]`)].filter((b) => b.checked).map((b) => b.value);
     if (!ticked.length) { // at least one must stay ticked
       box.checked = true;
       return;
