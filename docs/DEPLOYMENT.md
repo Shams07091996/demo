@@ -418,7 +418,8 @@ nssm restart MarineSheet                          # Linux: sudo systemctl restar
 `0022_service_completed_at`: nothing to do, services completed before it show their vessel date;
 `0023_port`: nothing to do, the four ports become a table; `0024_profile_ports`: every port account keeps its port as
 its home port, an "admin" account that isn't a superuser becomes a User of all four ports, **Read-only accounts are
-turned off** (they have no port), and nobody but a superuser keeps staff status — check the Accounts page afterwards).
+turned off** (they have no port), and nobody but a superuser keeps staff status — check the Accounts page afterwards; undoing it with
+`migrate sheet 0023` gives back each account's role, but not the staff flags or the turned-off accounts).
 After an
 update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
 of date. Reload it and try again.").

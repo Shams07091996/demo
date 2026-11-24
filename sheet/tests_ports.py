@@ -154,6 +154,43 @@ class AccountConversionTests(TransactionTestCase):
         self.assertEqual((profile.ports, user.is_superuser, user.is_staff), ([], True, True))
 
 
+class AccountRollbackTests(TransactionTestCase):
+    """Review finding: undoing migration 0024 must give each account back a sensible role, not Read-only for all."""
+
+    def test_rollback_restores_roles(self):
+        made = {}
+        for name, home, extra, superuser in (("porter", "damietta", ["damietta"], False),
+                                             ("many", "alexandria", ["alexandria", "suez"], False),
+                                             ("nobody", "", [], False), ("root", "", [], True)):
+            user = User.objects.create(username=name, is_superuser=superuser)
+            Profile.objects.create(user=user, home_port=home, ports=extra)
+            made[name] = user.pk
+        executor = MigrationExecutor(connection)
+        executor.migrate([("sheet", "0023_port")])
+        old = executor.loader.project_state([("sheet", "0023_port")]).apps.get_model("sheet", "Profile")
+        roles = {name: old.objects.get(user_id=pk).role for name, pk in made.items()}
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        self.assertEqual(roles, {"porter": "damietta", "many": "admin", "nobody": "readonly", "root": "admin"})
+
+
+class ProfileAdminTests(TestCase):
+    """Review finding: ports are changed on the Accounts page (checked there), never typed in the admin pages."""
+
+    def test_ports_read_only_in_admin(self):
+        from django.contrib import admin as django_admin
+        from django.test import RequestFactory
+
+        from .admin import ProfileInline
+
+        request = RequestFactory().get("/")
+        request.user = User.objects.create_superuser("rooted", password="x" * 20)
+        fields = ProfileInline(User, django_admin.site).get_readonly_fields(request)
+        self.assertIn("home_port", fields)
+        self.assertIn("ports", fields)
+
+
 RANGE = "from=2026-11-01&to=2026-11-30"
 TOKENS = {"alexandria": "ALEX", "portsaid": "SAID", "damietta": "DAMI", "suez": "SUEZ"}
 AT = datetime(2026, 11, 13, 10, tzinfo=UTC)

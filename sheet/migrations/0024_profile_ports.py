@@ -33,6 +33,21 @@ def convert(apps, schema_editor):
     User.objects.filter(is_staff=True, is_superuser=False).update(is_staff=False)
 
 
+def back(apps, schema_editor):
+    """Undoing it (migrate sheet 0023): superusers and Users of several ports -> "admin", one first port -> that
+    port, no port -> "readonly". Staff flags and turned-off accounts are not given back."""
+    Profile = apps.get_model("sheet", "Profile")
+    for profile in Profile.objects.select_related("user"):
+        ports = [p for p in (profile.ports or []) if p in FIRST_PORTS]
+        if profile.user.is_superuser or len(profile.ports or []) > 1:
+            profile.role = "admin"
+        elif len(ports) == 1:
+            profile.role = ports[0]
+        else:
+            profile.role = "readonly"
+        profile.save(update_fields=["role"])
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("sheet", "0023_port"),
@@ -49,7 +64,7 @@ class Migration(migrations.Migration):
             name="ports",
             field=models.JSONField(blank=True, default=list),
         ),
-        migrations.RunPython(convert, migrations.RunPython.noop),
+        migrations.RunPython(convert, back),
         migrations.RemoveField(
             model_name="profile",
             name="role",

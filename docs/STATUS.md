@@ -15,7 +15,7 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
   theirs is refused). The accounting Open / Closed switch is Admin-only for now. A **Ports** page (Admins): add,
   rename, turn off / on, never delete; a turned-off port takes no new vessels, closures, Master-data values or price
   months. The Accounts page has Home port + Extra ports instead of Role, and is for Admins. An account with no port
-  sees "Your account has no port yet. Ask an admin." 754 backend tests; `npm run check` green; smoke test passes for
+  sees "Your account has no port yet. Ask an admin." 756 backend tests; `npm run check` green; smoke test passes for
   alex / admin / viewer (now a three-port User) / suez. **Next: piece 2** (16 per-person permissions and page ticks,
   templates from the user's prototype), then **piece 3** (money: `money.edit` / `money.view`), each with its own plan;
   the design for all three is `specs/2026-11-24-access-rework-design.md`.
