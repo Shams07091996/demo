@@ -260,6 +260,24 @@ cache), `js/rates.js` (pure, tested in `parsing_test.js`: which revenue boxes th
 in during the dialog is never filled, a saved service only fills empty ones, nothing while Cancelled); the service
 dialog (now async: it loads customers) shows the rate under the billing fields.
 
+**Services page** (`services.py`, `GET /api/services/`, page `js/pages/services.js`, migration 0022): services as a
+work list. `Service.completed_at` is set only by the server (`services.stamp_completed`, in `service_create` /
+`service_detail`, and the admin inline in `VersionedAdmin.save_formset`, read-only there): becomes Completed → now,
+leaves it → None, else kept (one completed before 0022 stays None); JSON gives it as Cairo `local_iso`. `services.missing(service, month_rate,
+incomplete_uids)` gives, in order, `Agent`, `Cost`, `Revenue` (`money_gaps`: an **empty** box per type, a typed 0
+is filled in; Cash to Master has no cost, its revenue needs the amount and its percentage / fixed share), `Rate`
+(a `finance.service_lines` line `rate_missing`) and `Bookings` (Crew Change: a crew uid on a not-cancelled draft or
+money-less booking, `incomplete_crew_uids`, uses crewbookings' `_crew_uids` / `_INCOMPLETE`); nothing for
+Cancelled. `sailed` = the booking alerts' rule. `filtered(profile, params)` (also the export): `status` comma list
+(default `in_progress`), `missing=1`, `from` / `to` on the vessel date — **on the completed date when only Completed
+is ticked** (`completed_day`: `completed_at` Cairo date, else the vessel date, `completed_guess`) — `type`,
+`agent` (`__none__`), `q`, `port`; database narrows by port / status / type / vessel date, the rest in Python;
+oldest first (only Completed: newest first); a fixed number of queries. Export page `services` in `dataexport`
+(not in All data: `ALL_PAGES`). The tick filter is shared (`components.tickFilterEl`, `util.tickSummary`; each
+page reads its own `data-tick` group inside its own box). A row opens `openServiceForm(type, service, {from:
+'services'})` (edit roles; `afterServiceChange` closes the dialog and reloads the page) or the vessel (read-only);
+filters are kept in `localStorage` (`sheet.services.filter`).
+
 **Agents:** `Vessel.arrival_agent` (who entered it), `Vessel.sailing_agent` (who sailed it) and `Service.agent` (who
 did that service), all plain text from the Agent list, empty until chosen. `listing.missing_details` feeds the
 "Missing details" alert (key `missing`): vessels dated before today (Cairo) missing any of the five times, a needed

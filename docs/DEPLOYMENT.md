@@ -396,7 +396,8 @@ nssm restart MarineSheet                          # Linux: sudo systemctl restar
 
 `docs/STATUS.md` lists, for each change, whether it needs a migration and anything to do after it (for example
 `0019_service_status`: every service already there becomes Completed; `0020_cancel_and_frozen`: nothing to do;
-`0021_ships_customers`: existing vessels have no ship and keep working, add ships and customers afterwards).
+`0021_ships_customers`: existing vessels have no ship and keep working, add ships and customers afterwards;
+`0022_service_completed_at`: nothing to do, services completed before it show their vessel date).
 After an
 update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
 of date. Reload it and try again.").

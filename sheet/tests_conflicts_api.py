@@ -249,6 +249,28 @@ class AdminVersionTests(ApiTestCase):
         stay.refresh_from_db()
         self.assertEqual(stay.version, 2)
 
+    def test_admin_inline_status_change_stamps_completed_at(self):
+        admin = VesselAdmin(Vessel, site)
+        Service.objects.filter(pk=self.suez_service.pk).update(status="in_progress", completed_at=None)
+        service = Service.objects.get(pk=self.suez_service.pk)
+
+        def save_with(status):
+            service.status = status
+            form = SimpleNamespace(has_changed=lambda: True, instance=service)
+            formset = SimpleNamespace(model=Service, forms=[form], new_objects=[], changed_objects=[],
+                                      deleted_objects=[], save=lambda: service.save())
+            with as_user("admin"):
+                admin.save_formset(self.request(), SimpleNamespace(instance=self.suez_vessel), formset, change=True)
+            service.refresh_from_db()
+
+        save_with("completed")
+        self.assertIsNotNone(service.completed_at)
+        save_with("in_progress")
+        self.assertIsNone(service.completed_at)
+
+    def test_completed_at_read_only_in_admin(self):
+        self.assertIn("completed_at", ServiceInline(Vessel, site).get_readonly_fields(self.request()))
+
     def test_version_read_only_in_admin(self):
         for admin_class, model in ((VesselAdmin, Vessel), (HotelStayAdmin, HotelStay)):
             self.assertIn("version", admin_class(model, site).get_readonly_fields(self.request()))

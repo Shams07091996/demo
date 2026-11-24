@@ -1,19 +1,21 @@
-"""Plain-table Excel files of five pages, for other programs: Hotels, Transport, Port closures, Garbage & Sludge and
-Calculations. One header row (always the same columns) and one row per record; numbers as numbers, dates as real
-Excel dates; no titles, totals or notes (that is the management workbook, report.py).
+"""Plain-table Excel files of six pages, for other programs: Hotels, Transport, Port closures, Garbage & Sludge,
+Calculations and Services (the last is not in the All data file). One header row (always the same columns) and one
+row per record; numbers as numbers, dates as real Excel dates; no titles, totals or notes (that is the management
+workbook, report.py).
 
 Each sheet takes exactly the rows its page shows for the same query (the page's own filter functions, without
 paging), so port users get only their port. `all_file` puts the five in one workbook for a From–To range.
 """
 
-from datetime import date
+from datetime import date, datetime
 
-from . import calculations, closures, disposal, logistics, xlsx
+from . import calculations, closures, disposal, logistics, services, xlsx
 from .constants import BILLING, PORT_LABELS, SERVICE_STATUSES
 
 TITLES = {"hotels": "Hotels", "transfers": "Transport", "closures": "Port closures", "disposal": "Garbage & Sludge",
-          "calculations": "Calculations"}
-PAGES = tuple(TITLES)  # also the All data sheet order
+          "calculations": "Calculations", "services": "Services"}
+PAGES = tuple(TITLES)
+ALL_PAGES = PAGES[:5]  # the All data file's sheets, in order (the Services list is exported from its page only)
 
 
 def _port(key):
@@ -104,8 +106,27 @@ def _calculations(profile, params):
     return head, rows
 
 
+def _services(profile, params):
+    head = ["Service id", "Vessel id", "Vessel", "Port", "Vessel date", "Service", "Agent", "Status",
+            "Cancellation reason", "Completed", "Sailed", "Missing", "Billing party", "Billing"]
+    found, _agents = services.filtered(profile, params)
+    rows = []
+    for r in found:
+        v = r["vessel"]
+        vessel_day = date.fromisoformat(v["date"])
+        if r["completed_at"]:
+            completed = xlsx.Moment(datetime.fromisoformat(r["completed_at"]))
+        else:
+            completed = xlsx.Day(vessel_day if r["completed_guess"] else None)  # completed before it was tracked
+        rows.append([r["id"], v["id"], v["name"], _port(v["port"]), xlsx.Day(vessel_day), r["type"], r["agent"],
+                     SERVICE_STATUSES.get(r["status"], ""), r["cancel_reason"], completed,
+                     "Yes" if r["sailed"] else "No", ", ".join(r["missing"]),
+                     (r["billing_party"] or {}).get("name", ""), BILLING.get(r["billing"], "")])
+    return head, rows
+
+
 BUILDERS = {"hotels": _hotels, "transfers": _transfers, "closures": _closures, "disposal": _disposal,
-            "calculations": _calculations}
+            "calculations": _calculations, "services": _services}
 
 
 def _plain(value):
@@ -129,4 +150,4 @@ def page_file(page, profile, params):
 def all_file(profile, date_from, date_to, port):
     """The five pages for one From–To range and port, one sheet each (each page reads the range its own way)."""
     params = {"from": date_from.isoformat(), "to": date_to.isoformat(), "port": port or ""}
-    return xlsx.build([sheet(page, profile, params) for page in PAGES])
+    return xlsx.build([sheet(page, profile, params) for page in ALL_PAGES])

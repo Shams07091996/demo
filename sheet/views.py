@@ -36,6 +36,7 @@ from . import (
     ratelimit,
     receipt,
     report,
+    services,
     ships,
     twostep,
 )
@@ -288,7 +289,9 @@ def service_create(request, pk):
     require_edit(request.profile)
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
     fields = _read_service(request, vessel)
-    service = Service.objects.create(vessel=vessel, **fields)
+    service = Service(vessel=vessel, **fields)
+    services.stamp_completed(service, None, timezone.now())
+    service.save()
     crewbookings.sync(vessel)
     audit(request, "service.create", id=service.id, vessel=vessel.id, type=service.service_type)
     return _vessel_json(vessel.pk, status=201)
@@ -310,8 +313,10 @@ def service_detail(request, pk):
         accounting.require_open(service)  # the fresh row: a dialog opened before accounting closed it is refused too
         refs = clean_booking_refs(payload.get("cancel_bookings"))
         before = conflicts.snapshot(service)
+        old_status = service.status
         for field, value in _read_service(request, service.vessel, service).items():
             setattr(service, field, value)
+        services.stamp_completed(service, old_status, timezone.now())
         conflicts.bump_if_changed(service, before)
         service.save()
         cancelled = crewbookings.cancel_bookings(service, refs)
@@ -319,6 +324,13 @@ def service_detail(request, pk):
         audit(request, "service.update", id=service.id, vessel=service.vessel_id, **extra)
     crewbookings.sync(service.vessel)  # automatic bookings follow the crew (a deleted service drops its drafts)
     return _vessel_json(service.vessel_id)
+
+
+@json_api
+@require_http_methods(["GET"])
+def services_list(request):
+    """The Services page: services as a work list (In progress by default) with what each one is missing."""
+    return JsonResponse(services.list_response(request.profile, request.GET))
 
 
 @json_api

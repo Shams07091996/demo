@@ -81,3 +81,12 @@ export const isDelayed = (arrival, berthing) => {
   const gap = wallClockMs(berthing) - wallClockMs(arrival);
   return Number.isFinite(gap) && gap > DELAY_LIMIT_MS;
 };
+
+/** A tick-box filter's label: "Status: All", "Status: All except Completed" or the ticked names (pure). */
+export function tickSummary(title, labels, ticked) {
+  const all = Object.keys(labels);
+  if (ticked.length === all.length) return `${title}: All`;
+  const left = all.filter((key) => !ticked.includes(key));
+  if (left.length === 1 && all.length > 2) return `${title}: All except ${labels[left[0]]}`;
+  return `${title}: ${ticked.map((key) => labels[key]).join(', ')}`;
+}

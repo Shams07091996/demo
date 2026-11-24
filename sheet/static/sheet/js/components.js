@@ -2,7 +2,7 @@
 import { PORTS, PORT_LABEL, SERVICE_STATUS, SERVICE_STATUS_CLASS, STATUS_LABEL, TIME_FIELDS } from './config.js';
 import { h, icon, optionEls } from './dom.js';
 import { optionValues } from './state.js';
-import { dmy, fmt, fmtDuration, fmtStamp, oprClass, sign } from './util.js';
+import { dmy, fmt, fmtDuration, fmtStamp, oprClass, sign, tickSummary } from './util.js';
 
 export const profitClass = (n) => (n >= 0 ? 'good' : 'bad');
 
@@ -94,4 +94,13 @@ export function serviceCountsEl(vessel) {
   vessel.services.forEach((s) => { counts[s.type] = (counts[s.type] || 0) + 1; });
   const chips = Object.entries(counts).map(([type, n]) => h('span', { class: 'svc-chip' }, `${type} ×${n}`));
   return chips.length ? chips : h('span', { class: 'none' }, h('i', null, 'No services'));
+}
+
+/** A tick-box filter (a <details> list of check boxes, data-tick=`group`), as on Calculations and Services. */
+export function tickFilterEl({ id, group, title, labels, ticked }) {
+  return h('details', { class: 'tick-filter', id },
+    h('summary', null, tickSummary(title, labels, ticked)),
+    h('div', { class: 'tick-list' }, Object.entries(labels).map(([key, label]) => h('label', null,
+      h('input', { attrs: { type: 'checkbox' }, dataset: { tick: group }, value: key, checked: ticked.includes(key) }),
+      label))));
 }

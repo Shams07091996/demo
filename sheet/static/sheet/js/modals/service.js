@@ -260,7 +260,7 @@ function formFields(type, vessel, d) {
   return [extraField, money()];
 }
 
-export async function openServiceForm(type, service) {
+export async function openServiceForm(type, service, { from = '' } = {}) {
   const vessel = getVessel(state.ctx.vesselId);
   const data = service ? service.data || {} : {};
   try {
@@ -270,7 +270,7 @@ export async function openServiceForm(type, service) {
   }
   state.ctx = {
     view: 'service-form', vesselId: vessel.id, type, serviceId: service ? service.id : null, version: service?.version,
-    isNew: !service, touched: new Set(), lastRate: null,
+    isNew: !service, touched: new Set(), lastRate: null, from, // from 'services': saving goes back to that page
   };
   if (type === 'Crew Change') {
     state.crew = JSON.parse(JSON.stringify({ onSigners: data.onSigners || [], offSigners: data.offSigners || [] }));

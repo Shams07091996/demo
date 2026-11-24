@@ -27,6 +27,7 @@ import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { copyLastMonth, readPriceForm, renderRatesPage } from './pages/rates.js';
+import { servicesPage } from './pages/services.js';
 import { shipsPage } from './pages/ships.js';
 import { fillQuickSelects } from './render/list.js';
 import { closePanel, openPanel, toggleAlerts } from './render/notifications.js';
@@ -48,14 +49,24 @@ async function reloadServiceForm(id) {
   const vessel = await api(`/api/vessels/${vesselId()}/`);
   rememberVessels([vessel]);
   const service = vessel.services.find((s) => s.id === id);
-  if (service) openServiceForm(service.type, service);
+  if (service) openServiceForm(service.type, service, { from: state.ctx.from });
   else openVessel(vessel.id);
+}
+
+/** After a service save / delete: back to the Services page when the dialog came from there, else the vessel. */
+async function afterServiceChange(vessel, from) {
+  rememberVessels([vessel]);
+  await refreshAfterChange();
+  if (from === 'services') {
+    closeModal();
+    await servicesPage.load();
+  } else openVessel(vessel.id);
 }
 
 /** Save a service, then show the vessel with its refreshed totals (the list and totals reload from the server).
  *  An edit sends the version the form opened with (`version`: the one from a conflict, for "Save mine anyway"). */
 async function saveService(version) {
-  const { type, serviceId } = state.ctx;
+  const { type, serviceId, from } = state.ctx;
   const status = $('#svc-form [name=status]').value;
   const payload = {
     type, agent: $('#svc-form [name=agent]').value, status, data: readServiceForm(),
@@ -71,17 +82,14 @@ async function saveService(version) {
     : api(`/api/vessels/${vesselId()}/services/`, 'POST', payload)), (conflict) => showConflict(conflict, 'service', {
     reload: () => reloadServiceForm(serviceId), force: (current) => saveService(current),
   }));
-  rememberVessels([vessel]);
-  await refreshAfterChange();
-  openVessel(vessel.id);
+  await afterServiceChange(vessel, from);
 }
 
 async function deleteService(button) {
   if (!confirm('Delete this service?')) return;
+  const { from } = state.ctx;
   const vessel = await mutate(() => api(`/api/services/${button.dataset.id}/`, 'DELETE'));
-  rememberVessels([vessel]);
-  await refreshAfterChange();
-  openVessel(vessel.id);
+  await afterServiceChange(vessel, from);
 }
 
 async function saveVessel({ addAnother, version }) {
@@ -194,7 +202,7 @@ export const actions = {
   // A page's rows as a plain-table Excel file (its current filters, every page of them).
   'page-export': async (b) => {
     const pages = { hotels: bookingsPage('hotels'), transfers: bookingsPage('transfers'), closures: closuresPage,
-      disposal: disposalPage, calculations: calculationsPage };
+      disposal: disposalPage, calculations: calculationsPage, services: servicesPage };
     const page = pages[b.dataset.page];
     if (!page) return;
     const error = await download(`/api/export/${b.dataset.page}/?${page.exportQuery()}`, 'Could not make the Excel file.');
@@ -242,6 +250,8 @@ export const actions = {
   'booking-open': (b) => openBookingDialog(b.dataset.kind, Number(b.dataset.id)),
   'booking-page': (b) => bookingsPage(b.dataset.kind).step(Number(b.dataset.step)),
   'calc-page': (b) => calculationsPage.step(Number(b.dataset.step)),
+  'services-page': (b) => servicesPage.step(Number(b.dataset.step)),
+  'service-row': (b) => servicesPage.open(Number(b.dataset.id)),
   'acct-toggle': (b) => calculationsPage.toggleClosed(b),
   'disposal-hide': (b) => disposalPage.hide(b.dataset.id),
   'disposal-show': (b) => disposalPage.show(b.dataset.id),
