@@ -253,14 +253,55 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 12 : 11), 'sidebar lists the pages (admins also have History; no Bulk add)');
-  const pageOrder = 'vessels,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates' + (ROLE === 'admin' ? ',history' : '');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 13 : 12), 'sidebar lists the pages (admins also have History; no Bulk add)');
+  const pageOrder = 'vessels,services,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates' + (ROLE === 'admin' ? ',history' : '');
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Port closures and Calculations sit after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
-  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['disposal', 'Garbage & Sludge'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['ships', 'Ships'], ['customers', 'Customers'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
+  for (const [page, title] of [['services', 'Services'], ['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['disposal', 'Garbage & Sludge'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['ships', 'Ships'], ['customers', 'Customers'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
     await go(page);
     ok($$('.page').filter((p) => !p.hidden).length === 1 && $('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).classList.contains('active'), `sidebar opens "${title}"`);
+  }
+
+  /* ---- services page: the work list (seed_demo: MSC AURORA's Crew Change has draft bookings, SEA BREEZE's
+     Landing has no agent) ---- */
+  await go('services');
+  const svRow = (vessel, type) => $$('#sv-tbody tr').find((r) => r.children[0].textContent === vessel && r.children[2].textContent === type);
+  ok(await waitFor(() => svRow('MSC AURORA', 'Crew Change')), 'services: the page lists services');
+  ok($('#sv-status-filter summary').textContent === 'Status: In progress', 'services: opens with In progress ticked');
+  ok(svRow('MSC AURORA', 'Crew Change').textContent.includes('Bookings'), 'services: a Crew Change with draft bookings is missing Bookings');
+  ok(svRow('SEA BREEZE', 'Landing')?.textContent.includes('Agent') && svRow('SEA BREEZE', 'Landing').textContent.includes('Sailed'), 'services: a sailed vessel\'s open service is marked Sailed, its missing agent shown');
+  $('#sv-missing').checked = true; $('#sv-missing').dispatchEvent(new w.Event('change', { bubbles: true }));
+  ok(await waitFor(() => !svRow('MSC AURORA', 'Fresh Water') && svRow('SEA BREEZE', 'Landing')), 'services: Missing details only hides complete services');
+  $('#sv-missing').checked = false; $('#sv-missing').dispatchEvent(new w.Event('change', { bubbles: true }));
+  await waitFor(() => svRow('MSC AURORA', 'Fresh Water'));
+  const svTick = (value, on) => { const box = $(`#sv-ticks [data-tick=svstatus][value=${value}]`); box.checked = on; box.dispatchEvent(new w.Event('change', { bubbles: true })); };
+  svTick('completed', true);
+  ok(await waitFor(() => $$('#sv-head th').some((th) => th.textContent === 'Completed')), 'services: ticking Completed adds the Completed column');
+  svTick('completed', false);
+  await waitFor(() => !$$('#sv-head th').some((th) => th.textContent === 'Completed'));
+  {
+    const exports = [];
+    const plainFetch = w.fetch;
+    w.fetch = async (url, options) => {
+      const response = await plainFetch(url, options);
+      if (String(url).includes('/api/export/')) exports.push({ url: String(url), status: response.status });
+      return response;
+    };
+    if (!w.URL.createObjectURL) w.URL.createObjectURL = () => 'blob:smoke';
+    if (!w.URL.revokeObjectURL) w.URL.revokeObjectURL = () => {};
+    click($('#page-services [data-act="page-export"]'));
+    ok(await waitFor(() => exports.length) && exports[0].status === 200 && exports[0].url.includes('/api/export/services/?status=in_progress') && !/[?&]page(_size)?=/.test(exports[0].url), 'services: Excel downloads the filtered list (every page)');
+    w.fetch = plainFetch;
+  }
+  click(svRow('MSC AURORA', 'Fresh Water'));
+  if (ROLE === 'viewer') {
+    ok(await waitFor(() => $('#modal h2')?.textContent.includes('MSC AURORA') && !$('#svc-form')), 'services: a read-only user gets the vessel');
+    closeModal();
+  } else {
+    ok(await waitFor(() => $('#svc-form')), 'services: a row opens its service');
+    click($('[data-act="save-service"]'));
+    ok(await waitFor(() => !$('#svc-form') && !$('#overlay').classList.contains('open') && !$('#page-services').hidden), 'services: saving goes back to the list');
   }
 
   /* ---- calculations page (every role sees it, money included) ---- */

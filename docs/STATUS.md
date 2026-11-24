@@ -5,6 +5,17 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Services page (2026-11-24):** on branch **`feature/services-page`, not merged yet** (waiting for the fresh
+  review and the user's OK). Needs migration **`0022_service_completed_at`** on the user's database (existing
+  services get no completed time; the page shows their vessel date as "≈ date"). A **Services** page (sidebar, after
+  Vessels) lists services, not vessels: it opens with **In progress** ticked (the operators' daily to-do list);
+  **Missing details only** shows services lacking an agent, a cost or revenue (a typed 0 counts as filled in), a
+  rate, or complete crew bookings (the managers' view); ticking only **Completed** with a From–To shows what got
+  done in that range (by the new completed time). Filters: status ticks, missing, From–To, service, agent, vessel
+  search, port (admins / accounting). "Sailed" marks an open service whose vessel has left. A row opens the
+  service (edit roles; saving goes back to the list) or the vessel (read-only). **Excel** exports every filtered
+  row. 709 backend tests; `npm run check` green; smoke test passes for alex / admin / viewer / suez.
+
 - **Ships, customers and billing (2026-11-24):** merged into `main` on 2026-11-24 (branch deleted); fresh review
   done (four findings fixed test-first). Needs migration **`0021_ships_customers`** on the user's database. Existing
   vessels keep working without a ship; a **new** vessel must be for a ship (picked from the name box's dropdown, or
@@ -68,6 +79,7 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
+| 2026-11-24 | **Services page** (branch `feature/services-page`): work list of services with status / missing / date / service / agent / search / port filters, what each one is missing, Sailed mark, completed time (`Service.completed_at`), Excel export | `specs/2026-11-24-services-page-design.md` |
 | 2026-11-24 | **Ships, customers and billing** (merged 2026-11-24): Ships page and ship picker on the vessel name (quick-add and vessel form, + New ship inline, IMO checked with its check digit, No IMO tick); Customers page (contacts, agreed rates, linked ships); billing party and Cash / On account on every service; agreed rate fills the revenue; Calculations billing columns / filters | `specs/2026-11-24-ships-customers-design.md` |
 | 2026-11-20 | **Garbage & Sludge page** (merged 2026-11-20): a sidebar page lists the vessels of a date range and port with garbage m³ and sludge t boxes (saved when left), revenue / cost / profit in EGP and USD, Hide (no garbage or sludge; Hidden filter with Bring back), filters and totals. Prices per month and port on the Exchange rates page: four blocks (garbage / sludge × revenue / cost), each a minimum quantity, a minimum amount in EGP or USD and an extra per unit above the minimum; Copy from last month. The money shows on that page and on Calculations, not in vessel totals. Master data lists are folded shut until clicked. The earlier hand-added service is removed | `specs/2026-11-20-garbage-page-design.md` |
 | 2026-11-20 | **Garbage & Sludge** (merged 2026-11-20) (replaced by the page above): admins set USD prices per m³ (garbage cost / revenue, sludge cost / revenue) for each month and port on the Exchange rates page (`DisposalPrice`); the hand-added service "Garbage & Sludge" takes garbage m³ and sludge m³; money = m³ × that port and month's price, converted with the month rate, counted in the vessel totals like any service; no price → the line is flagged and has no money. Prices apply live (changing one changes that month's vessels). Calculations shows each such line's USD profit and USD totals | `specs/2026-11-19-garbage-sludge-design.md` |
@@ -100,6 +112,9 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Decisions the user made (respect these)
 
+- **Services page (2026-11-24):** operators use it daily as a to-do list, managers to see what is missing;
+  **filters, not tabs** (status ticks, Missing details only); a **Completed** view by completed date; an **Excel**
+  export; **a typed 0 cost / revenue counts as filled in** (only an empty box is "missing").
 - **Ships and customers (2026-11-24):** the customer is **separate from the OPR** (option B): each ship has an OPR
   and a customer. Every ship has an IMO unless **No IMO** is ticked. Admins **and** port users add ships right from
   the vessel form / quick-add bar. A rate **fills in the revenue automatically, and people can change it**. **Cash**
@@ -175,8 +190,8 @@ Their security push has three pieces, in this order:
    service, ~~service status~~ (built 2026-11-23, with the accounting Open / Closed), billing basis (Cash / Owners'
    Account).
 5. ~~Excel import~~: the user meant an **export** (built 2026-11-24, see Data export above).
-6. ~~Ships / customers / billing~~ (built and merged 2026-11-24), then the **In-progress
-   services page**, then the **accounts & permissions page** (admin), each designed separately.
+6. ~~Ships / customers / billing~~ (built and merged 2026-11-24), ~~the In-progress services page~~ (built
+   2026-11-24, branch `feature/services-page`), then the **accounts & permissions page** (admin).
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
 
