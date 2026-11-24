@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils import timezone
 
-from . import ports
+from . import access, ports
 from .constants import (
     BILLING,
     CANCEL_REASON_MAX,
@@ -362,8 +362,20 @@ def clean_agent(value, port, current=""):
     return listed("agent", value, port, current)
 
 
+def _record_port(data, profile, existing):
+    """The port of a vessel / closure being saved: the one sent, else the saved one, else a User's home port (an
+    Admin's new record names its port, never assumed). It must be one the profile works in (403 otherwise); a
+    record going into a port (new, or moved there) needs the port turned on."""
+    saved = existing.port if existing is not None else ""
+    port = data.get("port") or saved or ("" if profile.is_admin else profile.home_port)
+    if not port:
+        raise BadRequest("Choose a port.")
+    return access.require_port(profile, port, new=port != saved)
+
+
 def clean_vessel(data, profile, existing=None):
-    """Validate vessel input. Port users are always pinned to their own port."""
+    """Validate vessel input. The port is the one sent, else the saved one, else (a User's new vessel) their home
+    port; it must be one the profile works in, and a vessel going into it needs it turned on."""
     name = _short(data.get("name"), 120, "Vessel name")
     if not name:
         raise BadRequest("Vessel name is required.")
@@ -372,14 +384,7 @@ def clean_vessel(data, profile, existing=None):
     except ValueError:
         raise BadRequest("Enter a valid date.") from None
 
-    if profile.port:
-        port = profile.port
-    else:
-        port = data.get("port") or (existing.port if existing else "")
-        if not port:  # an admin's new vessel: the port is chosen, never assumed
-            raise BadRequest("Choose a port.")
-        if not ports.exists(port):
-            raise BadRequest("Unknown port.")
+    port = _record_port(data, profile, existing)
 
     times = {key: _local_datetime(data.get(key), TIME_LABELS[key]) for key in TIME_KEYS}
     _check_time_order(times)
@@ -483,8 +488,10 @@ def clean_ship(data, profile, existing=None):
     current_opr = getattr(existing, "opr", "")
     opr = _short(data.get("opr"), 100, "OPR")
     if opr and opr != current_opr:
-        if profile.port:
-            listed("opr", opr, profile.port, current_opr)
+        mine = access.ports_of(profile)
+        if mine is not None:
+            if not Option.objects.filter(kind="opr", value=opr, port__in=["", *mine]).exists():
+                raise BadRequest("OPR: choose a value from the Master data OPR list for your ports.")
         elif not Option.objects.filter(kind="opr", value=opr).exists():
             raise BadRequest("OPR: choose a value from the Master data OPR list.")
     active = data.get("active", getattr(existing, "active", True))
@@ -731,15 +738,10 @@ def clean_transfer(data):
 
 
 def clean_closure(data, profile, existing=None):
-    """Validate a port closure. Port users are always pinned to their own port; the reason is from the Master data
+    """Validate a port closure. The port is chosen like a vessel's (`_record_port`); the reason is from the Master data
     "closure" list of that port (or All ports); an empty Reopened means the port is still closed."""
     data = _as_dict(data)
-    if profile.port:
-        port = profile.port
-    else:
-        port = data.get("port") or (existing.port if existing else "")
-        if not ports.exists(port):
-            raise BadRequest("Unknown port.")
+    port = _record_port(data, profile, existing)
     start_at = _local_datetime(data.get("start_at"), "Closed from")
     if start_at is None:
         raise BadRequest("Closed from is required.")

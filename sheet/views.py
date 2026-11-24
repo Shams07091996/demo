@@ -45,10 +45,12 @@ from . import (
 )
 from . import dashboard as dashboard_figures
 from .access import (
+    asked_port,
     profile_of,
     require_accounting,
     require_admin,
     require_edit,
+    require_port,
     require_superuser,
     scoped_closures,
     scoped_vessels,
@@ -124,11 +126,13 @@ def index(request):
         "me": {
             "username": request.user.get_username(),
             "role": "admin" if profile.is_admin else ", ".join(ports.label(p) for p in profile.ports),
-            "port": profile.port,
+            "port": profile.ports[0] if not profile.is_admin and len(profile.ports) == 1 else None,
+            "ports": ports.keys() if profile.is_admin else list(profile.ports),
+            "homePort": profile.home_port,
             "canEdit": profile.can_edit,
             "isAdmin": profile.is_admin,
             "isSuperuser": request.user.is_superuser,
-            "seesAll": profile.port is None,
+            "seesAll": profile.is_admin or len(profile.ports) > 1,
         },
         "ports": [{"key": key, "label": name, "active": active} for key, name, active in ports.rows()],
         "service_types": SERVICE_TYPES,
@@ -199,7 +203,10 @@ def _export_range(request):
         raise BadRequest("From must be on or before To.")
     if (date_to.year * 12 + date_to.month) - (date_from.year * 12 + date_from.month) >= 24:
         raise BadRequest("Choose a range of at most 24 months.")
-    port = request.profile.port or (request.GET.get("port") if ports.exists(request.GET.get("port")) else None)
+    profile = request.profile
+    port = asked_port(profile, request.GET.get("port"))
+    if port is None and not profile.is_admin and len(profile.ports) == 1:
+        port = profile.ports[0]  # a one-port User's files are named after that port
     return date_from, date_to, port
 
 
@@ -213,8 +220,8 @@ def _xlsx_response(content, filename):
 @json_api
 @require_http_methods(["GET"])
 def dashboard_export(request):
-    """The management workbook (.xlsx) for a From–To range and port. Every role may download it; port users get
-    their own port whatever they ask."""
+    """The management workbook (.xlsx) for a From–To range and port. Everyone may download it; a User gets their
+    own ports whatever they ask."""
     ratelimit.check(request, "export")
     date_from, date_to, port = _export_range(request)
     r = report.Range(date_from, date_to, port)
@@ -570,8 +577,8 @@ BOOKING_KINDS = ("hotel", "airport", "port")
 
 def _options_json(profile):
     queryset = Option.objects.all()
-    if profile.port:
-        queryset = queryset.filter(port__in=["", profile.port])
+    if not profile.is_admin:
+        queryset = queryset.filter(port__in=["", *profile.ports])
     usage = _usage_counts(profile)
     options = [option_to_dict(o, profile, usage[o.kind].get(o.value, 0)) for o in queryset]
     return JsonResponse({"options": options})
@@ -590,9 +597,12 @@ def options(request):
             raise BadRequest("The value is too long (at most 100 characters).")
         if kind not in OPTION_KIND_KEYS or not value:
             raise BadRequest("Enter a value.")
-        scope = profile.port or payload.get("port") or ""
-        if scope and not ports.exists(scope):
-            raise BadRequest("Unknown port.")
+        scope = payload.get("port") or ""
+        if profile.is_admin:
+            if scope and not ports.exists(scope):
+                raise BadRequest("Unknown port.")
+        else:  # a User adds to one of their ports (home when none is named), never to All ports
+            scope = require_port(profile, scope or profile.home_port)
         last = Option.objects.filter(kind=kind).order_by("-position").first()
         _, created = Option.objects.get_or_create(
             kind=kind, value=value, port=scope, defaults={"position": last.position + 1 if last else 0}
@@ -621,8 +631,8 @@ def option_detail(request, pk):
         option.save(update_fields=["port"])
         audit(request, "option.port", id=pk, port=port or "all")
         return _options_json(profile)
-    if not profile.is_admin and option.port != profile.port:
-        raise Forbidden("You can only remove options for your own port.")
+    if not profile.is_admin and (option.port == "" or option.port not in profile.ports):
+        raise Forbidden("You can only remove options for your own ports.")
     option.delete()
     audit(request, "option.delete", id=pk)
     return _options_json(profile)

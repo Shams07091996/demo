@@ -106,7 +106,7 @@ def rate_to_dict(rate):
 
 def option_to_dict(option, profile, used=0):
     """`used` = how many vessels (that this user can see) currently carry this value."""
-    editable = profile.is_admin or (profile.port is not None and option.port == profile.port)
+    editable = profile.is_admin or (option.port != "" and option.port in profile.ports)
     return {
         "id": option.id,
         "kind": option.kind,

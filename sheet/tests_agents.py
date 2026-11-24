@@ -207,11 +207,12 @@ class MissingAgentTests(ApiTestCase):
         self.vessel("SUEZ GAP", TODAY - DAY, port="suez", sailing="")
         self.assertEqual([m["id"] for m in self.missing("alex", "?port=suez")], [alex_gap.id])
 
-    def test_read_only_sees_every_port_and_the_port_filter_applies(self, _):
+    def test_admin_sees_every_port_and_the_port_filter_applies(self, _):
         self.vessel("ALEX GAP", TODAY - DAY, sailing="")
         suez = self.vessel("SUEZ GAP", TODAY - DAY, port="suez", sailing="")
-        self.assertEqual(len(self.missing("viewer")), 2)
-        self.assertEqual([m["id"] for m in self.missing("viewer", "?port=suez")], [suez.id])
+        self.assertEqual(len(self.missing("admin")), 2)
+        self.assertEqual([m["id"] for m in self.missing("admin", "?port=suez")], [suez.id])
+        self.assertEqual(len(self.missing("viewer")), 1)  # Alexandria, Port Said, Damietta: not Suez
 
     def test_the_alert_reads_only_the_columns_it_needs(self, _):
         # No look-back limit: the query must stay light as the history grows (no service data, no complete vessels).

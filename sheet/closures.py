@@ -29,7 +29,7 @@ def closure_to_dict(closure, profile):
         "reason": closure.reason,
         "notes": closure.notes,
         "version": closure.version,
-        "can_edit": profile.is_admin or profile.port == closure.port,
+        "can_edit": profile.is_admin or closure.port in profile.ports,
     }
 
 

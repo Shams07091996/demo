@@ -62,13 +62,6 @@ class Profile(models.Model):
         super().save(*args, **kwargs)
 
     @property
-    def port(self):
-        """Until every caller reads `ports`: the one port of a single-port user, else None."""
-        if self.is_admin or len(self.ports) != 1:
-            return None
-        return self.ports[0]
-
-    @property
     def is_admin(self):
         return self.user.is_superuser
 

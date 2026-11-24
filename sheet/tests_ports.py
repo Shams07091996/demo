@@ -1,6 +1,6 @@
 """Ports as a table (Admins add / rename / turn them off) and the people who work in them."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 from django.contrib.auth.models import User
 from django.db import connection
@@ -9,8 +9,8 @@ from django.test import TestCase, TransactionTestCase
 
 from . import dataexport, ports, report
 from .access import profile_of
-from .models import Port, PortClosure, Profile, Service
-from .tests import NEEDED, ApiTestCase
+from .models import HotelStay, Option, Port, PortClosure, Profile, Service, Transfer, Vessel
+from .tests import NEEDED, ApiTestCase, allow
 from .tests_dataexport import read
 
 
@@ -140,3 +140,124 @@ class AccountConversionTests(TransactionTestCase):
         self.assertEqual((profile.ports, user.is_active), ([], False))
         user, profile = get("root")
         self.assertEqual((profile.ports, user.is_superuser, user.is_staff), ([], True, True))
+
+
+RANGE = "from=2026-11-01&to=2026-11-30"
+TOKENS = {"alexandria": "ALEX", "portsaid": "SAID", "damietta": "DAMI", "suez": "SUEZ"}
+AT = datetime(2026, 11, 13, 10, tzinfo=UTC)
+
+
+class MultiPortTests(ApiTestCase):
+    """viewer works in Alexandria, Port Said and Damietta (home Alexandria); never in Suez."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        allow("closure", "WEATHER")
+        allow("hotel", "HILTON")
+        cls.said_vessel = Vessel.objects.create(name="SAID SHIP", date=date(2026, 11, 13), port="portsaid")
+        cls.dami_vessel = Vessel.objects.create(name="DAMI SHIP", date=date(2026, 11, 13), port="damietta")
+        for vessel in (cls.alex_vessel, cls.said_vessel, cls.dami_vessel, cls.suez_vessel):
+            token = TOKENS[vessel.port]
+            Service.objects.create(vessel=vessel, service_type="Fresh Water", agent=f"AG-{token}",
+                                   data={"revenue": 10, "revenueCurrency": "EGP"})
+            HotelStay.objects.create(vessel=vessel, hotel="HILTON", check_in=AT, nights=1)
+            Transfer.objects.create(vessel=vessel, from_place="airport", to_place="port", at=AT)
+            PortClosure.objects.create(port=vessel.port, start_at=AT, reason="WEATHER", notes=f"CL-{token}")
+
+    def setUp(self):
+        self.viewer = self.login("viewer")
+
+    def text(self, client, url):
+        response = client.get(url)
+        self.assertEqual(response.status_code, 200, (url, response.content[:300]))
+        if response["Content-Type"].startswith("application/vnd.openxmlformats"):
+            return str(read(response.content))
+        return response.content.decode()
+
+    def seen(self, client, extra=""):
+        """{url: the port tokens found in what it answered}."""
+        urls = [f"/api/vessels/?{RANGE}", f"/api/services/?{RANGE}&status=in_progress", f"/api/hotels/?{RANGE}",
+                f"/api/transfers/?{RANGE}", f"/api/closures/?{RANGE}", f"/api/disposal/?{RANGE}",
+                f"/api/calculations/?{RANGE}", f"/api/dashboard/?{RANGE}", "/api/vessels/alerts/?",
+                f"/export.csv?{RANGE}", f"/api/export/all/?{RANGE}", f"/api/dashboard/export/?{RANGE}"]
+        found = {}
+        for url in urls:
+            body = self.text(client, url + extra)
+            found[url] = {t for t in TOKENS.values() if t in body}
+        return found
+
+    def test_lists_cover_all_their_ports(self):
+        for url, tokens in self.seen(self.viewer).items():
+            self.assertEqual(tokens, {"ALEX", "SAID", "DAMI"}, url)
+
+    def test_asked_port_not_theirs_is_never_wider(self):
+        for url, tokens in self.seen(self.viewer, "&port=suez").items():
+            self.assertEqual(tokens, {"ALEX", "SAID", "DAMI"}, url)
+        for url, tokens in self.seen(self.login("alex"), "&port=suez").items():
+            self.assertEqual(tokens, {"ALEX"}, url)
+
+    def test_asked_port_narrows(self):
+        for url, tokens in self.seen(self.viewer, "&port=portsaid").items():
+            self.assertEqual(tokens, {"SAID"}, url)
+
+    def test_write_into_foreign_port_refused(self):
+        before = Vessel.objects.count()
+        body = {**NEEDED, "name": "NEW SHIP", "date": "2026-11-13"}
+        self.assertEqual(self.call(self.viewer, "post", "/api/vessels/", {**body, "port": "suez"})[0], 403)
+        self.assertEqual(Vessel.objects.count(), before)
+        status, _ = self.call(self.viewer, "put", f"/api/vessels/{self.alex_vessel.id}/",
+                              {**NEEDED, "name": "ALEX SHIP", "date": "2026-11-13", "port": "suez"})
+        self.assertEqual(status, 403)
+        self.assertEqual(Vessel.objects.get(pk=self.alex_vessel.pk).port, "alexandria")
+        closure = {"port": "suez", "start_at": "2026-11-14T06:00", "reason": "WEATHER"}
+        self.assertEqual(self.call(self.viewer, "post", "/api/closures/", closure)[0], 403)
+        self.assertFalse(PortClosure.objects.filter(port="suez", notes="").exists())
+        option = {"kind": "opr", "value": "SUEZ OPR", "port": "suez"}
+        self.assertEqual(self.call(self.viewer, "post", "/api/options/", option)[0], 403)
+        self.assertFalse(Option.objects.filter(value="SUEZ OPR").exists())
+
+    def test_works_fully_in_extra_port(self):
+        status, vessel = self.call(self.viewer, "post", "/api/vessels/",
+                                   {**NEEDED, "name": "NEW DAMI", "date": "2026-11-14", "port": "damietta"})
+        self.assertEqual((status, vessel.get("port")), (201, "damietta"), vessel)
+        status, data = self.call(self.viewer, "post", f"/api/vessels/{self.dami_vessel.id}/services/",
+                                 {"type": "Fresh Water", "data": {}})
+        self.assertEqual(status, 201, data)
+        stay = {"vessel": self.dami_vessel.id, "hotel": "HILTON", "check_in": "2026-11-14", "nights": 1,
+                "guests": [{"name": "ahmed test", "rank": "2/E", "group": "on"}]}
+        status, data = self.call(self.viewer, "post", "/api/hotels/", stay)
+        self.assertEqual(status, 201, data)
+        closure = {"port": "damietta", "start_at": "2026-11-14T06:00", "reason": "WEATHER"}
+        status, data = self.call(self.viewer, "post", "/api/closures/", closure)
+        self.assertEqual(status, 201, data)
+        status, _ = self.call(self.viewer, "post", "/api/options/",
+                              {"kind": "opr", "value": "DAMI OPR", "port": "damietta"})
+        self.assertEqual(status, 200)
+        self.assertEqual(Option.objects.get(value="DAMI OPR").port, "damietta")
+        status, data = self.call(self.viewer, "put", f"/api/disposal/{self.dami_vessel.id}/", {"garbage": "1"})
+        self.assertEqual(status, 200, data)
+
+    def test_option_all_ports_admin_only(self):
+        """A User's value goes to their home port when none is named; only an Admin adds to All ports."""
+        self.call(self.viewer, "post", "/api/options/", {"kind": "opr", "value": "MINE", "port": ""})
+        self.assertEqual(Option.objects.get(value="MINE").port, "alexandria")
+        self.call(self.login("admin"), "post", "/api/options/", {"kind": "opr", "value": "EVERYONE", "port": ""})
+        everyone = Option.objects.get(value="EVERYONE")
+        self.assertEqual(everyone.port, "")
+        self.assertEqual(self.call(self.viewer, "delete", f"/api/options/{everyone.id}/")[0], 403)
+        said = Option.objects.create(kind="opr", value="SAID OPR", port="portsaid")
+        self.assertEqual(self.call(self.viewer, "delete", f"/api/options/{said.id}/")[0], 200)
+        suez = Option.objects.create(kind="opr", value="SUEZ ONLY", port="suez")
+        self.assertEqual(self.call(self.viewer, "delete", f"/api/options/{suez.id}/")[0], 403)
+        listed = {o["value"] for o in self.call(self.viewer, "get", "/api/options/")[1]["options"]}
+        self.assertIn("EVERYONE", listed)
+        self.assertNotIn("SUEZ ONLY", listed)
+
+    def test_new_vessel_defaults_to_home_port(self):
+        status, vessel = self.call(self.viewer, "post", "/api/vessels/",
+                                   {**NEEDED, "name": "HOME SHIP", "date": "2026-11-14"})
+        self.assertEqual((status, vessel.get("port")), (201, "alexandria"), vessel)
+        status, _ = self.call(self.login("admin"), "post", "/api/vessels/",
+                              {**NEEDED, "name": "NOWHERE SHIP", "date": "2026-11-14"})
+        self.assertEqual(status, 400)

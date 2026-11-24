@@ -69,8 +69,9 @@ class ClosureApiTests(ApiTestCase):
         self.assertEqual(status, 200)
         return [c["id"] for c in data["closures"]]
 
-    def test_port_user_creates_closure_for_own_port_whatever_port_sent(self):
-        status, closure = self.post(self.alex, port="suez", notes="Strong wind")
+    def test_port_user_creates_closures_in_own_port_only(self):
+        self.assertEqual(self.post(self.alex, port="suez")[0], 403)
+        status, closure = self.post(self.alex, port="", notes="Strong wind")
         self.assertEqual((status, closure["port"], closure["notes"]), (201, "alexandria", "Strong wind"))
 
     def test_admin_creates_closure_for_any_port(self):
@@ -140,7 +141,7 @@ class ClosureApiTests(ApiTestCase):
         _, closure = self.post(self.alex)
         allow("closure", "FOG")
         status, edited = self.call(self.alex, "put", f"/api/closures/{closure['id']}/",
-                                   {**closure, "reason": "FOG", "port": "suez"})
+                                   {**closure, "reason": "FOG"})
         self.assertEqual((status, edited["reason"], edited["port"]), (200, "FOG", "alexandria"))
         self.assertEqual(self.call(self.alex, "delete", f"/api/closures/{closure['id']}/")[0], 200)
         actions = ChangeRecord.objects.filter(object_type="portclosure", object_id=closure["id"])

@@ -228,10 +228,11 @@ class ServiceListTests(ApiTestCase):
         self.mk(self.suez_vessel)
         self.assertEqual(self.ids("alex", port="suez"), [a.id])
 
-    def test_viewer_reads(self):
+    def test_users_read_their_ports(self):
         a = self.mk(self.alex_vessel)
         s = self.mk(self.suez_vessel)
-        self.assertEqual(sorted(self.ids("viewer")), sorted([a.id, s.id]))
+        self.assertEqual(sorted(self.ids("admin")), sorted([a.id, s.id]))
+        self.assertEqual(self.ids("viewer"), [a.id])
 
     def test_paging_and_agents(self):
         for i in range(3):

@@ -245,14 +245,14 @@ class AccessTests(ApiTestCase):
         self.assertEqual(self.call(alex, "delete", f"/api/services/{self.suez_service.id}/")[0], 404)
         self.assertTrue(Service.objects.filter(pk=self.suez_service.id).exists())
 
-    def test_port_user_is_pinned_to_own_port_on_create_and_update(self):
+    def test_port_user_cannot_create_or_move_into_another_port(self):
         alex = self.login("alex")
-        status, vessel = self.call(alex, "post", "/api/vessels/", {**NEEDED, "name": "NEW", "date": "2026-11-13", "port": "suez"})
+        body = {**NEEDED, "name": "NEW", "date": "2026-11-13"}
+        self.assertEqual(self.call(alex, "post", "/api/vessels/", {**body, "port": "suez"})[0], 403)
+        status, vessel = self.call(alex, "post", "/api/vessels/", body)
         self.assertEqual((status, vessel["port"]), (201, "alexandria"))
-        status, vessel = self.call(
-            alex, "put", f"/api/vessels/{vessel['id']}/", {**NEEDED, "name": "NEW", "date": "2026-11-13", "port": "suez"}
-        )
-        self.assertEqual(vessel["port"], "alexandria")
+        self.assertEqual(self.call(alex, "put", f"/api/vessels/{vessel['id']}/", {**body, "port": "suez"})[0], 403)
+        self.assertEqual(Vessel.objects.get(pk=vessel["id"]).port, "alexandria")
 
     def test_users_cannot_do_admin_things(self):
         """Exchange rates, All-ports Master data and accounting belong to the Admins, whatever ports a User has."""

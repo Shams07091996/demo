@@ -62,8 +62,8 @@ def prices_map():
 
 def prices_for(profile):
     prices = DisposalPrice.objects.all()
-    if profile.port:  # port users see their own port's prices only
-        prices = prices.filter(port=profile.port)
+    if not profile.is_admin:  # Users see their own ports' prices only
+        prices = prices.filter(port__in=profile.ports)
     return [price_to_dict(p) for p in prices]
 
 

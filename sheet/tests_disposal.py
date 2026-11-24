@@ -84,7 +84,9 @@ class PriceApiTests(ApiTestCase):
         _, alex = self.call(self.login("alex"), "get", URL)
         _, viewer = self.call(self.login("viewer"), "get", URL)
         self.assertEqual([p["port"] for p in alex["prices"]], ["alexandria"])
-        self.assertEqual(sorted(p["port"] for p in viewer["prices"]), ["alexandria", "suez"])
+        self.assertEqual(sorted(p["port"] for p in viewer["prices"]), ["alexandria"])  # not Suez
+        _, admin = self.call(self.login("admin"), "get", URL)
+        self.assertEqual(sorted(p["port"] for p in admin["prices"]), ["alexandria", "suez"])
 
     def test_changes_are_in_the_history(self):
         self.call(self.login("admin"), "post", URL, PRICE)
