@@ -6,6 +6,7 @@ import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
 import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
+import { deleteShipDialog, saveShipDialog } from './modals/ship.js';
 import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import { downloadReceipt, openReceipt } from './modals/receipt.js';
@@ -24,6 +25,7 @@ import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { copyLastMonth, readPriceForm, renderRatesPage } from './pages/rates.js';
+import { shipsPage } from './pages/ships.js';
 import { fillQuickSelects } from './render/list.js';
 import { closePanel, openPanel, toggleAlerts } from './render/notifications.js';
 import { hideRangeNotice } from './render/rangeNotice.js';
@@ -247,6 +249,10 @@ export const actions = {
   'booking-save': () => saveBooking(),
   'booking-delete': deleteBooking,
 
+  'ship-new': () => shipsPage.open(null),
+  'ship-open': (b) => shipsPage.open(Number(b.dataset.id)),
+  'ship-save': () => saveShipDialog(),
+  'ship-del': () => deleteShipDialog(),
   'closure-new': () => openClosureDialog(),
   'closure-open': (b) => openClosureDialog(Number(b.dataset.id)),
   'closure-save': () => saveClosure(),

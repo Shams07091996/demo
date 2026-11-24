@@ -6,9 +6,11 @@ import {
 import { ME, MULTI, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
 import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
+import { attachShipPicker } from '../shipPicker.js';
+import { newShipPanel } from './ship.js';
 import { ensureVessel } from '../data.js';
 import { state } from '../state.js';
-import { $, $$, fmt, formValues, isDelayed, sign, today } from '../util.js';
+import { $, $$, fmt, isDelayed, sign, today } from '../util.js';
 
 const lines = (parts) => parts.flatMap((part, i) => [i ? h('br') : null, part]);
 const txt = (x) => (x === null || x === undefined ? '' : String(x));
@@ -150,9 +152,11 @@ export function openVesselForm(vessel) {
     headEl(vessel ? 'Edit vessel' : 'Add vessel'),
     h('div', { class: 'm-body', id: 'vessel-form' },
       h('div', { class: portField ? 'row two' : null },
-        h('div', { class: 'field' }, h('label', null, 'Vessel name'),
-          h('input', { attrs: { name: 'name', maxlength: 120, autofocus: true }, value: vessel?.name })),
+        h('div', { class: 'field ship-pick' }, h('label', null, 'Vessel name'),
+          h('input', { attrs: { name: 'name', maxlength: 120, autofocus: true }, value: vessel?.name }),
+          h('div', { class: 'ship-imo', id: 'vf-imo' }, shipNote(vessel?.ship))),
         portField),
+      h('div', { id: 'vf-newship', hidden: true }),
       h('div', { class: 'row two' },
         selectField('opr', 'OPR', vessel?.opr, selectedPort), selectField('poc', 'POC', vessel?.poc, selectedPort)),
       h('div', { class: 'row two' },
@@ -180,12 +184,57 @@ export function openVesselForm(vessel) {
         btn('primary', 'save-vessel', 'Save'))),
   );
   syncSailingDate();
+  attachFormPicker(vessel?.ship ?? null);
+}
+
+const shipNote = (ship) => (ship ? `IMO ${ship.imo || 'none'}` : '');
+
+function closeFormNewShip() {
+  const box = $('#vf-newship');
+  if (!box) return;
+  box.hidden = true;
+  setChildren(box);
+}
+
+/** The vessel name box searches the ship list; the chosen ship is sent as ship_id (vesselPayload). */
+function attachFormPicker(ship) {
+  const input = $('#vessel-form [name="name"]');
+  const formPort = () => (ME.isAdmin ? $('#vessel-form [name="port"]')?.value || null : ME.port);
+  const chose = (picked) => {
+    state.ctx.shipId = picked ? picked.id : null;
+    $('#vf-imo').textContent = shipNote(picked);
+    if (!picked) return;
+    const opr = $('#vessel-form [name="opr"]');
+    if (picked.opr && ![...opr.options].some((o) => o.value === picked.opr)) opr.append(h('option', { value: picked.opr }, picked.opr));
+    if (picked.opr) opr.value = picked.opr;
+  };
+  state.ctx.shipId = ship ? ship.id : null;
+  const picker = attachShipPicker(input, {
+    picked: ship,
+    onPick: (picked) => { closeFormNewShip(); chose(picked); },
+    onClear: () => chose(null),
+    onNew: async (name) => {
+      const box = $('#vf-newship');
+      const panel = await newShipPanel({
+        name, port: formPort(),
+        onSaved: (saved) => { closeFormNewShip(); picker.set(saved); chose(saved); },
+        onCancel: closeFormNewShip,
+      });
+      setChildren(box, panel);
+      box.hidden = false;
+      panel.querySelector('[name="imo"]').focus();
+    },
+  });
 }
 
 /** The values typed into the vessel form, ready to send to the server. */
 export function vesselPayload() {
   const root = $('#vessel-form');
-  const payload = formValues(root);
+  const payload = {};
+  $$('[name]', root).forEach((input) => { // not the New ship panel's own fields
+    if (!input.closest('#vf-newship')) payload[input.name] = input.value;
+  });
+  if (state.ctx.shipId) payload.ship_id = state.ctx.shipId;
   payload.summary = {};
   $$('[data-sum]', root).forEach((input) => {
     if (input.value.trim()) payload.summary[input.dataset.sum] = input.value.trim();

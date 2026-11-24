@@ -8,6 +8,7 @@ import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
+import { shipsPage } from './pages/ships.js';
 import { state } from './state.js';
 import { $, $$ } from './util.js';
 
@@ -19,6 +20,7 @@ const TITLES = {
   disposal: 'Garbage & Sludge',
   calculations: 'Calculations',
   dashboard: 'Dashboard',
+  ships: 'Ships',
   master: 'Master data',
   rates: 'Exchange rates',
   history: 'History',
@@ -45,6 +47,7 @@ export async function showPage(requested) {
   if (name === 'disposal') await disposalPage.load();
   if (name === 'calculations') await calculationsPage.load();
   if (name === 'history') await historyPage.load();
+  if (name === 'ships') await shipsPage.load();
   if (name === 'master') {
     await loadOptions(); // refresh the "used by N vessels" counts
     renderMasterPage();
