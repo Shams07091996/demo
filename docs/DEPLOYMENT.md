@@ -298,18 +298,22 @@ Roles:
 
 Give each person the **least** they need: most people are a port role or Read-only; keep Admin to a few.
 
-### 8.3 Create each account (admin pages)
+### 8.3 Create each account (Accounts page)
 
-Only superusers manage accounts. Go to `https://sheet.company.com/admin/` (or your `DJANGO_ADMIN_URL`). For each
-person on the list:
+Only **superusers** manage accounts (keep them to the 2–3 trusted people of 8.1). Sign in to the app as a superuser:
+the sidebar has **Accounts** (nobody else sees it). For each person on the list:
 
-1. [ ] **Users → Add user.** Username and a temporary password (12+ characters) → **Save**.
-2. [ ] On the next page, under **Profile**, choose the **Role** → **Save**. Leave *Staff status* and *Superuser
-       status* **off** (those open the admin pages).
-3. [ ] Tell the person their username and temporary password **in person or by phone** (never in the same message as
+1. [ ] **+ Add account**: username (3–30 letters, digits, `.` `_` `-`; capitals don't make a new name), first and last
+       name, **Role**, and a temporary password (12+ characters, not a common one) → **Save**. The page never makes
+       anyone staff or superuser.
+2. [ ] Tell the person their username and temporary password **in person or by phone** (never in the same message as
        the site's address).
-4. [ ] At their first sign-in they **choose their own password**, then **set up Authenticator** — within **72 hours**
-       of the account being created. After that the setup link expires and a superuser resets it (8.5).
+3. [ ] At their first sign-in they **choose their own password**, then **set up Authenticator** — within **72 hours**
+       of the account being created (the list shows "Waiting — until …"). After that it shows "Setup expired" and a
+       superuser resets it (8.5).
+
+Superuser and staff accounts are shown read-only on the Accounts page; change them in the admin pages
+(`https://sheet.company.com/admin/`, or your `DJANGO_ADMIN_URL`).
 
 ### 8.4 First admin tasks
 
@@ -328,8 +332,8 @@ person on the list:
 |---|---|
 | Lost or new phone | Admin pages → Users → tick the person → action **"Reset two-step login (lost phone)"** → Go. They set up Authenticator again within 72 hours. On the server: `python manage.py reset_two_step <username>` |
 | Forgotten password | Admin pages → Users → the person → **Reset password** (under Password). They choose their own at the next sign-in |
-| Someone leaves | Untick **Active** on their user → Save. **Don't delete** the user: the History keeps who did what |
-| Change what someone may do | Change the **Role** in their Profile |
+| Someone leaves | **Accounts** page → the person → **Turn off**. They are signed out at once and can't sign in; **don't delete** the user: the History keeps who did what. **Turn on** brings them back |
+| Change what someone may do | **Accounts** page → the person → **Role** → Save (takes effect on their next click) |
 | Password only, no Authenticator | A superuser may tick *Two-step exception* in the Profile (never for admins). Avoid it |
 
 Every one of these changes is itself recorded in the History (who changed which account, when, from where).

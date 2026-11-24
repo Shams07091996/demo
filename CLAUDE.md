@@ -8,7 +8,8 @@ Marine Service Sheet: a Django 5.2 app replacing an Excel sheet of vessels and t
 deliveries, cash to master…), with cost / revenue / profit in EGP. One Django app (`sheet`) plus a vanilla ES-module
 front end with **no build step**. Users have a role: `admin`, `readonly` (sees all ports, edits nothing but the
 accounting Open / Closed switch: the read-only accounts are the accountants), or a port
-role (`alexandria`, `portsaid`, `damietta`, `suez`: sees and edits only that port). See `README.md` and `SECURITY.md`.
+role (`alexandria`, `portsaid`, `damietta`, `suez`: sees and edits only that port). Superusers manage accounts on the
+Accounts page. See `README.md` and `SECURITY.md`.
 
 The project is a **git repository** (branch `main`; each feature on its own branch, merged only when the user agrees)
 and runs on Windows. Designs and plans live in `docs/superpowers/`.
@@ -277,6 +278,18 @@ oldest first (only Completed: newest first); a fixed number of queries. Export p
 page reads its own `data-tick` group inside its own box). A row opens `openServiceForm(type, service, {from:
 'services'})` (edit roles; `afterServiceChange` closes the dialog and reloads the page) or the vessel (read-only);
 filters are kept in `localStorage` (`sheet.services.filter`).
+
+**Accounts page** (`accounts.py`, `GET/POST /api/accounts/`, `PUT /api/accounts/<id>/`, page `js/pages/accounts.js`,
+dialog `js/modals/account.js`): **superusers only** (`access.require_superuser(request)`, `me.isSuperuser` renders the
+nav item / page). Lists every account (on first, then username) with role, `two_step` (`set_up` / `waiting` /
+`expired` / `exempt`), last sign-in; a GET never creates a Profile. `validators.clean_account`: new → username
+(`USERNAME_RE`, unique ignoring case: `accounts.TAKEN`), names (150), role, password through Django's
+`validate_password`; existing → names / role / `active` only, anything else ignored. Superuser and staff accounts are
+refused (`accounts.LOCKED_ACCOUNT`, managed in the admin pages); the page never sets either flag. Turn off =
+`is_active=False` (Django drops the session on the next request) + the user's remembered computers deleted. The
+temporary password triggers `must_change_password` through the existing signal; History via the User / Profile
+signals. No version column (last save wins). The planned access rework (admins add ports, extra ports per user) will
+grow this page.
 
 **Agents:** `Vessel.arrival_agent` (who entered it), `Vessel.sailing_agent` (who sailed it) and `Service.agent` (who
 did that service), all plain text from the Agent list, empty until chosen. `listing.missing_details` feeds the

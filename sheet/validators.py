@@ -21,6 +21,7 @@ from .constants import (
     PLACE_KEYS,
     PORT_KEYS,
     RATE_UNITS,
+    ROLES,
     SERVICE_STATUSES,
     SINGLE_EXTRAS,
     SUMMARY_FIELDS,
@@ -812,3 +813,45 @@ def clean_disposal_quantities(data):
     if not changes:
         raise BadRequest("Nothing to change.")
     return changes
+
+
+USERNAME_RE = re.compile(r"[A-Za-z0-9._-]{3,30}")
+ACCOUNT_NAMES = (("first_name", "First name"), ("last_name", "Last name"))
+
+
+def clean_account(data, existing=None):
+    """An account from the Accounts page. New: username (3-30 letters / digits / . _ -), names, role and a temporary
+    password that passes Django's password rules. Existing: only names, role and active (absent keys are kept);
+    anything else sent (username, password, superuser / staff) is ignored."""
+    from django.contrib.auth.models import User
+    from django.contrib.auth.password_validation import validate_password
+
+    values = {}
+    for key, label in ACCOUNT_NAMES:
+        if existing is None or key in data:
+            values[key] = _short(data.get(key), 150, label)
+    if existing is None or "role" in data:
+        role = data.get("role")
+        if role not in dict(ROLES):
+            raise BadRequest("Choose a role.")
+        values["role"] = role
+    if existing is not None:
+        if "active" in data:
+            if not isinstance(data["active"], bool):
+                raise BadRequest("Active must be true or false.")
+            values["active"] = data["active"]
+        return values
+    username = str(data.get("username") or "").strip()
+    if not USERNAME_RE.fullmatch(username):
+        raise BadRequest("A username is 3 to 30 letters, digits, dots, dashes or underscores.")
+    values["username"] = username
+    password = data.get("password")
+    if not isinstance(password, str) or not password:
+        raise BadRequest("Type a temporary password.")
+    try:
+        validate_password(password, User(username=username, first_name=values["first_name"],
+                                         last_name=values["last_name"]))
+    except ValidationError as error:
+        raise BadRequest(" ".join(error.messages)) from None
+    values["password"] = password
+    return values

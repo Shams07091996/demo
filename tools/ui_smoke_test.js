@@ -253,8 +253,8 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 13 : 12), 'sidebar lists the pages (admins also have History; no Bulk add)');
-  const pageOrder = 'vessels,services,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates' + (ROLE === 'admin' ? ',history' : '');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 14 : 12), 'sidebar lists the pages (admins also have History, the superuser Accounts; no Bulk add)');
+  const pageOrder = 'vessels,services,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates' + (ROLE === 'admin' ? ',history,accounts' : '');
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Port closures and Calculations sit after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
@@ -1507,6 +1507,48 @@ async function login() {
       w.location.hash = 'history';
       ok(await waitFor(() => $('#pageTitle').textContent === 'Vessels'), `history: ${ROLE} opening #history lands on Vessels`);
     }
+    await checkAccounts();
+  }
+
+  /** Accounts: the superuser (seed_demo's admin) adds one, changes its role, turns it off and on; others get 403. */
+  async function checkAccounts() {
+    const status = (await w.fetch('/api/accounts/')).status;
+    if (ROLE !== 'admin') {
+      ok(status === 403, `accounts: ${ROLE} gets 403 from the accounts API`);
+      ok(!$('#nav [data-page="accounts"]') && !$('#page-accounts'), `accounts: ${ROLE} has no Accounts page`);
+      return;
+    }
+    ok(status === 200, 'accounts: the superuser may read the accounts');
+    await go('accounts');
+    const acRow = (name) => $$('#ac-tbody tr').find((r) => r.children[0].textContent === name);
+    ok(await waitFor(() => acRow('alex')), 'accounts: the page lists alex');
+    const username = `smoke${Date.now().toString(36)}`;
+    click($('[data-act="account-new"]'));
+    ok(await waitFor(() => $('#account-form')), 'accounts: + Add account opens the dialog');
+    type($('#account-form [name=username]'), username);
+    type($('#account-form [name=first_name]'), 'Smoke');
+    type($('#account-form [name=role]'), 'damietta');
+    type($('#account-form [name=password]'), 'Smoke-test-password-2026');
+    click($('[data-act="account-save"]'));
+    ok(await waitFor(() => acRow(username)?.textContent.includes('Damietta') && acRow(username).textContent.includes('Waiting')),
+      'accounts: a new account is listed with its role, waiting for its Authenticator');
+    click(acRow(username));
+    ok(await waitFor(() => $('#account-form') && !$('#account-form [name=password]')), 'accounts: an account opens without a password box');
+    type($('#account-form [name=role]'), 'suez');
+    click($('[data-act="account-save"]'));
+    ok(await waitFor(() => acRow(username)?.textContent.includes('Suez')), 'accounts: the role changes');
+    click(acRow(username));
+    await waitFor(() => $('[data-act="account-toggle"]'));
+    click($('[data-act="account-toggle"]'));
+    ok(await waitFor(() => acRow(username)?.classList.contains('inactive') && acRow(username).textContent.endsWith('Off')), 'accounts: Turn off greys it');
+    click(acRow(username));
+    await waitFor(() => $('[data-act="account-toggle"]')?.textContent === 'Turn on');
+    click($('[data-act="account-toggle"]'));
+    ok(await waitFor(() => acRow(username) && !acRow(username).classList.contains('inactive')), 'accounts: Turn on brings it back');
+    click(acRow('admin'));
+    ok(await waitFor(() => $('#account-form') && !$('[data-act="account-save"]') && !$('[data-act="account-toggle"]')),
+      'accounts: a superuser account is read-only here');
+    closeModal();
   }
 
   function finish() {

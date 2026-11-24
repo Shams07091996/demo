@@ -30,6 +30,7 @@
       <a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>
       <a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>
       {% if me.isAdmin %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
+      {% if me.isSuperuser %}<a class="nav-item" data-page="accounts" href="#accounts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Accounts</span></a>{% endif %}
     </nav>
     <div class="sidebar-foot">
       <div class="user-line"><strong>{{ request.user.get_username }}</strong><small id="roleLabel"></small></div>
@@ -255,6 +256,20 @@
         <div class="empty" id="hi-empty" hidden>No changes in this range.</div>
       </div>
       <div class="pager" id="hi-pager"></div>
+    </main>
+    {% endif %}
+
+    {% if me.isSuperuser %}
+    <!-- ===== Accounts, superusers only (drawn by js/pages/accounts.js) ===== -->
+    <main class="page" id="page-accounts" hidden>
+      <div class="toolbar">
+        <div class="tools"></div>
+        <div class="tools"><button class="btn primary" data-act="account-new">+ Add account</button></div>
+      </div>
+      <div class="table-wrap">
+        <table><thead id="ac-head"></thead><tbody id="ac-tbody"></tbody></table>
+        <div class="empty" id="ac-empty" hidden>No accounts.</div>
+      </div>
     </main>
     {% endif %}
 

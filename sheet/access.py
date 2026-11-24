@@ -24,6 +24,12 @@ def require_accounting(profile):
         raise Forbidden("Only accounting can change this.")
 
 
+def require_superuser(request):
+    """Accounts (the Accounts page): superusers only, whatever their role says."""
+    if not request.user.is_superuser:
+        raise Forbidden("Only a superuser can manage accounts.")
+
+
 def require_admin(profile):
     """For data shared by every port (e.g. exchange rates): only admins may change it."""
     if not profile.is_admin:
