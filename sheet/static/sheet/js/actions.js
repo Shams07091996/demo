@@ -6,11 +6,13 @@ import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
 import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
+import { addContactRow, deleteCustomerDialog, saveCustomerDialog } from './modals/customer.js';
+import { deleteShipDialog, saveShipDialog } from './modals/ship.js';
 import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import { downloadReceipt, openReceipt } from './modals/receipt.js';
 import {
-  cancelBookingRefs, entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
+  applyRate, cancelBookingRefs, entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
   renumberEntries, updatePreview,
 } from './modals/service.js';
 import {
@@ -20,10 +22,12 @@ import { openVessel, openVesselForm, syncSailingDate, updateDelayRow, vesselPayl
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { closuresPage } from './pages/closures.js';
+import { customersPage } from './pages/customers.js';
 import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { copyLastMonth, readPriceForm, renderRatesPage } from './pages/rates.js';
+import { shipsPage } from './pages/ships.js';
 import { fillQuickSelects } from './render/list.js';
 import { closePanel, openPanel, toggleAlerts } from './render/notifications.js';
 import { hideRangeNotice } from './render/rangeNotice.js';
@@ -55,6 +59,8 @@ async function saveService(version) {
   const status = $('#svc-form [name=status]').value;
   const payload = {
     type, agent: $('#svc-form [name=agent]').value, status, data: readServiceForm(),
+    billing: $('#svc-form [name=billing]').value,
+    billing_party: Number($('#svc-form [name=billing_party]').value) || null,
     cancel_reason: status === 'cancelled' ? $('#svc-form [name=cancel_reason]').value : '',
   };
   const refs = status === 'cancelled' ? cancelBookingRefs() : [];
@@ -162,7 +168,7 @@ export const actions = {
   },
   'save-service': () => saveService(),
   'del-service': deleteService,
-  'add-entry': () => { $('#entries').append(entryRowEl(state.ctx.type)); renumberEntries(); updatePreview(); },
+  'add-entry': () => { $('#entries').append(entryRowEl(state.ctx.type)); renumberEntries(); updatePreview(); applyRate(); },
   'rm-entry': (b) => { b.closest('.entry').remove(); renumberEntries(); updatePreview(); },
 
   'add-crew': (b) => { state.crew[b.dataset.group].push(newCrewMember()); renderCrewEditor(); },
@@ -247,6 +253,17 @@ export const actions = {
   'booking-save': () => saveBooking(),
   'booking-delete': deleteBooking,
 
+  'customer-new': () => customersPage.open(null),
+  'customer-open': (b) => customersPage.open(Number(b.dataset.id)),
+  'customer-save': () => saveCustomerDialog(),
+  'customer-del': () => deleteCustomerDialog(),
+  'contact-add': () => addContactRow(),
+  'contact-remove': (b) => b.closest('.contact-row')?.remove(),
+  'customer-ship': (b) => shipsPage.openById(Number(b.dataset.id)),
+  'ship-new': () => shipsPage.open(null),
+  'ship-open': (b) => shipsPage.open(Number(b.dataset.id)),
+  'ship-save': () => saveShipDialog(),
+  'ship-del': () => deleteShipDialog(),
   'closure-new': () => openClosureDialog(),
   'closure-open': (b) => openClosureDialog(Number(b.dataset.id)),
   'closure-save': () => saveClosure(),

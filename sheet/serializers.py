@@ -36,6 +36,10 @@ def month_rates():
     return {(r.month.year, r.month.month): r.rate for r in ExchangeRate.objects.all()}
 
 
+def _party(customer):
+    return {"id": customer.id, "name": customer.name} if customer is not None else None
+
+
 def service_to_dict(service, month_rate):
     return {
         "id": service.id,
@@ -44,10 +48,18 @@ def service_to_dict(service, month_rate):
         "data": service.data,
         "status": service.status,
         "cancel_reason": service.cancel_reason,
+        "billing": service.billing,
+        "billing_party": _party(service.billing_party),
         "closed": service.acct_closed,
         "version": service.version,
         "calc": compute(service.service_type, service.data, month_rate),
     }
+
+
+def _ship(ship):
+    if ship is None:
+        return None
+    return {"id": ship.id, "name": ship.name, "imo": ship.imo, "customer_id": ship.customer_id}
 
 
 def vessel_to_dict(vessel, rates):
@@ -67,6 +79,7 @@ def vessel_to_dict(vessel, rates):
         "summary": vessel.summary or {},
         **{key: local_iso(getattr(vessel, key)) for key in TIME_KEYS},
         "delay_reason": vessel.delay_reason,
+        "ship": _ship(vessel.ship),
         "status": vessel_status(vessel),
         "durations": {
             "ops_hours": _hours(vessel.ops_start_at, vessel.ops_end_at),

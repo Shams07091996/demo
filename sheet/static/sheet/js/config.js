@@ -6,6 +6,7 @@ const readJson = (id) => JSON.parse(document.getElementById(id).textContent);
 export const ME = readJson('me-data');
 export const PORTS = readJson('ports-data');
 export const TYPES = readJson('types-data');
+export const RATE_UNITS = readJson('rate-units-data'); // {service type: service | unit | line | percent}
 export const SUMMARY_FIELDS = readJson('summary-fields-data');
 export const OPTION_KINDS = readJson('option-kinds-data');   // [{key, label}] OPR / POC / Agent
 export const TIME_FIELDS = readJson('time-fields-data');      // [{key, label}] arrival … sailing
@@ -23,6 +24,7 @@ export const SINGLE_EXTRA = {
 };
 
 // Operations status of a service (sheet/constants.py SERVICE_STATUSES) and its label colour (app.css).
+export const BILLING = { account: 'On account', cash: 'Cash' }; // constants.BILLING
 export const SERVICE_STATUS = { in_progress: 'In progress', completed: 'Completed', cancelled: 'Cancelled' };
 export const SERVICE_STATUS_CLASS = { in_progress: 'st-progress', completed: 'st-done', cancelled: 'st-cancel' };
 

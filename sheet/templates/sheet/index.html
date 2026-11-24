@@ -24,6 +24,8 @@
       <a class="nav-item" data-page="disposal" href="#disposal"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-trash"></use></svg></span><span>Garbage &amp; Sludge</span></a>
       <a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>
       <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>
+      <a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>
+      <a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>
       <a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>
       <a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>
       {% if me.isAdmin %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
@@ -60,7 +62,7 @@
     <main class="page" id="page-vessels">
       <div class="quick" id="quickAdd">
         <span class="quick-label">Quick add</span>
-        <input class="input" id="qa-name" placeholder="Vessel name" maxlength="120">
+        <span class="ship-pick"><input class="input" id="qa-name" placeholder="Vessel name" maxlength="120"></span>
         <input class="input" id="qa-date" type="date">
         <select class="select" id="qa-opr" title="OPR"></select>
         <select class="select" id="qa-poc" title="POC"></select>
@@ -69,6 +71,7 @@
         <button class="btn primary" id="qa-add">Add</button>
         <button class="btn ghost" id="qa-edit">+ Add &amp; edit</button>
       </div>
+      <div id="qa-newship" hidden></div>
       <div class="date-range" role="group" aria-label="Date range">
         <label>From <input class="input" type="date" id="f-from"></label>
         <label>To <input class="input" type="date" id="f-to"></label>
@@ -136,6 +139,30 @@
     </main>
     {% endfor %}
 
+    <!-- ===== Ships (drawn by js/pages/ships.js) ===== -->
+    <main class="page" id="page-ships" hidden>
+      <div class="toolbar">
+        <div class="tools">
+          <input class="input search" id="sh-q" type="search" maxlength="120" aria-label="Search ships">
+          <select class="select" id="sh-active" aria-label="Active"><option value="all">All ships</option><option value="active">Active only</option></select>
+        </div>
+        {% if me.canEdit %}<div class="tools"><button class="btn primary" data-act="ship-new">+ Ship</button></div>{% endif %}
+      </div>
+      <div class="table-wrap">
+        <table><thead id="sh-head"></thead><tbody id="sh-tbody"></tbody></table>
+        <div class="empty" id="sh-empty" hidden>No ships.</div>
+      </div>
+    </main>
+
+    <!-- ===== Customers (drawn by js/pages/customers.js) ===== -->
+    <main class="page" id="page-customers" hidden>
+      {% if me.isAdmin %}<div class="toolbar"><div class="tools"></div><div class="tools"><button class="btn primary" data-act="customer-new">+ Customer</button></div></div>{% endif %}
+      <div class="table-wrap">
+        <table><thead id="cu-head"></thead><tbody id="cu-tbody"></tbody></table>
+        <div class="empty" id="cu-empty" hidden>No customers.</div>
+      </div>
+    </main>
+
     <!-- ===== Port closures (drawn by js/pages/closures.js) ===== -->
     <main class="page" id="page-closures" hidden>
       <div class="date-range" role="group" aria-label="Date range">
@@ -177,6 +204,7 @@
         <label>To <input class="input" type="date" id="c-to"></label>
         <button class="btn ghost small" id="c-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
         <select id="c-opr" class="select" aria-label="OPR"></select>
+        <select id="c-party" class="select" aria-label="Billing party"></select>
         <select id="c-port" class="select" hidden aria-label="Port"></select>
         <span id="c-ticks"></span>
         <button class="btn ghost small" data-act="page-export" data-page="calculations"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
@@ -270,6 +298,7 @@
 {{ me|json_script:"me-data" }}
 {{ ports|json_script:"ports-data" }}
 {{ service_types|json_script:"types-data" }}
+{{ rate_units|json_script:"rate-units-data" }}
 {{ summary_fields|json_script:"summary-fields-data" }}
 {{ option_kinds|json_script:"option-kinds-data" }}
 {{ time_fields|json_script:"time-fields-data" }}

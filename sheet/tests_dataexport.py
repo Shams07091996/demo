@@ -27,7 +27,7 @@ HEADERS = {
     "calculations": ["Vessel id", "Vessel", "Vessel date", "OPR", "Port", "Item", "Line", "Note", "Record", "Record id",
                      "Cost", "Cost currency", "Revenue", "Revenue currency", "Cost EGP", "Revenue EGP", "Profit EGP",
                      "Cost USD", "Revenue USD", "Profit USD", "Rate source", "Rate missing", "Price missing", "Status",
-                     "Cancellation reason", "Accounting"],
+                     "Cancellation reason", "Accounting", "Billing party", "Billing"],
 }
 CELL = re.compile(r'<c r="([A-Z]+)(\d+)"(?: s="(\d+)")?(?: t="inlineStr")?>(?:<v>([^<]*)</v>|<is><t[^>]*>([^<]*)</t></is>)</c>')
 

@@ -26,6 +26,7 @@ from . import (
     closures,
     conflicts,
     crewbookings,
+    customers,
     dataexport,
     disposal,
     history,
@@ -35,6 +36,7 @@ from . import (
     ratelimit,
     receipt,
     report,
+    ships,
     twostep,
 )
 from . import dashboard as dashboard_figures
@@ -47,6 +49,7 @@ from .constants import (
     PORT_KEYS,
     PORT_LABELS,
     PORTS,
+    RATE_UNITS,
     SERVICE_TYPES,
     SUMMARY_FIELDS,
     TIME_FIELDS,
@@ -55,11 +58,13 @@ from .constants import (
 from .errors import BadRequest, Forbidden, TooManyRequests
 from .models import (
     ChangeRecord,
+    Customer,
     DisposalPrice,
     ExchangeRate,
     HotelStay,
     Option,
     Service,
+    Ship,
     Transfer,
     Vessel,
     VesselDisposal,
@@ -71,6 +76,7 @@ from .validators import (
     clean_disposal_price,
     clean_disposal_quantities,
     clean_receipt,
+    clean_service_billing,
     clean_service_data,
     clean_service_status,
     clean_vessel,
@@ -116,6 +122,7 @@ def index(request):
         },
         "ports": [{"key": key, "label": label} for key, label in PORTS],
         "service_types": SERVICE_TYPES,
+        "rate_units": RATE_UNITS,
         "no_agent": NO_AGENT,
         "summary_fields": list(SUMMARY_FIELDS),
         "option_kinds": [{"key": key, "label": label} for key, label in OPTION_KINDS],
@@ -270,8 +277,9 @@ def _read_service(request, vessel, existing=None):
         raise BadRequest("Choose a service type.")
     agent = clean_agent(payload.get("agent"), vessel.port, getattr(existing, "agent", ""))
     status, reason = clean_service_status(payload, existing)
+    billing, party = clean_service_billing(payload, vessel, existing)
     return {"service_type": service_type, "agent": agent, "data": clean_service_data(service_type, payload.get("data")),
-            "status": status, "cancel_reason": reason}
+            "status": status, "cancel_reason": reason, "billing": billing, "billing_party": party}
 
 
 @json_api
@@ -662,6 +670,62 @@ def export_csv(request):
 
 
 # ---- port closures (see closures.py) -----------------------------------------------------------
+
+
+# ---- ships and customers (see ships.py, customers.py) ------------------------------------------
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def ships_list(request):
+    profile = request.profile
+    if request.method == "GET":
+        return JsonResponse(ships.list_response(request.GET))
+    require_edit(profile)
+    ship = ships.save_ship(profile, read_json(request))
+    audit(request, "ship.create", id=ship.id)
+    return JsonResponse(ships.ship_to_dict(ship), status=201)
+
+
+@json_api
+@require_http_methods(["PUT", "DELETE"])
+def ship_detail(request, pk):
+    profile = request.profile
+    require_edit(profile)
+    ship = get_object_or_404(Ship, pk=pk)
+    if request.method == "DELETE":
+        require_admin(profile)
+        ships.delete_ship(ship)
+        audit(request, "ship.delete", id=pk)
+        return JsonResponse({"ok": True})
+    ship = ships.save_ship(profile, read_json(request), existing=ship)
+    audit(request, "ship.update", id=ship.id)
+    return JsonResponse(ships.ship_to_dict(ship))
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def customers_list(request):
+    if request.method == "GET":
+        return JsonResponse(customers.list_response())
+    require_admin(request.profile)
+    customer = customers.save_customer(read_json(request))
+    audit(request, "customer.create", id=customer.id)
+    return JsonResponse(customers.customer_to_dict(customer), status=201)
+
+
+@json_api
+@require_http_methods(["PUT", "DELETE"])
+def customer_detail(request, pk):
+    require_admin(request.profile)
+    customer = get_object_or_404(Customer, pk=pk)
+    if request.method == "DELETE":
+        customers.delete_customer(customer)
+        audit(request, "customer.delete", id=pk)
+        return JsonResponse({"ok": True})
+    customer = customers.save_customer(read_json(request), existing=customer)
+    audit(request, "customer.update", id=customer.id)
+    return JsonResponse(customers.customer_to_dict(customer))
 
 
 @json_api

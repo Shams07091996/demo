@@ -18,7 +18,18 @@ from config.database import build_database_settings
 
 from . import finance, throttle
 from .errors import BadRequest
-from .models import ExchangeRate, HotelStay, LoginAttempt, Option, PortClosure, Profile, Service, Transfer, Vessel
+from .models import (
+    ExchangeRate,
+    HotelStay,
+    LoginAttempt,
+    Option,
+    PortClosure,
+    Profile,
+    Service,
+    Ship,
+    Transfer,
+    Vessel,
+)
 from .validators import clean_service_data, clean_summary
 
 PASSWORD = "correct-horse-battery"
@@ -67,6 +78,8 @@ class ApiTestCase(TestCase):
             make_user(name, role)
         allow("opr", NEEDED["opr"])
         allow("poc", NEEDED["poc"])
+        # New vessels need a ship: `call` adds this one to a vessel POST that names none (tests_ships checks the rule).
+        cls.test_ship = Ship.objects.create(name="TEST SHIP", imo="9321483", opr=NEEDED["opr"])
         cls.alex_vessel = Vessel.objects.create(name="ALEX SHIP", date=date(2026, 11, 13), port="alexandria")
         cls.suez_vessel = Vessel.objects.create(name="SUEZ SHIP", date=date(2026, 11, 13), port="suez")
         cls.suez_service = Service.objects.create(
@@ -89,6 +102,8 @@ class ApiTestCase(TestCase):
             model = VERSIONED_MODELS[found[1]]
             current = model.objects.filter(pk=found[2]).values_list("version", flat=True).first()
             payload = {**payload, "version": current or 1}
+        if method == "post" and url == "/api/vessels/" and isinstance(payload, dict) and "ship_id" not in payload:
+            payload = {**payload, "ship_id": self.test_ship.id}
         kwargs = {"content_type": "application/json", "HTTP_X_CSRFTOKEN": token}
         if payload is not None:
             kwargs["data"] = json.dumps(payload)
@@ -644,6 +659,7 @@ class SecurityLogTests(TestCase):
         make_user("alex", "alexandria")
         allow("opr", NEEDED["opr"])
         allow("poc", NEEDED["poc"])
+        ship = Ship.objects.create(name="AUDITED", imo="")
         client = Client(enforce_csrf_checks=True)
         client.login(username="alex", password=PASSWORD)
         pass_two_step(client, "alex")
@@ -652,7 +668,7 @@ class SecurityLogTests(TestCase):
             token = client.cookies["csrftoken"].value
             client.post(
                 "/api/vessels/",
-                data=json.dumps({**NEEDED, "name": "AUDITED", "date": "2026-11-13"}),
+                data=json.dumps({**NEEDED, "name": "AUDITED", "date": "2026-11-13", "ship_id": ship.id}),
                 content_type="application/json",
                 HTTP_X_CSRFTOKEN=token,
             )

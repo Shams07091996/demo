@@ -106,6 +106,17 @@ async function login() {
   const closeModal = () => click($('#modal [data-act="close"]'));
   const localNow = () => { const d = new w.Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const meta = () => $('meta[name="csrf-token"]').content;
+  // Every new vessel is for a ship. With none picked, Enter in the name box opens the New ship panel under it
+  // (`box`): tick No IMO and save; the box closes and the ship is picked.
+  const newShipVia = async (input, box) => {
+    input.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    if (!await waitFor(() => shown($(box)) && $(`${box} [name=no_imo]`))) return false;
+    const tick = $(`${box} [name=no_imo]`);
+    tick.checked = true; tick.dispatchEvent(new w.Event('change', { bubbles: true }));
+    click($$(`${box} button`).find((b) => b.textContent === 'Save ship'));
+    return waitFor(() => !shown($(box)));
+  };
+  let apiShipId = null; // a ship for vessels the test makes through the API
   const clearTestRate = async () => {
     const { rates } = await (await w.fetch('/api/rates/')).json();
     for (const r of rates.filter((x) => x.month === '2020-01')) await w.fetch(`/api/rates/${r.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
@@ -130,9 +141,15 @@ async function login() {
       });
       ok(added.status === 201 || added.status === 200, `markup-like ${kind} added to Master data (HTTP ${added.status})`);
     }
+    const shipRes = await w.fetch('/api/ships/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
+      body: JSON.stringify({ name: 'SMOKE API SHIP', no_imo: true }),
+    });
+    apiShipId = (await shipRes.json()).id;
+    ok(shipRes.status === 201 || shipRes.status === 200, `ships: a ship with No IMO is created (HTTP ${shipRes.status})`);
     const res = await w.fetch('/api/vessels/', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': meta() },
-      body: JSON.stringify({ name: HOSTILE, arrival_agent: HOSTILE_AGENT, opr: '<i>O</i>', poc: 'ALY', port: 'alexandria', date: localNow() }),
+      body: JSON.stringify({ ship_id: apiShipId, name: HOSTILE, arrival_agent: HOSTILE_AGENT, opr: '<i>O</i>', poc: 'ALY', port: 'alexandria', date: localNow() }),
     });
     hostileId = (await res.json()).id;
     ok(res.status === 201 || res.status === 200, `hostile-text vessel created (HTTP ${res.status})`);
@@ -214,6 +231,7 @@ async function login() {
   // Add vessel form. A short, separate run: the rest of this script is written for alex / admin / viewer.
   if (ROLE === 'suez') {
     await go('master');
+    await waitFor(() => $('[data-new="agent"]'));
     type($('[data-new="agent"]'), 'SMOKE SUEZ OWN AGENT');
     click($('[data-act="add-option"][data-kind="agent"]'));
     const ownRow = () => $$('.opt-row').find((r) => r.textContent.includes('SMOKE SUEZ OWN AGENT'));
@@ -235,12 +253,12 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 10 : 9), 'sidebar lists the pages (admins also have History; no Bulk add)');
-  const pageOrder = 'vessels,hotels,transport,closures,disposal,calculations,dashboard,master,rates' + (ROLE === 'admin' ? ',history' : '');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 12 : 11), 'sidebar lists the pages (admins also have History; no Bulk add)');
+  const pageOrder = 'vessels,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates' + (ROLE === 'admin' ? ',history' : '');
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Port closures and Calculations sit after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
-  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['disposal', 'Garbage & Sludge'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
+  for (const [page, title] of [['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['disposal', 'Garbage & Sludge'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['ships', 'Ships'], ['customers', 'Customers'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
     await go(page);
     ok($$('.page').filter((p) => !p.hidden).length === 1 && $('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).classList.contains('active'), `sidebar opens "${title}"`);
   }
@@ -264,7 +282,7 @@ async function login() {
     click($('#modal [data-act="open-vessel"]'));
     await waitFor(() => $('[data-act="add-service"]'));
     click($('[data-act="add-service"]'));
-    click($('[data-type="Others / Remarks"]'));
+    click($('[data-type="Others / Remarks"]')); await waitFor(() => $('#svc-form'));
     type($('#svc-form [name=note]'), 'calc smoke'); type($('#svc-form [name=cost]'), '7');
     click($('[data-act="save-service"]'));
     await waitFor(() => modalText().includes('calc smoke'));
@@ -284,10 +302,17 @@ async function login() {
   /* ---- service status and accounting: Calculations columns, tick-box filters, the Open / Closed switch ---- */
   const calcHeads = () => $$('#c-head th').map((th) => th.textContent.trim());
   ok(calcHeads().includes('Status') && calcHeads().includes('Accounting'), 'calculations: Status and Accounting columns');
+  ok(calcHeads().includes('Billing party') && calcHeads().includes('Billing'), 'calculations: Billing party and Billing columns');
+  ok(await waitFor(() => waterRow()?.textContent.includes('On account')), 'calculations: a service line shows On account');
+  ok([...$('#c-party').options].map((o) => o.textContent).slice(0, 2).join() === 'All billing parties,No billing party', 'calculations: billing party filter');
   ok(await waitFor(() => waterRow()?.querySelector('.svc-status')?.textContent === 'In progress'), 'calculations: a service line shows its status label');
   ok($('#c-status-filter summary')?.textContent === 'Status: All' && $('#c-accounting-filter summary')?.textContent === 'Accounting: All', 'calculations: tick-box filters for Status and Accounting');
   const tick = (name, value) => $(`[data-tick="${name}"][value="${value}"]`);
   const setTick = (name, value, on) => { const box = tick(name, value); box.checked = on; box.dispatchEvent(new w.Event('change', { bubbles: true })); };
+  setTick('billing', 'account', false);
+  ok(await waitFor(() => !waterRow() && $('#c-billing-filter summary')?.textContent === 'Billing: Cash'), 'calculations: unticking On account leaves only Cash lines');
+  setTick('billing', 'account', true);
+  ok(await waitFor(() => waterRow()), 'calculations: ticking On account again shows the line');
   setTick('status', 'completed', false);
   ok(await waitFor(() => $('#c-status-filter summary').textContent === 'Status: All except Completed' && waterRow()), 'calculations: "All except Completed" keeps the in-progress lines');
   setTick('status', 'in_progress', false);
@@ -358,7 +383,7 @@ async function login() {
     await go('vessels');
     await openRow('MSC AURORA');
     click($('[data-act="add-service"]'));
-    click($('[data-type="Others / Remarks"]'));
+    click($('[data-type="Others / Remarks"]')); await waitFor(() => $('#svc-form'));
     type($('#svc-form [name=note]'), 'status smoke'); type($('#svc-form [name=cost]'), '9');
     ok($('#svc-form [name=status]').value === 'in_progress' && $('#svc-reason').hidden, 'status: a new service starts In progress, no reason box');
     click($('[data-act="save-service"]'));
@@ -578,6 +603,16 @@ async function login() {
   type($('#qa-opr'), 'MSK'); type($('#qa-poc'), 'ALY'); // both required for a new vessel
   type($('#qa-agent'), 'SMOKE AGENT');
   click($('#qa-add'));
+  ok(await waitFor(() => shown($('#qa-newship')) && $('#qa-newship [name=name]')?.value === NAME), 'quick add: Add with no ship picked opens New ship with the name');
+  const qaImo = $('#qa-newship [name=imo]');
+  click($$('#qa-newship button').find((b) => b.textContent === 'Save ship'));
+  await sleep(500);
+  ok(shown($('#qa-newship')) && !rowFor(NAME), 'quick add: New ship without IMO or No IMO is refused (the panel stays)');
+  ok(!qaImo.disabled, 'new ship: the IMO box is on until No IMO is ticked');
+  click($$('#qa-newship button').find((b) => b.textContent === 'Cancel'));
+  ok(await waitFor(() => !shown($('#qa-newship'))), 'new ship: Cancel closes the panel');
+  ok(await newShipVia($('#qa-name'), '#qa-newship'), 'quick add: + New ship with No IMO saves and closes');
+  click($('#qa-add'));
   ok(await waitFor(() => $('#rangeNotice').textContent.includes('15.01.2020 is outside the current date range')), 'notice for a vessel saved outside the range');
   ok(!rowFor(NAME), 'the range is not changed by itself');
   click($('[data-act="show-outside"]'));
@@ -587,6 +622,49 @@ async function login() {
   ok(await waitFor(() => $$('.opt-row').find((r) => r.textContent.includes('SMOKE AGENT'))?.textContent.includes('1 vessel')), 'master data: usage count goes up');
   await go('vessels');
 
+  /* ======== ships and customers ======== */
+  await go('ships');
+  const shipRow = (name) => $$('#sh-tbody tr').find((r) => r.textContent.includes(name));
+  ok(await waitFor(() => shipRow('MSC AURORA')?.textContent.includes('9074729')), 'ships: the page lists ships with their IMO');
+  ok(shipRow('MSC AURORA').textContent.includes('Blue Owners') && shipRow('MSC AURORA').textContent.includes('MSK'), 'ships: OPR and customer shown');
+  ok(ROLE === 'viewer' ? !shipRow('MSC AURORA').dataset.act : shipRow('MSC AURORA').dataset.act === 'ship-open', 'ships: only edit roles open a ship');
+  type($('#sh-q'), '9321483');
+  ok(await waitFor(() => $$('#sh-tbody tr').length > 0 && $$('#sh-tbody tr').every((r) => r.textContent.includes('9321483'))), 'ships: search by IMO');
+  type($('#sh-q'), '');
+  await go('customers');
+  const customerRow = (name) => $$('#cu-tbody tr').find((r) => r.textContent.includes(name));
+  ok(await waitFor(() => customerRow('Blue Owners')), 'customers: the page lists customers');
+  click(customerRow('Blue Owners'));
+  ok(await waitFor(() => $('#customer-form')), 'customers: a customer opens');
+  const rateBox = (type) => $(`#customer-form .rate-row[data-type="${type}"] [name=r_amount]`);
+  ok(rateBox('Fresh Water').value === '50' || rateBox('Fresh Water').value === '50.00', 'customers: the agreed rates show');
+  ok($('#customer-form').textContent.includes('MSC AURORA'), 'customers: linked ships listed');
+  if (ROLE === 'admin') {
+    type(rateBox('Landing'), '12');
+    click($('[data-act="customer-save"]'));
+    ok(await waitFor(() => !$('#customer-form') && customerRow('Blue Owners')?.children[2].textContent === '3'), 'customers: admin saves a new rate');
+    click(customerRow('Blue Owners'));
+    await waitFor(() => $('#customer-form'));
+    ok(rateBox('Landing').value.startsWith('12'), 'customers: the saved rate shows again');
+    type(rateBox('Landing'), '');
+    click($('[data-act="customer-save"]'));
+    await waitFor(() => !$('#customer-form'));
+  } else {
+    ok(rateBox('Fresh Water').disabled && !$('[data-act="customer-save"]'), `customers: ${ROLE} sees the rates read-only`);
+    closeModal();
+  }
+  await go('vessels');
+  if (ROLE !== 'viewer') {
+    // The name box offers ships as you type; picking one fills the name and its OPR.
+    type($('#qa-name'), 'msc aur');
+    const auroraOpt = () => $$('#quickAdd .ship-opt').find((o) => o.textContent.startsWith('MSC AURORA'));
+    ok(await waitFor(() => auroraOpt()), 'quick add: typing a name lists matching ships');
+    ok($$('#quickAdd .ship-opt').at(-1).textContent.startsWith('+ New ship'), 'quick add: "+ New ship" is the last choice');
+    auroraOpt().dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true }));
+    ok($('#qa-name').value === 'MSC AURORA' && $('#qa-opr').value === 'MSK' && $('#quickAdd .ship-menu').hidden, 'quick add: picking a ship fills its name and OPR');
+    type($('#qa-name'), '');
+  }
+
   /* ======== add-vessel form (+ XSS) ======== */
   click($('#addVesselBtn'));
   ok($('#vessel-form select[name=opr]') && $('#vessel-form select[name=poc]') && $('#vessel-form select[name=arrival_agent]') && $('#vessel-form select[name=sailing_agent]'), 'vessel form uses master-data dropdowns');
@@ -594,13 +672,21 @@ async function login() {
   ok($$('#vessel-form [type=datetime-local]').length === 5, 'vessel form has the five port-call time fields');
   type($('#vessel-form [name=name]'), '<img src=x onerror=window.__xss=1>');
   type($('#vessel-form [name=date]'), '2020-01-20');
+  if (ROLE !== 'admin') {
+    click($('[data-act="save-vessel"]'));
+    ok(await waitFor(() => /Choose a ship/.test($('#modal .error')?.textContent || '')), 'a new vessel without a ship is refused');
+  }
   if (ROLE === 'admin') {
     // On All ports nothing is assumed: the admin chooses the port.
     ok($('#vessel-form [name=port]').value === '', 'admin on All ports: the new vessel has no port yet');
     click($('[data-act="save-vessel"]'));
     ok(await waitFor(() => /Choose a port/.test($('#modal .error')?.textContent || '')), 'admin: a new vessel without a port is refused');
     type($('#vessel-form [name=port]'), 'alexandria');
+    click($('[data-act="save-vessel"]'));
+    ok(await waitFor(() => /Choose a ship/.test($('#modal .error')?.textContent || '')), 'a new vessel without a ship is refused');
   }
+  ok(await newShipVia($('#vessel-form [name=name]'), '#vf-newship'), 'vessel form: + New ship with No IMO saves right in the form');
+  ok(/IMO none/.test($('#vf-imo').textContent), 'vessel form: the picked ship shows its IMO');
   click($('[data-act="save-vessel"]'));
   ok(await waitFor(() => /Choose an OPR/.test($('#modal .error')?.textContent || '')), 'a new vessel without an OPR is refused');
   type($('#vessel-form [name=opr]'), 'MSK');
@@ -609,8 +695,8 @@ async function login() {
   type($('#vessel-form [name=poc]'), 'ALY');
   type($('[data-sum="Vendor Name"]'), 'ACME & SONS');
   click($('[data-act="save-vessel"]'));
-  await waitFor(() => $('#modal h2')?.textContent.includes('<img'));
-  ok($('#modal h2').textContent.includes('<img') && !w.__xss && !$('#modal h2 img'), 'XSS payload in a vessel name does not execute');
+  await waitFor(() => $('#modal h2')?.textContent.includes('<IMG'));
+  ok($('#modal h2').textContent.includes('<IMG') && !w.__xss && !$('#modal h2 img'), 'XSS payload in a vessel name does not execute');
   closeModal();
   ok(!$$('#tbody img').length, 'XSS payload is escaped in the table too');
 
@@ -620,9 +706,10 @@ async function login() {
     await waitFor(() => $('#portBanner').textContent.includes('Suez'));
     click($('#addVesselBtn'));
     type($('#vessel-form [name=name]'), 'PORT MOVE');
+    type($('#vessel-form [name=port]'), 'alexandria');
+    await newShipVia($('#vessel-form [name=name]'), '#vf-newship');
     type($('#vessel-form [name=opr]'), 'MSK'); type($('#vessel-form [name=poc]'), 'ALY');
     type($('#vessel-form [name=date]'), localNow());
-    type($('#vessel-form [name=port]'), 'alexandria');
     click($('[data-act="save-vessel"]'));
     await waitFor(() => $('#modal h2')?.textContent.includes('PORT MOVE'));
     closeModal();
@@ -634,6 +721,16 @@ async function login() {
   click($('#modal [data-act="edit-vessel"]'));
   ok($('#vessel-form [name=arrival_agent]').value === 'SMOKE AGENT' && $('#vessel-form [name=sailing_agent]').value === '', 'quick add set only the arrival agent');
   ok(modalText().includes('Arrival agent') && modalText().includes('Sailing agent'), 'the dialog lists both agents');
+  // Typing over the name of a linked vessel clears its ship: the save asks for one, picking it again works.
+  type($('#vessel-form [name=name]'), `${NAME} II`);
+  ok($('#vf-imo').textContent === '', 'vessel form: typing over the name clears the ship');
+  click($('[data-act="save-vessel"]'));
+  ok(await waitFor(() => /Choose a ship/.test($('#modal .error')?.textContent || '')), 'vessel form: a renamed vessel must pick its ship again');
+  type($('#vessel-form [name=name]'), NAME);
+  const ownShip = () => $$('#vessel-form .ship-opt').find((o) => o.textContent.startsWith(`${NAME} ·`));
+  ok(await waitFor(() => ownShip()), 'vessel form: the name box lists the ship again');
+  ownShip().dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true }));
+  ok($('#vf-imo').textContent === 'IMO none', 'vessel form: the ship is picked again');
   click($('[data-act="time-now"][data-target="arrival_at"]'));
   ok(/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test($('[name=arrival_at]').value), '"Now" fills a time');
   const times = { arrival_at: '2020-01-15T06:00', berthing_at: '2020-01-15T08:30', ops_start_at: '2020-01-15T09:00', ops_end_at: '2020-01-15T15:00', sailing_at: '2020-01-15T05:00' };
@@ -701,9 +798,23 @@ async function login() {
   /* ======== Fresh Water + live preview ======== */
   await openRow(NAME);
   click($('[data-act="add-service"]'));
-  click($('[data-type="Fresh Water"]'));
+  click($('[data-type="Fresh Water"]')); await waitFor(() => $('#svc-form'));
   ok($('#svc-form select[name=agent]') && $('#svc-form [name=agent]').value === '', 'a new service starts with no agent');
   type($('#svc-form [name=agent]'), 'SMOKE AGENT');
+  ok($('#svc-form [name=billing]').value === 'account' && $('#svc-form [name=billing_party]').value === '', 'a new service is On account, no billing party (the ship has no customer)');
+  type($('#svc-form [name=billing_party]'), [...$('#svc-form [name=billing_party]').options].find((o) => o.textContent === 'Blue Owners').value);
+  ok($('#svc-rate').textContent === 'Agreed rate: USD 50 per unit', 'service: the billing party\'s agreed rate shows');
+  type($('[name=quantity]'), '40');
+  ok($('[name=revenue]').value === '2000' && $('[name=revenueCurrency]').value === 'USD', 'service: revenue filled from the rate (40 x USD 50)');
+  const partyValue = (name) => [...$('#svc-form [name=billing_party]').options].find((o) => o.textContent === name).value;
+  type($('#svc-form [name=billing_party]'), partyValue('Red Managers'));
+  ok($('[name=revenue]').value === '' && $('#svc-rate').textContent === '', 'service: a payer with no rate clears the filled revenue');
+  type($('#svc-form [name=billing_party]'), partyValue('Blue Owners'));
+  ok($('[name=revenue]').value === '2000', 'service: back to the payer with a rate fills it again');
+  type($('#svc-form [name=billing]'), 'cash');
+  type($('[name=revenue]'), '100');
+  type($('[name=quantity]'), '41'); type($('[name=quantity]'), '40');
+  ok($('[name=revenue]').value === '100', 'service: a typed revenue is kept when the quantity changes');
   type($('[name=quantity]'), '40'); type($('[name=revenue]'), '100'); type($('[name=revenueCurrency]'), 'USD'); type($('[name=cost]'), '2000');
   ok($('#preview').textContent.includes('No exchange rate'), 'preview warns when the month has no rate');
   type($('[name=exchangeRate]'), '50');
@@ -780,7 +891,7 @@ async function login() {
 
   /* ======== Cash to Master ======== */
   click($('[data-act="add-service"]'));
-  click($('[data-type="Cash to Master"]'));
+  click($('[data-type="Cash to Master"]')); await waitFor(() => $('#svc-form'));
   type($('[name=amount]'), '1000'); type($('[name=amountCurrency]'), 'USD'); type($('[name=percentage]'), '5'); type($('[name=exchangeRate]'), '50');
   const preview = () => $('#preview').textContent;
   ok(preview().includes('2,500.00') && preview().includes('47,500.00'), 'cash: 5% of 1000 USD = 2,500 ours, 47,500 to the master');
@@ -793,7 +904,7 @@ async function login() {
 
   /* ======== multi-entry ======== */
   click($('[data-act="add-service"]'));
-  click($('[data-type="Delivery Parcels"]'));
+  click($('[data-type="Delivery Parcels"]')); await waitFor(() => $('#svc-form'));
   click($('[data-act="add-entry"]')); click($('[data-act="add-entry"]'));
   const [first, second] = $$('.entry');
   type(first.querySelector('[data-f=awb]'), 'AWB-1'); type(first.querySelector('[data-f=weight]'), '3');
@@ -804,7 +915,7 @@ async function login() {
 
   /* ======== crew change ======== */
   click($('[data-act="add-service"]'));
-  click($('[data-type="Crew Change"]'));
+  click($('[data-type="Crew Change"]')); await waitFor(() => $('#svc-form'));
   click($('[data-act="add-crew"][data-group="onSigners"]'));
   type($('.crew-card [data-crew=personalData]'), 'Surname: Test\nGiven name: Ahmed\nRank: 2/E\nNationality: Egyptian');
   ok($('.crew-card [data-crew=name]').value === 'Ahmed Test', 'crew: name filled from personal data');
@@ -840,7 +951,7 @@ async function login() {
 
   /* ======== edit + delete a service ======== */
   await openRow(NAME);
-  click($$('[data-act="edit-service"]')[0]);
+  click($$('[data-act="edit-service"]')[0]); await waitFor(() => $('#svc-form'));
   type($('[name=quantity]'), '55');
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => modalText().includes('Quantity (tons): 55')), 'service edit saved');
@@ -862,6 +973,7 @@ async function login() {
   /* ======== notifications (quick add uses today's date) ======== */
   await go('vessels');
   type($('#qa-name'), 'smoke today');
+  await newShipVia($('#qa-name'), '#qa-newship');
   type($('#qa-opr'), 'MSK'); type($('#qa-poc'), 'ALY');
   type($('#qa-date'), localNow());
   click($('#qa-add'));
@@ -910,10 +1022,11 @@ async function login() {
       const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': meta() };
       const extra = [];
       for (let i = 1; i <= 21; i += 1) {
-        const res = await w.fetch('/api/vessels/', { method: 'POST', headers, body: JSON.stringify({ name: `SMOKE GAP ${i}`, opr: 'MSK', poc: 'ALY', date: '2019-03-01' }) });
+        const res = await w.fetch('/api/vessels/', { method: 'POST', headers, body: JSON.stringify({ ship_id: apiShipId, name: `SMOKE GAP ${i}`, opr: 'MSK', poc: 'ALY', date: '2019-03-01' }) });
         extra.push((await res.json()).id);
       }
-      type($('#qa-name'), 'smoke gap trigger'); type($('#qa-date'), localNow()); click($('#qa-add')); // a save reloads the alerts
+      type($('#qa-name'), 'smoke gap trigger'); await newShipVia($('#qa-name'), '#qa-newship');
+      type($('#qa-date'), localNow()); click($('#qa-add')); // a save reloads the alerts
       ok(await waitFor(() => $$('#notifBanner .notif-row.missing').length === 20 && /\+ \d+ more/.test($('#notifBanner').textContent)), 'banner caps missing-details rows at 20 with "+ N more"');
       click($('#notifBanner [data-act="show-alerts-panel"]'));
       ok($('#notifPanel').classList.contains('open') && $$('#notifPanel .notif-item.missing').length >= 22, '"+ N more" opens the bell panel with every vessel missing details');
@@ -1152,13 +1265,13 @@ async function login() {
 
   /* ======== clean up ======== */
   await go('vessels');
-  for (const name of [NAME, '<img', 'SMOKE TODAY', 'SMOKE GAP TRIGGER', 'PORT MOVE']) {
+  for (const name of [NAME, '<IMG', 'SMOKE TODAY', 'SMOKE GAP TRIGGER', 'PORT MOVE']) {
     const row = $$('#tbody tr').find((t) => t.textContent.includes(name));
     if (!row) continue;
     click(row.querySelector('[data-act="del-vessel-row"]')); // the Delete button in the table row
     await waitFor(() => !$$('#tbody tr').some((t) => t.dataset.id === row.dataset.id));
   }
-  ok(await waitFor(() => !$$('#tbody tr').some((t) => /UI SMOKE|SMOKE TODAY|SMOKE GAP|<img|PORT MOVE/.test(t.textContent))), 'test vessels deleted (the list reloads after the dialog closes)');
+  ok(await waitFor(() => !$$('#tbody tr').some((t) => /UI SMOKE|SMOKE TODAY|SMOKE GAP|<IMG|PORT MOVE/.test(t.textContent))), 'test vessels deleted (the list reloads after the dialog closes)');
   await go('master');
   for (const value of ['SMOKE AGENT', 'SMOKE-OPR', 'SMOKE HOTEL', 'SMOKE ALEXANDRIA AIRPORT', 'SMOKE ALEXANDRIA PORT', 'SMOKE SUEZ AGENT', 'SMOKE SUEZ HOTEL']) {
     const row = $$('.opt-row').find((r) => r.textContent.includes(value));
@@ -1169,6 +1282,14 @@ async function login() {
   if (hostileId) {
     const res = await w.fetch(`/api/vessels/${hostileId}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } });
     ok(res.ok, 'hostile-text vessel deleted');
+  }
+  if (ROLE === 'admin') {
+    // Only admins delete ships; a ship with no vessels left goes (the port user's ones stay as data).
+    const { ships } = await (await w.fetch('/api/ships/?limit=200')).json();
+    const mine = ships.filter((s) => /^(SMOKE|UI SMOKE|<IMG|PORT MOVE)/.test(s.name) && s.calls === 0);
+    let gone = 0;
+    for (const s of mine) if ((await w.fetch(`/api/ships/${s.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } })).ok) gone += 1;
+    ok(gone === mine.length, 'ships: test ships without vessels deleted');
   }
 
   await checkHistory();

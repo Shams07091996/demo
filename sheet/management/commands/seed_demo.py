@@ -10,7 +10,18 @@ from django.utils.crypto import get_random_string
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from sheet import crewbookings
-from sheet.models import DisposalPrice, ExchangeRate, Option, PortClosure, Profile, Service, Vessel
+from sheet.models import (
+    Customer,
+    CustomerRate,
+    DisposalPrice,
+    ExchangeRate,
+    Option,
+    PortClosure,
+    Profile,
+    Service,
+    Ship,
+    Vessel,
+)
 from sheet.validators import clean_service_data
 
 DEMO_USERS = [
@@ -102,8 +113,23 @@ class Command(BaseCommand):
         PortClosure.objects.create(port="portsaid", start_at=at(today, 5), reason="FOG")
         for agent in ("DELTA SHIPPING", "NILE AGENCY"):
             Option.objects.get_or_create(kind="agent", value=agent, port="")
+        # Customers with agreed rates, and one ship per demo vessel (MSC AURORA's customer is Blue Owners).
+        blue = Customer.objects.create(name="Blue Owners")
+        CustomerRate.objects.create(customer=blue, service_type="Fresh Water", amount=50, currency="USD")
+        CustomerRate.objects.create(customer=blue, service_type="Crew Change", amount=300, currency="USD")
+        red = Customer.objects.create(name="Red Managers")
+        ships = {
+            name: Ship.objects.create(name=name, imo=imo, opr=opr, customer=customer)
+            for name, imo, opr, customer in (
+                ("MSC AURORA", "9074729", "MSK", blue),
+                ("ARKAS STAR", "9321483", "ARK", red),
+                ("NORTHERN LIGHT", "9811000", "Other", None),
+                ("SEA BREEZE", "9700005", "MSK", blue),
+            )
+        }
         v1 = Vessel.objects.create(
-            name="MSC AURORA", opr="MSK", poc="ALY", date=today, port="alexandria", arrival_agent="DELTA SHIPPING"
+            name="MSC AURORA", opr="MSK", poc="ALY", date=today, port="alexandria", arrival_agent="DELTA SHIPPING",
+            ship=ships["MSC AURORA"],
         )
         Service.objects.create(
             vessel=v1,
@@ -141,7 +167,7 @@ class Command(BaseCommand):
         crewbookings.sync(v1)
         v2 = Vessel.objects.create(
             name="ARKAS STAR", opr="ARK", poc="AIT", date=today + timedelta(days=1), port="portsaid",
-            arrival_agent="NILE AGENCY", sailing_agent="NILE AGENCY",
+            arrival_agent="NILE AGENCY", sailing_agent="NILE AGENCY", ship=ships["ARKAS STAR"],
         )
         Service.objects.create(
             vessel=v2,
@@ -155,13 +181,13 @@ class Command(BaseCommand):
         )
         Vessel.objects.create(
             name="NORTHERN LIGHT", opr="Other", poc="ACT", date=today - timedelta(days=3), port="suez",
-            arrival_agent="DELTA SHIPPING",
+            arrival_agent="DELTA SHIPPING", ship=ships["NORTHERN LIGHT"],
         )
         # A past Alexandria call with no times that still misses its sailing agent and a service agent: the "Missing
         # details" alert.
         v4 = Vessel.objects.create(
             name="SEA BREEZE", opr="MSK", poc="ALY", date=today - timedelta(days=1), port="alexandria",
-            arrival_agent="DELTA SHIPPING",
+            arrival_agent="DELTA SHIPPING", ship=ships["SEA BREEZE"],
         )
         Service.objects.create(vessel=v4, service_type="Landing", data={"entries": []})
         self.stdout.write(self.style.SUCCESS("Demo data created."))

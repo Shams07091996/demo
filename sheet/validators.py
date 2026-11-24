@@ -6,9 +6,12 @@ import secrets
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.utils import timezone
 
 from .constants import (
+    BILLING,
     CANCEL_REASON_MAX,
     GUEST_GROUPS,
     MAX_GUESTS,
@@ -17,6 +20,7 @@ from .constants import (
     OPTION_KINDS,
     PLACE_KEYS,
     PORT_KEYS,
+    RATE_UNITS,
     SERVICE_STATUSES,
     SINGLE_EXTRAS,
     SUMMARY_FIELDS,
@@ -25,7 +29,7 @@ from .constants import (
     is_delayed,
 )
 from .errors import BadRequest
-from .models import Option
+from .models import Customer, Option, Ship
 
 MAX_ENTRIES = 100
 MAX_CREW = 60
@@ -85,12 +89,13 @@ def _rate(value):
     return result
 
 
-def listed(kind, value, port, current=""):
+def listed(kind, value, port, current="", also=()):
     """A value from the Master data list `kind` for `port` (that port's or All ports'), or empty.
-    The value already saved on the record (`current`) stays allowed even if it left the list."""
+    The value already saved on the record (`current`) stays allowed even if it left the list, and so do the
+    values in `also` (a vessel's ship's OPR)."""
     label = KIND_LABELS[kind]
     text = _short(value, 100, label)
-    if not text or text == (current or ""):
+    if not text or text == (current or "") or text in also:
         return text
     if not Option.objects.filter(kind=kind, value=text, port__in=("", port or "")).exists():
         raise BadRequest(f"{label}: choose a value from the Master data {label} list for this port.")
@@ -242,6 +247,23 @@ def clean_service_data(service_type, raw):
     return _clean_single(service_type, raw)
 
 
+def clean_service_billing(payload, vessel, existing=None):
+    """(billing, billing party) of a service. A save without a key keeps the stored value; a new service starts On
+    account, billed to its vessel's ship's customer. The party is a customer id (active, or the saved one) or null."""
+    billing = payload.get("billing", getattr(existing, "billing", "account"))
+    if not isinstance(billing, str) or billing not in BILLING:
+        raise BadRequest("Choose Cash or On account.")
+    current = getattr(existing, "billing_party", None)
+    if "billing_party" in payload:
+        party = pick_customer(payload.get("billing_party"), current, "Billing party")
+    elif existing is not None:
+        party = current
+    else:
+        ship = vessel.ship
+        party = ship.customer if ship is not None and ship.customer is not None and ship.customer.active else None
+    return billing, party
+
+
 RECEIPT_MAX_LINES = 40
 
 
@@ -364,8 +386,9 @@ def clean_vessel(data, profile, existing=None):
     if times["sailing_at"]:  # once it has sailed, the vessel's date is its sailing day (Cairo)
         when = timezone.localdate(times["sailing_at"])
 
+    ship = clean_vessel_ship(data, existing)
     # OPR and POC: required for a new vessel and can't be emptied once set (older vessels without them still save).
-    opr = listed("opr", data.get("opr"), port, getattr(existing, "opr", ""))
+    opr = listed("opr", data.get("opr"), port, getattr(existing, "opr", ""), also=(ship.opr,) if ship else ())
     poc = listed("poc", data.get("poc"), port, getattr(existing, "poc", ""))
     for value, field, message in ((opr, "opr", "Choose an OPR."), (poc, "poc", "Choose a POC.")):
         if not value and (existing is None or getattr(existing, field)):
@@ -381,7 +404,167 @@ def clean_vessel(data, profile, existing=None):
         "port": port,
         "summary": clean_summary(data.get("summary")),
         "delay_reason": clean_delay_reason(data, times, port, existing),
+        "ship": ship,
         **times,
+    }
+
+
+NEED_SHIP = "Choose a ship, or add a new one."
+
+
+def clean_vessel_ship(data, existing=None):
+    """The vessel's ship (`ship_id`): required for a new vessel, kept when the key is not sent, never removed once
+    linked; an inactive ship only if it is the one already saved."""
+    current = getattr(existing, "ship", None)
+    if "ship_id" not in data and existing is not None:
+        return current
+    value = data.get("ship_id")
+    if value is None:
+        if existing is None or current is not None:
+            raise BadRequest(NEED_SHIP)
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise BadRequest(NEED_SHIP)
+    if current is not None and value == current.id:
+        return current
+    ship = Ship.objects.filter(pk=value, active=True).first()
+    if ship is None:
+        raise BadRequest(NEED_SHIP)
+    return ship
+
+
+# ---- ships ----------------------------------------------------------------------------------
+
+IMO_RE = re.compile(r"^[0-9]{7}$")
+
+
+def imo_valid(text):
+    """A real IMO number: 7 digits whose last is the check digit (first six weighted 7..2, sum mod 10)."""
+    if not isinstance(text, str) or not IMO_RE.match(text):
+        return False
+    total = sum(int(digit) * weight for digit, weight in zip(text[:6], range(7, 1, -1), strict=True))
+    return total % 10 == int(text[6])
+
+
+def _flag(value):
+    return value is True
+
+
+def pick_customer(value, current=None, label="Customer"):
+    """A customer by id (active, or the one already saved), or None when empty."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise BadRequest(f"{label}: choose one from the list.")
+    if current is not None and value == current.id:
+        return current
+    found = Customer.objects.filter(pk=value, active=True).first()
+    if found is None:
+        raise BadRequest(f"{label}: choose one from the list.")
+    return found
+
+
+def clean_ship(data, profile, existing=None):
+    """A ship: name (upper case), IMO (required unless "No IMO" is ticked), OPR from Master data, customer."""
+    name = _short(data.get("name"), 120, "Ship name").upper()
+    if not name:
+        raise BadRequest("Ship name is required.")
+    if _flag(data.get("no_imo")):
+        imo = ""
+    else:
+        imo = _short(data.get("imo"), 20, "IMO").replace(" ", "")
+        if not imo:
+            raise BadRequest("Enter the IMO number, or tick No IMO.")
+        if not imo_valid(imo):
+            raise BadRequest("IMO: enter the 7-digit IMO number (its last digit doesn't match).")
+        clash = Ship.objects.filter(imo=imo).exclude(pk=getattr(existing, "pk", None))
+        if clash.exists():
+            raise BadRequest("IMO: another ship already has this number.")
+    current_opr = getattr(existing, "opr", "")
+    opr = _short(data.get("opr"), 100, "OPR")
+    if opr and opr != current_opr:
+        if profile.port:
+            listed("opr", opr, profile.port, current_opr)
+        elif not Option.objects.filter(kind="opr", value=opr).exists():
+            raise BadRequest("OPR: choose a value from the Master data OPR list.")
+    active = data.get("active", getattr(existing, "active", True))
+    if not isinstance(active, bool):
+        raise BadRequest("Active must be yes or no.")
+    return {
+        "name": name,
+        "imo": imo,
+        "opr": opr,
+        "customer": pick_customer(data.get("customer"), getattr(existing, "customer", None)),
+        "active": active,
+    }
+
+
+# ---- customers ------------------------------------------------------------------------------
+
+MAX_CONTACTS = 20
+PHONE_RE = re.compile(r"^[0-9 +()\-]{1,40}$")
+
+
+def _clean_contact(raw, number):
+    label = f"Contact {number}"
+    if not isinstance(raw, dict):
+        raise BadRequest(f"{label}: enter the contact's details.")
+    name = _short(raw.get("name"), 100, f"{label} name")
+    if not name:
+        raise BadRequest(f"{label}: enter a name.")
+    email = _short(raw.get("email"), 254, f"{label} email")
+    if email:
+        try:
+            validate_email(email)
+        except ValidationError:
+            raise BadRequest(f"{label}: enter a valid email address.") from None
+    phone = _short(raw.get("phone"), 40, f"{label} phone")
+    if phone and not PHONE_RE.match(phone):
+        raise BadRequest(f"{label}: a phone number has only digits, spaces and + - ( ).")
+    return {"name": name, "role": _short(raw.get("role"), 60, f"{label} role"), "email": email, "phone": phone}
+
+
+def _clean_rates(raw):
+    if not isinstance(raw, dict):  # missing or not an object: refused, never read as "no rates" (a save replaces them)
+        raise BadRequest("Rates: send one rate per service type.")
+    rates = []
+    for service_type, value in raw.items():
+        unit = RATE_UNITS.get(service_type)
+        if unit is None:
+            raise BadRequest(f"{_short(service_type, 40, 'Service type')}: this service type has no agreed rate.")
+        if not isinstance(value, dict):
+            raise BadRequest(f"{service_type}: enter the rate.")
+        amount = _amount(value.get("amount"), f"{service_type} rate")
+        if amount is None:
+            raise BadRequest(f"{service_type}: enter the rate.")
+        if unit == "percent" and amount > 100:
+            raise BadRequest(f"{service_type}: a percentage is from 0 to 100.")
+        currency = "USD" if unit == "percent" else _currency(value.get("currency"))
+        rates.append({"service_type": service_type, "amount": Decimal(str(round(amount, 2))), "currency": currency})
+    return rates
+
+
+def clean_customer(data, existing=None):
+    """A customer with its contacts (0-20) and its agreed rates (one per service type, constants.RATE_UNITS)."""
+    name = _short(data.get("name"), 120, "Customer name")
+    if not name:
+        raise BadRequest("Customer name is required.")
+    if Customer.objects.filter(name__iexact=name).exclude(pk=getattr(existing, "pk", None)).exists():
+        raise BadRequest("Another customer already has this name.")
+    contacts = data.get("contacts")
+    if not isinstance(contacts, list):  # missing or not a list: refused, never read as "no contacts"
+        raise BadRequest("Contacts: send the list of contacts.")
+    if len(contacts) > MAX_CONTACTS:
+        raise BadRequest(f"At most {MAX_CONTACTS} contacts per customer.")
+    active = data.get("active", getattr(existing, "active", True))
+    if not isinstance(active, bool):
+        raise BadRequest("Active must be yes or no.")
+    return {
+        "name": name,
+        "notes": _short(data.get("notes"), 500, "Notes"),
+        "active": active,
+        "contacts": [_clean_contact(raw, number) for number, raw in enumerate(contacts, 1)],
+        "rates": _clean_rates(data.get("rates")),
     }
 
 
