@@ -9,12 +9,14 @@ import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
+import { servicesPage } from './pages/services.js';
 import { shipsPage } from './pages/ships.js';
 import { state } from './state.js';
 import { $, $$ } from './util.js';
 
 const TITLES = {
   vessels: 'Vessels',
+  services: 'Services',
   hotels: 'Hotels',
   transport: 'Transport',
   closures: 'Port closures',
@@ -49,6 +51,7 @@ export async function showPage(requested) {
   if (name === 'disposal') await disposalPage.load();
   if (name === 'calculations') await calculationsPage.load();
   if (name === 'history') await historyPage.load();
+  if (name === 'services') await servicesPage.load();
   if (name === 'ships') await shipsPage.load();
   if (name === 'customers') await customersPage.load();
   if (name === 'master') {

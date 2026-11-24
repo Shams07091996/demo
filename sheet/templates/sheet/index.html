@@ -18,6 +18,7 @@
     </div>
     <nav class="nav" id="nav" aria-label="Pages">
       <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessels</span></a>
+      <a class="nav-item" data-page="services" href="#services"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span>Services</span></a>
       <a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>
       <a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>
       <a class="nav-item" data-page="closures" href="#closures"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ban"></use></svg></span><span>Port closures</span></a>
@@ -198,6 +199,26 @@
     </main>
 
     <!-- ===== Calculations (drawn by js/pages/calculations.js) ===== -->
+    <main class="page" id="page-services" hidden>
+      <div class="date-range" role="group" aria-label="Service filters">
+        <span id="sv-ticks"></span>
+        <label class="tick"><input type="checkbox" id="sv-missing"> Missing details only</label>
+        <label>From <input class="input" type="date" id="sv-from"></label>
+        <label>To <input class="input" type="date" id="sv-to"></label>
+        <button class="btn ghost small" id="sv-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
+        <select id="sv-type" class="select" aria-label="Service"></select>
+        <select id="sv-agent" class="select" aria-label="Agent"></select>
+        <input class="input" type="search" id="sv-q" aria-label="Search vessel">
+        <select id="sv-port" class="select" hidden aria-label="Port"></select>
+        <button class="btn ghost small" data-act="page-export" data-page="services"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>
+      </div>
+      <div class="table-wrap">
+        <table><thead id="sv-head"></thead><tbody id="sv-tbody"></tbody></table>
+        <div class="empty" id="sv-empty" hidden>No services.</div>
+      </div>
+      <div class="pager" id="sv-pager"></div>
+    </main>
+
     <main class="page" id="page-calculations" hidden>
       <div class="date-range" role="group" aria-label="Vessel date range">
         <label>From <input class="input" type="date" id="c-from"></label>
