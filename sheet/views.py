@@ -35,6 +35,7 @@ from . import (
     listing,
     logistics,
     logpdf,
+    ports,
     ratelimit,
     receipt,
     report,
@@ -57,9 +58,6 @@ from .constants import (
     NO_AGENT,
     OPTION_KIND_KEYS,
     OPTION_KINDS,
-    PORT_KEYS,
-    PORT_LABELS,
-    PORTS,
     RATE_UNITS,
     SERVICE_TYPES,
     SUMMARY_FIELDS,
@@ -132,7 +130,7 @@ def index(request):
             "isSuperuser": request.user.is_superuser,
             "seesAll": profile.port is None,
         },
-        "ports": [{"key": key, "label": label} for key, label in PORTS],
+        "ports": [{"key": key, "label": name, "active": active} for key, name, active in ports.rows()],
         "service_types": SERVICE_TYPES,
         "rate_units": RATE_UNITS,
         "no_agent": NO_AGENT,
@@ -201,7 +199,7 @@ def _export_range(request):
         raise BadRequest("From must be on or before To.")
     if (date_to.year * 12 + date_to.month) - (date_from.year * 12 + date_from.month) >= 24:
         raise BadRequest("Choose a range of at most 24 months.")
-    port = request.profile.port or (request.GET.get("port") if request.GET.get("port") in PORT_LABELS else None)
+    port = request.profile.port or (request.GET.get("port") if ports.exists(request.GET.get("port")) else None)
     return date_from, date_to, port
 
 
@@ -248,7 +246,7 @@ def data_export_all(request):
     date_from, date_to, port = _export_range(request)
     content = dataexport.all_file(request.profile, date_from, date_to, port)
     audit(request, "data.export", page="all", date_from=date_from, date_to=date_to, port=port or "all")
-    label = PORT_LABELS.get(port, "All ports") if port else "All ports"
+    label = ports.label(port) if port else "All ports"
     return _xlsx_response(content, f"All data {label} {date_from.isoformat()} to {date_to.isoformat()}.xlsx")
 
 
@@ -593,7 +591,7 @@ def options(request):
         if kind not in OPTION_KIND_KEYS or not value:
             raise BadRequest("Enter a value.")
         scope = profile.port or payload.get("port") or ""
-        if scope and scope not in PORT_KEYS:
+        if scope and not ports.exists(scope):
             raise BadRequest("Unknown port.")
         last = Option.objects.filter(kind=kind).order_by("-position").first()
         _, created = Option.objects.get_or_create(
@@ -615,7 +613,7 @@ def option_detail(request, pk):
     if request.method == "PATCH":
         require_admin(profile)
         port = read_json(request).get("port") or ""
-        if port and port not in PORT_KEYS:
+        if port and not ports.exists(port):
             raise BadRequest("Unknown port.")
         if Option.objects.filter(kind=option.kind, value=option.value, port=port).exclude(pk=pk).exists():
             raise BadRequest("That value already exists for that port.")
@@ -678,7 +676,7 @@ def export_csv(request):
                 _csv_safe(data["poc"]),
                 _csv_safe(data["arrival_agent"]),
                 _csv_safe(data["sailing_agent"]),
-                PORT_LABELS.get(data["port"], data["port"]),
+                ports.label(data["port"]),
                 date.fromisoformat(data["date"]).strftime("%d.%m.%Y"),
                 data["status"],
                 *[_display_time(data[key]) for key in TIME_KEYS],

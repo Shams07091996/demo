@@ -12,7 +12,6 @@ from .constants import (
     OPTION_KINDS,
     PLACES,
     PORT_KEYS,
-    PORTS,
     ROLES,
     SERVICE_STATUSES,
     SERVICE_TYPES,
@@ -141,6 +140,22 @@ class Ship(models.Model):
         return f"{self.name} ({self.imo or 'no IMO'})"
 
 
+class Port(models.Model):
+    """A port the company works in. `key` is stored on records and never changes; `name` can be renamed; a turned-off
+    port takes no new records (sheet/ports.py)."""
+
+    key = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=40)
+    active = models.BooleanField(default=True)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Vessel(models.Model):
     name = models.CharField(max_length=120)
     opr = models.CharField("OPR", max_length=100, blank=True)
@@ -156,7 +171,7 @@ class Vessel(models.Model):
     sailing_at = models.DateTimeField(null=True, blank=True)
     # From the Master data "delay" list; required when berthing is more than 2 hours after arrival (validators).
     delay_reason = models.CharField("Delay reason", max_length=100, blank=True)
-    port = models.CharField(max_length=20, choices=PORTS, default="alexandria", db_index=True)
+    port = models.CharField(max_length=20, default="alexandria", db_index=True)  # a Port key
     summary = models.JSONField(default=dict, blank=True)  # optional vendor / invoice notes
     ship = models.ForeignKey(Ship, on_delete=models.PROTECT, null=True, blank=True, related_name="vessels")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -228,7 +243,7 @@ class DisposalPrice(models.Model):
     ton above the minimum (disposal.block_amount)."""
 
     month = models.DateField()
-    port = models.CharField(max_length=20, choices=PORTS)
+    port = models.CharField(max_length=20)  # a Port key
     garbage_revenue_min_qty = _price_qty("Garbage revenue: minimum quantity (m³)")
     garbage_revenue_min = _price_amount("Garbage revenue: minimum amount")
     garbage_revenue_currency = _price_currency("Garbage revenue: currency", "USD")
@@ -290,7 +305,7 @@ class Option(models.Model):
 class PortClosure(models.Model):
     """A port closed from start_at until end_at (empty while still closed). Not linked to vessels."""
 
-    port = models.CharField(max_length=20, choices=PORTS, db_index=True)
+    port = models.CharField(max_length=20, db_index=True)  # a Port key
     start_at = models.DateTimeField("Closed from")
     end_at = models.DateTimeField("Reopened", null=True, blank=True)
     reason = models.CharField(max_length=100)  # from the Master data "closure" list

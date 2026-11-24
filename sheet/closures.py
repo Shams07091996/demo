@@ -8,9 +8,8 @@ from datetime import datetime, time, timedelta
 from django.http import Http404
 from django.utils import timezone
 
-from . import conflicts
+from . import conflicts, ports
 from .access import scoped_closures
-from .constants import PORT_LABELS
 from .errors import BadRequest
 from .listing import date_param
 from .models import PortClosure
@@ -23,7 +22,7 @@ def closure_to_dict(closure, profile):
     return {
         "id": closure.id,
         "port": closure.port,
-        "port_label": PORT_LABELS.get(closure.port, closure.port),
+        "port_label": ports.label(closure.port),
         "start_at": local_iso(closure.start_at),
         "end_at": local_iso(closure.end_at),
         "hours": round(hours, 1) if hours is not None else None,

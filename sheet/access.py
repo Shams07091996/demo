@@ -1,6 +1,6 @@
 """Who may see and change what."""
 
-from .constants import PORT_KEYS
+from . import ports
 from .errors import Forbidden
 from .models import PortClosure, Profile, Vessel
 
@@ -42,7 +42,7 @@ def scoped_vessels(profile, port=None, prefetch=True):
                 else Vessel.objects.all())
     if profile.port:
         return queryset.filter(port=profile.port)
-    if port in PORT_KEYS:
+    if port and ports.exists(port):
         return queryset.filter(port=port)
     return queryset
 
@@ -51,6 +51,6 @@ def scoped_closures(profile, port=None):
     """Port closures this profile may see: port users only their own port whatever they ask; others may filter."""
     if profile.port:
         return PortClosure.objects.filter(port=profile.port)
-    if port in PORT_KEYS:
+    if port and ports.exists(port):
         return PortClosure.objects.filter(port=port)
     return PortClosure.objects.all()

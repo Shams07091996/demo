@@ -13,8 +13,9 @@ from django.utils import timezone
 
 from . import calculations, crewbookings, xlsx
 from . import dashboard as dashboard_figures
+from . import ports as port_table
 from .access import scoped_closures, scoped_vessels
-from .constants import PORT_LABELS, PORTS, SERVICE_STATUSES, SERVICE_TYPES, is_delayed
+from .constants import SERVICE_STATUSES, SERVICE_TYPES, is_delayed
 from .xlsx import Bold, Hours
 
 NO_LINE, NO_AGENT_LABEL = "(no line)", "(no agent)"
@@ -88,7 +89,7 @@ def _totals(rows):
 def _summary(vessels, money, rows):
     groups = _grouped(vessels, money, lambda v: v["port"])
     table = _table(["Port", "Vessels", "Services", *MONEY_HEAD],
-                   [groups[key].row(label) for key, label in PORTS if key in groups],
+                   [groups[key].row(label) for key, label in port_table.ordered() if key in groups],
                    ["Total", len(vessels), sum(v["services_count"] for v in vessels), *_totals(rows)])
     notes = ["Money includes hotels, transport and garbage & sludge."]
     rate_missing = sum(1 for r in rows if r["rate_missing"])
@@ -113,7 +114,7 @@ def _by_line(vessels, money):
     first = _table(["Line", "Vessels", "Services", *MONEY_HEAD], [lines[name].row(name) for name in order])
     pairs = _grouped(vessels, money, lambda v: (v["opr"] or NO_LINE, v["port"]))
     second = _table(["Line", "Port", "Vessels", "Services", *MONEY_HEAD],
-                    [pairs[(name, key)].row(name, label) for name in order for key, label in PORTS
+                    [pairs[(name, key)].row(name, label) for name in order for key, label in port_table.ordered()
                      if (name, key) in pairs])
     return _sheet("By line", [first, second])
 
@@ -179,7 +180,7 @@ def _ports_perf(objects, r):
             reasons[vessel.delay_reason] = reasons.get(vessel.delay_reason, 0) + 1
     by_reason = sorted(reasons.items(), key=lambda item: (-item[1], item[0].casefold()))
     return _sheet("Port performance", [
-        _table(["Port", *head], [ports[key].row(label) for key, label in PORTS if key in ports]),
+        _table(["Port", *head], [ports[key].row(label) for key, label in port_table.ordered() if key in ports]),
         _table(["Month", *head], [times.row(month) for month, times in months.items()]),
         _table(["Delay reason", "Vessels"], [list(item) for item in by_reason]),
     ], ["Averages count only vessels that have both times."])
@@ -206,8 +207,8 @@ def _closures(profile, r, now):
     by_reason = sorted(reasons.items(), key=lambda item: (-item[1][1], item[0].casefold()))
     return _sheet("Port closures", [
         _table(["Port", "Closures", "Hours closed", "Still closed"],
-               [[label, ports[key][0], Hours(round(ports[key][1], 1)), ports[key][2]] for key, label in PORTS
-                if key in ports]),
+               [[label, ports[key][0], Hours(round(ports[key][1], 1)), ports[key][2]]
+                for key, label in port_table.ordered() if key in ports]),
         _table(["Reason", "Closures", "Hours closed"],
                [[name, count, Hours(round(hours, 1))] for name, (count, hours) in by_reason]),
     ], ["Hours count only the part of each closure inside the range; a closure still going on counts up to now."])
@@ -273,7 +274,7 @@ def _disposal(objects, rows, r):
         return [round(x, 3) for x in entry[:2]] + [round(x, 2) for x in entry[2:]]
 
     head = ["Garbage (m³)", "Sludge (t)", *MONEY_HEAD]
-    port_rows = [[label, *values(ports[key])] for key, label in PORTS if key in ports]
+    port_rows = [[label, *values(ports[key])] for key, label in port_table.ordered() if key in ports]
     total = ["Total", *values([sum(entry[i] for entry in ports.values()) for i in range(5)])]
     return _sheet("Garbage & Sludge", [
         _table(["Port", *head], port_rows, total if port_rows else None),
@@ -331,7 +332,7 @@ def data(profile, r, now=None):
 
 
 def port_label(r):
-    return PORT_LABELS.get(r.port, "All ports") if r.port else "All ports"
+    return port_table.label(r.port) if r.port else "All ports"
 
 
 # (chart kind, title, table index, [series columns]); the first column of that table holds the categories.

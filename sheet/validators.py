@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils import timezone
 
+from . import ports
 from .constants import (
     BILLING,
     CANCEL_REASON_MAX,
@@ -19,7 +20,6 @@ from .constants import (
     MULTI_TYPES,
     OPTION_KINDS,
     PLACE_KEYS,
-    PORT_KEYS,
     RATE_UNITS,
     ROLES,
     SERVICE_STATUSES,
@@ -379,7 +379,7 @@ def clean_vessel(data, profile, existing=None):
         port = data.get("port") or (existing.port if existing else "")
         if not port:  # an admin's new vessel: the port is chosen, never assumed
             raise BadRequest("Choose a port.")
-        if port not in PORT_KEYS:
+        if not ports.exists(port):
             raise BadRequest("Unknown port.")
 
     times = {key: _local_datetime(data.get(key), TIME_LABELS[key]) for key in TIME_KEYS}
@@ -739,7 +739,7 @@ def clean_closure(data, profile, existing=None):
         port = profile.port
     else:
         port = data.get("port") or (existing.port if existing else "")
-        if port not in PORT_KEYS:
+        if not ports.exists(port):
             raise BadRequest("Unknown port.")
     start_at = _local_datetime(data.get("start_at"), "Closed from")
     if start_at is None:
@@ -779,7 +779,7 @@ def clean_disposal_price(data):
     except ValueError:
         raise BadRequest("Enter a month.") from None
     port = data.get("port")
-    if port not in PORT_KEYS:
+    if not ports.exists(port):
         raise BadRequest("Unknown port.")
     fields = {}
     for kind, label, unit in DISPOSAL_KINDS:
