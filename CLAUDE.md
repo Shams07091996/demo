@@ -70,7 +70,9 @@ cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_sm
 - `seed_demo` gives MSC AURORA (Alexandria, today) a Crew Change with two on-signers (Ahmed Test needs a hotel, Ali
   Sayed lands 3 days early: the "Early arrival" alert; drafts made by `crewbookings.sync`) and a USD Fresh Water service at
   the month rate 50, and SEA BREEZE (Alexandria, yesterday) no times, a missing sailing agent and a Landing without agent (the
-  "Missing details" alert); it also adds Delay / Closure reasons, a WEATHER closure in Alexandria (yesterday 06:00-14:00,
+  "Missing details" alert); customers Blue Owners (USD rates: Fresh Water 50, Crew Change 300) and Red Managers,
+  ships MSC AURORA 9074729 MSK / ARKAS STAR / NORTHERN LIGHT / SEA BREEZE, each demo vessel linked to its ship;
+  it also adds Delay / Closure reasons, a WEATHER closure in Alexandria (yesterday 06:00-14:00,
   "Strong wind") and an open FOG closure in Port Said; the smoke test relies on all of these.
 - `<KEY>` is 32+ base32 characters (e.g. `python -c "import base64,secrets;print(base64.b32encode(secrets.token_bytes(20)).decode())"`):
   `seed_demo` gives every demo user a confirmed Authenticator with it and the smoke test computes the code. A code
@@ -237,6 +239,26 @@ when the saved status is Cancelled, only its own bookings, none closed; each get
 service's `data.exchangeRate` or the booking's `exchange_rate` (version +1, like a typed change); garbage & sludge gets
 `VesselDisposal.exchange_rate` and `frozen_price` (the month's price dict), used by `disposal.kept` on the page and on
 Calculations. Reopening keeps them; only a person changes them.
+
+**Ships and customers** (migration 0021; `ships.py`, `customers.py`, `GET/POST /api/ships/`, `PUT/DELETE
+/api/ships/<id>/`, `GET/POST /api/customers/`, `PUT/DELETE /api/customers/<id>/`): `Ship` (name upper-cased, `imo`
+7 digits with its check digit (`validators.imo_valid`), unique when not empty; empty only with `no_imo`; `opr`;
+`customer` PROTECT; `active`) is shared by all ports; admins and port users create / edit ships (OPR from their
+port's list + All ports), only admins delete (`ships.IN_USE` while vessels use it). `Customer` with
+`CustomerContact` (max 20) and `CustomerRate` (one per service type in `constants.RATE_UNITS`: per service, per unit
+of quantity, per line, or a percentage); every role reads, admins write. `Vessel.ship` (PROTECT, null for old
+vessels): `validators.clean_vessel_ship` requires `ship_id` on a **new** vessel (`NEED_SHIP`), keeps the saved one
+when the key is absent, allows an inactive ship only if already linked; the ship's OPR is allowed even if not in
+the port's list. Vessel JSON `ship {id, name, imo, customer_id}`. `Service.billing_party` (Customer, PROTECT) and
+`Service.billing` (`constants.BILLING`: `account` default / `cash`, a label only; `clean_service_billing`: a new
+service defaults to its ship's active customer, a save without the key keeps the stored value). Calculations rows
+carry `billing` / `billing_party`; `billing=` filters service rows only, `party=` (id or `__none__`) keeps service
+rows only; response `parties`; the data export's Calculations sheet has both columns. Front end: `js/shipPicker.js`
+(type-ahead on the vessel name, "+ New ship" last; Enter with no pick opens the inline `newShipPanel` from
+`js/modals/ship.js`, inside `#qa-newship` / `#vf-newship`: the app has one dialog), `js/parties.js` (customer
+cache), `js/rates.js` (pure, tested in `parsing_test.js`: which revenue boxes the agreed rate fills; a box typed
+in during the dialog is never filled, a saved service only fills empty ones, nothing while Cancelled); the service
+dialog (now async: it loads customers) shows the rate under the billing fields.
 
 **Agents:** `Vessel.arrival_agent` (who entered it), `Vessel.sailing_agent` (who sailed it) and `Service.agent` (who
 did that service), all plain text from the Agent list, empty until chosen. `listing.missing_details` feeds the

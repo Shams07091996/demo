@@ -3,8 +3,8 @@
 from datetime import date
 
 from .models import ChangeRecord, Customer, HotelStay, Service, Ship
-from .tests_dataexport import read
 from .tests import ApiTestCase
+from .tests_dataexport import read
 
 
 class ServiceBillingTests(ApiTestCase):

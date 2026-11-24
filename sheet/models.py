@@ -6,7 +6,17 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
-from .constants import BILLING, CANCEL_REASON_MAX, OPTION_KINDS, PLACES, PORT_KEYS, PORTS, ROLES, SERVICE_STATUSES, SERVICE_TYPES
+from .constants import (
+    BILLING,
+    CANCEL_REASON_MAX,
+    OPTION_KINDS,
+    PLACES,
+    PORT_KEYS,
+    PORTS,
+    ROLES,
+    SERVICE_STATUSES,
+    SERVICE_TYPES,
+)
 
 SETUP_WINDOW = timedelta(hours=72)  # how long after creation / a reset a person may set up their Authenticator
 EXEMPT_REFUSED = "Remove the two-step exception first."

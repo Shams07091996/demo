@@ -317,6 +317,9 @@ person on the list:
       reason**. While those two are empty, a vessel that berthed more than 2 hours late can't be saved and no port
       closure can be added.
 - [ ] **Exchange rates**: this month's USD → EGP rate, and the Garbage & Sludge prices.
+- [ ] **Customers** (with their agreed rates) and **Ships** (name, IMO or No IMO, OPR, customer): a new vessel
+      is always for a ship, so add the regular ones before people start (anyone who edits can also add one
+      from the vessel form).
 - [ ] Download one **LOG** letter and one **master receipt** to check the logo, stamp and footer.
 
 ### 8.5 Day to day
@@ -392,7 +395,8 @@ nssm restart MarineSheet                          # Linux: sudo systemctl restar
 ```
 
 `docs/STATUS.md` lists, for each change, whether it needs a migration and anything to do after it (for example
-`0019_service_status`: every service already there becomes Completed; `0020_cancel_and_frozen`: nothing to do).
+`0019_service_status`: every service already there becomes Completed; `0020_cancel_and_frozen`: nothing to do;
+`0021_ships_customers`: existing vessels have no ship and keep working, add ships and customers afterwards).
 After an
 update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
 of date. Reload it and try again.").

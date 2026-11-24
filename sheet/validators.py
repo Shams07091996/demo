@@ -11,6 +11,7 @@ from django.core.validators import validate_email
 from django.utils import timezone
 
 from .constants import (
+    BILLING,
     CANCEL_REASON_MAX,
     GUEST_GROUPS,
     MAX_GUESTS,
@@ -18,7 +19,6 @@ from .constants import (
     MULTI_TYPES,
     OPTION_KINDS,
     PLACE_KEYS,
-    BILLING,
     PORT_KEYS,
     RATE_UNITS,
     SERVICE_STATUSES,
@@ -442,7 +442,7 @@ def imo_valid(text):
     """A real IMO number: 7 digits whose last is the check digit (first six weighted 7..2, sum mod 10)."""
     if not isinstance(text, str) or not IMO_RE.match(text):
         return False
-    total = sum(int(digit) * weight for digit, weight in zip(text[:6], range(7, 1, -1)))
+    total = sum(int(digit) * weight for digit, weight in zip(text[:6], range(7, 1, -1), strict=True))
     return total % 10 == int(text[6])
 
 

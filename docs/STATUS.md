@@ -5,6 +5,18 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Ships, customers and billing (2026-11-24):** on branch **`feature/ships-customers`, not merged yet** (waiting for
+  the fresh review and the user's OK). Needs migration **`0021_ships_customers`** on the user's database. Existing
+  vessels keep working without a ship; a **new** vessel must be for a ship (picked from the name box's dropdown, or
+  added there with + New ship). New **Ships** page (name, IMO or No IMO, OPR, customer, active; admins and port users
+  add / edit, only admins delete) and **Customers** page (contacts, agreed rates per service type, linked ships;
+  admins edit, everyone reads). Each service has an optional **billing party** (a customer; a new service starts
+  with its ship's customer) and **Cash / On account** (a label); the billing party's agreed rate fills in the
+  revenue, which the person can change. Calculations has Billing party / Billing columns, a Billing tick filter and
+  a billing party dropdown; the Calculations data export has the two columns. 682 backend tests; `npm run check`
+  green; smoke test passes for alex / admin / viewer / suez. After the update: add the company's ships and customers
+  (Ships / Customers pages) before people add vessels.
+
 - **Data export (2026-11-24):** merged into `main` (branch deleted). No migration. An **Excel** button on Hotels, Transport, Port closures, Garbage & Sludge and Calculations downloads every row that page's filters show (all pages of results) as a plain table for other programs (one header row, numbers and real dates, ids to join the files); **All data** beside the Dashboard's Excel button gives the five in one file for its From–To (at most 24 months) and port. Every role; port users only their port. 646 backend tests; fresh review done (two findings fixed test-first: numbers are written exactly as stored, so a CSV saved from Excel keeps them, and searches are no longer written to the audit log); `npm run check` green; smoke test passes for alex / admin / viewer / suez.
 
 - **Service and accounting status (2026-11-23):** merged into `main` on 2026-11-24 (branch deleted). Needs migrations **`0019_service_status`** and **`0020_cancel_and_frozen`** on the user's database (existing services become Completed). Each service has an operations status (In progress / Completed / Cancelled, with a required reason when Cancelled), chosen beside the Agent in the service dialog and shown as a small coloured label on the service card, the Summary and Calculations; the vessel list shows "N in progress". A cancelled service drops its draft hotel / transport bookings and raises no alerts; choosing Cancelled sets its money to 0 (someone can still type an amount). Accounting (**the read-only accounts**, and admins) switch each Calculations line Open / Closed; a Closed line is **locked for every role** (no edit or delete of that service / booking / garbage & sludge, no deleting its vessel) until accounting reopens it. Calculations has tick-box filters (e.g. "All except Completed") for status and accounting, and its totals count Open / Closed lines. The Dashboard and the management Excel (new tenth sheet "Service status") count services per status and lines Open / Closed per month. 613 backend tests; fresh review done (two important findings fixed test-first: the lock now reads the stored flag under a row lock, and the Django admin pages can't change or delete closed things); `npm run check` green; smoke test passes for alex (with `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) / admin / viewer / suez.
@@ -56,6 +68,7 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
+| 2026-11-24 | **Ships, customers and billing** (branch `feature/ships-customers`): Ships page and ship picker on the vessel name (quick-add and vessel form, + New ship inline, IMO checked with its check digit, No IMO tick); Customers page (contacts, agreed rates, linked ships); billing party and Cash / On account on every service; agreed rate fills the revenue; Calculations billing columns / filters | `specs/2026-11-24-ships-customers-design.md` |
 | 2026-11-20 | **Garbage & Sludge page** (merged 2026-11-20): a sidebar page lists the vessels of a date range and port with garbage m³ and sludge t boxes (saved when left), revenue / cost / profit in EGP and USD, Hide (no garbage or sludge; Hidden filter with Bring back), filters and totals. Prices per month and port on the Exchange rates page: four blocks (garbage / sludge × revenue / cost), each a minimum quantity, a minimum amount in EGP or USD and an extra per unit above the minimum; Copy from last month. The money shows on that page and on Calculations, not in vessel totals. Master data lists are folded shut until clicked. The earlier hand-added service is removed | `specs/2026-11-20-garbage-page-design.md` |
 | 2026-11-20 | **Garbage & Sludge** (merged 2026-11-20) (replaced by the page above): admins set USD prices per m³ (garbage cost / revenue, sludge cost / revenue) for each month and port on the Exchange rates page (`DisposalPrice`); the hand-added service "Garbage & Sludge" takes garbage m³ and sludge m³; money = m³ × that port and month's price, converted with the month rate, counted in the vessel totals like any service; no price → the line is flagged and has no money. Prices apply live (changing one changes that month's vessels). Calculations shows each such line's USD profit and USD totals | `specs/2026-11-19-garbage-sludge-design.md` |
 | 2026-11-19 | **Admins choose the port of a new vessel** (merged 2026-11-20): with All ports in the header the vessel form and quick add start with no port (the form's Port field is now next to the name); the server refuses an admin's new vessel without one ("Choose a port.") instead of assuming Alexandria. Also: a Master data list loaded before a change was saved no longer overwrites the newer one. `docs/DEPLOYMENT.md`: deploying and creating users | — |
@@ -87,6 +100,12 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Decisions the user made (respect these)
 
+- **Ships and customers (2026-11-24):** the customer is **separate from the OPR** (option B): each ship has an OPR
+  and a customer. Every ship has an IMO unless **No IMO** is ticked. Admins **and** port users add ships right from
+  the vessel form / quick-add bar. A rate **fills in the revenue automatically, and people can change it**. **Cash**
+  is a label only; Calculations can filter cash lines out. Next, in this order, each designed on its own: an
+  **In-progress services page**, then an **admin accounts & permissions page** (port scope, can edit, can see
+  financial reports…).
 - **Edit conflicts (2026-11-21):** warn, never overwrite silently: the warning shows who, when and which fields, with Show their version / Save mine anyway (option 2); a `version` counter per record (approach A); the name is shown to **everyone** who gets the warning, port users included (the History page stays admin-only). Not covered: deletes, Garbage & Sludge boxes, rates, prices, Master data, accounts.
 - **Who sees what:** admins everything; port users only their port (server-enforced); **read-only users see all
   money everywhere** (vessels, Dashboard, Hotels / Transport cost and revenue, Calculations) but change nothing. The
@@ -156,6 +175,8 @@ Their security push has three pieces, in this order:
    service, ~~service status~~ (built 2026-11-23, with the accounting Open / Closed), billing basis (Cash / Owners'
    Account).
 5. ~~Excel import~~: the user meant an **export** (built 2026-11-24, see Data export above).
+6. ~~Ships / customers / billing~~ (built 2026-11-24, branch `feature/ships-customers`), then the **In-progress
+   services page**, then the **accounts & permissions page** (admin), each designed separately.
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
 
