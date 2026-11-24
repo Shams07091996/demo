@@ -9,8 +9,8 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 from . import accounts
 from .constants import ROLES
 from .errors import BadRequest
-from .models import EXEMPT_REFUSED, Profile, RememberedComputer
-from .tests import ApiTestCase
+from .models import EXEMPT_REFUSED, ChangeRecord, Profile, RememberedComputer
+from .tests import PASSWORD, ApiTestCase
 
 GOOD_PASSWORD = "Long-enough-pass-42"
 
@@ -145,3 +145,70 @@ class AccountRulesTests(ApiTestCase):
         accounts.update_account(plain, {"role": "suez"})
         self.assertEqual(Profile.objects.get(user=plain).role, "suez")
         self.assertFalse(Profile.objects.filter(user=root).exists())
+
+
+class AccountApiTests(ApiTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        boss = User.objects.create_superuser("boss", password=PASSWORD)
+        Profile.objects.create(user=boss, role="admin")
+
+    def body(self, **extra):
+        return {"username": "newbie", "first_name": "Nora", "last_name": "Adel", "role": "damietta",
+                "password": GOOD_PASSWORD, **extra}
+
+    def test_only_superusers(self):
+        alex = User.objects.get(username="alex")
+        for name in ("admin", "viewer", "alex"):
+            client = self.login(name)
+            self.assertEqual(self.call(client, "get", "/api/accounts/")[0], 403)
+            self.assertEqual(self.call(client, "post", "/api/accounts/", self.body())[0], 403)
+            self.assertEqual(self.call(client, "put", f"/api/accounts/{alex.id}/", {"role": "suez"})[0], 403)
+        self.assertFalse(User.objects.filter(username="newbie").exists())
+        self.assertEqual(Profile.objects.get(user=alex).role, "alexandria")
+        status, data = self.call(self.login("boss"), "get", "/api/accounts/")
+        self.assertEqual(status, 200)
+        self.assertIn("alex", [a["username"] for a in data["accounts"]])
+
+    def test_create_via_api(self):
+        boss = self.login("boss")
+        with self.captureOnCommitCallbacks(execute=True):
+            status, data = self.call(boss, "post", "/api/accounts/", self.body())
+        self.assertEqual(status, 201, data)
+        self.assertNotIn("password", data)
+        self.assertEqual((data["username"], data["role"], data["two_step"]), ("newbie", "damietta", "waiting"))
+        user = User.objects.get(username="newbie")
+        self.assertTrue(Profile.objects.get(user=user).must_change_password)
+        records = ChangeRecord.objects.filter(object_type="user", object_id=user.id)
+        self.assertTrue(records.exists())
+        self.assertFalse(any(GOOD_PASSWORD in str(r.changes) for r in ChangeRecord.objects.all()))
+        status, data = self.call(boss, "post", "/api/accounts/", self.body(username="NEWBIE"))
+        self.assertEqual((status, data["error"]), (400, accounts.TAKEN))
+
+    def test_update_via_api(self):
+        boss = self.login("boss")
+        alex = User.objects.get(username="alex")
+        status, data = self.call(boss, "put", f"/api/accounts/{alex.id}/",
+                                 {"role": "suez", "first_name": "Ali", "active": False})
+        self.assertEqual(status, 200, data)
+        self.assertEqual((data["role"], data["first_name"], data["active"]), ("suez", "Ali", False))
+        me = User.objects.get(username="boss")
+        status, data = self.call(boss, "put", f"/api/accounts/{me.id}/", {"active": False})
+        self.assertEqual((status, data["error"]), (400, accounts.LOCKED_ACCOUNT))
+        self.assertEqual(self.call(boss, "put", "/api/accounts/999999/", {"active": False})[0], 404)
+
+    def test_turned_off_session_stops_at_once(self):
+        alex = self.login("alex")
+        self.assertEqual(self.call(alex, "get", "/api/vessels/")[0], 200)
+        alex_id = User.objects.get(username="alex").id
+        self.assertEqual(self.call(self.login("boss"), "put", f"/api/accounts/{alex_id}/", {"active": False})[0], 200)
+        self.assertEqual(self.call(alex, "get", "/api/vessels/")[0], 401)
+
+    def test_role_change_applies_next_request(self):
+        alex = self.login("alex")
+        ports = lambda: {v["port"] for v in self.call(alex, "get", "/api/vessels/")[1]["vessels"]}  # noqa: E731
+        self.assertEqual(ports(), {"alexandria"})
+        alex_id = User.objects.get(username="alex").id
+        self.assertEqual(self.call(self.login("boss"), "put", f"/api/accounts/{alex_id}/", {"role": "suez"})[0], 200)
+        self.assertEqual(ports(), {"suez"})

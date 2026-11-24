@@ -9,6 +9,7 @@ from functools import cache
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import Count
 from django.http import Http404, HttpResponse, JsonResponse
@@ -21,6 +22,7 @@ from django.views.decorators.http import require_http_methods
 
 from . import (
     accounting,
+    accounts,
     branding,
     calculations,
     closures,
@@ -41,7 +43,15 @@ from . import (
     twostep,
 )
 from . import dashboard as dashboard_figures
-from .access import profile_of, require_accounting, require_admin, require_edit, scoped_closures, scoped_vessels
+from .access import (
+    profile_of,
+    require_accounting,
+    require_admin,
+    require_edit,
+    require_superuser,
+    scoped_closures,
+    scoped_vessels,
+)
 from .api import audit, json_api, read_json, server_error_response
 from .constants import (
     NO_AGENT,
@@ -926,3 +936,26 @@ def history_list(request):
         for r in rows.order_by("-id")[start : start + page_size]
     ]
     return JsonResponse({"records": records, "count": count, "pages": pages, "page": page})
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def accounts_list(request):
+    """Every account (GET) or a new one (POST): superusers only."""
+    require_superuser(request)
+    if request.method == "GET":
+        return JsonResponse(accounts.list_response())
+    user = accounts.create_account(read_json(request))
+    audit(request, "account.create", id=user.id, username=user.username)
+    return JsonResponse(accounts.account_to_dict(user), status=201)
+
+
+@json_api
+@require_http_methods(["PUT"])
+def account_detail(request, pk):
+    """Change one account's names / role / active: superusers only; superuser and staff accounts are refused."""
+    require_superuser(request)
+    user = get_object_or_404(User, pk=pk)
+    user = accounts.update_account(user, read_json(request))
+    audit(request, "account.update", id=user.id, username=user.username)
+    return JsonResponse(accounts.account_to_dict(user))
