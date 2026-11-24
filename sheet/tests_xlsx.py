@@ -92,3 +92,36 @@ class XlsxTests(SimpleTestCase):
         sheet = xlsx.Sheet(name="S", rows=[["_x0041_ and _x003D_1"]], widths=[], charts=[])
         xml = open_parts(xlsx.build([sheet]))["xl/worksheets/sheet1.xml"]
         self.assertIn("<t>_x005F_x0041_ and _x005F_x003D_1</t>", xml)
+
+
+class DateCellTests(SimpleTestCase):
+    def cells(self, *values):
+        parts = open_parts(xlsx.build([xlsx.Sheet("S", [list(values)])]))
+        return parts["xl/worksheets/sheet1.xml"], parts["xl/styles.xml"]
+
+    def test_day_cell(self):
+        from datetime import date
+
+        sheet, styles = self.cells(xlsx.Day(date(2026, 11, 24)))
+        self.assertIn(f'<c r="A1" s="{xlsx.DAY}"><v>46350</v></c>', sheet)
+        self.assertIn('formatCode="dd/mm/yyyy"', styles)
+
+    def test_moment_cell_in_cairo_time(self):
+        from datetime import UTC, datetime
+
+        sheet, styles = self.cells(xlsx.Moment(datetime(2026, 11, 24, 8, 0, tzinfo=UTC)))
+        value = float(re.search(r'<c r="A1" s="(\d+)"><v>([^<]+)</v>', sheet).group(2))
+        self.assertAlmostEqual(value, 46350 + 10 / 24, places=6)  # Cairo is UTC+2 in November
+        self.assertIn(f's="{xlsx.MOMENT}"', sheet)
+        self.assertIn('formatCode="dd/mm/yyyy hh:mm"', styles)
+
+    def test_empty_day_and_moment(self):
+        sheet, _ = self.cells(xlsx.Day(None), xlsx.Moment(None), "x")
+        self.assertNotIn('r="A1"', sheet)
+        self.assertNotIn('r="B1"', sheet)
+
+    def test_style_counts_match(self):
+        styles = open_parts(xlsx.build([xlsx.Sheet("S", [["x"]])]))["xl/styles.xml"]
+        for tag, child in (("numFmts", "numFmt"), ("cellXfs", "xf")):
+            block = re.search(rf"<{tag} count=\"(\d+)\">(.*?)</{tag}>", styles)
+            self.assertEqual(int(block.group(1)), block.group(2).count(f"<{child} "), tag)
