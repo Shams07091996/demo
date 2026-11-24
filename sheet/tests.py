@@ -258,13 +258,12 @@ class AccessTests(ApiTestCase):
         self.assertEqual(Vessel.objects.get(pk=vessel["id"]).port, "alexandria")
 
     def test_users_cannot_do_admin_things(self):
-        """Exchange rates, All-ports Master data and accounting belong to the Admins, whatever ports a User has."""
+        """Exchange rates and All-ports Master data belong to the Admins, whatever ports a User has (closing
+        accounting lines needs accounting.close: tests_permissions)."""
         for name in ("viewer", "alex"):
             user = self.login(name)
             self.assertEqual(self.call(user, "post", "/api/rates/", {"month": "2026-10", "rate": "50"})[0], 403)
             self.assertEqual(self.call(user, "get", "/api/history/")[0], 403)
-            self.assertEqual(self.call(user, "post", "/api/accounting/",
-                                       {"kind": "service", "id": self.suez_service.id, "closed": True})[0], 403)
 
     def test_only_admins_change_exchange_rates(self):
         """Rates are shared by every port, so a port user must not be able to change them."""

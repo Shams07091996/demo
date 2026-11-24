@@ -28,17 +28,6 @@ def require_page(profile, page):
         raise Forbidden(f"You don't have access to {PAGE_LABELS[page]}.")
 
 
-def require_edit(profile):
-    if not profile.can_edit:
-        raise Forbidden("Your account is read-only.")
-
-
-def require_accounting(profile):
-    """Accounting (Open / Closed on Calculations): admins only."""
-    if not profile.is_admin:
-        raise Forbidden("Only an admin can change this.")
-
-
 def require_superuser(request):
     """Accounts (the Accounts page): superusers only, whatever their role says."""
     if not request.user.is_superuser:

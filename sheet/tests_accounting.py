@@ -1,4 +1,4 @@
-"""Accounting status (Open / Closed) on Calculations rows, set by admins only, and the lock."""
+"""Accounting status (Open / Closed) on Calculations rows, set by Admins and people with accounting.close, and the lock."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -6,8 +6,9 @@ from decimal import Decimal
 from django.test import override_settings
 
 from .accounting import LOCKED
+from .constants import PERMISSION_KEYS
 from .models import ChangeRecord, DisposalPrice, Guest, HotelStay, Service, Transfer, Vessel, VesselDisposal
-from .tests import NEEDED, ApiTestCase
+from .tests import NEEDED, ApiTestCase, make_user
 
 WATER = {"type": "Fresh Water", "data": {"cost": "10", "costCurrency": "EGP"}}
 AT = datetime(2026, 11, 13, 8, tzinfo=UTC)
@@ -34,11 +35,13 @@ class AccountingTests(ApiTestCase):
         self.assertEqual(status, 200)
         self.assertFalse(self.refresh().acct_closed)
 
-    def test_port_user_cannot_close(self):
-        for client in (self.alex, self.login("viewer")):  # a User of several ports is no accountant either
-            status, _ = self.close(client, "service", self.service.id)
-            self.assertEqual(status, 403)
+    def test_user_without_accounting_close_cannot_close(self):
+        make_user("ops", "alexandria", permissions=[k for k in PERMISSION_KEYS if k != "accounting.close"])
+        status, _ = self.close(self.login("ops"), "service", self.service.id)
+        self.assertEqual(status, 403)
         self.assertFalse(self.refresh().acct_closed)
+        status, _ = self.close(self.alex, "service", self.service.id)  # a User with it may (piece 2)
+        self.assertEqual(status, 200)
 
     def test_accounting_rights_and_scope(self):
         self.assertEqual(self.close(self.viewer, "invoice", self.service.id)[0], 400)
@@ -47,8 +50,8 @@ class AccountingTests(ApiTestCase):
                                    {"kind": "service", "id": self.service.id, "closed": "yes"})[0], 400)
         self.assertEqual(self.call(self.viewer, "post", "/api/accounting/",
                                    {"kind": "service", "id": "x", "closed": True})[0], 400)
-        # a port user is refused before any lookup, even for a row of its own port
-        self.assertEqual(self.close(self.login("suezuser"), "service", self.suez_service.id)[0], 403)
+        # a User closes only rows of their own ports
+        self.assertEqual(self.close(self.alex, "service", self.suez_service.id)[0], 404)
 
     def test_close_does_not_raise_version(self):
         before = self.refresh().version
