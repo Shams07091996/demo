@@ -32,8 +32,8 @@ on screen. One sheet named after the page.
 
 **All data** (for management): a button beside the Dashboard's Excel button; From and To required, at most 24 months
 (like the management Excel), the Dashboard's port. One file, five sheets (Hotels, Transport, Port closures, Garbage &
-Sludge, Calculations), each in the same columns as its single-page file, rows in that date range (vessel date; port
-closures that overlap it).
+Sludge, Calculations), each in the same columns as its single-page file, rows in that date range as each page reads it
+(stays covering a night in it, trips on a day in it, closures overlapping it, vessel dates for the other two).
 
 **Columns:** each page's own columns, plus the vessel id and the row's own id so programs can join the files. Money as
 numbers with the currency in its own column; dates and times as real Excel dates. Hotels / Transport: one row per
