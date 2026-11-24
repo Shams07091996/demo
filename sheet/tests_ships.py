@@ -1,5 +1,6 @@
 """Ships (name, IMO, OPR, customer): the ships API, the IMO check, and vessels linked to ships."""
 
+import json
 from datetime import date
 
 from django.test import SimpleTestCase
@@ -54,7 +55,7 @@ class ShipApiTests(ApiTestCase):
         Ship.objects.create(name="MSC AURORA", imo="9074729")
         viewer = self.login("viewer")
         status, body = self.call(viewer, "get", "/api/ships/")
-        self.assertEqual((status, [s["name"] for s in body["ships"]]), (200, ["MSC AURORA"]))
+        self.assertEqual((status, [s["name"] for s in body["ships"]]), (200, ["MSC AURORA", "TEST SHIP"]))
         self.assertEqual(self.call(viewer, "post", "/api/ships/", AURORA)[0], 403)
 
     def test_search_and_active_filter(self):
@@ -97,4 +98,58 @@ class ShipApiTests(ApiTestCase):
         self.assertEqual(self.call(admin, "delete", f"/api/ships/{unused.id}/")[0], 200)
         status, body = self.call(admin, "delete", f"/api/ships/{used.id}/")
         self.assertEqual((status, body["error"]), (400, "In use: mark it inactive instead."))
-        self.assertEqual(self.call(self.login("viewer"), "get", "/api/ships/")[1]["ships"][0]["calls"], 1)
+        self.assertEqual(self.call(self.login("viewer"), "get", "/api/ships/?q=used")[1]["ships"][0]["calls"], 1)
+
+
+class VesselShipTests(ApiTestCase):
+    def raw_post(self, client, payload):
+        """A vessel POST without the test helper's automatic ship."""
+        response = client.post("/api/vessels/", data=json.dumps(payload), content_type="application/json",
+                               HTTP_X_CSRFTOKEN=client.cookies["csrftoken"].value)
+        return response.status_code, response.json()
+
+    def test_new_vessel_needs_ship(self):
+        status, body = self.raw_post(self.login("alex"), {**NEEDED, "name": "NEW", "date": "2026-11-13"})
+        self.assertEqual((status, body["error"]), (400, "Choose a ship, or add a new one."))
+
+    def test_ship_links_and_is_returned(self):
+        customer = Customer.objects.create(name="Blue Owners")
+        ship = Ship.objects.create(name="MSC AURORA", imo="9074729", opr=NEEDED["opr"], customer=customer)
+        alex = self.login("alex")
+        status, vessel = self.call(alex, "post", "/api/vessels/",
+                                   {**NEEDED, "name": "MSC AURORA", "date": "2026-11-13", "ship_id": ship.id})
+        self.assertEqual(status, 201, vessel)
+        expected = {"id": ship.id, "name": "MSC AURORA", "imo": "9074729", "customer_id": customer.id}
+        self.assertEqual(vessel["ship"], expected)
+        self.assertEqual(self.call(alex, "get", f"/api/vessels/{vessel['id']}/")[1]["ship"], expected)
+
+    def test_ship_opr_allowed_even_if_unlisted_for_port(self):
+        allow("opr", "SUEZ ONLY", port="suez")
+        ship = Ship.objects.create(name="SUEZ LINER", imo="9074729", opr="SUEZ ONLY")
+        status, vessel = self.call(self.login("alex"), "post", "/api/vessels/",
+                                   {**NEEDED, "opr": "SUEZ ONLY", "name": "SUEZ LINER", "date": "2026-11-13",
+                                    "ship_id": ship.id})
+        self.assertEqual((status, vessel.get("opr")), (201, "SUEZ ONLY"))
+
+    def test_unknown_or_inactive_ship_refused(self):
+        gone = Ship.objects.create(name="GONE", imo="", active=False)
+        alex = self.login("alex")
+        for ship_id in (999999, gone.id, "1", True):
+            status, _ = self.call(alex, "post", "/api/vessels/",
+                                  {**NEEDED, "name": "X", "date": "2026-11-13", "ship_id": ship_id})
+            self.assertEqual(status, 400, ship_id)
+
+    def test_old_vessel_without_ship_still_saves_but_link_cannot_be_removed(self):
+        alex = self.login("alex")
+        url = f"/api/vessels/{self.alex_vessel.id}/"
+        base = {**NEEDED, "name": "ALEX SHIP", "date": "2026-11-13"}
+        self.assertEqual(self.call(alex, "put", url, base)[0], 200)
+        ship = Ship.objects.create(name="ALEX SHIP", imo="9074729")
+        self.assertEqual(self.call(alex, "put", url, {**base, "ship_id": ship.id})[0], 200)
+        self.assertEqual(self.call(alex, "put", url, {**base, "ship_id": None})[0], 400)
+        self.assertEqual(self.call(alex, "put", url, base)[0], 200)  # no key: keeps the ship
+        self.alex_vessel.refresh_from_db()
+        self.assertEqual(self.alex_vessel.ship_id, ship.id)
+        ship.active = False
+        ship.save()
+        self.assertEqual(self.call(alex, "put", url, {**base, "ship_id": ship.id})[0], 200)  # its saved ship

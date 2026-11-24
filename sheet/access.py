@@ -32,7 +32,8 @@ def require_admin(profile):
 
 def scoped_vessels(profile, port=None, prefetch=True):
     """Vessels this profile may see. Port users only ever see their own port; others may filter."""
-    queryset = Vessel.objects.prefetch_related("services") if prefetch else Vessel.objects.all()
+    queryset = (Vessel.objects.prefetch_related("services").select_related("ship") if prefetch
+                else Vessel.objects.all())
     if profile.port:
         return queryset.filter(port=profile.port)
     if port in PORT_KEYS:

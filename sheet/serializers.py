@@ -50,6 +50,12 @@ def service_to_dict(service, month_rate):
     }
 
 
+def _ship(ship):
+    if ship is None:
+        return None
+    return {"id": ship.id, "name": ship.name, "imo": ship.imo, "customer_id": ship.customer_id}
+
+
 def vessel_to_dict(vessel, rates):
     rate = rates.get((vessel.date.year, vessel.date.month))
     services = [service_to_dict(s, rate) for s in vessel.services.all()]
@@ -67,6 +73,7 @@ def vessel_to_dict(vessel, rates):
         "summary": vessel.summary or {},
         **{key: local_iso(getattr(vessel, key)) for key in TIME_KEYS},
         "delay_reason": vessel.delay_reason,
+        "ship": _ship(vessel.ship),
         "status": vessel_status(vessel),
         "durations": {
             "ops_hours": _hours(vessel.ops_start_at, vessel.ops_end_at),

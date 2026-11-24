@@ -88,12 +88,13 @@ def _rate(value):
     return result
 
 
-def listed(kind, value, port, current=""):
+def listed(kind, value, port, current="", also=()):
     """A value from the Master data list `kind` for `port` (that port's or All ports'), or empty.
-    The value already saved on the record (`current`) stays allowed even if it left the list."""
+    The value already saved on the record (`current`) stays allowed even if it left the list, and so do the
+    values in `also` (a vessel's ship's OPR)."""
     label = KIND_LABELS[kind]
     text = _short(value, 100, label)
-    if not text or text == (current or ""):
+    if not text or text == (current or "") or text in also:
         return text
     if not Option.objects.filter(kind=kind, value=text, port__in=("", port or "")).exists():
         raise BadRequest(f"{label}: choose a value from the Master data {label} list for this port.")
@@ -367,8 +368,9 @@ def clean_vessel(data, profile, existing=None):
     if times["sailing_at"]:  # once it has sailed, the vessel's date is its sailing day (Cairo)
         when = timezone.localdate(times["sailing_at"])
 
+    ship = clean_vessel_ship(data, existing)
     # OPR and POC: required for a new vessel and can't be emptied once set (older vessels without them still save).
-    opr = listed("opr", data.get("opr"), port, getattr(existing, "opr", ""))
+    opr = listed("opr", data.get("opr"), port, getattr(existing, "opr", ""), also=(ship.opr,) if ship else ())
     poc = listed("poc", data.get("poc"), port, getattr(existing, "poc", ""))
     for value, field, message in ((opr, "opr", "Choose an OPR."), (poc, "poc", "Choose a POC.")):
         if not value and (existing is None or getattr(existing, field)):
@@ -384,8 +386,33 @@ def clean_vessel(data, profile, existing=None):
         "port": port,
         "summary": clean_summary(data.get("summary")),
         "delay_reason": clean_delay_reason(data, times, port, existing),
+        "ship": ship,
         **times,
     }
+
+
+NEED_SHIP = "Choose a ship, or add a new one."
+
+
+def clean_vessel_ship(data, existing=None):
+    """The vessel's ship (`ship_id`): required for a new vessel, kept when the key is not sent, never removed once
+    linked; an inactive ship only if it is the one already saved."""
+    current = getattr(existing, "ship", None)
+    if "ship_id" not in data and existing is not None:
+        return current
+    value = data.get("ship_id")
+    if value is None:
+        if existing is None or current is not None:
+            raise BadRequest(NEED_SHIP)
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise BadRequest(NEED_SHIP)
+    if current is not None and value == current.id:
+        return current
+    ship = Ship.objects.filter(pk=value, active=True).first()
+    if ship is None:
+        raise BadRequest(NEED_SHIP)
+    return ship
 
 
 # ---- ships ----------------------------------------------------------------------------------
