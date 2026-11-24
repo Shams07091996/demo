@@ -6,6 +6,7 @@ import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
 import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
+import { addContactRow, deleteCustomerDialog, saveCustomerDialog } from './modals/customer.js';
 import { deleteShipDialog, saveShipDialog } from './modals/ship.js';
 import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
@@ -21,6 +22,7 @@ import { openVessel, openVesselForm, syncSailingDate, updateDelayRow, vesselPayl
 import { bookingsPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { closuresPage } from './pages/closures.js';
+import { customersPage } from './pages/customers.js';
 import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
@@ -249,6 +251,13 @@ export const actions = {
   'booking-save': () => saveBooking(),
   'booking-delete': deleteBooking,
 
+  'customer-new': () => customersPage.open(null),
+  'customer-open': (b) => customersPage.open(Number(b.dataset.id)),
+  'customer-save': () => saveCustomerDialog(),
+  'customer-del': () => deleteCustomerDialog(),
+  'contact-add': () => addContactRow(),
+  'contact-remove': (b) => b.closest('.contact-row')?.remove(),
+  'customer-ship': (b) => shipsPage.openById(Number(b.dataset.id)),
   'ship-new': () => shipsPage.open(null),
   'ship-open': (b) => shipsPage.open(Number(b.dataset.id)),
   'ship-save': () => saveShipDialog(),

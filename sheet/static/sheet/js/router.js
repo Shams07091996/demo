@@ -4,6 +4,7 @@ import { loadDashboard, loadOptions, loadRates } from './data.js';
 import { hotelsPage, transportPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
 import { closuresPage } from './pages/closures.js';
+import { customersPage } from './pages/customers.js';
 import { disposalPage } from './pages/disposal.js';
 import { historyPage } from './pages/history.js';
 import { renderMasterPage } from './pages/master.js';
@@ -21,6 +22,7 @@ const TITLES = {
   calculations: 'Calculations',
   dashboard: 'Dashboard',
   ships: 'Ships',
+  customers: 'Customers',
   master: 'Master data',
   rates: 'Exchange rates',
   history: 'History',
@@ -48,6 +50,7 @@ export async function showPage(requested) {
   if (name === 'calculations') await calculationsPage.load();
   if (name === 'history') await historyPage.load();
   if (name === 'ships') await shipsPage.load();
+  if (name === 'customers') await customersPage.load();
   if (name === 'master') {
     await loadOptions(); // refresh the "used by N vessels" counts
     renderMasterPage();

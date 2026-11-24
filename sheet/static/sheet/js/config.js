@@ -6,6 +6,7 @@ const readJson = (id) => JSON.parse(document.getElementById(id).textContent);
 export const ME = readJson('me-data');
 export const PORTS = readJson('ports-data');
 export const TYPES = readJson('types-data');
+export const RATE_UNITS = readJson('rate-units-data'); // {service type: service | unit | line | percent}
 export const SUMMARY_FIELDS = readJson('summary-fields-data');
 export const OPTION_KINDS = readJson('option-kinds-data');   // [{key, label}] OPR / POC / Agent
 export const TIME_FIELDS = readJson('time-fields-data');      // [{key, label}] arrival … sailing

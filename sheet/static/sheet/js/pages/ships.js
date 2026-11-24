@@ -54,4 +54,10 @@ export const shipsPage = {
     const ship = id ? ships.find((s) => s.id === id) : null;
     openShipDialog(ship, () => shipsPage.load());
   },
+  /** Open a ship that may not be on this page yet (from a customer's ship list); edit roles only. */
+  async openById(id) {
+    if (!ME.canEdit) return;
+    const ship = (await api('/api/ships/')).ships.find((s) => s.id === id);
+    if (ship) openShipDialog(ship, () => shipsPage.load());
+  },
 };

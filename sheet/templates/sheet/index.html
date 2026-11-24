@@ -25,6 +25,7 @@
       <a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>
       <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>
       <a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>
+      <a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>
       <a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>
       <a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>
       {% if me.isAdmin %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
@@ -150,6 +151,15 @@
       <div class="table-wrap">
         <table><thead id="sh-head"></thead><tbody id="sh-tbody"></tbody></table>
         <div class="empty" id="sh-empty" hidden>No ships.</div>
+      </div>
+    </main>
+
+    <!-- ===== Customers (drawn by js/pages/customers.js) ===== -->
+    <main class="page" id="page-customers" hidden>
+      {% if me.isAdmin %}<div class="toolbar"><div class="tools"></div><div class="tools"><button class="btn primary" data-act="customer-new">+ Customer</button></div></div>{% endif %}
+      <div class="table-wrap">
+        <table><thead id="cu-head"></thead><tbody id="cu-tbody"></tbody></table>
+        <div class="empty" id="cu-empty" hidden>No customers.</div>
       </div>
     </main>
 
@@ -287,6 +297,7 @@
 {{ me|json_script:"me-data" }}
 {{ ports|json_script:"ports-data" }}
 {{ service_types|json_script:"types-data" }}
+{{ rate_units|json_script:"rate-units-data" }}
 {{ summary_fields|json_script:"summary-fields-data" }}
 {{ option_kinds|json_script:"option-kinds-data" }}
 {{ time_fields|json_script:"time-fields-data" }}
