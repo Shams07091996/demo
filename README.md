@@ -120,6 +120,7 @@ out-of-order times are rejected.
 | Cash to Master | Our revenue is a share **of** the amount (a percentage or a fixed figure), never on top of it; the remainder is "paid to master" and is not our cost |
 | Crew | Pasted personal / flight text is parsed (rank, nationality, flights) |
 | Reports | *Summary of services* per vessel (port call, services with counts, details, crew table, total profit, financial summary; printable), OPR summary, Dashboard |
+| Excel | The Dashboard's management workbook; an **Excel** button on Hotels, Transport, Port closures, Garbage & Sludge and Calculations (every row the page's filters show, as a plain table for other programs) and **All data** (the five in one file for a From – To range) |
 | Alerts | Bell + banner for vessels dated today or tomorrow |
 
 ### Roles
@@ -145,7 +146,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 627 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
+python manage.py test sheet         # 646 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
@@ -185,6 +186,8 @@ sheet/
   listing.py            vessel list: date range, search, sorting, paging, totals, alerts
   dashboard.py          Dashboard: jobs per agent, services / money per month, OPR figures
   views.py              page, API, CSV
+  xlsx.py, report.py    Excel writer (standard library only) and the management workbook
+  dataexport.py         plain-table Excel files of five pages (Data export)
   throttle.py, signals.py   login failure counting and security logging
   ratelimit.py          API rate limits (writes, CSV export)
   alerts.py             alert record / e-mail when lock-outs, denials or errors pass a threshold

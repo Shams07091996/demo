@@ -178,9 +178,17 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
     });
   }
 
+  function exportQuery() {
+    const query = params();
+    query.delete('page');
+    query.delete('page_size');
+    return query;
+  }
+
   return {
     kind,
     load,
+    exportQuery,
     setFilter,
     step: (n) => setFilter({ page: Math.min(Math.max(1, filter.page + n), list.pages) }),
   };

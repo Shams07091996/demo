@@ -11,7 +11,10 @@ import io
 import re
 import zipfile
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from xml.sax.saxutils import escape
+
+from django.utils import timezone
 
 MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -21,8 +24,9 @@ A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 C_NS = "http://schemas.openxmlformats.org/drawingml/2006/chart"
 CT = "application/vnd.openxmlformats-officedocument"
 
-# Cell styles (cellXfs positions): 0 normal, 1 bold, 2 whole number, 3 money, 4 hours.
-NORMAL, BOLD, WHOLE, MONEY, HOURS = range(5)
+# Cell styles (cellXfs positions): 0 normal, 1 bold, 2 whole number, 3 money, 4 hours, 5 day, 6 day and time.
+NORMAL, BOLD, WHOLE, MONEY, HOURS, DAY, MOMENT = range(7)
+_EPOCH = datetime(1899, 12, 30)  # Excel's day 0 (it counts 1900 as a leap year; every date after Feb 1900 is right)
 CHART_COLS, CHART_ROWS = 8, 18
 _BAD_XML = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
 _BAD_NAME = re.compile(r"[\[\]:*?/\\]")
@@ -41,6 +45,28 @@ class Money:
 @dataclass(frozen=True)
 class Hours:
     value: float | None
+
+
+@dataclass(frozen=True)
+class Number:
+    """A number shown exactly as stored (General format: no thousands separator, no rounding on show), as other
+    programs and Excel's own CSV save need it. None: an empty cell."""
+
+    value: float | int | None
+
+
+@dataclass(frozen=True)
+class Day:
+    """A calendar date, shown dd/mm/yyyy (a real Excel date). None: an empty cell."""
+
+    value: date | None
+
+
+@dataclass(frozen=True)
+class Moment:
+    """A date and time, shown dd/mm/yyyy hh:mm in Cairo time (an aware value is converted first). None: empty."""
+
+    value: datetime | None
 
 
 @dataclass
@@ -86,10 +112,27 @@ def _number(value):
     return str(int(value)) if value.is_integer() and abs(value) < 1e15 else repr(value)
 
 
+def _serial(value):
+    """Excel's serial number of a date (whole days) or a date and time (with the fraction of the day)."""
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            value = timezone.localtime(value).replace(tzinfo=None)
+        delta = value - _EPOCH
+        return delta.days + delta.seconds / 86400 + delta.microseconds / 86400e6
+    return (value - _EPOCH.date()).days
+
+
 def _cell(ref, value):
     """One <c> element, or "" for an empty cell."""
     if value is None:
         return ""
+    if isinstance(value, Number):
+        return "" if value.value is None else f'<c r="{ref}"><v>{_number(value.value)}</v></c>'
+    if isinstance(value, Day | Moment):
+        if value.value is None:
+            return ""
+        style = DAY if isinstance(value, Day) else MOMENT
+        return f'<c r="{ref}" s="{style}"><v>{_number(_serial(value.value))}</v></c>'
     if isinstance(value, Bold):
         style, text = BOLD, value.text
     elif isinstance(value, Hours | Money):
@@ -192,18 +235,21 @@ def _rels(targets):
 
 STYLES = (
     f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="{MAIN}">'
-    '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.0"/></numFmts>'
+    '<numFmts count="3"><numFmt numFmtId="164" formatCode="0.0"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>'
+    '<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/></numFmts>'
     '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>'
     '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
     '<fills count="2"><fill><patternFill patternType="none"/></fill>'
     '<fill><patternFill patternType="gray125"/></fill></fills>'
     '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    '<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    '<cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
     '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
     '<xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
     '<xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
-    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>'
+    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+    '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+    '<xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>'
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'
 )
 

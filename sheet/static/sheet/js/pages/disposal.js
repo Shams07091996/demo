@@ -199,8 +199,17 @@ function open() {
   return load();
 }
 
+/** The list query without paging: what the Excel button exports (every row these filters show). */
+function exportQuery() {
+  const query = params();
+  query.delete('page');
+  query.delete('page_size');
+  return query;
+}
+
 export const disposalPage = {
   load: open,
+  exportQuery,
   hide: (id) => setHidden(id, true),
   show: (id) => setHidden(id, false),
 };

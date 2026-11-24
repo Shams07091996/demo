@@ -276,8 +276,17 @@ async function toggleClosed(button) {
   if (fresh) rememberVessels([fresh]);
 }
 
+/** The list query without paging: what the Excel button exports (every row these filters show). */
+function exportQuery() {
+  const query = params();
+  query.delete('page');
+  query.delete('page_size');
+  return query;
+}
+
 export const calculationsPage = {
   load,
+  exportQuery,
   toggleClosed,
   step: (n) => setFilter({ page: Math.min(Math.max(1, filter.page + n), data.pages) }),
 };

@@ -38,7 +38,8 @@ def _day_start(day):
     return timezone.make_aware(datetime.combine(day, time.min))
 
 
-def list_response(profile, params):
+def filtered(profile, params):
+    """The closures the page shows (scoped, overlapping From–To), newest first (also the export)."""
     date_from, date_to = date_param(params, "from"), date_param(params, "to")
     if date_from and date_to and date_from > date_to:
         raise BadRequest("From must be on or before To.")
@@ -48,7 +49,11 @@ def list_response(profile, params):
     if date_from:
         start = _day_start(date_from)
         queryset = queryset.filter(end_at__isnull=True) | queryset.filter(end_at__gte=start)
-    return {"closures": [closure_to_dict(c, profile) for c in queryset.order_by("-start_at", "-id")]}
+    return queryset.order_by("-start_at", "-id")
+
+
+def list_response(profile, params):
+    return {"closures": [closure_to_dict(c, profile) for c in filtered(profile, params)]}
 
 
 def get_closure(profile, pk):
