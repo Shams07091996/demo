@@ -5,7 +5,7 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Accounts page (2026-11-24):** on branch **`feature/accounts-page`, not merged yet** (waiting for the fresh
+- **Accounts page (2026-11-24):** **merged into `main`** (2026-11-24, after a fresh
   review and the user's OK). No migration. Superusers get an **Accounts** page (sidebar, after History): every
   account with role, two-step state, last sign-in and On / Off; **+ Add account** (username, names, role, temporary
   password — the person changes it and sets up Authenticator at the first sign-in); change names / role; **Turn off
@@ -86,7 +86,7 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
-| 2026-11-24 | **Accounts page** (branch `feature/accounts-page`): superusers add accounts, change names / role, turn them off / on | `specs/2026-11-24-accounts-page-design.md` |
+| 2026-11-24 | **Accounts page**: superusers add accounts, change names / role, turn them off / on | `specs/2026-11-24-accounts-page-design.md` |
 | 2026-11-24 | **Services page**: work list of services with status / missing / date / service / agent / search / port filters, what each one is missing, Sailed mark, completed time (`Service.completed_at`), Excel export | `specs/2026-11-24-services-page-design.md` |
 | 2026-11-24 | **Ships, customers and billing** (merged 2026-11-24): Ships page and ship picker on the vessel name (quick-add and vessel form, + New ship inline, IMO checked with its check digit, No IMO tick); Customers page (contacts, agreed rates, linked ships); billing party and Cash / On account on every service; agreed rate fills the revenue; Calculations billing columns / filters | `specs/2026-11-24-ships-customers-design.md` |
 | 2026-11-20 | **Garbage & Sludge page** (merged 2026-11-20): a sidebar page lists the vessels of a date range and port with garbage m³ and sludge t boxes (saved when left), revenue / cost / profit in EGP and USD, Hide (no garbage or sludge; Hidden filter with Bring back), filters and totals. Prices per month and port on the Exchange rates page: four blocks (garbage / sludge × revenue / cost), each a minimum quantity, a minimum amount in EGP or USD and an extra per unit above the minimum; Copy from last month. The money shows on that page and on Calculations, not in vessel totals. Master data lists are folded shut until clicked. The earlier hand-added service is removed | `specs/2026-11-20-garbage-page-design.md` |
@@ -204,7 +204,7 @@ Their security push has three pieces, in this order:
    Account).
 5. ~~Excel import~~: the user meant an **export** (built 2026-11-24, see Data export above).
 6. ~~Ships / customers / billing~~ (built and merged 2026-11-24), ~~the In-progress services page~~ (built
-   2026-11-24, merged), ~~the accounts page~~ (built 2026-11-24, branch `feature/accounts-page`), then the
+   2026-11-24, merged), ~~the accounts page~~ (built 2026-11-24, merged), then the
    **access rework**: Admins / Users by port, admins add ports and give agents extra ports (its own design).
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
