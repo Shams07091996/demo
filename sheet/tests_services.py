@@ -236,3 +236,41 @@ class ServiceListTests(ApiTestCase):
             self.mk(self.old)
             self.mk(self.suez_vessel, t="Crew Change", data={"onSigners": [], "offSigners": []})
         self.assertEqual(count(), few)
+
+
+class ServiceExportTests(ApiTestCase):
+    """GET /api/export/services/: the page's filtered rows, every page of them, as a plain table."""
+
+    HEAD = ["Service id", "Vessel id", "Vessel", "Port", "Vessel date", "Service", "Agent", "Status",
+            "Cancellation reason", "Completed", "Sailed", "Missing", "Billing party", "Billing"]
+
+    def export(self, user, query=""):
+        from .tests_dataexport import read
+        response = self.login(user).get(f"/api/export/services/?{query}")
+        self.assertEqual(response.status_code, 200)
+        return next(iter(read(response.content).values()))
+
+    def test_services_export_header_and_rows(self):
+        Service.objects.all().delete()
+        gap = Service.objects.create(vessel=self.alex_vessel, service_type="Landing", agent="",
+                                     data={"entries": [{"cost": 1, "revenue": None}]})
+        Service.objects.create(vessel=self.suez_vessel, service_type="Medical Treatment", agent="AG",
+                               data={"cost": 1, "revenue": 1})
+        Service.objects.create(vessel=self.alex_vessel, service_type="Certificates", status="completed",
+                               data={"cost": 1, "revenue": 1})
+        rows = self.export("admin", "page_size=1&page=2")
+        self.assertEqual(rows[0], self.HEAD)
+        self.assertEqual(len(rows), 3)  # both in-progress services: every page, not page 2 of 1
+        first = rows[1]
+        self.assertEqual((first[0], first[2], first[3], first[5], first[7], first[10], first[11], first[13]),
+                         (float(gap.id), "ALEX SHIP", "Alexandria", "Landing", "In progress", "Yes",
+                          "Agent, Revenue", "On account"))
+        self.assertEqual(len(self.export("alex")), 2)  # a port user: only their port
+        self.assertEqual(len(self.export("admin", "missing=1")), 2)
+
+    def test_all_data_still_five_sheets(self):
+        from .tests_dataexport import read
+        response = self.login("admin").get("/api/export/all/?from=2026-11-01&to=2026-11-30")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(read(response.content)),
+                         ["Hotels", "Transport", "Port closures", "Garbage & Sludge", "Calculations"])
