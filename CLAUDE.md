@@ -6,10 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Marine Service Sheet: a Django 5.2 app replacing an Excel sheet of vessels and the services done for them (crew change,
 deliveries, cash to master…), with cost / revenue / profit in EGP. One Django app (`sheet`) plus a vanilla ES-module
-front end with **no build step**. Users have a role: `admin`, `readonly` (sees all ports, edits nothing but the
-accounting Open / Closed switch: the read-only accounts are the accountants), or a port
-role (`alexandria`, `portsaid`, `damietta`, `suez`: sees and edits only that port). Superusers manage accounts on the
-Accounts page. See `README.md` and `SECURITY.md`.
+front end with **no build step**. **Admins are the superusers** (made with `createsuperuser`, never by the app): every
+port, accounts, ports, rates, the History, accounting. Everyone else is a **User** with a home port and extra ports
+(`Profile.home_port` / `ports`) who works fully in each; no port → blocked ("no port yet"). The Read-only role is gone
+(migration 0024 turned those accounts off). This is piece 1 of the access rework
+(`specs/2026-11-24-access-rework-design.md`); pieces 2 (per-person permissions) and 3 (money) are still to build.
+See `README.md` and `SECURITY.md`.
 
 The project is a **git repository** (branch `main`; each feature on its own branch, merged only when the user agrees)
 and runs on Windows. Designs and plans live in `docs/superpowers/`.
@@ -50,7 +52,8 @@ Dev tools are in `requirements-dev.txt` (ruff with the security rules `S`, pip-a
 ### Browser smoke test (`tools/ui_smoke_test.js`)
 
 Loads the real page in jsdom, signs in over HTTP and clicks through every page; run it for `alex` (port user),
-`admin` and `viewer`. Run it against a **throwaway database**, never the user's `db.sqlite3`:
+`admin` and `viewer` (a User of Alexandria, Port Said and Damietta). Run it against a **throwaway database**, never
+the user's `db.sqlite3`:
 
 ```bash
 DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py migrate
@@ -59,7 +62,9 @@ DJANGO_DEBUG=1 DJANGO_DB_PATH=<scratch>/fresh.sqlite3 python manage.py runserver
 cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_smoke_test.js alex    # then admin, viewer, suez
 ```
 
-- `suez` is a short separate run (a port user outside Alexandria); the full script is written for alex / admin / viewer.
+- `suez` (a port user outside Alexandria) and `viewer` (the three-port User: port choices, a Damietta vessel, no Suez,
+  no Open / Closed buttons) are short separate runs; the full script is written for alex / admin. The admin run also
+  adds a `Smoke…` port on the Ports page each time (ports are never deleted).
 - `seed_demo` only sets passwords for users it creates; on a database that already has them, use a new database.
 - A run that fails part-way leaves its test vessels behind and later runs then fail on them: start from a fresh
   database (or delete the leftovers) before trusting a result.
@@ -89,8 +94,12 @@ in `static/sheet/js/config.js`. Everything else is fetched from `/api/...` (rout
 **Every API view** is wrapped in `api.json_api` (auth check, `request.profile`, rate limit via `ratelimit.check`,
 **one `transaction.atomic` per write**, maps `errors.ApiError` subclasses to JSON errors, logs 403s, turns any other
 exception into `{"error", "ref"}` 500 with the ref in the `sheet.security` log) and must get vessels through
-`access.scoped_vessels(profile, port)`, which pins port users to their own port whatever `port` they send. Writes call
-`access.require_edit` / `require_admin` (exchange rates are shared by all ports, so admin-only). Changes are recorded
+`access.scoped_vessels(profile, port)` (`port__in` the User's ports; `port` narrows only when it is one of theirs,
+`access.asked_port`, so asking never widens). `access.ports_of(profile)` is None for Admins, else the User's keys;
+every record written into a port goes through `access.require_port(profile, key, new=...)` (403 for a port that isn't
+theirs, 400 "That port is turned off." for a new record in a turned-off one; `validators._record_port` for vessels and
+closures: sent port, else saved, else the User's home port). Writes call `access.require_edit` / `require_admin`
+(exchange rates are shared by all ports, so admin-only). Changes are recorded
 with `api.audit(...)`; values go through `api.log_safe`. `handler404` / `handler500` (`views.not_found` /
 `server_error`) answer JSON under `/api/`, plain pages elsewhere.
 
@@ -179,7 +188,7 @@ no revenue → the label only); POST with the edited text (`validators.clean_rec
 History records action `receipt` (migration 0017 widened `ChangeRecord.action` to 7). Scoped, `require_edit`, rate
 limited with the exports. The LOG and the receipt download through `api.download()`.
 
-**Management Excel** (`xlsx.py`, `report.py`, `GET /api/dashboard/export/?from=&to=&port=`, `views.dashboard_export`, the Dashboard's **Excel** button `data-act="dashboard-export"`): a `.xlsx` written with the **standard library only** (`zipfile` + escaped XML; text cells are always inline strings, never formulas; native DrawingML charts). `report.data(profile, Range, now)` builds ten sheets of tables (`{"head", "rows", "total"}`); money comes **only** from `calculations.rows_for` (so it equals the Calculations page, hotels / transport / garbage included), job counts from `dashboard.response`; `report.workbook` lays them out (title, range line, tables, notes, one chart; a sheet whose figures are all zero shows "No data"). From and To required, at most 24 months; every role, port users pinned to their port; rate limited with the exports; audit `dashboard.export`. `crewbookings.early_on_signers(service)` counts every early on-signer (visa charged or not).
+**Management Excel** (`xlsx.py`, `report.py`, `GET /api/dashboard/export/?from=&to=&port=`, `views.dashboard_export`, the Dashboard's **Excel** button `data-act="dashboard-export"`): a `.xlsx` written with the **standard library only** (`zipfile` + escaped XML; text cells are always inline strings, never formulas; native DrawingML charts). `report.data(profile, Range, now)` builds ten sheets of tables (`{"head", "rows", "total"}`); money comes **only** from `calculations.rows_for` (so it equals the Calculations page, hotels / transport / garbage included), job counts from `dashboard.response`; `report.workbook` lays them out (title, range line, tables, notes, one chart; a sheet whose figures are all zero shows "No data"). From and To required, at most 24 months; everyone, Users get their ports (a one-port User's files are named after it); rate limited with the exports; audit `dashboard.export`. `crewbookings.early_on_signers(service)` counts every early on-signer (visa charged or not).
 
 **Data export** (`dataexport.py`, `GET /api/export/<page>/?<that page's list query>` with page `hotels` / `transfers` /
 `closures` / `disposal` / `calculations`, and `GET /api/export/all/?from=&to=&port=`; `views.data_export` /
@@ -219,7 +228,7 @@ otherwise, 500 characters; a save without the key keeps the stored value). Exist
 cancelled service is skipped by `crewbookings.crew_members` (its drafts go, and come back if un-cancelled),
 `early_arrivals` and `listing.missing_details`; its money lines stay (the dialog sets the money to 0 on choosing
 Cancelled). **Accounting** (`accounting.py`, `POST /api/accounting/ {kind: service|hotel|transfer|disposal, id,
-closed}`, `access.require_accounting`: admin or role `readonly`; only a thing with a line on Calculations, i.e. some
+closed}`, `access.require_accounting`: Admins only (until piece 2's `accounting.close` permission); only a thing with a line on Calculations, i.e. some
 money, can be closed: `accounting.NO_MONEY`): `acct_closed` on Service, HotelStay, Transfer and
 VesselDisposal, never written by operations saves (`conflicts.UNTRACKED`); the flag alone never raises `version`
 (writing a kept rate on closing does, below). Closed =
@@ -280,16 +289,28 @@ page reads its own `data-tick` group inside its own box). A row opens `openServi
 filters are kept in `localStorage` (`sheet.services.filter`).
 
 **Accounts page** (`accounts.py`, `GET/POST /api/accounts/`, `PUT /api/accounts/<id>/`, page `js/pages/accounts.js`,
-dialog `js/modals/account.js`): **superusers only** (`access.require_superuser(request)`, `me.isSuperuser` renders the
-nav item / page). Lists every account (on first, then username) with role, `two_step` (`set_up` / `waiting` /
-`expired` / `exempt`), last sign-in; a GET never creates a Profile. `validators.clean_account`: new → username
-(`USERNAME_RE`, unique ignoring case: `accounts.TAKEN`), names (150), role, password through Django's
-`validate_password`; existing → names / role / `active` only, anything else ignored. Superuser and staff accounts are
+dialog `js/modals/account.js`): **Admins (superusers) only** (`access.require_superuser(request)`, `me.isSuperuser`
+renders the nav item / page). Lists every account (on first, then username) with home port / ports (column "Ports":
+"Alexandria (home), Damietta", superusers "Admin · all ports"), `two_step` (`set_up` / `waiting` / `expired` /
+`exempt`), last sign-in; a GET never creates a Profile; the response's `ports` is `[[key, name, active]]`.
+`validators.clean_account`: new → username (`USERNAME_RE`, unique ignoring case: `accounts.TAKEN`), names (150),
+`home_port` + `ports` (`_account_ports`: home required and put first; each must exist and be turned on unless the
+account already has it; at most 50), password through Django's `validate_password`; existing → names / ports /
+`active` only, anything else ignored. The dialog: Home port select + Extra ports ticks (the home's tick on and
+fixed). Superuser and staff accounts are
 refused (`accounts.LOCKED_ACCOUNT`, managed in the admin pages); the page never sets either flag. Turn off =
 `is_active=False` (Django drops the session on the next request) + the user's remembered computers deleted. The
 temporary password triggers `must_change_password` through the existing signal; History via the User / Profile
-signals. No version column (last save wins). The planned access rework (admins add ports, extra ports per user) will
-grow this page.
+signals. No version column (last save wins).
+
+**Ports** (`ports.py`, `Port` model, migration 0023; page `js/pages/ports.js`, dialog `js/modals/port.js`, `GET/POST
+/api/ports/`, `PUT /api/ports/<key>/`, Admins only): `key` (fixed, made once by `ports.make_key` from the name:
+a–z / 0–9, at most 18, a digit added when taken), `name` (2–40, unique ignoring case: `validators.clean_port`),
+`active`, `position`. Never deleted (no DELETE route). Records store the key; every label comes from
+`ports.label(key)` / `labels()` / `ordered()` / `exists(key, active_only)`, read once per request (cached on
+`history.current_request()`, `ports.forget()` after a save). A turned-off port takes no new vessel / closure /
+Master-data value (incl. a PATCH move) / price month; what is there stays editable. The page lists vessels and active
+Users per port; after a save it updates the shared `PORTS` / `PORT_LABEL` in place (`refreshPorts`).
 
 **Agents:** `Vessel.arrival_agent` (who entered it), `Vessel.sailing_agent` (who sailed it) and `Service.agent` (who
 did that service), all plain text from the Agent list, empty until chosen. `listing.missing_details` feeds the
@@ -308,11 +329,16 @@ Scoped by its own port with `access.scoped_closures`; the list shows closures ov
 
 **Master data** (`Option`: kind, value, `port`): eight lists (OPR, POC, Agent, Hotel, Airport, Port, Delay reason,
 Closure reason). `port` is `""`
-for All ports or one port key. Port users only ever create values for their port and see All-ports + their own;
-admins choose the port when adding and move values with `PATCH /api/options/<id>/` (admin only). Every dropdown is
+for All ports or one port key. Users only ever create values for one of their ports (home port when none is named;
+never All ports) and see All-ports + their own; admins choose the port when adding and move values with `PATCH /api/options/<id>/` (admin only). Every dropdown is
 built with `optionChoices(kind, current, port)` → only that port's + All-ports values, always keeping `current`.
 
 **Front end** (`static/sheet/js/`, entry `main.js`):
+- **The person's ports:** `me` (`json_script`) has `ports` (every key for Admins), `homePort` ("" for Admins),
+  `multiPort` (Admin or 2+ ports), `isAdmin`, `isSuperuser`, `canEdit`. `config.myPorts()` (filters) and
+  `openPorts()` (turned-on ones, for new records) are functions because the Ports page changes `PORTS` in place;
+  `components.portOptionEls({all, selected, ports})` ("All my ports" for Users) and `formPorts(open, current)`.
+  Port filters / Port columns show when `ME.multiPort`; forms start on the shown port, else the home port.
 - `state.js` holds one `state.filter` (from, to, q, bucket, port, sort, dir, page, pageSize), the current page of
   vessels and a cache by id (`getVessel`); `data.js` loads from the server (`setFilter`, `loadVessels`,
   `refreshAfterChange`, `ensureVessel`), dropping out-of-order responses with a request counter.

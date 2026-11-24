@@ -1,9 +1,24 @@
 # Project status
 
-Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each feature has a design
+Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each feature has a design
 (`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
 
 ## Where things stand right now
+
+- **Access rework, piece 1 of 3 — ports and people (2026-11-25):** built on branch **`feature/ports-and-people`**,
+  **not merged yet** (waiting for a fresh review and the user's OK). Needs migrations **`0023_port`** (the four
+  ports become a table) and **`0024_profile_ports`** on the user's database: each port account keeps its port as its
+  home port, an "admin" account that isn't a superuser becomes a User of all four ports, **Read-only accounts are
+  turned off** (no port), and only superusers keep staff status. Now: **Admins are the superusers** (made with
+  `createsuperuser`, never in the app); everyone else is a **User** with a home port and extra ports, working fully
+  in each (lists cover all their ports; asking for another port never shows more; writing into a port that isn't
+  theirs is refused). The accounting Open / Closed switch is Admin-only for now. A **Ports** page (Admins): add,
+  rename, turn off / on, never delete; a turned-off port takes no new vessels, closures, Master-data values or price
+  months. The Accounts page has Home port + Extra ports instead of Role, and is for Admins. An account with no port
+  sees "Your account has no port yet. Ask an admin." 754 backend tests; `npm run check` green; smoke test passes for
+  alex / admin / viewer (now a three-port User) / suez. **Next: piece 2** (16 per-person permissions and page ticks,
+  templates from the user's prototype), then **piece 3** (money: `money.edit` / `money.view`), each with its own plan;
+  the design for all three is `specs/2026-11-24-access-rework-design.md`.
 
 - **Accounts page (2026-11-24):** **merged into `main`** (2026-11-24, after a fresh
   review and the user's OK). No migration. Superusers get an **Accounts** page (sidebar, after History): every
@@ -86,6 +101,7 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
+| 2026-11-25 | **Ports and people** (access rework piece 1, not merged): Admins = superusers; Users have a home port + extra ports; Ports page (add / rename / turn off); Accounts page with ports; Read-only role removed | `specs/2026-11-24-access-rework-design.md` |
 | 2026-11-24 | **Accounts page**: superusers add accounts, change names / role, turn them off / on | `specs/2026-11-24-accounts-page-design.md` |
 | 2026-11-24 | **Services page**: work list of services with status / missing / date / service / agent / search / port filters, what each one is missing, Sailed mark, completed time (`Service.completed_at`), Excel export | `specs/2026-11-24-services-page-design.md` |
 | 2026-11-24 | **Ships, customers and billing** (merged 2026-11-24): Ships page and ship picker on the vessel name (quick-add and vessel form, + New ship inline, IMO checked with its check digit, No IMO tick); Customers page (contacts, agreed rates, linked ships); billing party and Cash / On account on every service; agreed rate fills the revenue; Calculations billing columns / filters | `specs/2026-11-24-ships-customers-design.md` |
@@ -122,9 +138,15 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 - **Accounts page (2026-11-24):** for **superusers only** (option A, not a new permission flag; about 3 people);
   adding people, changing their role / port, **turn off / turn on** (never delete); username fixed once made; last
-  save wins; resets, the two-step exception and superuser / staff stay in the admin pages. **Next: the access
-  rework** — Admins (full power) and Users (limited, by port); admins **add ports** and give specific agents **extra
-  ports**; it extends this page (role box → Admin / User + home port + extra ports, an "Add port" part).
+  save wins; resets, the two-step exception and superuser / staff stay in the admin pages.
+- **Access rework (2026-11-24):** **Admins are the superusers** (the user creates them with `createsuperuser`; the
+  app never makes one); everyone else is a User with a home port and extra ports who **works fully** in each.
+  Ports are added, renamed and turned off by Admins, **never deleted**. The **Read-only role goes** ("no
+  accountants will be deleted": their accounts are turned off, not removed). The app isn't live, so losing test data
+  is fine. Three pieces in this order: 1 ports and people (built), 2 sixteen per-person permissions, all switchable,
+  with templates from the user's prototype (Operations also gets bookings) and hidden pages for anything not
+  allowed, 3 money: people may type money (`money.edit`) without seeing Calculations, profit or totals
+  (`money.view`; only Admins and the people they choose see Calculations).
 - **Services page (2026-11-24):** operators use it daily as a to-do list, managers to see what is missing;
   **filters, not tabs** (status ticks, Missing details only); a **Completed** view by completed date; an **Excel**
   export; **a typed 0 cost / revenue counts as filled in** (only an empty box is "missing").
@@ -205,7 +227,7 @@ Their security push has three pieces, in this order:
 5. ~~Excel import~~: the user meant an **export** (built 2026-11-24, see Data export above).
 6. ~~Ships / customers / billing~~ (built and merged 2026-11-24), ~~the In-progress services page~~ (built
    2026-11-24, merged), ~~the accounts page~~ (built 2026-11-24, merged), then the
-   **access rework**: Admins / Users by port, admins add ports and give agents extra ports (its own design).
+   **access rework**: piece 1 (ports and people) built 2026-11-25; pieces 2 (permissions) and 3 (money) next.
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
 
