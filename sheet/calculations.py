@@ -162,7 +162,8 @@ def rows_for(vessels):
     return rows
 
 
-def response(profile, params):
+def filtered(profile, params):
+    """(params, rows, oprs): every row the page's filters show, sorted, not paged (also the export)."""
     p = parse_params(params)
     vessels = scoped_vessels(profile, p.port, prefetch=False).prefetch_related("services", "hotel_stays", "transfers")
     vessels = vessels.select_related("disposal")
@@ -180,6 +181,11 @@ def response(profile, params):
     if p.accounting is not None:
         rows = [r for r in rows if ("closed" if r["closed"] else "open") in p.accounting]
     rows.sort(key=SORT_KEYS[p.sort], reverse=p.desc)  # stable: ties keep newest vessel first, lines in order
+    return p, rows, oprs
+
+
+def response(profile, params):
+    p, rows, oprs = filtered(profile, params)
     totals = {
         "revenue_egp": round(sum(r["revenue_egp"] for r in rows), 2),
         "cost_egp": round(sum(r["cost_egp"] for r in rows), 2),

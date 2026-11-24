@@ -173,14 +173,22 @@ def _sort_key(sort):
     return lambda r: str(r[sort]).casefold()
 
 
-def list_response(kind, profile, params):
+def filtered(kind, profile, params):
+    """(params, [(row dict, booking)]) of every booking the page's filters show, sorted, not paged (also the export)."""
     p = parse_params(kind, params)
-    rows = [booking_to_dict(kind, obj, profile) for obj in _in_range(kind, scoped(kind, profile, p.port), p)]
+    pairs = [(booking_to_dict(kind, obj, profile), obj) for obj in _in_range(kind, scoped(kind, profile, p.port), p)]
     if p.q:
         needle = p.q.casefold()
-        rows = [r for r in rows if _matches(r, needle)]
-    rows.sort(key=lambda r: r["id"])  # stable ties: oldest booking first
-    rows.sort(key=_sort_key(p.sort), reverse=p.desc)
+        pairs = [pair for pair in pairs if _matches(pair[0], needle)]
+    pairs.sort(key=lambda pair: pair[0]["id"])  # stable ties: oldest booking first
+    key = _sort_key(p.sort)
+    pairs.sort(key=lambda pair: key(pair[0]), reverse=p.desc)
+    return p, pairs
+
+
+def list_response(kind, profile, params):
+    p, pairs = filtered(kind, profile, params)
+    rows = [row for row, _obj in pairs]
     start = (p.page - 1) * p.page_size
     return {
         "bookings": rows[start : start + p.page_size],

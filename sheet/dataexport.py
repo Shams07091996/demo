@@ -1,0 +1,123 @@
+"""Plain-table Excel files of five pages, for other programs: Hotels, Transport, Port closures, Garbage & Sludge and
+Calculations. One header row (always the same columns) and one row per record; numbers as numbers, dates as real
+Excel dates; no titles, totals or notes (that is the management workbook, report.py).
+
+Each sheet takes exactly the rows its page shows for the same query (the page's own filter functions, without
+paging), so port users get only their port. `all_file` puts the five in one workbook for a From–To range.
+"""
+
+from datetime import date
+
+from . import calculations, closures, disposal, logistics, xlsx
+from .constants import PORT_LABELS, SERVICE_STATUSES
+
+TITLES = {"hotels": "Hotels", "transfers": "Transport", "closures": "Port closures", "disposal": "Garbage & Sludge",
+          "calculations": "Calculations"}
+PAGES = tuple(TITLES)  # also the All data sheet order
+
+
+def _port(key):
+    return PORT_LABELS.get(key, key)
+
+
+def _num(value):
+    return float(value) if value is not None else None
+
+
+def _accounting(closed):
+    return "Closed" if closed else "Open"
+
+
+def _guests(booking):
+    return "; ".join(g.name for g in booking.guests.all())
+
+
+def _hotels(profile, params):
+    head = ["Booking id", "Vessel id", "Vessel", "Port", "Guests", "Hotel", "Check-in", "Nights", "Check-out",
+            "Cost per night", "Cost currency", "Revenue per night", "Revenue currency", "Exchange rate", "Draft",
+            "Cancelled", "Accounting"]
+    _p, pairs = logistics.filtered("hotels", profile, params)
+    rows = [[s.id, s.vessel_id, s.vessel.name, _port(s.vessel.port), _guests(s), s.hotel, xlsx.Day(s.check_in),
+             s.nights, xlsx.Day(s.check_out), _num(s.cost_per_night), s.cost_currency, _num(s.revenue_per_night),
+             s.revenue_currency, _num(s.exchange_rate), s.draft, s.cancelled, _accounting(s.acct_closed)]
+            for _row, s in pairs]
+    return head, rows
+
+
+def _transfers(profile, params):
+    head = ["Booking id", "Vessel id", "Vessel", "Port", "Guests", "From", "To", "Airport", "Hotel", "Port name",
+            "Date & time", "Cost", "Cost currency", "Revenue", "Revenue currency", "Exchange rate", "Draft",
+            "Cancelled", "Accounting"]
+    _p, pairs = logistics.filtered("transfers", profile, params)
+    rows = [[t.id, t.vessel_id, t.vessel.name, _port(t.vessel.port), _guests(t), logistics._place(t, t.from_place),
+             logistics._place(t, t.to_place), t.airport, t.hotel, t.port_name, xlsx.Moment(t.at), _num(t.cost),
+             t.cost_currency, _num(t.revenue), t.revenue_currency, _num(t.exchange_rate), t.draft, t.cancelled,
+             _accounting(t.acct_closed)]
+            for _row, t in pairs]
+    return head, rows
+
+
+def _closures(profile, params):
+    head = ["Closure id", "Port", "Closed from", "Reopened", "Hours", "Reason", "Notes"]
+    rows = []
+    for c in closures.filtered(profile, params):
+        hours = round((c.end_at - c.start_at).total_seconds() / 3600, 1) if c.end_at else None
+        rows.append([c.id, _port(c.port), xlsx.Moment(c.start_at), xlsx.Moment(c.end_at), hours, c.reason, c.notes])
+    return head, rows
+
+
+def _disposal(profile, params):
+    head = ["Vessel id", "Vessel", "Date", "OPR", "Port", "Garbage m³", "Sludge t", "Hidden", "Revenue EGP",
+            "Cost EGP", "Profit EGP", "Revenue USD", "Cost USD", "Profit USD", "Rate missing", "Price missing",
+            "Accounting"]
+    rows = []
+    for r in disposal.response(profile, params)["rows"]:
+        v = r["vessel"]
+        rows.append([v["id"], v["name"], xlsx.Day(date.fromisoformat(v["date"])), v["opr"], v["port_label"],
+                     r["garbage"], r["sludge"], r["hidden"], r["revenue_egp"], r["cost_egp"], r["profit_egp"],
+                     r["revenue_usd"], r["cost_usd"], r["profit_usd"], r["rate_missing"], r["price_missing"],
+                     _accounting(r["closed"])])
+    return head, rows
+
+
+def _side(side):
+    return (side["amount"], side["currency"]) if side else (None, None)
+
+
+def _calculations(profile, params):
+    head = ["Vessel id", "Vessel", "Vessel date", "OPR", "Port", "Item", "Line", "Note", "Record", "Record id",
+            "Cost", "Cost currency", "Revenue", "Revenue currency", "Cost EGP", "Revenue EGP", "Profit EGP",
+            "Cost USD", "Revenue USD", "Profit USD", "Rate source", "Rate missing", "Price missing", "Status",
+            "Cancellation reason", "Accounting"]
+    _p, found, _oprs = calculations.filtered(profile, params)
+    rows = []
+    for r in found:
+        v, ref = r["vessel"], r["ref"] or {}
+        cost, revenue = _side(r["cost"]), _side(r["revenue"])
+        rows.append([v["id"], v["name"], xlsx.Day(date.fromisoformat(v["date"])), v["opr"], _port(v["port"]),
+                     r["kind"], r["label"], r["note"], ref.get("kind"), ref.get("id"), *cost, *revenue,
+                     round(r["cost_egp"], 2), round(r["revenue_egp"], 2), round(r["profit_egp"], 2),
+                     r["cost_usd"], r["revenue_usd"], r["profit_usd"], r["rate_source"], r["rate_missing"],
+                     r["price_missing"], SERVICE_STATUSES.get(r["status"], ""), r["cancel_reason"],
+                     _accounting(r["closed"])])
+    return head, rows
+
+
+BUILDERS = {"hotels": _hotels, "transfers": _transfers, "closures": _closures, "disposal": _disposal,
+            "calculations": _calculations}
+
+
+def sheet(page, profile, params):
+    """One page's rows (its list query, all pages of it) as an xlsx.Sheet: header row, then one row per record."""
+    head, rows = BUILDERS[page](profile, params)
+    return xlsx.Sheet(TITLES[page], [head, *rows], widths=[16] * len(head))
+
+
+def page_file(page, profile, params):
+    return xlsx.build([sheet(page, profile, params)])
+
+
+def all_file(profile, date_from, date_to, port):
+    """The five pages for one From–To range and port, one sheet each (each page reads the range its own way)."""
+    params = {"from": date_from.isoformat(), "to": date_to.isoformat(), "port": port or ""}
+    return xlsx.build([sheet(page, profile, params) for page in PAGES])
