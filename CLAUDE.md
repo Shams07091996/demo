@@ -215,6 +215,18 @@ alone. Dashboard `response()["status"]` (`dashboard.status_counts`: services per
 Closed per month; under agent / service filters only the counted services' rows) and the Excel sheet
 "Service status" (`report._service_status`).
 
+**Cancelled bookings and kept rates** (migration 0020): HotelStay / Transfer have `cancelled` (dialog tick that sets
+the money to 0, a fee can be typed; a PUT without the key keeps it): no missing-details alert, status `cancelled` on
+its Calculations line. `GET /api/services/<id>/bookings/` (`crewbookings.saved_bookings` / `booking_ref`) lists a Crew
+Change's saved (non-draft) bookings, those with a guest whose `crew_uid` is one of its crew; the service PUT may send
+`cancel_bookings: [{kind: hotel|transfer, id}]` (`validators.clean_booking_refs`, `crewbookings.cancel_bookings`: only
+when the saved status is Cancelled, only its own bookings, none closed; each gets cancelled, money 0, version +1).
+**Closing needs a rate** (`accounting._lines`: `NEEDS_PRICE` / `NEEDS_RATE` when a row is `price_missing` /
+`rate_missing`) and **keeps it** (`accounting._keep_numbers`): a line that used the month rate gets it written as the
+service's `data.exchangeRate` or the booking's `exchange_rate` (version +1, like a typed change); garbage & sludge gets
+`VesselDisposal.exchange_rate` and `frozen_price` (the month's price dict), used by `disposal.kept` on the page and on
+Calculations. Reopening keeps them; only a person changes them.
+
 **Agents:** `Vessel.arrival_agent` (who entered it), `Vessel.sailing_agent` (who sailed it) and `Service.agent` (who
 did that service), all plain text from the Agent list, empty until chosen. `listing.missing_details` feeds the
 "Missing details" alert (key `missing`): vessels dated before today (Cairo) missing any of the five times, a needed
