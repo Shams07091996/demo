@@ -6,6 +6,8 @@ import secrets
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.utils import timezone
 
 from .constants import (
@@ -17,6 +19,7 @@ from .constants import (
     OPTION_KINDS,
     PLACE_KEYS,
     PORT_KEYS,
+    RATE_UNITS,
     SERVICE_STATUSES,
     SINGLE_EXTRAS,
     SUMMARY_FIELDS,
@@ -448,6 +451,75 @@ def clean_ship(data, profile, existing=None):
         "opr": opr,
         "customer": pick_customer(data.get("customer"), getattr(existing, "customer", None)),
         "active": active,
+    }
+
+
+# ---- customers ------------------------------------------------------------------------------
+
+MAX_CONTACTS = 20
+PHONE_RE = re.compile(r"^[0-9 +()\-]{1,40}$")
+
+
+def _clean_contact(raw, number):
+    label = f"Contact {number}"
+    if not isinstance(raw, dict):
+        raise BadRequest(f"{label}: enter the contact's details.")
+    name = _short(raw.get("name"), 100, f"{label} name")
+    if not name:
+        raise BadRequest(f"{label}: enter a name.")
+    email = _short(raw.get("email"), 254, f"{label} email")
+    if email:
+        try:
+            validate_email(email)
+        except ValidationError:
+            raise BadRequest(f"{label}: enter a valid email address.") from None
+    phone = _short(raw.get("phone"), 40, f"{label} phone")
+    if phone and not PHONE_RE.match(phone):
+        raise BadRequest(f"{label}: a phone number has only digits, spaces and + - ( ).")
+    return {"name": name, "role": _short(raw.get("role"), 60, f"{label} role"), "email": email, "phone": phone}
+
+
+def _clean_rates(raw):
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, dict):
+        raise BadRequest("Rates: send one rate per service type.")
+    rates = []
+    for service_type, value in raw.items():
+        unit = RATE_UNITS.get(service_type)
+        if unit is None:
+            raise BadRequest(f"{_short(service_type, 40, 'Service type')}: this service type has no agreed rate.")
+        if not isinstance(value, dict):
+            raise BadRequest(f"{service_type}: enter the rate.")
+        amount = _amount(value.get("amount"), f"{service_type} rate")
+        if amount is None:
+            raise BadRequest(f"{service_type}: enter the rate.")
+        if unit == "percent" and amount > 100:
+            raise BadRequest(f"{service_type}: a percentage is from 0 to 100.")
+        currency = "USD" if unit == "percent" else _currency(value.get("currency"))
+        rates.append({"service_type": service_type, "amount": Decimal(str(round(amount, 2))), "currency": currency})
+    return rates
+
+
+def clean_customer(data, existing=None):
+    """A customer with its contacts (0-20) and its agreed rates (one per service type, constants.RATE_UNITS)."""
+    name = _short(data.get("name"), 120, "Customer name")
+    if not name:
+        raise BadRequest("Customer name is required.")
+    if Customer.objects.filter(name__iexact=name).exclude(pk=getattr(existing, "pk", None)).exists():
+        raise BadRequest("Another customer already has this name.")
+    contacts = _as_list(data.get("contacts"))
+    if len(contacts) > MAX_CONTACTS:
+        raise BadRequest(f"At most {MAX_CONTACTS} contacts per customer.")
+    active = data.get("active", getattr(existing, "active", True))
+    if not isinstance(active, bool):
+        raise BadRequest("Active must be yes or no.")
+    return {
+        "name": name,
+        "notes": _short(data.get("notes"), 500, "Notes"),
+        "active": active,
+        "contacts": [_clean_contact(raw, number) for number, raw in enumerate(contacts, 1)],
+        "rates": _clean_rates(data.get("rates")),
     }
 
 

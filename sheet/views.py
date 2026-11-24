@@ -26,6 +26,7 @@ from . import (
     closures,
     conflicts,
     crewbookings,
+    customers,
     dataexport,
     disposal,
     history,
@@ -56,6 +57,7 @@ from .constants import (
 from .errors import BadRequest, Forbidden, TooManyRequests
 from .models import (
     ChangeRecord,
+    Customer,
     DisposalPrice,
     ExchangeRate,
     HotelStay,
@@ -695,6 +697,31 @@ def ship_detail(request, pk):
     ship = ships.save_ship(profile, read_json(request), existing=ship)
     audit(request, "ship.update", id=ship.id)
     return JsonResponse(ships.ship_to_dict(ship))
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def customers_list(request):
+    if request.method == "GET":
+        return JsonResponse(customers.list_response())
+    require_admin(request.profile)
+    customer = customers.save_customer(read_json(request))
+    audit(request, "customer.create", id=customer.id)
+    return JsonResponse(customers.customer_to_dict(customer), status=201)
+
+
+@json_api
+@require_http_methods(["PUT", "DELETE"])
+def customer_detail(request, pk):
+    require_admin(request.profile)
+    customer = get_object_or_404(Customer, pk=pk)
+    if request.method == "DELETE":
+        customers.delete_customer(customer)
+        audit(request, "customer.delete", id=pk)
+        return JsonResponse({"ok": True})
+    customer = customers.save_customer(read_json(request), existing=customer)
+    audit(request, "customer.update", id=customer.id)
+    return JsonResponse(customers.customer_to_dict(customer))
 
 
 @json_api
