@@ -5,8 +5,8 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Ships, customers and billing (2026-11-24):** on branch **`feature/ships-customers`, not merged yet** (waiting for
-  the fresh review and the user's OK). Needs migration **`0021_ships_customers`** on the user's database. Existing
+- **Ships, customers and billing (2026-11-24):** merged into `main` on 2026-11-24 (branch deleted); fresh review
+  done (four findings fixed test-first). Needs migration **`0021_ships_customers`** on the user's database. Existing
   vessels keep working without a ship; a **new** vessel must be for a ship (picked from the name box's dropdown, or
   added there with + New ship). New **Ships** page (name, IMO or No IMO, OPR, customer, active; admins and port users
   add / edit, only admins delete) and **Customers** page (contacts, agreed rates per service type, linked ships;
@@ -68,7 +68,7 @@ Last updated: 2026-11-24. Read this with `CLAUDE.md` before starting work. Each 
 
 | When | What | Design |
 |---|---|---|
-| 2026-11-24 | **Ships, customers and billing** (branch `feature/ships-customers`): Ships page and ship picker on the vessel name (quick-add and vessel form, + New ship inline, IMO checked with its check digit, No IMO tick); Customers page (contacts, agreed rates, linked ships); billing party and Cash / On account on every service; agreed rate fills the revenue; Calculations billing columns / filters | `specs/2026-11-24-ships-customers-design.md` |
+| 2026-11-24 | **Ships, customers and billing** (merged 2026-11-24): Ships page and ship picker on the vessel name (quick-add and vessel form, + New ship inline, IMO checked with its check digit, No IMO tick); Customers page (contacts, agreed rates, linked ships); billing party and Cash / On account on every service; agreed rate fills the revenue; Calculations billing columns / filters | `specs/2026-11-24-ships-customers-design.md` |
 | 2026-11-20 | **Garbage & Sludge page** (merged 2026-11-20): a sidebar page lists the vessels of a date range and port with garbage m³ and sludge t boxes (saved when left), revenue / cost / profit in EGP and USD, Hide (no garbage or sludge; Hidden filter with Bring back), filters and totals. Prices per month and port on the Exchange rates page: four blocks (garbage / sludge × revenue / cost), each a minimum quantity, a minimum amount in EGP or USD and an extra per unit above the minimum; Copy from last month. The money shows on that page and on Calculations, not in vessel totals. Master data lists are folded shut until clicked. The earlier hand-added service is removed | `specs/2026-11-20-garbage-page-design.md` |
 | 2026-11-20 | **Garbage & Sludge** (merged 2026-11-20) (replaced by the page above): admins set USD prices per m³ (garbage cost / revenue, sludge cost / revenue) for each month and port on the Exchange rates page (`DisposalPrice`); the hand-added service "Garbage & Sludge" takes garbage m³ and sludge m³; money = m³ × that port and month's price, converted with the month rate, counted in the vessel totals like any service; no price → the line is flagged and has no money. Prices apply live (changing one changes that month's vessels). Calculations shows each such line's USD profit and USD totals | `specs/2026-11-19-garbage-sludge-design.md` |
 | 2026-11-19 | **Admins choose the port of a new vessel** (merged 2026-11-20): with All ports in the header the vessel form and quick add start with no port (the form's Port field is now next to the name); the server refuses an admin's new vessel without one ("Choose a port.") instead of assuming Alexandria. Also: a Master data list loaded before a change was saved no longer overwrites the newer one. `docs/DEPLOYMENT.md`: deploying and creating users | — |
@@ -175,7 +175,7 @@ Their security push has three pieces, in this order:
    service, ~~service status~~ (built 2026-11-23, with the accounting Open / Closed), billing basis (Cash / Owners'
    Account).
 5. ~~Excel import~~: the user meant an **export** (built 2026-11-24, see Data export above).
-6. ~~Ships / customers / billing~~ (built 2026-11-24, branch `feature/ships-customers`), then the **In-progress
+6. ~~Ships / customers / billing~~ (built and merged 2026-11-24), then the **In-progress
    services page**, then the **accounts & permissions page** (admin), each designed separately.
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
