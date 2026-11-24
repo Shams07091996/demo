@@ -48,6 +48,7 @@ def service_to_dict(service, month_rate):
         "data": service.data,
         "status": service.status,
         "cancel_reason": service.cancel_reason,
+        "completed_at": service.completed_at.isoformat() if service.completed_at else None,
         "billing": service.billing,
         "billing_party": _party(service.billing_party),
         "closed": service.acct_closed,

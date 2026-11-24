@@ -178,6 +178,7 @@ class Service(models.Model):
     data = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=12, choices=list(SERVICE_STATUSES.items()), default="in_progress")
     cancel_reason = models.CharField(max_length=CANCEL_REASON_MAX, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)  # set by the server when it becomes Completed
     acct_closed = models.BooleanField(default=False)  # accounting: settled (Closed) — locks the service
     billing_party = models.ForeignKey(
         Customer, on_delete=models.PROTECT, null=True, blank=True, related_name="services"

@@ -36,6 +36,7 @@ from . import (
     ratelimit,
     receipt,
     report,
+    services,
     ships,
     twostep,
 )
@@ -288,7 +289,9 @@ def service_create(request, pk):
     require_edit(request.profile)
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
     fields = _read_service(request, vessel)
-    service = Service.objects.create(vessel=vessel, **fields)
+    service = Service(vessel=vessel, **fields)
+    services.stamp_completed(service, None, timezone.now())
+    service.save()
     crewbookings.sync(vessel)
     audit(request, "service.create", id=service.id, vessel=vessel.id, type=service.service_type)
     return _vessel_json(vessel.pk, status=201)
@@ -310,8 +313,10 @@ def service_detail(request, pk):
         accounting.require_open(service)  # the fresh row: a dialog opened before accounting closed it is refused too
         refs = clean_booking_refs(payload.get("cancel_bookings"))
         before = conflicts.snapshot(service)
+        old_status = service.status
         for field, value in _read_service(request, service.vessel, service).items():
             setattr(service, field, value)
+        services.stamp_completed(service, old_status, timezone.now())
         conflicts.bump_if_changed(service, before)
         service.save()
         cancelled = crewbookings.cancel_bookings(service, refs)
