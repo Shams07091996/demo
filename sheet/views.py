@@ -328,6 +328,13 @@ def service_detail(request, pk):
 
 @json_api
 @require_http_methods(["GET"])
+def services_list(request):
+    """The Services page: services as a work list (In progress by default) with what each one is missing."""
+    return JsonResponse(services.list_response(request.profile, request.GET))
+
+
+@json_api
+@require_http_methods(["GET"])
 def service_bookings(request, pk):
     """A Crew Change's saved hotel stays and transfers, for the dialog's "cancel these too" list."""
     allowed = scoped_vessels(request.profile, prefetch=False)
