@@ -5,6 +5,7 @@ import { conflictAction, showConflict } from './conflict.js';
 import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
 import { saveAccountDialog, toggleAccount } from './modals/account.js';
+import { savePortDialog, togglePort } from './modals/port.js';
 import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { addContactRow, deleteCustomerDialog, saveCustomerDialog } from './modals/customer.js';
@@ -26,6 +27,7 @@ import { closuresPage } from './pages/closures.js';
 import { customersPage } from './pages/customers.js';
 import { disposalPage } from './pages/disposal.js';
 import { accountsPage } from './pages/accounts.js';
+import { portsPage } from './pages/ports.js';
 import { historyPage } from './pages/history.js';
 import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { copyLastMonth, readPriceForm, renderRatesPage } from './pages/rates.js';
@@ -276,6 +278,10 @@ export const actions = {
   'account-open': (b) => accountsPage.open(Number(b.dataset.id)),
   'account-save': () => saveAccountDialog(),
   'account-toggle': () => toggleAccount(),
+  'port-new': () => portsPage.open(null),
+  'port-open': (b) => portsPage.open(b.dataset.key),
+  'port-save': () => savePortDialog(),
+  'port-toggle': () => togglePort(),
   'ship-new': () => shipsPage.open(null),
   'ship-open': (b) => shipsPage.open(Number(b.dataset.id)),
   'ship-save': () => saveShipDialog(),

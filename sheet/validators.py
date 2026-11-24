@@ -29,7 +29,7 @@ from .constants import (
     is_delayed,
 )
 from .errors import BadRequest
-from .models import Customer, Option, Ship
+from .models import Customer, DisposalPrice, Option, Port, Ship
 
 MAX_ENTRIES = 100
 MAX_CREW = 60
@@ -782,6 +782,9 @@ def clean_disposal_price(data):
     port = data.get("port")
     if not ports.exists(port):
         raise BadRequest("Unknown port.")
+    if not ports.exists(port, active_only=True) and not DisposalPrice.objects.filter(
+            month=first_of_month, port=port).exists():
+        raise BadRequest("That port is turned off.")  # a month already priced can still be corrected
     fields = {}
     for kind, label, unit in DISPOSAL_KINDS:
         for side in ("revenue", "cost"):
@@ -869,4 +872,29 @@ def clean_account(data, existing=None):
     except ValidationError as error:
         raise BadRequest(" ".join(error.messages)) from None
     values["password"] = password
+    return values
+
+
+# ---- ports (the Ports page) -----------------------------------------------------------------
+
+
+def clean_port(data, existing=None):
+    """A port's name (2-40 characters, unique ignoring case) and On / Off. The key is never sent or changed."""
+    data = _as_dict(data)
+    values = {}
+    if existing is None or "name" in data:
+        name = data.get("name")
+        name = name.strip() if isinstance(name, str) else ""
+        if len(name) < 2:
+            raise BadRequest("Enter the port's name.")
+        if len(name) > 40:
+            raise BadRequest("The name is too long (at most 40 characters).")
+        clash = Port.objects.filter(name__iexact=name).exclude(pk=getattr(existing, "pk", None))
+        if clash.exists():
+            raise BadRequest("Another port already has this name.")
+        values["name"] = name
+    if "active" in data:
+        if not isinstance(data["active"], bool):
+            raise BadRequest("On / Off must be yes or no.")
+        values["active"] = data["active"]
     return values

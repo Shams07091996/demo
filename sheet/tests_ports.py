@@ -9,9 +9,21 @@ from django.test import TestCase, TransactionTestCase
 
 from . import dataexport, ports, report
 from .access import profile_of
-from .models import HotelStay, Option, Port, PortClosure, Profile, Service, Transfer, Vessel
+from .models import (
+    ChangeRecord,
+    DisposalPrice,
+    HotelStay,
+    Option,
+    Port,
+    PortClosure,
+    Profile,
+    Service,
+    Transfer,
+    Vessel,
+)
 from .tests import NEEDED, ApiTestCase, allow
 from .tests_dataexport import read
+from .tests_disposal import PRICE
 
 
 class PortTableTests(ApiTestCase):
@@ -261,3 +273,98 @@ class MultiPortTests(ApiTestCase):
         status, _ = self.call(self.login("admin"), "post", "/api/vessels/",
                               {**NEEDED, "name": "NOWHERE SHIP", "date": "2026-11-14"})
         self.assertEqual(status, 400)
+
+
+class PortsApiTests(ApiTestCase):
+    """The Ports page: Admins add, rename and turn off ports; nobody deletes one."""
+
+    def setUp(self):
+        self.admin = self.login("admin")
+
+    def test_admin_only(self):
+        for name in ("viewer", "alex"):
+            client = self.login(name)
+            self.assertEqual(self.call(client, "get", "/api/ports/")[0], 403)
+            self.assertEqual(self.call(client, "post", "/api/ports/", {"name": "Dekheila"})[0], 403)
+            self.assertEqual(self.call(client, "put", "/api/ports/alexandria/", {"name": "X"})[0], 403)
+        self.assertFalse(Port.objects.filter(key="dekheila").exists())
+        self.assertEqual(Port.objects.get(key="alexandria").name, "Alexandria")
+
+    def test_add_rename_turn_off(self):
+        status, port = self.call(self.admin, "post", "/api/ports/", {"name": "Dekheila"})
+        self.assertEqual(status, 201, port)
+        self.assertEqual((port["key"], port["name"], port["active"]), ("dekheila", "Dekheila", True))
+        self.assertEqual(Port.objects.get(key="dekheila").position, 4)  # after the four first ports
+        status, port = self.call(self.admin, "put", "/api/ports/dekheila/", {"name": "El Dekheila", "active": False})
+        self.assertEqual((status, port["name"], port["active"]), (200, "El Dekheila", False))
+        status, data = self.call(self.admin, "get", "/api/ports/")
+        row = next(p for p in data["ports"] if p["key"] == "dekheila")
+        self.assertEqual((row["vessels"], row["users"]), (0, 0))
+        alex = next(p for p in data["ports"] if p["key"] == "alexandria")
+        self.assertEqual((alex["vessels"], alex["users"]), (1, 2))  # ALEX SHIP; alex and viewer
+        self.assertEqual(self.call(self.admin, "put", "/api/ports/nowhere/", {"name": "X"})[0], 404)
+        records = ChangeRecord.objects.filter(object_type="port")
+        self.assertEqual(sorted(records.values_list("action", flat=True)), ["create", "update"])
+
+    def test_name_rules(self):
+        for bad in ("", "  ", "x", "x" * 41, "alexandria", " PORT SAID ", None, 5):
+            status, data = self.call(self.admin, "post", "/api/ports/", {"name": bad})
+            self.assertEqual(status, 400, (bad, data))
+        self.assertEqual(self.call(self.admin, "put", "/api/ports/suez/", {"name": "Damietta"})[0], 400)
+        self.assertEqual(self.call(self.admin, "put", "/api/ports/suez/", {"active": "no"})[0], 400)
+        status, port = self.call(self.admin, "put", "/api/ports/suez/", {"name": "SUEZ"})  # its own name, new case
+        self.assertEqual((status, port["name"]), (200, "SUEZ"))
+        self.assertEqual(Port.objects.count(), 4)
+
+    def test_key_never_changes_on_rename(self):
+        status, port = self.call(self.admin, "put", "/api/ports/alexandria/", {"name": "Alexandria West", "key": "x"})
+        self.assertEqual((status, port["key"]), (200, "alexandria"))
+        self.assertEqual(Vessel.objects.get(pk=self.alex_vessel.pk).port, "alexandria")
+        self.assertEqual(self.call(self.admin, "get", f"/api/vessels/{self.alex_vessel.id}/")[1]["port_label"],
+                         "Alexandria West")
+
+    def test_inactive_port_blocks_new_records_only(self):
+        dami = Vessel.objects.create(name="DAMI SHIP", date=date(2026, 11, 13), port="damietta")
+        DisposalPrice.objects.create(month=date(2026, 10, 1), port="damietta")
+        allow("closure", "WEATHER")
+        self.assertEqual(self.call(self.admin, "put", "/api/ports/damietta/", {"active": False})[0], 200)
+        off = "That port is turned off."
+        viewer = self.login("viewer")
+        checks = [
+            (viewer, "post", "/api/vessels/", {**NEEDED, "name": "NEW", "date": "2026-11-14", "port": "damietta"}),
+            (self.admin, "post", "/api/closures/", {"port": "damietta", "start_at": "2026-11-14T06:00",
+                                                   "reason": "WEATHER"}),
+            (self.admin, "post", "/api/options/", {"kind": "opr", "value": "DAMI OPR", "port": "damietta"}),
+            (viewer, "post", "/api/options/", {"kind": "opr", "value": "DAMI OPR", "port": "damietta"}),
+            (self.admin, "post", "/api/disposal-prices/", {**PRICE, "month": "2026-11", "port": "damietta"}),
+            (self.admin, "put", f"/api/vessels/{self.alex_vessel.id}/",
+             {**NEEDED, "name": "ALEX SHIP", "date": "2026-11-13", "port": "damietta"}),
+        ]
+        for client, method, url, body in checks:
+            status, data = self.call(client, method, url, body)
+            self.assertEqual((status, data.get("error")), (400, off), url)
+        option = Option.objects.create(kind="opr", value="MOVE ME", port="")
+        status, data = self.call(self.admin, "patch", f"/api/options/{option.id}/", {"port": "damietta"})
+        self.assertEqual((status, data.get("error")), (400, off))
+        self.assertFalse(Option.objects.filter(value="DAMI OPR").exists())
+        status, data = self.call(viewer, "put", f"/api/vessels/{dami.id}/",
+                                 {**NEEDED, "name": "DAMI SHIP 2", "date": "2026-11-13"})
+        self.assertEqual(status, 200, data)
+        status, data = self.call(self.admin, "post", "/api/disposal-prices/",
+                                 {**PRICE, "month": "2026-10", "port": "damietta"})  # that month's price exists
+        self.assertEqual(status, 200, data)
+        names = [v["name"] for v in self.call(viewer, "get", "/api/vessels/")[1]["vessels"]]
+        self.assertIn("DAMI SHIP 2", names)
+
+    def test_no_delete(self):
+        self.assertEqual(self.call(self.admin, "delete", "/api/ports/suez/")[0], 405)
+        self.assertTrue(Port.objects.filter(key="suez").exists())
+
+    def test_ports_nav_for_admins_only(self):
+        page = self.admin.get("/").content.decode()
+        self.assertIn('data-page="ports"', page)
+        self.assertIn('id="page-ports"', page)
+        for name in ("viewer", "alex"):
+            page = self.login(name).get("/").content.decode()
+            self.assertNotIn('data-page="ports"', page)
+            self.assertNotIn('id="page-ports"', page)

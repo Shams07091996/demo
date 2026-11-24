@@ -3,8 +3,10 @@ receipts and exports show its name from here. Read at most once per request (cac
 
 import re
 
+from django.db.models import Count, Max
+
 from .history import current_request
-from .models import Port
+from .models import Port, Profile, Vessel
 
 KEY_LENGTH = 18  # leaves room for a digit or two within the 20-character port fields
 
@@ -60,3 +62,39 @@ def make_key(name):
 def rows():
     """[(key, name, active)] in the page order (the page's `ports-data`)."""
     return list(_rows())
+
+
+# ---- the Ports page (Admins only: views checks) ----
+
+
+def port_to_dict(port, vessels=0, users=0):
+    return {"key": port.key, "name": port.name, "active": port.active, "vessels": vessels, "users": users}
+
+
+def list_response():
+    """Every port in page order, with how many vessels are in it and how many Users work there."""
+    vessels = dict(Vessel.objects.values_list("port").annotate(n=Count("id")).order_by())
+    users = {}
+    for keys_ in Profile.objects.filter(user__is_active=True).values_list("ports", flat=True):
+        for key in set(keys_ or []):
+            users[key] = users.get(key, 0) + 1
+    return {"ports": [port_to_dict(p, vessels.get(p.key, 0), users.get(p.key, 0))
+                      for p in Port.objects.order_by("position", "name")]}
+
+
+def save_port(values, existing=None):
+    """A new port (its key made once from the name, placed last) or an existing one renamed / turned off or on.
+    Ports are never deleted: records keep their key."""
+    if existing is None:
+        last = Port.objects.aggregate(m=Max("position"))["m"]
+        port = Port.objects.create(key=make_key(values["name"]), name=values["name"],
+                                   active=values.get("active", True), position=0 if last is None else last + 1)
+    else:
+        port = existing
+        changed = [k for k, v in values.items() if getattr(port, k) != v]
+        for key in changed:
+            setattr(port, key, values[key])
+        if changed:
+            port.save(update_fields=changed)
+    forget()
+    return port
