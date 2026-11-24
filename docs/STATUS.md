@@ -215,6 +215,11 @@ Ideas raised along the way:
 
 ## Left open — small things the user hasn't decided on yet
 
+- **Accounts page (review of 2026-11-24, not fixed):** two superusers adding the same username at the same instant:
+  the second gets "Something went wrong" (or, differing only in capitals, both get made); an old account with no
+  profile shows "Setup expired" although its first sign-in opens a fresh 72-hour window, and giving it a role records
+  two History lines; Turn off drops role / name edits typed in the same dialog and asks no confirmation; the dialog's
+  labels are not linked to their boxes (as in the other dialogs).
 - **Services page (review of 2026-11-24, not fixed):** choosing Cancelled in a service opened from the Services
   page and confirming its bookings goes to the vessel instead of back to the list; a From / To saved in the browser
   that is not a real date makes the page show an error until the dates are cleared; the agent, search and port
