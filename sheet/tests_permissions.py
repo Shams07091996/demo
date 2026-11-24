@@ -11,7 +11,9 @@ from django.utils import timezone
 
 from .constants import PAGE_KEYS, PERMISSION_KEYS, TEMPLATES
 from .models import (
+    ChangeRecord,
     Customer,
+    ExchangeRate,
     Guest,
     HotelStay,
     Option,
@@ -385,3 +387,44 @@ class PageTests(Limited):
         self.assertEqual(missing(self.without()), ["Hotel: J SMITH", "Transport: A OFF"])
         self.assertEqual(missing(self.without(pages=ALL_PAGES_BUT("hotels"))), ["Transport: A OFF"])
         self.assertEqual(missing(self.without(pages=ALL_PAGES_BUT("hotels", "transport"))), [])
+
+
+class HistoryTests(Limited):
+    """A User's History (history.view): only records of their ports, never people / shared records."""
+
+    def records(self, client):
+        status, body = self.call(client, "get", "/api/history/?page_size=100")
+        self.assertEqual(status, 200, body)
+        return body["records"]
+
+    def test_history_needs_history_view(self):
+        self.assertEqual(self.call(self.without("history.view"), "get", "/api/history/")[0], 403)
+        self.assertEqual(self.call(self.login("admin"), "get", "/api/history/")[0], 200)
+
+    def test_user_history_shows_only_their_ports(self):
+        alex_ship = Vessel.objects.create(name="ALEX NEW", date=date(2026, 11, 13), port="alexandria")
+        suez_ship = Vessel.objects.create(name="SUEZ NEW", date=date(2026, 11, 13), port="suez")
+        seen = {(r["object_type"], r["object_id"]) for r in self.records(self.without())}
+        self.assertIn(("vessel", alex_ship.id), seen)
+        self.assertNotIn(("vessel", suez_ship.id), seen)
+        admin_seen = {(r["object_type"], r["object_id"]) for r in self.records(self.login("admin"))}
+        self.assertIn(("vessel", suez_ship.id), admin_seen)
+
+    def test_user_history_hides_people_records(self):
+        alex = Profile.objects.get(user__username="alex")
+        alex.permissions = []
+        alex.save()  # a Profile record carries the home port, alexandria
+        Option.objects.create(kind="opr", value="SHARED", port="")
+        Customer.objects.create(name="Blue")
+        ExchangeRate.objects.create(month=date(2026, 10, 1), rate=50)
+        self.assertTrue(ChangeRecord.objects.filter(object_type="profile", port="alexandria").exists())
+        types = {r["object_type"] for r in self.records(self.without())}
+        self.assertEqual(types & {"profile", "user", "customer", "exchangerate", "ship", "totpdevice"}, set())
+        self.assertNotIn(("option", ""), {(r["object_type"], r["port"]) for r in self.records(self.without())})
+
+    def test_closure_changes_carry_their_port(self):
+        closure = PortClosure.objects.create(port="alexandria", start_at=timezone.now(), reason="WEATHER")
+        record = ChangeRecord.objects.filter(object_type="portclosure", object_id=closure.id).get()
+        self.assertEqual(record.port, "alexandria")
+        self.assertIn(("portclosure", closure.id),
+                      {(r["object_type"], r["object_id"]) for r in self.records(self.without())})

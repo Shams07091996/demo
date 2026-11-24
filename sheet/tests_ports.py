@@ -86,9 +86,7 @@ class PortMigrationTests(TestCase):
 class PeopleTests(ApiTestCase):
     def test_admin_is_superuser(self):
         alex = self.login("alex")
-        for method, url, body in (("post", "/api/rates/", {"month": "2026-11", "rate": 50}),
-                                  ("get", "/api/history/", None)):
-            self.assertEqual(self.call(alex, method, url, body)[0], 403, url)
+        self.assertEqual(self.call(alex, "post", "/api/rates/", {"month": "2026-11", "rate": 50})[0], 403)
         self.assertTrue(User.objects.get(username="admin").is_superuser)
         self.assertTrue(profile_of(User.objects.get(username="admin")).is_admin)
         self.assertEqual(self.call(self.login("admin"), "get", "/api/history/")[0], 200)

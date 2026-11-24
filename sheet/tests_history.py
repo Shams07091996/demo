@@ -7,7 +7,7 @@ from django.db import DatabaseError, connection, transaction
 from django.test import Client, TestCase
 
 from .models import ChangeRecord, Guest, HotelStay, Option, Service, Vessel
-from .tests import FAST_HASHER, NEEDED, ApiTestCase, allow
+from .tests import FAST_HASHER, NEEDED, ApiTestCase, allow, make_user
 
 
 def records(**filters):
@@ -109,10 +109,12 @@ class HistoryIsAppendOnlyTests(TestCase):
 
 @FAST_HASHER
 class HistoryApiTests(ApiTestCase):
-    def test_only_admins_may_read_the_history(self):
+    def test_history_needs_history_view(self):
+        """Admins read all of it; a User needs history.view (and then sees their ports only: tests_permissions)."""
         self.assertEqual(self.login("admin").get("/api/history/").status_code, 200)
-        self.assertEqual(self.login("alex").get("/api/history/").status_code, 403)
-        self.assertEqual(self.login("viewer").get("/api/history/").status_code, 403)
+        self.assertEqual(self.login("alex").get("/api/history/").status_code, 200)
+        make_user("nohistory", "alexandria", permissions=["money.view"])
+        self.assertEqual(self.login("nohistory").get("/api/history/").status_code, 403)
 
     def test_records_are_newest_first_and_paged(self):
         for i in range(3):

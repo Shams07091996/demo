@@ -46,6 +46,7 @@ from . import (
 from . import dashboard as dashboard_figures
 from .access import (
     asked_port,
+    ports_of,
     profile_of,
     require,
     require_admin,
@@ -945,9 +946,11 @@ def _shown_changes(record):
 @json_api
 @require_http_methods(["GET"])
 def history_list(request):
-    """The change history, newest first; admins only (it spans every port). Filters: from / to (dates, Cairo time),
-    type (object type), user (username), page, page_size."""
-    require_admin(request.profile)
+    """The change history, newest first: Admins everything; a User with history.view only their ports' records of
+    history.PORT_TYPES. Filters: from / to (dates, Cairo time), type (object type), user (username), page,
+    page_size."""
+    profile = request.profile
+    require(profile, "history.view")
     params = request.GET
     date_from, date_to = listing.date_param(params, "from"), listing.date_param(params, "to")
     if date_from and date_to and date_from > date_to:
@@ -957,6 +960,8 @@ def history_list(request):
     if page_size not in HISTORY_PAGE_SIZES:
         raise BadRequest("Rows per page must be 10, 25, 50 or 100.")
     rows = ChangeRecord.objects.all()
+    if not profile.is_admin:
+        rows = rows.filter(object_type__in=history.PORT_TYPES, port__in=ports_of(profile))
     if date_from:
         rows = rows.filter(at__date__gte=date_from)
     if date_to:

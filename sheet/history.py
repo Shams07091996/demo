@@ -118,8 +118,14 @@ def _vessel_port(vessel_id):
     return Vessel._base_manager.filter(pk=vessel_id).values_list("port", flat=True).first() or ""
 
 
+# The records a User with history.view may see (when their port is one of the User's): records about one port's
+# work. People, devices, ships, customers, rates, ports and All-ports Master data have no port and stay Admin-only
+# (a Profile record carries the home port, so it is left out by type, not by port).
+PORT_TYPES = ("vessel", "service", "hotelstay", "transfer", "guest", "option", "portclosure")
+
+
 def port_of(instance):
-    if isinstance(instance, (Vessel, Option)):
+    if isinstance(instance, (Vessel, Option, PortClosure)):
         return instance.port or ""
     if isinstance(instance, (Service, HotelStay, Transfer)):
         return _vessel_port(instance.vessel_id)

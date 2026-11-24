@@ -263,7 +263,6 @@ class AccessTests(ApiTestCase):
         for name in ("viewer", "alex"):
             user = self.login(name)
             self.assertEqual(self.call(user, "post", "/api/rates/", {"month": "2026-10", "rate": "50"})[0], 403)
-            self.assertEqual(self.call(user, "get", "/api/history/")[0], 403)
 
     def test_only_admins_change_exchange_rates(self):
         """Rates are shared by every port, so a port user must not be able to change them."""
