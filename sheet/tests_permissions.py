@@ -122,7 +122,10 @@ class PermissionMigrationTests(TransactionTestCase):
         executor.loader.build_graph()
         executor.migrate(executor.loader.graph.leaf_nodes())
         stored = Profile.objects.get(user_id=user.pk)
-        self.assertEqual((stored.permissions, stored.pages), (list(PERMISSION_KEYS), list(PAGE_KEYS)))
+        # Everything that existed then; later ticks (the Operation pages) stay off until an Admin gives them.
+        before_operation = ([k for k in PERMISSION_KEYS if not k.startswith("operation.")],
+                            [k for k in PAGE_KEYS if not k.startswith("op_")])
+        self.assertEqual((stored.permissions, stored.pages), before_operation)
 
 
 WATER = {"type": "Fresh Water", "data": {"cost": "10", "costCurrency": "EGP"}}

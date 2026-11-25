@@ -990,6 +990,8 @@ def _account_ticks(data, existing):
         raise BadRequest("History needs See money.")
     if "accounting.close" in permissions and "calculations" not in pages:
         raise BadRequest("Close / reopen lines needs the Calculations page.")
+    if {"operation.edit", "operation.delete"} & set(permissions) and "op_vessels" not in pages:
+        raise BadRequest("Add / edit and Delete vessel data need the Vessel Data page.")
     return {"permissions": permissions, "pages": [key for key in PAGE_KEYS if key in pages]}
 
 
