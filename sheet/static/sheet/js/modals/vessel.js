@@ -36,8 +36,9 @@ function serviceSummary(service) {
     default: {
       if (MULTI.includes(service.type)) {
         const entries = d.entries || [];
-        return entries.length
-          ? lines(entries.map((e, i) => `#${i + 1} ${e.awb || 'no AWB'}${e.weight ? ` · ${txt(e.weight)} kg` : ''}`))
+        const details = serviceDetails(service.type, d).map(([label, value]) => `${label}: ${value}`);
+        return entries.length || details.length
+          ? lines([...details, ...entries.map((e, i) => `#${i + 1} ${e.awb || 'no AWB'}${e.weight ? ` · ${txt(e.weight)} kg` : ''}`)])
           : 'No entries yet';
       }
       return lines(serviceDetails(service.type, d).map(([label, value]) => `${label}: ${value}`));

@@ -322,7 +322,8 @@ def _detail(spec, value):
     if not text:
         return ""
     if kind == "choice" and text not in spec["choices"]:
-        raise BadRequest(f"{label}: choose {' or '.join(spec['choices'])}.")
+        *first, last = spec["choices"]
+        raise BadRequest(f"{label}: choose {'one of ' if len(first) > 1 else ''}{', '.join(first)} or {last}.")
     if kind == "date":
         try:
             ok = bool(_DAY_RE.match(text)) and 2000 <= date.fromisoformat(text).year <= 2100
@@ -343,7 +344,11 @@ def _detail(spec, value):
 def _clean_details(service_type, raw):
     """The service type's own detail fields (not money); every one present, unknown keys dropped."""
     specs = SERVICE_FIELDS.get(service_type, {}).get("fields", [])
-    return {spec["key"]: _detail(spec, raw.get(spec["key"])) for spec in specs}
+    data = {spec["key"]: _detail(spec, raw.get(spec["key"])) for spec in specs}
+    for spec in specs:  # a field only for one choice is refused under another (never silently emptied)
+        if "when" in spec and data[spec["key"]] not in ("", None) and data.get(spec["when"][0]) != spec["when"][1]:
+            raise BadRequest(f"{spec['label']} is only for {spec['when'][1]}.")
+    return data
 
 
 def _clean_single(service_type, raw):
@@ -358,7 +363,7 @@ def clean_service_data(service_type, raw):
     if service_type == "Crew Change":
         return {**_clean_crew_change(raw), **_service_money(raw)}
     if service_type in MULTI_TYPES:
-        return _clean_multi(service_type, raw)
+        return {**_clean_multi(service_type, raw), **_clean_details(service_type, raw)}
     if service_type == "Cash to Master":
         return {**_clean_cash_to_master(raw), **_clean_details(service_type, raw)}
     return _clean_single(service_type, raw)

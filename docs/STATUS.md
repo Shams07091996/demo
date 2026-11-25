@@ -5,6 +5,14 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Parcels extras, piece 2 of 8 (2026-11-25):** on branch **`feature/parcel-extras`**, **not merged** (waiting
+  for the user's OK). No migration. Delivery Parcels and Landing get Transfer type (Vessel-to-Vessel /
+  Vessel-to-Courier), Receiving vessel (typed, shown only for Vessel-to-Vessel), Courier (DHL / FedEx / Aramex /
+  Other, only for Vessel-to-Courier) and Courier payment (Paid / Not Paid); Delivery Courier gets Courier, Delivery
+  status (Pending / Dispatched / Delivered) and Courier payment. Per service, not per AWB line (the user approved);
+  none is required; the HTML's separate Parcels page is left out. 889 tests, check green, smoke alex / marine pass;
+  self-review only. Design: `specs/2026-11-25-parcel-extras-design.md`.
+
 - **New services from the manager's HTML, piece 1 of 8 (2026-11-25):** merged into main (2026-11-25), from branch `feature/new-services`.
   No migration. Five new service types: **Suez Canal Transit** (direction,
   origin / destination port, expected transit, ETA Suez, booking ref, canal agent, convoy no., pilot boarding, canal

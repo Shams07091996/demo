@@ -42,7 +42,7 @@ const editMoney = () => can('money.edit');
 
 function multiEntryBlock(service) {
   const entries = service.data.entries || [];
-  if (!entries.length) return h('div', { class: 'none' }, 'No entries.');
+  if (!entries.length) return [detailLinesEl(service), h('div', { class: 'none' }, 'No entries.')];
   const lines = entries.map((entry, i) => {
     const calc = (service.calc?.entries || [])[i] || {};
     const profit = calc.profit_egp || 0;
@@ -54,7 +54,7 @@ function multiEntryBlock(service) {
         entry.revenue != null ? pillEl('Revenue', `${txt(entry.revenueCurrency)} ${fmt(entry.revenue)}`, 'good') : null,
         seeMoney() ? pillEl('Profit (EGP)', sign(profit), profitClass(profit)) : null));
   });
-  return [lines, h('div', { class: 'pills' }, pillEl('Entries', entries.length),
+  return [detailLinesEl(service), lines, h('div', { class: 'pills' }, pillEl('Entries', entries.length),
     seeMoney() ? pillEl('Total profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp)) : null)];
 }
 

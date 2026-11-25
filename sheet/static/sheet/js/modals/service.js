@@ -319,14 +319,27 @@ function cashToMasterFields(vessel, d) {
 }
 
 // A service type's own detail fields (SERVICE_FIELDS), two per row; not money, so shown to everyone who edits.
-function detailField(f, value) {
-  const v = value ?? '';
-  if (f.kind === 'number') return field(f.label, numberInput({ attrs: { name: f.key } }, v));
-  if (f.kind === 'choice') {
-    return field(f.label, h('select', { attrs: { name: f.key } }, optionEls([['', '—'], ...f.choices.map((c) => [c, c])], v)));
-  }
+function detailControl(f, v) {
+  if (f.kind === 'number') return numberInput({ attrs: { name: f.key } }, v);
+  if (f.kind === 'choice') return h('select', { attrs: { name: f.key } }, optionEls([['', '—'], ...f.choices.map((c) => [c, c])], v));
   const type = { date: 'date', datetime: 'datetime-local' }[f.kind] || 'text';
-  return field(f.label, h('input', { attrs: { type, name: f.key, ...(type === 'text' ? { maxlength: f.max || 160 } : {}) }, value: v }));
+  return h('input', { attrs: { type, name: f.key, ...(type === 'text' ? { maxlength: f.max || 160 } : {}) }, value: v });
+}
+
+// A field with "when" [key, value] (parcels' receiving vessel / courier) shows only while that choice is picked.
+function detailField(f, d) {
+  const control = detailControl(f, d[f.key] ?? '');
+  if (!f.when) return field(f.label, control);
+  return h('div', { class: 'field', hidden: d[f.when[0]] !== f.when[1], dataset: { when: f.when[0], is: f.when[1] } },
+    h('label', null, f.label), control);
+}
+
+// Show / hide the fields that depend on `select` (its hidden ones are emptied: the server refuses them).
+function toggleDependentFields(select) {
+  $$(`[data-when="${select.name}"]`, $('#svc-form')).forEach((box) => {
+    box.hidden = select.value !== box.dataset.is;
+    if (box.hidden) $$('input, select', box).forEach((control) => { control.value = ''; });
+  });
 }
 
 function detailFields(type, d) {
@@ -334,7 +347,7 @@ function detailFields(type, d) {
   const rows = [];
   for (let i = 0; i < fields.length; i += 2) {
     rows.push(h('div', { class: fields[i + 1] ? 'row two' : 'row' },
-      fields.slice(i, i + 2).map((f) => detailField(f, d[f.key]))));
+      fields.slice(i, i + 2).map((f) => detailField(f, d))));
   }
   return rows;
 }
@@ -353,6 +366,7 @@ function formFields(type, vessel, d) {
   if (type === 'Crew Change') return [h('div', { id: 'crew-editor' }), money()];
   if (MULTI.includes(type)) {
     return [
+      detailFields(type, d),
       h('div', { id: 'entries' }, (d.entries || []).map((e) => entryRowEl(type, e))),
       h('button', { class: 'btn ghost wide', dataset: { act: 'add-entry' }, style: { margin: '0 0 12px' } }, '+ Add entry'),
       mayMoney() ? [rateField(vessel, d), previewBox()] : null,
@@ -424,7 +438,8 @@ function typedServiceData() {
       $$('[data-f]', row).forEach((field) => { entry[field.dataset.f] = field.value; });
       return entry;
     });
-    return { entries, exchangeRate: values.exchangeRate };
+    const details = Object.fromEntries((SERVICE_FIELDS[type]?.fields || []).map((f) => [f.key, values[f.key] ?? '']));
+    return { ...details, entries, exchangeRate: values.exchangeRate };
   }
   return values;
 }
@@ -500,6 +515,7 @@ export function onModalChange(event) {
     if (cancelled && state.ctx.type === 'Crew Change' && state.ctx.serviceId) showCrewBookings();
   }
   if (state.ctx.view === 'service-form') noteTouched(target);
+  if (state.ctx.view === 'service-form' && target.tagName === 'SELECT' && target.name) toggleDependentFields(target);
   if (target.name === 'billing_party') applyRate();
   if (target.name === 'shareMode') {
     const fixed = target.value === 'fixed';
