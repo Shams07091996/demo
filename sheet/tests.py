@@ -15,6 +15,7 @@ from django.core.management.base import CommandError
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 
 from config.database import build_database_settings
+from operation.models import Visit
 
 from . import finance, throttle
 from .constants import PAGE_KEYS, PERMISSION_KEYS
@@ -36,9 +37,9 @@ from .validators import clean_service_data, clean_summary
 PASSWORD = "correct-horse-battery"
 # A new vessel needs an OPR and a POC from Master data (ApiTestCase lists these two for All ports).
 NEEDED = {"opr": "TEST OPR", "poc": "TEST POC"}
-VERSIONED_URL = re.compile(r"^/api/(vessels|services|hotels|transfers|closures)/(\d+)/$")
+VERSIONED_URL = re.compile(r"^/api/(vessels|services|hotels|transfers|closures|operation/visits)/(\d+)/$")
 VERSIONED_MODELS = {"vessels": Vessel, "services": Service, "hotels": HotelStay, "transfers": Transfer,
-                    "closures": PortClosure}
+                    "closures": PortClosure, "operation/visits": Visit}
 FAST_HASHER = override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])  # tests only
 
 
