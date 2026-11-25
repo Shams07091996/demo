@@ -5,8 +5,8 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Page-like Excel, icon delete buttons, Live data today, grouped ticks (2026-11-26):** on branch
-  `feature/page-excel-and-ticks`, **not merged** (waiting for the user). No migration. Design
+- **Page-like Excel, icon delete buttons, Live data today, grouped ticks (2026-11-26):** merged into main by the user
+  (2026-11-26), from branch `feature/page-excel-and-ticks` (deleted). No migration. Design
   `specs/2026-11-26-page-excel-and-ticks-design.md`.
   - Live data's **Next 7 days** starts today 00:00 (Cairo) and also lists every arrived-not-berthed vessel, marked
     **Arrived**.
