@@ -9,6 +9,7 @@ import { setStatus } from './feedback.js';
 import { closeModal, isModalOpen } from './modal.js';
 import { onBookingInput } from './modals/booking.js';
 import { onClosureFormChange } from './modals/closure.js';
+import { onVisitFormChange } from './modals/visit.js';
 import { onModalChange, onModalInput } from './modals/service.js';
 import { onVesselFormChange, openVessel, openVesselForm } from './modals/vessel.js';
 import { initNavGroups } from './navGroups.js';
@@ -56,6 +57,7 @@ el.modal.addEventListener('input', onVesselFormChange);  // times typed: show / 
 el.modal.addEventListener('input', onBookingInput);  // hotel stay / transfer dialog
 el.modal.addEventListener('change', onBookingInput);
 el.modal.addEventListener('change', onClosureFormChange); // admin switches a closure's port
+el.modal.addEventListener('change', onVisitFormChange); // a visit's terminal changes: its berths and lines
 
 /* ---- top bar and sidebar ---- */
 $('#bell').addEventListener('click', (event) => { event.stopPropagation(); togglePanel(); });

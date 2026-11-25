@@ -26,6 +26,17 @@
           {% if "ships" in me.pages %}<a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>{% endif %}
         </div>
       </div>
+      {% if "op_vessels" in me.pages or "op_live" in me.pages or "op_analysis" in me.pages or "op_charts" in me.pages %}
+      <div class="nav-group" data-group="operation">
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Operation</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <div class="nav-group-items">
+          {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_vessels" href="#op_vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessel Data</span></a>{% endif %}
+          {% if "op_live" in me.pages %}<a class="nav-item" data-page="op_live" href="#op_live"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Live data</span></a>{% endif %}
+          {% if "op_analysis" in me.pages %}<a class="nav-item" data-page="op_analysis" href="#op_analysis"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Analysis reports</span></a>{% endif %}
+          {% if "op_charts" in me.pages %}<a class="nav-item" data-page="op_charts" href="#op_charts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Report charts</span></a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
       {% if "dashboard" in me.pages or "disposal" in me.pages or "hotels" in me.pages or "transport" in me.pages or "calculations" in me.pages %}
       <div class="nav-group" data-group="reports">
         <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Reports</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
@@ -46,6 +57,7 @@
           {% if "customers" in me.pages %}<a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>{% endif %}
           {% if "rates" in me.pages %}<a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>{% endif %}
           {% if me.isAdmin %}<a class="nav-item" data-page="ports" href="#ports"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ports</span></a>{% endif %}
+          {% if me.isAdmin %}<a class="nav-item" data-page="terminals" href="#terminals"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Terminals</span></a>{% endif %}
           {% if me.isSuperuser %}<a class="nav-item" data-page="accounts" href="#accounts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Accounts</span></a>{% endif %}
           {% if "history" in me.pages %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
         </div>
@@ -303,6 +315,104 @@
       <div class="table-wrap">
         <table><thead id="pt-head"></thead><tbody id="pt-tbody"></tbody></table>
         <div class="empty" id="pt-empty" hidden>No ports.</div>
+      </div>
+    </main>
+    {% endif %}
+
+    {% if me.isAdmin %}
+    <!-- ===== Terminals, Admins only (drawn by js/pages/terminals.js) ===== -->
+    <main class="page" id="page-terminals" hidden>
+      <div class="toolbar">
+        <div class="tools"></div>
+        <div class="tools"><button class="btn primary" data-act="terminal-new">+ Add terminal</button></div>
+      </div>
+      <div class="table-wrap">
+        <table><thead id="tm-head"></thead><tbody id="tm-tbody"></tbody></table>
+        <div class="empty" id="tm-empty" hidden>No terminals.</div>
+      </div>
+    </main>
+    {% endif %}
+
+    {% if "op_vessels" in me.pages %}
+    <!-- ===== Operation: Vessel Data (drawn by js/pages/opVessels.js) ===== -->
+    <main class="page" id="page-op_vessels" hidden>
+      <div class="toolbar">
+        <div class="filters">
+          <select class="select" id="ov-port" aria-label="Port" hidden></select>
+          <select class="select" id="ov-terminal" aria-label="Terminal"></select>
+          <div id="ov-status"></div>
+          <select class="select" id="ov-line" aria-label="Shipping line"></select>
+          <input class="input" type="search" id="ov-q" aria-label="Search vessel" maxlength="100">
+          <div class="date-range" role="group" aria-label="Date range">
+            <label>From <input class="input" type="date" id="ov-from"></label>
+            <label>To <input class="input" type="date" id="ov-to"></label>
+            <button class="btn ghost small" id="ov-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
+          </div>
+          {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="opv-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
+        </div>
+        {% if "operation.edit" in me.permissions %}<div class="tools"><button class="btn primary" data-act="opv-new">+ Add visit</button></div>{% endif %}
+      </div>
+      <div class="table-wrap">
+        <table><thead id="ov-head"></thead><tbody id="ov-tbody"></tbody></table>
+        <div class="empty" id="ov-empty" hidden>No visits.</div>
+      </div>
+      <div class="pager" id="ov-pager"></div>
+    </main>
+    {% endif %}
+
+    {% if "op_live" in me.pages %}
+    <!-- ===== Operation: Live data (drawn by js/pages/opLive.js) ===== -->
+    <main class="page" id="page-op_live" hidden>
+      <div class="toolbar">
+        <div class="tools"><select class="select" id="ol-port" aria-label="Port" hidden></select></div>
+        <div class="tools"><button class="btn ghost small" data-act="op-live-refresh">Refresh</button></div>
+      </div>
+      <div id="ol-cards" class="op-cards"></div>
+      <div class="empty" id="ol-empty" hidden>No terminals.</div>
+    </main>
+    {% endif %}
+
+    {% if "op_analysis" in me.pages %}
+    <!-- ===== Operation: Analysis reports (drawn by js/pages/opAnalysis.js) ===== -->
+    <main class="page" id="page-op_analysis" hidden>
+      <div class="toolbar">
+        <div class="filters">
+          <select class="select" id="oa-port" aria-label="Port" hidden></select>
+          <select class="select" id="oa-terminal" aria-label="Terminal"></select>
+          <select class="select" id="oa-berth" aria-label="Berth"></select>
+          <select class="select" id="oa-line" aria-label="Shipping line"></select>
+          <div class="date-range" role="group" aria-label="Date range">
+            <label>From <input class="input" type="date" id="oa-from"></label>
+            <label>To <input class="input" type="date" id="oa-to"></label>
+            <button class="btn ghost small" id="oa-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
+          </div>
+        </div>
+      </div>
+      <div class="stats" id="oa-tiles"></div>
+      <section class="panel dash-wide"><h3>Terminal performance</h3><div id="oa-terminals"></div></section>
+      <section class="panel dash-wide"><h3>Shipping line performance</h3><div id="oa-lines"></div></section>
+    </main>
+    {% endif %}
+
+    {% if "op_charts" in me.pages %}
+    <!-- ===== Operation: Report charts (drawn by js/pages/opAnalysis.js) ===== -->
+    <main class="page" id="page-op_charts" hidden>
+      <div class="toolbar">
+        <div class="filters">
+          <select class="select" id="oc-port" aria-label="Port" hidden></select>
+          <select class="select" id="oc-terminal" aria-label="Terminal"></select>
+          <select class="select" id="oc-berth" aria-label="Berth"></select>
+          <select class="select" id="oc-line" aria-label="Shipping line"></select>
+          <div class="date-range" role="group" aria-label="Date range">
+            <label>From <input class="input" type="date" id="oc-from"></label>
+            <label>To <input class="input" type="date" id="oc-to"></label>
+            <button class="btn ghost small" id="oc-clear" title="Show all dates"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg> All dates</button>
+          </div>
+        </div>
+      </div>
+      <div class="dash-grid">
+        <section class="panel"><h3>Vessel calls by terminal</h3><div id="oc-calls"></div></section>
+        <section class="panel"><h3>Average waiting vs operation</h3><div id="oc-hours"></div></section>
       </div>
     </main>
     {% endif %}

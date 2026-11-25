@@ -9,6 +9,10 @@ import { disposalPage } from './pages/disposal.js';
 import { accountsPage } from './pages/accounts.js';
 import { portsPage } from './pages/ports.js';
 import { historyPage } from './pages/history.js';
+import { opAnalysisPage, opChartsPage } from './pages/opAnalysis.js';
+import { opLivePage } from './pages/opLive.js';
+import { opVesselsPage } from './pages/opVessels.js';
+import { terminalsPage } from './pages/terminals.js';
 import { openGroupOf } from './navGroups.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
@@ -33,6 +37,11 @@ const TITLES = {
   history: 'History',
   accounts: 'Accounts',
   ports: 'Ports',
+  terminals: 'Terminals',
+  op_vessels: 'Vessel Data',
+  op_live: 'Live data',
+  op_analysis: 'Analysis reports',
+  op_charts: 'Report charts',
 };
 
 const pageFromHash = () => {
@@ -43,8 +52,8 @@ const pageFromHash = () => {
 export async function showPage(requested) {
   let name = requested;
   if (name === 'accounts' && !ME.isSuperuser) name = 'vessels'; // accounts: superusers only
-  else if (name === 'ports' && !ME.isAdmin) name = 'vessels'; // ports: Admins only
-  else if (name !== 'accounts' && name !== 'ports' && !sees(name)) name = 'vessels'; // a page not given
+  else if ((name === 'ports' || name === 'terminals') && !ME.isAdmin) name = 'vessels'; // Admins only
+  else if (!['accounts', 'ports', 'terminals'].includes(name) && !sees(name)) name = 'vessels'; // a page not given
   state.page = name;
   $$('.page').forEach((page) => { page.hidden = page.id !== `page-${name}`; });
   $$('#nav .nav-item').forEach((link) => link.classList.toggle('active', link.dataset.page === name));
@@ -61,6 +70,11 @@ export async function showPage(requested) {
   if (name === 'history') await historyPage.load();
   if (name === 'accounts') await accountsPage.load();
   if (name === 'ports') await portsPage.load();
+  if (name === 'terminals') await terminalsPage.load();
+  if (name === 'op_vessels') await opVesselsPage.load();
+  if (name === 'op_live') await opLivePage.load();
+  if (name === 'op_analysis') await opAnalysisPage.load();
+  if (name === 'op_charts') await opChartsPage.load();
   if (name === 'services') await servicesPage.load();
   if (name === 'ships') await shipsPage.load();
   if (name === 'customers') await customersPage.load();

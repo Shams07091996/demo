@@ -533,13 +533,14 @@ class IndexTests(Limited):
         html = self.login("admin").get("/").content.decode()
         nav = html[html.index('id="nav"'):html.index("</nav>")]
         groups = re.findall(r'data-group="(\w+)"', nav)
-        self.assertEqual(groups, ["marine", "reports", "master"])
+        self.assertEqual(groups, ["marine", "operation", "reports", "master"])
         heads = re.findall(r'<span class="nav-group-label">([^<]+)</span>', nav)
-        self.assertEqual(heads, ["Marine", "Reports", "Master data"])
+        self.assertEqual(heads, ["Marine", "Operation", "Reports", "Master data"])
         pages = re.findall(r'class="nav-item" data-page="(\w+)"', nav)
         self.assertEqual(pages, ["vessels", "services", "closures", "ships",
+                                 "op_vessels", "op_live", "op_analysis", "op_charts",
                                  "dashboard", "disposal", "hotels", "transport", "calculations",
-                                 "master", "customers", "rates", "ports", "accounts", "history"])
+                                 "master", "customers", "rates", "ports", "terminals", "accounts", "history"])
         make_user("vonly", "alexandria", permissions=[], pages=["vessels"])
         html = self.login("vonly").get("/").content.decode()
         nav = html[html.index('id="nav"'):html.index("</nav>")]

@@ -6,6 +6,11 @@ import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
 import { saveAccountDialog, toggleAccount } from './modals/account.js';
 import { savePortDialog, togglePort } from './modals/port.js';
+import { addBerth, removeBerth, saveTerminalDialog } from './modals/terminal.js';
+import { deleteVisit, openVisitDialog, saveVisit } from './modals/visit.js';
+import { opLivePage } from './pages/opLive.js';
+import { opVesselsPage } from './pages/opVessels.js';
+import { terminalsPage } from './pages/terminals.js';
 import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { addContactRow, deleteCustomerDialog, saveCustomerDialog } from './modals/customer.js';
@@ -301,6 +306,23 @@ export const actions = {
   'closure-save': () => saveClosure(),
   'closure-del': removeClosure,
   'closure-now': closureNow,
+  'terminal-new': () => terminalsPage.open(null),
+  'terminal-open': (b) => terminalsPage.open(Number(b.dataset.id)),
+  'terminal-save': () => saveTerminalDialog(),
+  'terminal-berth-add': () => addBerth(),
+  'terminal-berth-del': removeBerth,
+  'opv-new': () => openVisitDialog(),
+  'opv-open': (b) => openVisitDialog(Number(b.dataset.id)),
+  'opv-save': () => saveVisit(),
+  'opv-del': () => deleteVisit(),
+  'opv-sort': (b) => opVesselsPage.sort(b.dataset.key),
+  'opv-prev': () => opVesselsPage.prev(),
+  'opv-next': () => opVesselsPage.next(),
+  'opv-export': async () => {
+    const error = await download(`/api/operation/visits/export/?${opVesselsPage.exportQuery()}`, 'Could not make the Excel file.');
+    if (error) setStatus('error', error);
+  },
+  'op-live-refresh': () => opLivePage.load(),
 
   'conflict-reload': () => conflictAction('reload'),
   'conflict-force': () => conflictAction('force'),
