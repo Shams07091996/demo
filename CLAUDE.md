@@ -10,7 +10,7 @@ vessel at every terminal, see **Operation**) plus a vanilla ES-module
 front end with **no build step**. **Admins are the superusers** (made with `createsuperuser`, never by the app): every
 port, accounts, ports, rates, the History, accounting. Everyone else is a **User** with a home port and extra ports
 (`Profile.home_port` / `ports`); no port → blocked ("no port yet"). The Read-only role is gone (migration 0024).
-In their ports a User does only what their **18 permissions** allow and sees only their **pages**
+In their ports a User does only what their **19 permissions** allow and sees only their **pages**
 (`Profile.permissions` / `pages`, piece 2 of the access rework, `specs/2026-11-24-access-rework-design.md`); piece 3
 (`money.edit` hides the forms' money, `money.view` the overviews) is `moneyaccess.py` (see **Money permissions**).
 See `README.md` and `SECURITY.md`.
@@ -364,7 +364,7 @@ A new money field: add it to `moneyaccess` (and `moneyKeys.js` for service data)
 dialog `js/modals/account.js`): **Admins (superusers) only** (`access.require_superuser(request)`, `me.isSuperuser`
 renders the nav item / page). Lists every account (on first, then username) with home port / ports (column "Ports":
 "Alexandria (home), Damietta", superusers "Admin · all ports"), `two_step` (`set_up` / `waiting` / `expired` /
-`exempt`), last sign-in, "Can" (`8 of 18`); a GET never creates a Profile; the response's `ports` is
+`exempt`), last sign-in, "Can" (`8 of 19`); a GET never creates a Profile; the response's `ports` is
 `[[key, name, active]]`, plus `permissions` / `pages` (`[[key, label]]`) and `templates` (`[[key, label, perms,
 pages]]`).
 `validators.clean_account`: new → username (`USERNAME_RE`, unique ignoring case: `accounts.TAKEN`), names (150),
@@ -396,27 +396,38 @@ delay reason, or any agent (every service type needs one).
 **Operation** (Django app `operation`, its own migrations from `operation 0001`; design
 `specs/2026-11-25-operation-app-design.md`): the user's workbook `ARKAS_Port_Berthing` as four pages — every vessel
 at every terminal, separate from Vessels (which lists only the vessels the company serves). `Terminal` (name, code,
-`port`, quay length, cranes, `berths` JSON list, `active`; Admins only on the Terminals page, `GET/POST
-/api/operation/terminals/`, `PUT …/<id>/`, never deleted) and `Visit` (terminal PROTECT, vessel name upper-cased,
+`port`, quay length, cranes, `berths` JSON list, `lines` (its shipping lines from the port's Master data list;
+empty = every line of the port; a visit then offers only these), `active`; on the Terminals page in the Operation
+folder for Admins (every port) and the tick `operation.master` "Edit terminals and vessel list" (own ports,
+`access.require_master`), `GET/POST /api/operation/terminals/`, `PUT …/<id>/`, never deleted) and `Visit` (terminal PROTECT, vessel name upper-cased,
 shipping line from the Master data "Shipping line" list, LOA, ETA / ATA / ETB / ETC / ATB / ATD, planned / actual
 berth from the terminal's list (the saved value stays allowed), cranes, discharge / loading, `version`). A visit's
 port is its terminal's: `operation.access.scoped_terminals` / `scoped_visits` (`terminal__port__in`), every write
 `require_port`; another port's visit is 404, moving one to another port's terminal 403. Input in
-`operation/validators.py` (refused, never fixed; ETA required; ATB needs ATA, ATD needs ATB, order checked). Figures
+`operation/validators.py` (refused, never fixed; ETA required; ATB needs ATA, ATD needs ATB, ETB not before
+ETA, ETC not before ETB, order checked). Figures
 only in `operation/figures.py`, worked out on read, never stored: status Completed (ATD) / Working (ATB) / Planned,
 waiting ATB−ATA, operation ATD−ATB, port stay ATD−ATA (hours, 1 decimal), total moves, moves/hr = total ÷ operation;
 Live data's moves/hr = moves ÷ hours since ATB. Pages (`constants.PAGES` `op_vessels` / `op_live` / `op_analysis` /
-`op_charts`) and permissions `operation.edit` / `operation.delete` (both need `op_vessels`); existing accounts start
+`op_charts`) and permissions `operation.edit` / `operation.delete` / `operation.master` (all need `op_vessels`); existing accounts start
 with them off, the Branch manager template has them. **Vessel Data** (`visits.py`, `GET/POST /api/operation/visits/`,
 `PUT/DELETE …/<id>/` with `conflicts`, filters status / terminal / line / q / from–to on the report date (ATA's Cairo
 date, else ETA's) / port, sorts, paging; Excel `…/visits/export/` with `exports`), **Live data** (`live.py`, one card
-per turned-on terminal: calls in 7 days, Working vessels, those due in 7 days), **Analysis reports** and **Report
+per turned-on terminal: calls in 7 days, Working vessels, those due in 7 days; All / one-terminal buttons in the
+page; the terminal's picture on top when the server has one: `pictures.py`, `<letterhead folder>/terminals/<CODE>.png|.jpg`,
+PNG / JPEG by first bytes, 1 MB, codes of letters / digits / _ / - only, `GET …/terminals/<id>/picture/` scoped; no upload
+in the app, never in git — the cut demo pictures live in git-ignored `terminal-pictures/`), **Vessel list** (`vessel_list.py`,
+`ListedVessel` name + fixed LOA, all ports, `GET/POST /api/operation/vessels/`, `PUT/DELETE …/<id>/`: read with `op_vessels`,
+write with `operation.master`, delete Admins; the visit dialog's name box suggests them and fills the LOA; visits keep
+their own text copy), **Analysis reports** and **Report
 charts** (one response, `analysis.py`: headline averages, Calls per week / month / year when From and To are both set,
 a row per terminal in scope and per shipping line; filters port / terminal / berth / line / from–to). History tracks
 both models (`history.track`, `history_port()`; type `visit` is in `PORT_TYPES`). Front end: `js/operation/shared.js`,
-`js/pages/opVessels.js`, `opLive.js`, `opAnalysis.js`, `terminals.js`, dialogs `js/modals/visit.js`, `terminal.js`.
+`js/pages/opVessels.js`, `opLive.js`, `opAnalysis.js`, `terminals.js`, `vesselList.js`, dialogs `js/modals/visit.js`,
+`terminal.js`, `listedVessel.js`. `dom.js` allows `src` / `alt` with the same safe-URL check as `href`.
 `seed_demo` adds five Alexandria terminals and PSD EAST (Port Said), six lines and the workbook's seven visits plus
-two Working and four upcoming ones; `viewer` has the pages without edit / delete.
+two Working and four upcoming ones, and a vessel-list entry for each; `viewer` has the pages without the three
+Operation ticks.
 
 **Terminal / berth** (migration 0029): `Vessel.terminal` (Master data "Terminal" list of its port, optional) and
 `Vessel.berth` (typed, 20 characters); a save without the key keeps the stored value. Shown in the vessel form and

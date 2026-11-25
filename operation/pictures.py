@@ -25,20 +25,31 @@ def _candidates(terminal):
     return [(Path(folder, FOLDER, terminal.code + ext), signature, kind) for ext, signature, kind in KINDS]
 
 
-def picture(terminal):
-    """(bytes, content type) of the terminal's picture, or None."""
+def _find(terminal, whole):
+    """(path, bytes, content type) of the first good file; `whole` False reads only its first bytes."""
     for path, signature, kind in _candidates(terminal):
         try:
             if not path.is_file() or path.stat().st_size > MAX_BYTES:
                 continue
-            data = path.read_bytes()
+            if whole:
+                data = path.read_bytes()
+            else:
+                with path.open("rb") as file:
+                    data = file.read(len(signature))
         except OSError:
             security_log.warning("terminal picture unreadable: %s", terminal.id)
             continue
         if data.startswith(signature):
-            return data, kind
+            return path, data, kind
     return None
 
 
+def picture(terminal):
+    """(bytes, content type) of the terminal's picture, or None."""
+    found = _find(terminal, whole=True)
+    return (found[1], found[2]) if found else None
+
+
 def has_picture(terminal):
-    return picture(terminal) is not None
+    """Whether the terminal has a picture (sent with every terminal list: reads only the first bytes)."""
+    return _find(terminal, whole=False) is not None

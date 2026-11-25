@@ -5,6 +5,15 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Operation, round 2 (2026-11-26):** on branch `feature/operation-round2`, **not merged** (waiting for the user).
+  Needs migrations **`operation 0002_terminal_lines`** and **`0003_listed_vessel`**. Vessel Data shows ETA / ETB /
+  ETC then ATA / ATB / ATD; ETB before ETA is refused; Live data has All / one-terminal buttons and each terminal's
+  picture (files in `DJANGO_LETTERHEAD_DIR/terminals/<CODE>.png`, no upload in the app; the five cut from the
+  workbook are in the git-ignored `terminal-pictures/`); new tick **Edit terminals and vessel list** (own ports;
+  off for existing accounts, Branch manager template has it); terminals name their shipping lines; a **Vessel list**
+  page (name + fixed LOA, all ports) fills a visit's LOA. Terminals moved into the Operation folder. 976 tests, check
+  green, smoke alex / admin / viewer / suez / marine pass. Design `specs/2026-11-25-operation-round2-design.md`.
+
 - **Operation app (2026-11-25):** merged into main by the user (2026-11-25), from branch `feature/operation-app` (deleted). Needs
   migrations **`operation 0001_initial`** and **`sheet 0030_option_line`** (new tables; a new Master data list
   "Shipping line"). A new folder **Operation** below Marine with Vessel Data, Live data, Analysis reports and Report
@@ -219,6 +228,9 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
   the new ticks start off, an Admin ticks them; all data was demo, no old data moved. The Shipping line table has one
   row per line; Live data moves/hr = moves so far ÷ hours since ATB; Analysis adds Calls per week / month / year
   when From and To are both set.
+- **Operation round 2 (2026-11-25):** times side by side (estimates, then actuals); a separate **vessel list** for
+  the fixed LOA (not Marine's Ships); a new tick lets people edit their own ports' terminals; a terminal's "lines"
+  are shipping lines; terminal pictures are **files on the server**, no upload in the app.
 - **Money (2026-11-25, piece 3):** "people type money as part of their work, but the overview is given out on
   purpose": `money.edit` = the forms' money boxes, `money.view` = the overviews; without them the server never sends
   the figures. The **Accounts employee template is cancelled** (Marine employee, Operations employee and Branch

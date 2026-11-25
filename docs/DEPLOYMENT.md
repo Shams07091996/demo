@@ -133,7 +133,7 @@ them all. **Never put the real values in git.**
 | `DJANGO_DB_NAME` / `DJANGO_DB_USER` / `DJANGO_DB_PASSWORD` | `marine_sheet` / `marine_app` / … | Step 2.2 |
 | `DJANGO_DB_HOST` / `DJANGO_DB_PORT` | `localhost` / `5432` | Where PostgreSQL is |
 | `DJANGO_DB_SSLMODE` | `disable` (same server, `localhost` only) or `verify-full` (another server) | With `verify-full`, also `DJANGO_DB_SSLROOTCERT` = the certificate authority file |
-| `DJANGO_LETTERHEAD_DIR` | `C:\marine_letterhead` | `logo.jpg`, `stamp.jpg`, `footer.jpg` for the LOG letter and master receipt, and `brand.png` (the ARKAS logo for the sidebar and sign-in page: a PNG with a see-through background, under 500 KB; without it the pages show an anchor icon). **Outside** the project, readable only by the app's account, never in git |
+| `DJANGO_LETTERHEAD_DIR` | `C:\marine_letterhead` | `logo.jpg`, `stamp.jpg`, `footer.jpg` for the LOG letter and master receipt, and `brand.png` (the ARKAS logo for the sidebar and sign-in page: a PNG with a see-through background, under 500 KB; without it the pages show an anchor icon). A sub-folder `terminals` holds one picture per terminal for Live data, named after its code (`EGALY.png` or `.jpg`, at most 1 MB). **Outside** the project, readable only by the app's account, never in git |
 | `DJANGO_BEHIND_PROXY` | `1` | The web server tells the app the visit was HTTPS |
 | `DJANGO_CLIENT_IP_HEADER` | `X-Forwarded-For` | So lock-outs, rate limits and the History see each visitor's real address |
 
@@ -306,7 +306,7 @@ later never changes people who already have an account):
 |---|---|---|
 | Marine employee | add / edit vessels and services, mark Completed, enter prices and costs | Services |
 | Operations employee | Marine + cancel a service, customers and ships, hotels & transport bookings | Services, Hotels, Transport, Ships, Customers |
-| Branch manager | all 18 | all |
+| Branch manager | all 19 | all |
 
 The two money ticks: **Enter / edit prices and costs** shows (and lets them type) the money boxes of the forms —
 services, hotel / transport prices, garbage & sludge money, customers' agreed rates, the amounts on the master
@@ -442,7 +442,9 @@ turned off** (they have no port), and nobody but a superuser keeps staff status 
 `0025_profile_permissions`: every existing account gets all 16 permissions and every page — take away on the
 Accounts page what each job doesn't need; `operation 0001_initial` and `sheet 0030_option_line`: nothing to do —
 the Operation pages and their two ticks start **off** for every existing account; tick them per person on the
-Accounts page, add the terminals on the Terminals page and the shipping lines in Master data).
+Accounts page, add the terminals on the Terminals page and the shipping lines in Master data; `operation 0002_terminal_lines` and
+`0003_listed_vessel`: nothing to do — the new tick "Edit terminals and vessel list" starts off; put the terminal
+pictures in `DJANGO_LETTERHEAD_DIR\terminals`).
 After an
 update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
 of date. Reload it and try again.").

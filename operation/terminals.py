@@ -7,8 +7,8 @@ from django.http import Http404
 from sheet import ports
 
 from .access import scoped_terminals
-from .pictures import has_picture
 from .models import Terminal
+from .pictures import has_picture
 from .validators import clean_terminal
 
 

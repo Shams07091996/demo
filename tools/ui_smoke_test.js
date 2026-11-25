@@ -299,6 +299,8 @@ async function login() {
     const labels = (el) => [...el.options].map((o) => o.textContent).join();
     ok(!!$('#nav [data-page="history"]') && !$('#nav [data-page="accounts"]') && !$('#nav [data-page="ports"]'),
       'three-port user: History (they have it), no Accounts or Ports in the sidebar');
+    ok(!!$('#nav [data-page="op_list"]') && !$('#nav [data-page="terminals"]') && !$('[data-act="vl-new"]'),
+      'three-port user: the vessel list to read, no Terminals (no edit-terminals tick)');
     ok($('#roleLabel').textContent === 'Alexandria, Port Said, Damietta', 'three-port user: the sidebar names their ports');
     ok(shown($('#portSelect')) && labels($('#portSelect')) === 'All my ports,Alexandria,Port Said,Damietta',
       'three-port user: the port filter offers exactly their three ports');
@@ -347,9 +349,9 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 20 : 17), 'sidebar lists the pages (Admins also have Accounts, Ports and Terminals; no Bulk add)');
-  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_analysis,op_charts,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
-    + (ROLE === 'admin' ? ',ports,terminals,accounts' : '') + ',history';
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 21 : 19), 'sidebar lists the pages (Admins also have Accounts and Ports; no Bulk add)');
+  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_analysis,op_charts,op_list,terminals,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
+    + (ROLE === 'admin' ? ',ports,accounts' : '') + ',history';
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'sidebar: Marine, Operation, Reports, Master data folders in order; History last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
@@ -366,6 +368,16 @@ async function login() {
   }
   await go('op_live');
   ok(await waitFor(() => $('#ol-cards').textContent.includes('NORDIC STAR')), 'operation: Live data shows the vessel under operation');
+  const liveChip = (name) => $$('#ol-terminals [data-terminal]').find((b) => b.textContent === name);
+  ok(await waitFor(() => liveChip('All')?.classList.contains('active') && liveChip('ACCHCO - ALX')), 'operation: Live data has All and a button per terminal');
+  click(liveChip('ACCHCO - ALX'));
+  ok(await waitFor(() => $$('#ol-cards .op-card').length === 1 && $('#ol-cards h3').textContent.startsWith('ACCHCO - ALX')),
+    'operation: a terminal button shows only that terminal');
+  // The smoke server's letterhead folder has terminals/EGALY.png (ACCHCO - ALX) only.
+  const pic = $('#ol-cards img.op-pic');
+  ok(!!pic && (await w.fetch(pic.getAttribute('src'))).headers.get('content-type') === 'image/png', 'operation: the terminal picture shows');
+  click(liveChip('All'));
+  ok(await waitFor(() => $$('#ol-cards .op-card').length >= 5), 'operation: All shows every terminal again');
   await go('op_analysis');
   ok(await waitFor(() => $$('#oa-tiles .stat').length >= 5 && Number($('#oa-tiles .stat b').textContent) > 0), 'operation: Analysis shows the vessel calls');
   ok($$('#oa-terminals tbody tr').length >= 5 && $('#oa-lines').textContent.includes('ARKAS'), 'operation: Analysis has the terminal and shipping line tables');
@@ -378,6 +390,9 @@ async function login() {
     click($('[data-act="opv-new"]'));
     ok(await waitFor(() => $('#visit-form [name=terminal]')), 'operation: + Add visit opens the dialog');
     const vf = (name) => $(`#visit-form [name="${name}"]`);
+    type(vf('vessel_name'), 'nordic star');
+    ok(await waitFor(() => vf('loa').value === '210'), 'operation: a name from the vessel list fills its LOA');
+    type(vf('loa'), '');
     type(vf('vessel_name'), 'smoke visit');
     type(vf('shipping_line'), 'ARKAS');
     type(vf('eta'), '2026-11-20T08:00');
@@ -417,6 +432,35 @@ async function login() {
     type($('#terminal-form [data-berth]'), 'S1');
     click($('[data-act="terminal-save"]'));
     ok(await waitFor(() => tmRow(tname)), 'terminals: + Add terminal adds one');
+    click(tmRow(tname));
+    await waitFor(() => $('#terminal-lines [data-line="ARKAS"]'));
+    $('#terminal-lines [data-line="ARKAS"]').checked = true;
+    click($('[data-act="terminal-save"]'));
+    ok(await waitFor(() => tmRow(tname)?.children[6].textContent === 'ARKAS'), 'terminals: a terminal keeps its shipping lines');
+    await go('op_list');
+    const vlRow = (name) => $$('#vl-tbody tr').find((r) => r.children[0].textContent === name);
+    ok(await waitFor(() => vlRow('NORDIC STAR')?.children[1].textContent === '210'), 'vessel list: the demo vessels and their LOA');
+    click($('[data-act="vl-new"]'));
+    await waitFor(() => $('#listed-form'));
+    type($('#listed-form [name=name]'), 'smoke listed');
+    type($('#listed-form [name=loa]'), '123.4');
+    click($('[data-act="vl-save"]'));
+    ok(await waitFor(() => vlRow('SMOKE LISTED')?.children[1].textContent === '123.4'), 'vessel list: + Add vessel adds one');
+    click(vlRow('SMOKE LISTED'));
+    await waitFor(() => $('#modal [data-act="vl-del"]'));
+    click($('#modal [data-act="vl-del"]'));
+    ok(await waitFor(() => !vlRow('SMOKE LISTED')), 'vessel list: an Admin deletes an entry');
+  }
+  if (ROLE === 'alex') {
+    await go('terminals');
+    ok(await waitFor(() => $$('#tm-tbody tr').length >= 5) && !$$('#tm-tbody tr').some((r) => r.textContent.includes('PSD EAST')),
+      'terminals: the edit-terminals tick shows only their own ports\' terminals');
+    await go('op_list');
+    await waitFor(() => $$('#vl-tbody tr').length > 0);
+    click($$('#vl-tbody tr').find((r) => r.children[0].textContent === 'NORDIC STAR'));
+    ok(await waitFor(() => $('#listed-form')) && !!$('#modal [data-act="vl-save"]') && !$('#modal [data-act="vl-del"]'),
+      'vessel list: the tick edits entries, only Admins delete');
+    closeModal();
   }
 
   /* ---- services page: the work list (seed_demo: MSC AURORA's Crew Change has draft bookings, SEA BREEZE's
@@ -1775,7 +1819,7 @@ async function login() {
       'accounts: the Branch manager template ticks every box');
     click($('[data-act="account-save"]'));
     ok(await waitFor(() => acRow(username)?.children[2].textContent === 'Suez (home)'), 'accounts: the ports change');
-    ok(acRow(username).children[3].textContent === '18 of 18', 'accounts: the Can column counts the permissions');
+    ok(acRow(username).children[3].textContent === '19 of 19', 'accounts: the Can column counts the permissions');
     click(acRow(username));
     ok(await waitFor(() => $('#account-form') && $('#account-form [data-perm="exports"]')?.checked
       && $('#account-form [data-perm="vessels.delete"]').checked), 'accounts: the ticks are saved');

@@ -208,6 +208,10 @@ different way from the link. Every demo user has the same password, so name only
 
   Then click **Reload** on the Web page. `seed_demo` again only adds what is new (for example the Delay reason and
   Closure reason lists); it never changes existing users, passwords or vessels.
+- **Terminal pictures on Live data:** add `DJANGO_LETTERHEAD_DIR=/home/yourname/letterhead` to `~/marine.env`, make
+  the folder `/home/yourname/letterhead/terminals` on the **Files** page, upload the five pictures from the project's
+  `terminal-pictures` folder there (`EGALY.png`, `EGAIT.png`, `EGEDK.png`, `EGACT.png`, `TMT.png`) and click
+  **Reload**.
 - **Two-step login (since 2026-11-18):** every demo user signs in with a Microsoft Authenticator code too. At the
   first sign-in after the update, each person scans the QR code shown and types the 6-digit code. They have 72 hours
   from the update (or from when the account was made); after that they are blocked until reset:
