@@ -11,6 +11,7 @@ import { onBookingInput } from './modals/booking.js';
 import { onClosureFormChange } from './modals/closure.js';
 import { onModalChange, onModalInput } from './modals/service.js';
 import { onVesselFormChange, openVessel, openVesselForm } from './modals/vessel.js';
+import { initNavGroups } from './navGroups.js';
 import { setupQuickAdd } from './quickAdd.js';
 import { fillQuickSelects, renderFilterInputs } from './render/list.js';
 import { closePanel, togglePanel } from './render/notifications.js';
@@ -59,6 +60,7 @@ el.modal.addEventListener('change', onClosureFormChange); // admin switches a cl
 /* ---- top bar and sidebar ---- */
 $('#bell').addEventListener('click', (event) => { event.stopPropagation(); togglePanel(); });
 // The menu button: on a small screen the sidebar slides in over the page; on a wide screen it hides / shows (remembered).
+initNavGroups(); // the sidebar's folders as they were left
 const NAV_KEY = 'sheet.navCollapsed';
 const isNarrow = () => window.matchMedia?.('(max-width: 900px)').matches;
 try {

@@ -525,6 +525,23 @@ class IndexTests(Limited):
         self.assertEqual(me["pages"], ["vessels", "services"])
         self.assertNotIn("canEdit", me)
 
+    def test_sidebar_folders(self):
+        import re
+        html = self.login("admin").get("/").content.decode()
+        nav = html[html.index('id="nav"'):html.index("</nav>")]
+        groups = re.findall(r'data-group="(\w+)"', nav)
+        self.assertEqual(groups, ["marine", "reports", "master"])
+        heads = re.findall(r'<span class="nav-group-label">([^<]+)</span>', nav)
+        self.assertEqual(heads, ["Marine", "Reports", "Master data"])
+        pages = re.findall(r'class="nav-item" data-page="(\w+)"', nav)
+        self.assertEqual(pages, ["vessels", "services", "closures", "ships",
+                                 "dashboard", "disposal", "hotels", "transport", "calculations",
+                                 "master", "customers", "rates", "ports", "accounts", "history"])
+        make_user("vonly", "alexandria", permissions=[], pages=["vessels"])
+        html = self.login("vonly").get("/").content.decode()
+        nav = html[html.index('id="nav"'):html.index("</nav>")]
+        self.assertEqual(re.findall(r'data-group="(\w+)"', nav), ["marine"])
+
     def test_admin_has_everything(self):
         me = self.me(self.login("admin").get("/"))
         self.assertEqual((me["permissions"], me["pages"]), (list(PERMISSION_KEYS), list(PAGE_KEYS)))

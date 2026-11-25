@@ -344,8 +344,9 @@ async function login() {
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
   ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 15 : 13), 'sidebar lists the pages (Admins also have Accounts and Ports; no Bulk add)');
-  const pageOrder = 'vessels,services,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates,history' + (ROLE === 'admin' ? ',accounts,ports' : '');
-  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Port closures and Calculations sit after Transport; History (admins) last');
+  const pageOrder = 'vessels,services,closures,ships,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
+    + (ROLE === 'admin' ? ',ports,accounts' : '') + ',history';
+  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'sidebar: Marine, Reports, Master data folders in order; History last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
   for (const [page, title] of [['services', 'Services'], ['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['disposal', 'Garbage & Sludge'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['ships', 'Ships'], ['customers', 'Customers'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
@@ -1075,7 +1076,9 @@ async function login() {
   ok(onCard().querySelector('[data-crew="transport.from"]').value === 'airport' && onCard().querySelector('[data-crew="transport.to"]').value === 'port'
     && onCard().querySelector('[data-crew="transport.at"]').value === '2020-01-15T00:00', 'crew: Transport opens From / To / At filled in');
   click(onCard().querySelector('[data-act="crew-hotel"]'));
-  type(onCard().querySelector('[data-crew="hotel.name"]'), '<b>G</b> hotel');
+  // The first hotel on the vessel's port's list (the markup-like one for Alexandria).
+  const hotelName = [...onCard().querySelector('[data-crew="hotel.name"]').options].map((o) => o.value).find(Boolean);
+  type(onCard().querySelector('[data-crew="hotel.name"]'), hotelName);
   ok(onCard().querySelector('[data-crew="hotel.checkIn"]').value === '2020-01-15' && onCard().querySelector('[data-crew="hotel.checkOut"]').value === '2020-01-16', 'crew: Hotel opens check-in / check-out filled in');
   type(onCard().querySelector('[data-crew="hotel.checkOut"]'), '2020-01-18');
   click($('[data-act="save-service"]'));
@@ -1083,10 +1086,10 @@ async function login() {
   const bookingsOf = async (kind) => (await (await w.fetch(`/api/${kind}/?from=2020-01-01&to=2020-01-31&page_size=200`)).json()).bookings
     .filter((b) => b.guests.some((g) => g.name === 'AHMED TEST') && b.vessel.name === NAME);
   const [stay] = await bookingsOf('hotels');
-  ok(stay && stay.hotel === '<b>G</b> hotel' && stay.nights === 3, 'crew: the hotel typed on the card is on the Hotels page (3 nights)');
+  ok(stay && hotelName && stay.hotel === hotelName && stay.nights === 3, 'crew: the hotel typed on the card is on the Hotels page (3 nights)');
   ok((await bookingsOf('transfers')).length === 1, 'crew: the pressed Transport is on the Transport page');
   click($$('.svc-card').find((c) => c.textContent.includes('Crew Change')).querySelector('[data-act="edit-service"]'));
-  ok(await waitFor(() => onCard()?.querySelector('[data-crew="hotel.name"]')?.value === '<b>G</b> hotel'), 'crew: the typed hotel comes back');
+  ok(await waitFor(() => onCard()?.querySelector('[data-crew="hotel.name"]')?.value === hotelName), 'crew: the typed hotel comes back');
   click(onCard().querySelector('[data-act="crew-transport"]'));
   click($('[data-act="save-service"]'));
   await waitFor(() => !$('#svc-form'));
@@ -1481,7 +1484,14 @@ async function login() {
 
   /** The Dashboard: OPR charts and cards, jobs per agent, services and money per month, and its filters. */
   async function checkDashboard() {
+    // The sidebar folders: Reports closes, and opening one of its pages opens it again.
+    const reports = $('#nav .nav-group[data-group="reports"]');
+    ok($$('#nav .nav-group').map((g) => g.dataset.group).join() === 'marine,reports,master', 'sidebar: Marine, Reports, Master data folders');
+    await go('vessels');
+    click(reports.querySelector('[data-act="toggle-nav-group"]'));
+    ok(reports.querySelector('.nav-group-items').hidden && reports.querySelector('.nav-group-head').getAttribute('aria-expanded') === 'false', 'sidebar: a folder closes');
     await go('dashboard');
+    ok(!reports.querySelector('.nav-group-items').hidden, 'sidebar: going to a page opens its folder');
     ok($('#d-from') && !$('#dash-year') && $('#d-from').value === $('#f-from').value, 'dashboard uses the same date range');
     ok(await waitFor(() => $$('#opr-cards .opr-card').length > 0) && $$('#chart-vessels .bar').length > 0, 'dashboard: charts and OPR cards render');
     click($('#opr-cards .opr-card'));

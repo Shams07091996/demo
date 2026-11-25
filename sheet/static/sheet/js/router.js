@@ -9,6 +9,7 @@ import { disposalPage } from './pages/disposal.js';
 import { accountsPage } from './pages/accounts.js';
 import { portsPage } from './pages/ports.js';
 import { historyPage } from './pages/history.js';
+import { openGroupOf } from './navGroups.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
 import { servicesPage } from './pages/services.js';
@@ -47,6 +48,7 @@ export async function showPage(requested) {
   state.page = name;
   $$('.page').forEach((page) => { page.hidden = page.id !== `page-${name}`; });
   $$('#nav .nav-item').forEach((link) => link.classList.toggle('active', link.dataset.page === name));
+  openGroupOf(name);
   $('#pageTitle').textContent = TITLES[name];
   document.body.classList.remove('nav-open');
 

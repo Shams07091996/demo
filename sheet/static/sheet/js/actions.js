@@ -10,6 +10,7 @@ import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { addContactRow, deleteCustomerDialog, saveCustomerDialog } from './modals/customer.js';
 import { deleteShipDialog, saveShipDialog } from './modals/ship.js';
+import { toggleNavGroup } from './navGroups.js';
 import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import { downloadReceipt, openReceipt } from './modals/receipt.js';
@@ -172,6 +173,7 @@ export const actions = {
   'opr-summary': (b) => openOprSummary(b.dataset.opr),
   'agent-jobs': (b) => openAgentJobs(b.dataset.agent),
   'toggle-theme': toggleTheme,
+  'toggle-nav-group': toggleNavGroup,
   'toggle-alerts': toggleAlerts,
   'show-alerts-panel': openPanel,
   'show-outside': async (b) => { await widenRangeTo(b.dataset.date); hideRangeNotice(); },
