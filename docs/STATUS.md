@@ -5,8 +5,8 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Crew Hotel / Transport, LOG airlines, sidebar folders (2026-11-25):** on branch
-  **`feature/crew-bookings-folders`**, **not merged** (waiting for the user's OK). Needs migration
+- **Crew Hotel / Transport, LOG airlines, sidebar folders (2026-11-25):** **merged into `main`** (2026-11-25, after a
+  fresh review and the user's OK; branch deleted; not pushed). Needs migration
   **`0027_crew_transport`** on the user's database (crew members that already have a transfer get their new
   Transport button pressed, so nothing disappears). (1) The LOG letter's "TO:" lists every airline of the journey,
   each once, joined with " / ". (2) Each crew card has **Hotel** and **Transport** buttons (replacing "Needs hotel");
