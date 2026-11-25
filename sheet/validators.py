@@ -153,6 +153,17 @@ def _broken_visa(raw):
     }
 
 
+def _uid(item, seen):
+    """The valid uid an item was sent (once per service), else a new one; remembered in `seen`."""
+    uid = item.get("uid")
+    if not (isinstance(uid, str) and UID_RE.match(uid)) or uid in seen:
+        uid = secrets.token_hex(6)
+        while uid in seen:
+            uid = secrets.token_hex(6)
+    seen.add(uid)
+    return uid
+
+
 def _clean_crew_change(raw):
     """On- and off-signers. Each keeps a valid uid it was sent (once per crew change) or gets a new one."""
     seen = set()
@@ -163,13 +174,7 @@ def _clean_crew_change(raw):
             if not isinstance(item, dict):
                 continue
             member = _crew_member(item)
-            uid = item.get("uid")
-            if not (isinstance(uid, str) and UID_RE.match(uid)) or uid in seen:
-                uid = secrets.token_hex(6)
-                while uid in seen:
-                    uid = secrets.token_hex(6)
-            seen.add(uid)
-            member["uid"] = uid
+            member["uid"] = _uid(item, seen)
             member["needsHotel"] = bool(item.get("needsHotel"))
             if group == "onSigners":
                 member["brokenVisa"] = _broken_visa(item.get("brokenVisa"))
@@ -179,7 +184,7 @@ def _clean_crew_change(raw):
 
 
 def _clean_multi(service_type, raw):
-    entries = []
+    entries, seen = [], set()
     raw_entries = _as_list(raw.get("entries"))
     if len(raw_entries) > MAX_ENTRIES:
         raise BadRequest(f"At most {MAX_ENTRIES} lines per service.")
@@ -188,6 +193,7 @@ def _clean_multi(service_type, raw):
             continue
         line = f" (line {len(entries) + 1})"
         item = {
+            "uid": _uid(entry, seen),  # stable: money kept for a person without money.edit follows its line
             "awb": _short(entry.get("awb"), 60, "AWB" + line),
             "cost": _amount(entry.get("cost"), "Cost" + line),
             "costCurrency": _currency(entry.get("costCurrency")),
