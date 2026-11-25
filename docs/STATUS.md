@@ -254,7 +254,8 @@ Their security push has three pieces, in this order:
 5. ~~Excel import~~: the user meant an **export** (built 2026-11-24, see Data export above).
 6. ~~Ships / customers / billing~~ (built and merged 2026-11-24), ~~the In-progress services page~~ (built
    2026-11-24, merged), ~~the accounts page~~ (built 2026-11-24, merged), then the
-   **access rework**: piece 1 (ports and people) built 2026-11-25; pieces 2 (permissions) and 3 (money) next.
+   **access rework**: all three pieces (ports and people, permissions and pages, money) built and merged
+   2026-11-25. **The agreed list is done**; what comes next is the user's choice.
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
 
