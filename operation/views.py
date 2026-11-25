@@ -1,7 +1,7 @@
 """The Operation API. Every view is wrapped in sheet's json_api (sign-in, two-step, rate limit, one transaction per
 write, JSON errors) and reads through operation.access (a User only their ports)."""
 
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
@@ -11,7 +11,7 @@ from sheet.api import audit, json_api, read_json
 from sheet.errors import Forbidden
 from sheet.views import _xlsx_response
 
-from . import analysis, live, terminals, vessel_list, visits
+from . import analysis, live, pictures, terminals, vessel_list, visits
 from .access import require_master, require_reader
 
 
@@ -36,6 +36,21 @@ def terminal_detail(request, pk):
     terminal = terminals.save_terminal(profile, read_json(request), existing=terminals.get_terminal(profile, pk))
     audit(request, "terminal.update", id=terminal.id, port=terminal.port)
     return JsonResponse(terminals.terminal_to_dict(terminal))
+
+
+@json_api
+@require_http_methods(["GET"])
+def terminal_picture(request, pk):
+    """A terminal's picture from the server's folder (pictures.py), for people who see that terminal."""
+    profile = request.profile
+    require_reader(profile)
+    found = pictures.picture(terminals.get_terminal(profile, pk))
+    if found is None:
+        raise Http404
+    data, kind = found
+    response = HttpResponse(data, content_type=kind)
+    response["Cache-Control"] = "private, max-age=300"
+    return response
 
 
 @json_api

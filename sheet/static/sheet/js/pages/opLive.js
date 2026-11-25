@@ -31,6 +31,8 @@ function card(t) {
     h('td', null, figure(v.loa)), h('td', null, v.planned_berth || '—'), h('td', null, stamp(v.etb)),
     h('td', null, stamp(v.etc))));
   return h('section', { class: 'panel op-card' },
+    // The terminal's picture, when the server's folder has one (operation/pictures.py).
+    t.picture ? h('img', { class: 'op-pic', attrs: { src: `/api/operation/terminals/${t.id}/picture/`, alt: t.name } }) : null,
     h('h3', null, `${t.name} (${t.code})`),
     h('div', { class: 'op-meta' },
       ME.multiPort ? h('span', null, t.port_label) : null,

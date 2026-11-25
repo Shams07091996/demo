@@ -5,7 +5,7 @@
 const ATTRS = new Set([
   'id', 'class', 'title', 'type', 'name', 'for', 'colspan', 'rowspan', 'min', 'max', 'step', 'maxlength',
   'placeholder', 'rows', 'role', 'tabindex', 'href', 'target', 'rel', 'autocomplete', 'inputmode', 'readonly',
-  'multiple', 'accept', 'list', 'autofocus',
+  'multiple', 'accept', 'list', 'autofocus', 'src', 'alt',
 ]);
 const PROPS = new Set(['value', 'checked', 'selected', 'disabled', 'hidden', 'open']);
 const BLOCKED_TAGS = new Set(['script', 'iframe', 'frame', 'object', 'embed', 'style', 'link', 'meta', 'base', 'template']);
@@ -19,7 +19,7 @@ function setAttr(el, name, value) {
   if (value === null || value === undefined || value === false) return;
   const text = value === true ? '' : String(value);
   // eslint-disable-next-line no-control-regex
-  if (key === 'href' && !SAFE_URL.test(text.replace(/[\u0000- ]/g, ''))) throw new Error('h(): unsafe href');
+  if ((key === 'href' || key === 'src') && !SAFE_URL.test(text.replace(/[\u0000- ]/g, ''))) throw new Error(`h(): unsafe ${key}`);
   el.setAttribute(key, text);
 }
 

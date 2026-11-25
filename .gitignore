@@ -12,3 +12,6 @@ db.sqlite3-journal
 
 # LOG letter pictures (signed company stamp): never in git
 letterhead/
+
+# Terminal pictures for Live data: copied by hand into <letterhead folder>/terminals/ on the server, never in git
+/terminal-pictures/

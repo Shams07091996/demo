@@ -34,6 +34,10 @@ check(throws(() => h('a', { href: '\\\\evil.example' })), 'backslash host href r
 check(h('a', { href: '#vessels' }).getAttribute('href') === '#vessels', '#hash href allowed');
 check(h('a', { href: 'https://example.com/x' }).getAttribute('href') === 'https://example.com/x', 'https href allowed');
 check(h('a', { href: '/api/export/' }).getAttribute('href') === '/api/export/', 'relative href allowed');
+check(throws(() => h('img', { attrs: { src: 'javascript:alert(1)' } })), 'javascript: src refused');
+check(throws(() => h('img', { attrs: { src: 'data:image/svg+xml,x' } })), 'data: src refused');
+check(throws(() => h('img', { attrs: { src: '//evil.example/x.png' } })), 'protocol-relative src refused');
+check(h('img', { attrs: { src: '/api/operation/terminals/1/picture/', alt: '' } }).getAttribute('src') === '/api/operation/terminals/1/picture/', 'relative src allowed');
 check(throws(() => h('div', { attrs: { onclick: 'x' } })), 'on* attribute refused');
 check(throws(() => h('div', { attrs: { ONCLICK: 'x' } })), 'on* attribute refused whatever the case');
 check(throws(() => h('iframe', { attrs: { srcdoc: 'x' } })), 'srcdoc refused');

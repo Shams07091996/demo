@@ -7,6 +7,7 @@ from django.http import Http404
 from sheet import ports
 
 from .access import scoped_terminals
+from .pictures import has_picture
 from .models import Terminal
 from .validators import clean_terminal
 
@@ -23,6 +24,7 @@ def terminal_to_dict(terminal):
         "berths": list(terminal.berths),
         "lines": list(terminal.lines),
         "active": terminal.active,
+        "picture": has_picture(terminal),
     }
 
 
