@@ -431,6 +431,16 @@ AIRLINE_DATE_TAIL = re.compile(
 )
 
 
+def _airlines(segments):
+    """The LOG's "TO:": every flight leg's airline, in order, each once, joined with " / "."""
+    names = []
+    for segment in segments:
+        name = AIRLINE_DATE_TAIL.sub("", str(segment.get("airline") or "")).strip() if isinstance(segment, dict) else ""
+        if name and name not in names:
+            names.append(name)
+    return " / ".join(names)
+
+
 @json_api
 @require_http_methods(["GET"])
 def service_log(request, pk, uid):
@@ -445,10 +455,9 @@ def service_log(request, pk, uid):
     if person is None:
         raise Http404
     segments = (person.get("flightStructured") or {}).get("segments") or []
-    airline = (segments[0].get("airline") if segments and isinstance(segments[0], dict) else "") or ""
     vessel = service.vessel
     fields = {
-        "to": AIRLINE_DATE_TAIL.sub("", str(airline)).strip(),
+        "to": _airlines(segments),
         "date": timezone.localdate().strftime("%d/%m/%Y"),
         "vessel": vessel.name,
         "flight": person.get("flightData") or "",
