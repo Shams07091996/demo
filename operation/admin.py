@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 
-from .models import Terminal, Visit
+from .models import ListedVessel, Terminal, Visit
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
@@ -24,3 +24,8 @@ class TerminalAdmin(ReadOnlyAdmin):
 @admin.register(Visit)
 class VisitAdmin(ReadOnlyAdmin):
     list_display = ("id", "vessel_name", "shipping_line", "terminal", "eta", "atb", "atd")
+
+
+@admin.register(ListedVessel)
+class ListedVesselAdmin(ReadOnlyAdmin):
+    list_display = ("name", "loa")

@@ -182,6 +182,7 @@ PERMISSIONS = (
     ("accounting.close", "Close / reopen lines"),
     ("operation.edit", "Add / edit vessel data"),
     ("operation.delete", "Delete vessel data"),
+    ("operation.master", "Edit terminals and vessel list"),
 )
 PERMISSION_KEYS = tuple(key for key, _ in PERMISSIONS)
 PERMISSION_LABELS = dict(PERMISSIONS)
@@ -212,7 +213,8 @@ PAGE_LABELS = dict(PAGES)
 # A page or permission that only works together with another permission / page.
 PAGE_NEEDS = {"calculations": "money.view", "rates": "money.view", "history": "history.view"}
 PERMISSION_NEEDS = {"history.view": ("permission", "money.view"), "accounting.close": ("page", "calculations"),
-                    "operation.edit": ("page", "op_vessels"), "operation.delete": ("page", "op_vessels")}
+                    "operation.edit": ("page", "op_vessels"), "operation.delete": ("page", "op_vessels"),
+                    "operation.master": ("page", "op_vessels")}
 
 _MARINE = ("vessels.edit", "services.edit", "services.complete", "money.edit")
 _OPERATIONS = (*_MARINE, "services.cancel", "customers.edit", "bookings.edit")

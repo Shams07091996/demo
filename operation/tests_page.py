@@ -1,5 +1,6 @@
-"""The page: the Operation folder and its items follow the page ticks; Terminals is for Admins."""
+"""The page: the Operation folder and its items follow the ticks; Terminals is for Admins and the Edit terminals tick."""
 
+from sheet.constants import PERMISSION_KEYS
 from sheet.tests import ApiTestCase, make_user
 
 
@@ -9,6 +10,7 @@ class PageTests(ApiTestCase):
         super().setUpTestData()
         make_user("plain", "alexandria", pages=["vessels"])
         make_user("liveuser", "alexandria", permissions=[], pages=["op_live"])
+        make_user("nomaster", "alexandria", permissions=[k for k in PERMISSION_KEYS if k != "operation.master"])
 
     def page(self, user):
         response = self.login(user).get("/")
@@ -39,3 +41,17 @@ class PageTests(ApiTestCase):
         html = self.page("admin")
         self.assertIn('data-page="terminals"', html)
         self.assertIn('id="page-terminals"', html)
+
+    def test_vessel_list_comes_with_vessel_data(self):
+        self.assertIn('data-page="op_list"', self.page("alex"))
+        self.assertNotIn('data-page="op_list"', self.page("liveuser"))
+        self.assertNotIn('id="page-op_list"', self.page("liveuser"))
+
+    def test_terminals_for_the_tick(self):
+        html = self.page("alex")  # make_user gives every tick
+        self.assertIn('data-page="terminals"', html)
+        self.assertIn('data-act="terminal-new"', html)
+        html = self.page("nomaster")
+        self.assertNotIn('data-page="terminals"', html)
+        self.assertNotIn('id="page-terminals"', html)
+        self.assertNotIn('data-act="vl-new"', html)

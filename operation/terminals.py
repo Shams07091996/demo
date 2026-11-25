@@ -1,4 +1,5 @@
-"""Terminals: the Excel's Settings sheet. Admins keep them on the Terminals page; never deleted, only turned off."""
+"""Terminals: the Excel's Settings sheet. Admins (every port) and people with "Edit terminals and vessel list"
+(their own ports) keep them on the Terminals page; never deleted, only turned off."""
 
 from django.db.models import Max
 from django.http import Http404
@@ -20,6 +21,7 @@ def terminal_to_dict(terminal):
         "quay_length": terminal.quay_length,
         "cranes": terminal.cranes,
         "berths": list(terminal.berths),
+        "lines": list(terminal.lines),
         "active": terminal.active,
     }
 

@@ -37,7 +37,7 @@ DEMO_USERS = [
 # Demo users that start from a template (constants.TEMPLATES); every other User gets every permission and page.
 DEMO_TEMPLATES = {"marine": "marine"}
 # Ticks a demo user does not get (viewer looks at the Operation pages without changing them).
-DEMO_WITHOUT = {"viewer": ("operation.edit", "operation.delete")}
+DEMO_WITHOUT = {"viewer": ("operation.edit", "operation.delete", "operation.master")}
 # The berthing workbook's terminals (all in Alexandria / Dekheila) and one in Port Said for the scoping checks.
 DEMO_TERMINALS = [
     ("ACCHCO - ALX", "EGALY", "alexandria", 500, 4, ["23", "24", "25"]),
@@ -48,6 +48,9 @@ DEMO_TERMINALS = [
     ("PSD EAST", "PSDE", "portsaid", 600, 3, ["1", "2"]),
 ]
 DEMO_LINES = ("ARKAS", "MAERSK", "SOC", "ICR", "CUL", "MCL")
+# The vessels working now and due soon (below) for the vessel list, with their LOA.
+DEMO_MORE_VESSELS = (("NORDIC STAR", 210), ("CAPE ORION", 180), ("SEA FALCON", 190), ("BLUE MARLIN", 140),
+                     ("RED CORAL", 230), ("PORT STAR", 160))
 # The workbook's seven visits: name, line, terminal, LOA, hours from day 0 of ETA / ATA / ATB / ATD, cranes,
 # discharge, loading, planned / actual berth. Day 0 is 14 days ago, so all of them have sailed.
 DEMO_VISITS = [
@@ -125,7 +128,7 @@ class Command(BaseCommand):
     def _create_operation():
         """Berthing demo: the workbook's terminals, shipping lines and visits, plus vessels working now and due
         in the next days (so Live data always has rows)."""
-        from operation.models import Terminal, Visit
+        from operation.models import ListedVessel, Terminal, Visit
 
         terminals = {}
         for position, (name, code, port, quay, cranes, berths) in enumerate(DEMO_TERMINALS):
@@ -134,6 +137,9 @@ class Command(BaseCommand):
                 "position": position})
         for value in DEMO_LINES:
             Option.objects.get_or_create(kind="line", value=value, port="")
+        fleet = [(row[0], row[3]) for row in DEMO_VISITS] + list(DEMO_MORE_VESSELS)
+        for name, loa in fleet:  # the vessel list: each demo vessel's fixed LOA
+            ListedVessel.objects.get_or_create(name=name, defaults={"loa": loa})
         if Visit.objects.exists():
             return
         day0 = timezone.make_aware(datetime.combine(date.today() - timedelta(days=14), time()))

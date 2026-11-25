@@ -2,16 +2,17 @@
 // on the list is kept). The figures are the server's, shown read-only. Without "Add / edit vessel data" it only shows.
 import { api, mutate } from '../api.js';
 import { showConflict } from '../conflict.js';
-import { headEl, optionChoicesEl } from '../components.js';
+import { headEl } from '../components.js';
 import { can } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
-import { figure, loadTerminals, statusEl, terminalById, terminalOptionEls } from '../operation/shared.js';
+import { figure, loadListed, loadTerminals, statusEl, terminalById, terminalLines, terminalOptionEls } from '../operation/shared.js';
 import { opVesselsPage, visitById } from '../pages/opVessels.js';
-import { state } from '../state.js';
+import { optionValues, state } from '../state.js';
 import { $ } from '../util.js';
 
-const TIMES = [['eta', 'ETA'], ['ata', 'ATA'], ['etb', 'ETB'], ['etc', 'ETC'], ['atb', 'ATB'], ['atd', 'ATD']];
+// Estimates on the first row, actual times on the second.
+const TIMES = [['eta', 'ETA'], ['etb', 'ETB'], ['etc', 'ETC'], ['ata', 'ATA'], ['atb', 'ATB'], ['atd', 'ATD']];
 const NUMBERS = [['loa', 'LOA (m)', '0.1'], ['cranes', 'Cranes', '1'], ['discharge', 'Discharge (moves)', '1'],
   ['loading', 'Loading (moves)', '1']];
 
@@ -23,6 +24,15 @@ function berthOptions(terminal, current) {
   return [h('option', { value: '' }, '—'), ...berths.map((b) => h('option', { value: b, selected: b === current }, b))];
 }
 
+/** The shipping lines on offer: the terminal's own (or its port's list), keeping the one chosen. */
+function lineOptions(terminal, current) {
+  const values = terminalLines(terminal, optionValues('line', terminal?.port ?? null));
+  const all = current && !values.includes(current) ? [...values, current] : values;
+  return [h('option', { value: '' }, '—'), ...all.map((v) => h('option', { value: v, selected: v === current }, v))];
+}
+
+let listed = [];
+
 const figuresEl = (v) => h('div', { class: 'op-figures' },
   statusEl(v.status),
   ...[['Waiting', v.waiting, 'h'], ['Operation', v.operation, 'h'], ['Port stay', v.port_stay, 'h'],
@@ -33,6 +43,7 @@ export async function openVisitDialog(id = null) {
   const visit = id ? visitById(id) : null;
   if (id && !visit) return;
   const terminals = (await loadTerminals()).filter((t) => t.active || t.id === visit?.terminal);
+  listed = await loadListed().catch(() => []); // suggestions only: the dialog works without them
   const editable = can('operation.edit');
   state.ctx = { view: 'visit', visitId: id, version: visit?.version };
   const terminal = terminalById(visit?.terminal) || terminals[0] || null;
@@ -45,10 +56,11 @@ export async function openVisitDialog(id = null) {
       h('div', { class: 'row two' },
         field('Terminal', h('select', { attrs: { name: 'terminal' }, disabled: !editable },
           terminalOptionEls(terminals, terminal?.id, null))),
-        field('Vessel name', input('vessel_name', { maxlength: 100, autocomplete: 'off' }))),
+        field('Vessel name', [input('vessel_name', { maxlength: 100, autocomplete: 'off', list: 'op-listed' }),
+          h('datalist', { id: 'op-listed' }, listed.map((v) => h('option', { value: v.name })))])),
       h('div', { class: 'row two' },
         field('Shipping line', h('select', { attrs: { name: 'shipping_line' }, disabled: !editable },
-          optionChoicesEl('line', visit?.shipping_line || '', terminal?.port ?? null))),
+          lineOptions(terminal, visit?.shipping_line || ''))),
         field('LOA (m)', input('loa', { type: 'number', min: 0, max: 500, step: '0.1' }))),
       h('div', { class: 'row two' },
         field('Planned berth', h('select', { attrs: { name: 'planned_berth' }, disabled: !editable },
@@ -67,14 +79,20 @@ export async function openVisitDialog(id = null) {
 
 /** The terminal was changed: offer its berths and its port's shipping lines (keeping what is chosen). */
 export function onVisitFormChange(event) {
-  if (state.ctx.view !== 'visit' || event.target.name !== 'terminal') return;
+  if (state.ctx.view !== 'visit') return;
+  if (event.target.name === 'vessel_name') { // a name from the vessel list brings its LOA
+    const match = listed.find((v) => v.name === event.target.value.trim().toUpperCase());
+    if (match) $('#visit-form [name="loa"]').value = match.loa;
+    return;
+  }
+  if (event.target.name !== 'terminal') return;
   const terminal = terminalById(event.target.value);
   for (const name of ['planned_berth', 'actual_berth']) {
     const select = $(`#visit-form [name="${name}"]`);
     setChildren(select, berthOptions(terminal, ''));
   }
   const line = $('#visit-form [name="shipping_line"]');
-  setChildren(line, optionChoicesEl('line', line.value, terminal?.port ?? null));
+  setChildren(line, lineOptions(terminal, line.value));
 }
 
 function payload() {

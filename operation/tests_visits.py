@@ -81,6 +81,7 @@ class VisitWriteTests(VisitData):
             ({"atb": "2026-11-20T06:59"}, "ATB cannot be before ATA."),
             ({"atd": "2026-11-20T11:00"}, "ATD must be after ATB."),
             ({"etc": "2026-11-20T08:00"}, "ETC cannot be before ETB."),
+            ({"etb": "2026-11-20T05:00"}, "ETB cannot be before ETA."),
         ]
         for change, message in cases:
             status, body = self.post("alex", **change)
@@ -126,6 +127,21 @@ class VisitWriteTests(VisitData):
         self.assertEqual((status, body["error"]), (400, "That port is turned off."))
         status, body = self.call(self.login("alex"), "put", f"{URL}{old.id}/", {**FULL, "terminal": self.aict.id})
         self.assertEqual((status, body["vessel_name"]), (200, "ALLEGRI"))
+
+    def test_terminal_lines_limit_the_visit_line(self):
+        self.aict.lines = ["ARKAS"]
+        self.aict.save()
+        status, body = self.post("alex", shipping_line="MAERSK")
+        self.assertEqual((status, body["error"]), (400, "Shipping line: choose one of this terminal's lines."))
+        self.assertEqual(self.post("alex", shipping_line="ARKAS")[0], 201)
+        self.aict.lines = []
+        self.aict.save()
+        self.assertEqual(self.post("alex", shipping_line="MAERSK")[0], 201)
+        self.aict.lines = ["ARKAS"]
+        self.aict.save()
+        old = visit(self.aict, line="CUL")
+        status, body = self.call(self.login("alex"), "put", f"{URL}{old.id}/", {**FULL, "terminal": self.aict.id, "shipping_line": "CUL"})
+        self.assertEqual((status, body["shipping_line"]), (200, "CUL"))
 
     def test_ticks(self):
         self.assertEqual(self.post("looker")[0], 403)

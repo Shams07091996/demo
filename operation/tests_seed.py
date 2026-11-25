@@ -8,7 +8,7 @@ from django.test import TestCase, override_settings
 from sheet.models import Option, Profile
 
 from .figures import status
-from .models import Terminal, Visit
+from .models import ListedVessel, Terminal, Visit
 
 TERMINALS = {
     "ACCHCO - ALX": ("EGALY", 500, 4, ["23", "24", "25"]),
@@ -37,7 +37,11 @@ class SeedTests(TestCase):
         alex, viewer, marine = (Profile.objects.get(user__username=n) for n in ("alex", "viewer", "marine"))
         self.assertTrue(alex.sees("op_live") and alex.can("operation.edit") and alex.can("operation.delete"))
         self.assertTrue(viewer.sees("op_vessels") and viewer.sees("op_charts"))
-        self.assertFalse(viewer.can("operation.edit") or viewer.can("operation.delete"))
+        self.assertFalse(viewer.can("operation.edit") or viewer.can("operation.delete") or viewer.can("operation.master"))
+        fleet = dict(ListedVessel.objects.values_list("name", "loa"))
+        self.assertEqual(float(fleet["NORDIC STAR"]), 210.0)
+        self.assertTrue(set(Visit.objects.values_list("vessel_name", flat=True)) <= set(fleet))
         self.assertFalse(marine.sees("op_live"))
         call_command("seed_demo", stdout=StringIO())  # a second run adds nothing
         self.assertEqual(Terminal.objects.count(), 6)
+        self.assertEqual(ListedVessel.objects.count(), len(fleet))

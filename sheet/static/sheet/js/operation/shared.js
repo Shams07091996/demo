@@ -12,6 +12,17 @@ export async function loadTerminals(fresh = false) {
   return terminals;
 }
 
+let listed = null;
+
+/** The vessel list ({id, name, loa}), all ports; the visit dialog fills the LOA from it. */
+export async function loadListed(fresh = false) {
+  if (!listed || fresh) listed = (await api('/api/operation/vessels/')).vessels;
+  return listed;
+}
+
+/** A shipping line's <option>s for a visit at `terminal`: its own lines when it has any, else its port's list. */
+export const terminalLines = (terminal, values) => (terminal?.lines?.length ? terminal.lines : values);
+
 export const terminalById = (id) => (terminals || []).find((t) => t.id === Number(id)) || null;
 
 /** Analysis reports and Report charts share one filter (and one server response). */

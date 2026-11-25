@@ -8,9 +8,11 @@ import { saveAccountDialog, toggleAccount } from './modals/account.js';
 import { savePortDialog, togglePort } from './modals/port.js';
 import { addBerth, removeBerth, saveTerminalDialog } from './modals/terminal.js';
 import { deleteVisit, openVisitDialog, saveVisit } from './modals/visit.js';
+import { deleteListedDialog, saveListedDialog } from './modals/listedVessel.js';
 import { opLivePage } from './pages/opLive.js';
 import { opVesselsPage } from './pages/opVessels.js';
 import { terminalsPage } from './pages/terminals.js';
+import { vesselListPage } from './pages/vesselList.js';
 import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { addContactRow, deleteCustomerDialog, saveCustomerDialog } from './modals/customer.js';
@@ -311,6 +313,10 @@ export const actions = {
   'terminal-save': () => saveTerminalDialog(),
   'terminal-berth-add': () => addBerth(),
   'terminal-berth-del': removeBerth,
+  'vl-new': () => vesselListPage.open(null),
+  'vl-open': (b) => vesselListPage.open(Number(b.dataset.id)),
+  'vl-save': () => saveListedDialog(),
+  'vl-del': () => deleteListedDialog(),
   'opv-new': () => openVisitDialog(),
   'opv-open': (b) => openVisitDialog(Number(b.dataset.id)),
   'opv-save': () => saveVisit(),

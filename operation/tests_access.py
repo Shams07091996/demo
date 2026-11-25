@@ -15,7 +15,8 @@ class OperationTicksTests(ApiTestCase):
             self.assertIn(page, PAGE_KEYS)
         self.assertIn("operation.edit", PERMISSION_KEYS)
         self.assertIn("operation.delete", PERMISSION_KEYS)
-        self.assertEqual(len(PERMISSION_KEYS), 18)
+        self.assertIn("operation.master", PERMISSION_KEYS)
+        self.assertEqual(len(PERMISSION_KEYS), 19)
 
     def test_existing_profile_does_not_get_them(self):
         user = make_user("oldtimer", "alexandria", permissions=OLD_PERMISSIONS, pages=OLD_PAGES)
@@ -24,34 +25,40 @@ class OperationTicksTests(ApiTestCase):
             self.assertFalse(profile.sees(page))
         self.assertFalse(profile.can("operation.edit"))
         self.assertFalse(profile.can("operation.delete"))
+        self.assertFalse(profile.can("operation.master"))
 
     def test_branch_manager_template_has_them(self):
         manager = next(t for t in TEMPLATES if t[0] == "manager")
         self.assertIn("operation.edit", manager[2])
+        self.assertIn("operation.master", manager[2])
         self.assertIn("op_live", manager[3])
         for key, _label, _perms, pages in TEMPLATES:
             if key != "manager":
                 self.assertFalse(set(pages) & set(OPERATION_PAGES))
 
     def test_edit_needs_vessel_data_page(self):
-        user = make_user("editor", "alexandria", permissions=["operation.edit", "operation.delete"], pages=["op_live"])
+        user = make_user("editor", "alexandria", permissions=["operation.edit", "operation.delete", "operation.master"], pages=["op_live"])
         profile = Profile.objects.get(user=user)
         self.assertFalse(profile.can("operation.edit"))
         self.assertFalse(profile.can("operation.delete"))
+        self.assertFalse(profile.can("operation.master"))
         admin = self.login("admin")
         status, body = self.call(admin, "put", f"/api/accounts/{user.id}/",
                                  {"permissions": ["operation.edit"], "pages": ["op_live"]})
         self.assertEqual(status, 400)
-        self.assertEqual(body["error"], "Add / edit and Delete vessel data need the Vessel Data page.")
+        self.assertEqual(body["error"], "The vessel data ticks need the Vessel Data page.")
+        status, body = self.call(admin, "put", f"/api/accounts/{user.id}/",
+                                 {"permissions": ["operation.master"], "pages": ["op_live"]})
+        self.assertEqual((status, body["error"]), (400, "The vessel data ticks need the Vessel Data page."))
         status, _ = self.call(admin, "put", f"/api/accounts/{user.id}/",
                               {"permissions": ["operation.edit"], "pages": ["op_vessels"]})
         self.assertEqual(status, 200)
         self.assertTrue(Profile.objects.get(user=user).can("operation.edit"))
 
-    def test_accounts_list_counts_18(self):
+    def test_accounts_list_counts_19(self):
         admin = self.login("admin")
         status, body = self.call(admin, "get", "/api/accounts/")
         self.assertEqual(status, 200)
-        self.assertEqual(len(body["permissions"]), 18)
+        self.assertEqual(len(body["permissions"]), 19)
         alex = next(a for a in body["accounts"] if a["username"] == "alex")
-        self.assertEqual(len(alex["permissions"]), 18)  # make_user gives every permission
+        self.assertEqual(len(alex["permissions"]), 19)  # make_user gives every permission

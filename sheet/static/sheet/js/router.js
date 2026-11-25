@@ -1,5 +1,5 @@
 // Sidebar navigation. The page lives in the URL hash (#vessels, #master…), so refresh and Back work.
-import { ME, sees } from './config.js';
+import { ME, can, sees } from './config.js';
 import { loadDashboard, loadOptions, loadRates } from './data.js';
 import { hotelsPage, transportPage } from './pages/bookings.js';
 import { calculationsPage } from './pages/calculations.js';
@@ -13,6 +13,7 @@ import { opAnalysisPage, opChartsPage } from './pages/opAnalysis.js';
 import { opLivePage } from './pages/opLive.js';
 import { opVesselsPage } from './pages/opVessels.js';
 import { terminalsPage } from './pages/terminals.js';
+import { vesselListPage } from './pages/vesselList.js';
 import { openGroupOf } from './navGroups.js';
 import { renderMasterPage } from './pages/master.js';
 import { renderRatesPage } from './pages/rates.js';
@@ -42,6 +43,7 @@ const TITLES = {
   op_live: 'Live data',
   op_analysis: 'Analysis reports',
   op_charts: 'Report charts',
+  op_list: 'Vessel list',
 };
 
 const pageFromHash = () => {
@@ -52,8 +54,10 @@ const pageFromHash = () => {
 export async function showPage(requested) {
   let name = requested;
   if (name === 'accounts' && !ME.isSuperuser) name = 'vessels'; // accounts: superusers only
-  else if ((name === 'ports' || name === 'terminals') && !ME.isAdmin) name = 'vessels'; // Admins only
-  else if (!['accounts', 'ports', 'terminals'].includes(name) && !sees(name)) name = 'vessels'; // a page not given
+  else if (name === 'ports' && !ME.isAdmin) name = 'vessels'; // Admins only
+  else if (name === 'terminals' && !(ME.isAdmin || can('operation.master'))) name = 'vessels';
+  else if (name === 'op_list' && !sees('op_vessels')) name = 'vessels'; // the vessel list comes with Vessel Data
+  else if (!['accounts', 'ports', 'terminals', 'op_list'].includes(name) && !sees(name)) name = 'vessels'; // a page not given
   state.page = name;
   $$('.page').forEach((page) => { page.hidden = page.id !== `page-${name}`; });
   $$('#nav .nav-item').forEach((link) => link.classList.toggle('active', link.dataset.page === name));
@@ -71,6 +75,7 @@ export async function showPage(requested) {
   if (name === 'accounts') await accountsPage.load();
   if (name === 'ports') await portsPage.load();
   if (name === 'terminals') await terminalsPage.load();
+  if (name === 'op_list') await vesselListPage.load();
   if (name === 'op_vessels') await opVesselsPage.load();
   if (name === 'op_live') await opLivePage.load();
   if (name === 'op_analysis') await opAnalysisPage.load();

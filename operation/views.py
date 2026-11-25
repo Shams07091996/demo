@@ -11,8 +11,8 @@ from sheet.api import audit, json_api, read_json
 from sheet.errors import Forbidden
 from sheet.views import _xlsx_response
 
-from . import analysis, live, terminals, visits
-from .access import require_reader
+from . import analysis, live, terminals, vessel_list, visits
+from .access import require_master, require_reader
 
 
 @json_api
@@ -22,7 +22,7 @@ def terminals_list(request):
     require_reader(profile)
     if request.method == "GET":
         return JsonResponse(terminals.list_response(profile, request.GET))
-    require_admin(profile)
+    require_master(profile)
     terminal = terminals.save_terminal(profile, read_json(request))
     audit(request, "terminal.create", id=terminal.id, port=terminal.port)
     return JsonResponse(terminals.terminal_to_dict(terminal), status=201)
@@ -32,10 +32,39 @@ def terminals_list(request):
 @require_http_methods(["PUT"])
 def terminal_detail(request, pk):
     profile = request.profile
-    require_admin(profile)
+    require_master(profile)
     terminal = terminals.save_terminal(profile, read_json(request), existing=terminals.get_terminal(profile, pk))
     audit(request, "terminal.update", id=terminal.id, port=terminal.port)
     return JsonResponse(terminals.terminal_to_dict(terminal))
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def listed_vessels(request):
+    profile = request.profile
+    require_page(profile, "op_vessels")
+    if request.method == "GET":
+        return JsonResponse(vessel_list.list_response(request.GET))
+    require_master(profile)
+    vessel = vessel_list.save_listed(read_json(request))
+    audit(request, "listed_vessel.create", id=vessel.id)
+    return JsonResponse(vessel_list.listed_to_dict(vessel), status=201)
+
+
+@json_api
+@require_http_methods(["PUT", "DELETE"])
+def listed_vessel_detail(request, pk):
+    profile = request.profile
+    require_page(profile, "op_vessels")
+    if request.method == "DELETE":
+        require_admin(profile)
+        vessel_list.get_listed(pk).delete()
+        audit(request, "listed_vessel.delete", id=pk)
+        return JsonResponse({"ok": True})
+    require_master(profile)
+    vessel = vessel_list.save_listed(read_json(request), existing=vessel_list.get_listed(pk))
+    audit(request, "listed_vessel.update", id=vessel.id)
+    return JsonResponse(vessel_list.listed_to_dict(vessel))
 
 
 @json_api

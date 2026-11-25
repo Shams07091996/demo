@@ -11,6 +11,7 @@ class Terminal(models.Model):
     quay_length = models.PositiveIntegerField()  # metres
     cranes = models.PositiveSmallIntegerField()  # gantry cranes
     berths = models.JSONField(default=list)  # berth names, e.g. ["40/1", "40/2"]
+    lines = models.JSONField(default=list)  # shipping lines calling here; empty = every line of the port
     active = models.BooleanField(default=True)  # never deleted; a turned-off terminal takes no new visit
     position = models.PositiveIntegerField(default=0)
 
@@ -22,6 +23,20 @@ class Terminal(models.Model):
 
     def history_port(self):
         return self.port
+
+
+class ListedVessel(models.Model):
+    """The vessel list: a vessel's fixed LOA, shared by all ports. Picking a name in the visit dialog fills its LOA;
+    visits keep their own copy (name and LOA as text), so editing or deleting an entry never changes a visit."""
+
+    name = models.CharField(max_length=100)  # upper-case, unique ignoring case (validators.clean_listed_vessel)
+    loa = models.DecimalField(max_digits=5, decimal_places=1)  # metres
+
+    class Meta:
+        ordering = ["name", "id"]
+
+    def __str__(self):
+        return self.name
 
 
 class Visit(models.Model):

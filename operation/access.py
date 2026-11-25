@@ -14,6 +14,12 @@ def require_reader(profile):
         raise Forbidden("You don't have access to this page.")
 
 
+def require_master(profile):
+    """Terminals and the vessel list: Admins, or the "Edit terminals and vessel list" tick."""
+    if not profile.can("operation.master"):
+        raise Forbidden("You don't have permission to do that.")
+
+
 def scoped_terminals(profile, port=None):
     queryset = Terminal.objects.all()
     mine = ports_of(profile)

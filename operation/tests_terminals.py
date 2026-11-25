@@ -1,7 +1,8 @@
 """Terminals: Admins add / change them (never delete); people with an Operation page read their ports' ones."""
 
 from sheet.models import Port, Profile
-from sheet.tests import ApiTestCase, make_user
+from sheet.constants import PERMISSION_KEYS
+from sheet.tests import ApiTestCase, allow, make_user
 
 from .access import scoped_visits
 from .models import Terminal, Visit
@@ -20,6 +21,8 @@ class TerminalApiTests(ApiTestCase):
         cls.old = terminal("OLD - ALX", "alexandria", active=False)
         cls.psd = terminal("PSD EAST", "portsaid", berths=("1", "2"))
         make_user("novessels", "alexandria", pages=["vessels"])
+        make_user("nomaster", "alexandria", permissions=[k for k in PERMISSION_KEYS if k != "operation.master"])
+        allow("line", "ARKAS", "MAERSK")
 
     def names(self, body):
         return [t["name"] for t in body["terminals"]]
@@ -70,10 +73,37 @@ class TerminalApiTests(ApiTestCase):
         status, body = self.call(self.login("admin"), "post", URL, {**NEW, "port": "damietta"})
         self.assertEqual((status, body["error"]), (400, "That port is turned off."))
 
-    def test_users_cannot_write(self):
-        alex = self.login("alex")
-        self.assertEqual(self.call(alex, "post", URL, NEW)[0], 403)
-        self.assertEqual(self.call(alex, "put", f"{URL}{self.aict.id}/", NEW)[0], 403)
+    def test_users_without_the_tick_cannot_write(self):
+        user = self.login("nomaster")
+        self.assertEqual(self.call(user, "post", URL, NEW)[0], 403)
+        self.assertEqual(self.call(user, "put", f"{URL}{self.aict.id}/", NEW)[0], 403)
+
+    def test_tick_writes_in_own_ports_only(self):
+        alex = self.login("alex")  # make_user gives every tick, operation.master included
+        status, body = self.call(alex, "post", URL, NEW)
+        self.assertEqual((status, body["port"]), (201, "alexandria"))
+        self.assertEqual(self.call(alex, "post", URL, {**NEW, "name": "PSD WEST", "port": "portsaid"})[0], 403)
+        status, body = self.call(alex, "put", f"{URL}{self.aict.id}/", {**NEW, "name": "AICT - ALX", "cranes": 6})
+        self.assertEqual((status, body["cranes"]), (200, 6))
+        self.assertEqual(self.call(alex, "put", f"{URL}{self.aict.id}/", {**NEW, "name": "AICT - ALX", "port": "portsaid"})[0], 403)
+        self.assertEqual(self.call(alex, "put", f"{URL}{self.psd.id}/", {**NEW, "name": "PSD EAST", "port": "portsaid"})[0], 404)
+
+    def test_terminal_shipping_lines(self):
+        admin = self.login("admin")
+        status, body = self.call(admin, "post", URL, {**NEW, "lines": ["MAERSK", "ARKAS"]})
+        self.assertEqual((status, body["lines"]), (201, ["MAERSK", "ARKAS"]))
+        status, body = self.call(admin, "post", URL, {**NEW, "name": "X - ALX", "lines": ["NOPE"]})
+        self.assertEqual((status, body["error"]),
+                         (400, "Shipping line: choose a value from the Master data Shipping line list for this port."))
+        status, body = self.call(admin, "post", URL, {**NEW, "name": "Y - ALX", "lines": ["ARKAS", "ARKAS"]})
+        self.assertEqual((status, body["error"]), (400, "Each shipping line may appear only once."))
+        status, body = self.call(admin, "post", URL, {**NEW, "name": "Z - ALX"})
+        self.assertEqual((status, body["lines"]), (201, []))
+        saved = Terminal.objects.get(name="ACCHCO - ALX")
+        saved.lines = ["MAERSK", "OLDLINE"]
+        saved.save()
+        status, body = self.call(admin, "put", f"{URL}{saved.id}/", {**NEW, "lines": ["OLDLINE", "ARKAS"]})
+        self.assertEqual((status, body["lines"]), (200, ["OLDLINE", "ARKAS"]))
 
     def test_admin_moves_terminal_and_its_visits_follow(self):
         Visit.objects.create(terminal=self.aict, vessel_name="ROZA", shipping_line="ARKAS",

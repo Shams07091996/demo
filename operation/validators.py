@@ -6,9 +6,10 @@ from sheet import access
 from sheet.errors import BadRequest
 from sheet.validators import _as_dict, _local_datetime, _parse_number, _short, listed
 
-from .models import Terminal
+from .models import ListedVessel, Terminal
 
 MAX_BERTHS = 30
+MAX_LINES = 50
 
 
 def whole(value, label, low, high, required=True):
@@ -40,8 +41,26 @@ def _berths(value):
     return berths
 
 
+def _lines(value, port, saved):
+    """The terminal's shipping lines: each from the Master data list of its port (a line already saved stays allowed)."""
+    if value is None:
+        return list(saved)
+    if not isinstance(value, list) or len(value) > MAX_LINES:
+        raise BadRequest(f"Tick at most {MAX_LINES} shipping lines.")
+    lines = []
+    for item in value:
+        text = item if isinstance(item, str) else ""
+        line = text.strip() if text.strip() in saved else listed("line", text, port)
+        if not line:
+            raise BadRequest("Shipping line: choose a value from the Master data Shipping line list for this port.")
+        if line in lines:
+            raise BadRequest("Each shipping line may appear only once.")
+        lines.append(line)
+    return lines
+
+
 def clean_terminal(data, profile, existing=None):
-    """A terminal from the Terminals page (Admins): every field required, the port may be any existing one (turned
+    """A terminal from the Terminals page: every field but the lines required; the port is any existing one (turned
     on when the terminal is new or moves there)."""
     data = _as_dict(data)
     name = _short(data.get("name"), 40, "Name")
@@ -65,6 +84,7 @@ def clean_terminal(data, profile, existing=None):
         "quay_length": whole(data.get("quay_length"), "Quay length", 1, 10000),
         "cranes": whole(data.get("cranes"), "Cranes", 0, 50),
         "berths": _berths(data.get("berths")),
+        "lines": _lines(data.get("lines"), port, getattr(existing, "lines", []) or []),
         "active": data.get("active", True) is not False,
     }
 
@@ -103,6 +123,23 @@ def _loa(value):
     return Decimal(str(round(number, 1)))
 
 
+def clean_listed_vessel(data, existing=None):
+    """An entry of the vessel list: name (upper-case, unique ignoring case) and LOA, both required."""
+    data = _as_dict(data)
+    name = _short(data.get("name"), 100, "Vessel name").upper()
+    if not name:
+        raise BadRequest("Enter the vessel name.")
+    taken = ListedVessel.objects.filter(name__iexact=name)
+    if existing is not None:
+        taken = taken.exclude(pk=existing.pk)
+    if taken.exists():
+        raise BadRequest("That vessel is already on the list.")
+    loa = _loa(data.get("loa"))
+    if loa is None:
+        raise BadRequest("Enter the LOA.")
+    return {"name": name, "loa": loa}
+
+
 def _times(data):
     times = {key: _local_datetime(data.get(key), label) for key, label in TIMES}
     if times["eta"] is None:
@@ -115,6 +152,8 @@ def _times(data):
         raise BadRequest("ATB cannot be before ATA.")
     if times["atd"] and times["atd"] <= times["atb"]:
         raise BadRequest("ATD must be after ATB.")
+    if times["etb"] and times["etb"] < times["eta"]:
+        raise BadRequest("ETB cannot be before ETA.")
     if times["etb"] and times["etc"] and times["etc"] < times["etb"]:
         raise BadRequest("ETC cannot be before ETB.")
     return times
@@ -129,9 +168,12 @@ def clean_visit(data, profile, existing=None):
     if not name:
         raise BadRequest("Enter the vessel name.")
     terminal = _visit_terminal(data, profile, existing)
-    line = listed("line", data.get("shipping_line"), terminal.port, getattr(existing, "shipping_line", ""))
+    saved_line = getattr(existing, "shipping_line", "")
+    line = listed("line", data.get("shipping_line"), terminal.port, saved_line)
     if not line:
         raise BadRequest("Choose a shipping line.")
+    if terminal.lines and line not in terminal.lines and line != saved_line:
+        raise BadRequest("Shipping line: choose one of this terminal's lines.")
     return {
         "vessel_name": name,
         "terminal": terminal,
