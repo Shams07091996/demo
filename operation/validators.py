@@ -80,7 +80,8 @@ def _visit_terminal(data, profile, existing):
         terminal = Terminal.objects.filter(pk=int(raw)).first()
     if terminal is None:
         raise BadRequest("Choose a terminal.")
-    access.require_port(profile, terminal.port)
+    # A new visit, or one moved into this port, needs the port turned on (like every record in a port).
+    access.require_port(profile, terminal.port, new=existing is None or existing.terminal.port != terminal.port)
     if not terminal.active and (existing is None or existing.terminal_id != terminal.id):
         raise BadRequest("That terminal is turned off.")
     return terminal

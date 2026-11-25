@@ -11,7 +11,7 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
   charts (the user's `ARKAS_Port_Berthing` workbook, hidden sheet ignored) and a Terminals page for Admins under
   Master data. Every vessel at every terminal, separate from Vessels. Terminals belong to a port; Users see only their
   ports'. Four page ticks and two permission ticks (Add / edit, Delete vessel data), **off for existing accounts**,
-  on in the Branch manager template. `npm run check` now also runs the `operation` tests. 958 tests, check green,
+  on in the Branch manager template. `npm run check` now also runs the `operation` tests. 959 tests, check green,
   smoke alex / admin / viewer / suez / marine pass. Design `specs/2026-11-25-operation-app-design.md`, plan
   `plans/2026-11-25-operation-app.md`.
 

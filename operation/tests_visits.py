@@ -1,7 +1,8 @@
 """Vessel visits: add / edit / delete with the input rules, the port rules, the ticks, edit conflicts, the list's
 filters and the History."""
 
-from sheet.models import ChangeRecord
+from sheet import ports
+from sheet.models import ChangeRecord, Port
 from sheet.tests import ApiTestCase, allow, make_user
 
 from .models import Visit
@@ -115,6 +116,15 @@ class VisitWriteTests(VisitData):
         self.assertEqual((status, body["error"]), (400, "That terminal is turned off."))
         old = visit(self.off)
         status, body = self.call(self.login("alex"), "put", f"{URL}{old.id}/", {**FULL, "terminal": self.off.id})
+        self.assertEqual((status, body["vessel_name"]), (200, "ALLEGRI"))
+
+    def test_turned_off_port_takes_no_new_visit(self):
+        old = visit(self.aict)
+        Port.objects.filter(key="alexandria").update(active=False)
+        ports.forget()
+        status, body = self.post("alex")
+        self.assertEqual((status, body["error"]), (400, "That port is turned off."))
+        status, body = self.call(self.login("alex"), "put", f"{URL}{old.id}/", {**FULL, "terminal": self.aict.id})
         self.assertEqual((status, body["vessel_name"]), (200, "ALLEGRI"))
 
     def test_ticks(self):
