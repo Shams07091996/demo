@@ -39,7 +39,7 @@ code{background:color-mix(in srgb,var(--text) 8%,transparent);padding:1px 6px;bo
 .nav-item:hover{background:var(--side-hover);color:var(--side-text)}
 .nav-item.active{background:var(--side-active);color:var(--side-text)}
 .nav-group{display:flex;flex-direction:column;gap:2px}.nav-group+.nav-group{margin-top:8px}
-.nav-group-head{display:flex;align-items:center;justify-content:space-between;width:100%;padding:6px 12px;border:none;background:none;color:var(--side-muted);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:6px}
+.nav-group-head{display:flex;align-items:center;justify-content:space-between;width:100%;padding:6px 12px;border:none;background:none;color:var(--side-muted);font-size:12px;font-weight:700;cursor:pointer;border-radius:6px}
 .nav-group-head:hover{color:var(--side-text)}.nav-group-head .ic{width:14px;height:14px;transition:transform .15s}
 .nav-group.closed .nav-group-head .ic{transform:rotate(-90deg)}
 .nav-group-items{display:flex;flex-direction:column;gap:2px}.nav-group-items[hidden]{display:none}
