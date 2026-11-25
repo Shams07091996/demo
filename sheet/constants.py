@@ -125,7 +125,7 @@ SUMMARY_FIELDS = (
 # Master-data lists. Vessels store the chosen text in the field of the same name.
 OPTION_KINDS = [
     ("opr", "OPR"), ("poc", "POC"), ("agent", "Agent"), ("hotel", "Hotel"), ("airport", "Airport"), ("port", "Port"),
-    ("delay", "Delay reason"), ("closure", "Closure reason"),
+    ("delay", "Delay reason"), ("closure", "Closure reason"), ("terminal", "Terminal"),
 ]
 OPTION_KIND_KEYS = [key for key, _ in OPTION_KINDS]
 

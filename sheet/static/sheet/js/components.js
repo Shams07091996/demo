@@ -88,6 +88,7 @@ export function portCallBlockEl(vessel) {
     .map(([label, hours]) => pillEl(label, fmtDuration(hours)));
   return [
     h('div', { class: 'sum-grid' }, card('Arrival agent', vessel.arrival_agent), card('Sailing agent', vessel.sailing_agent),
+      vessel.terminal || vessel.berth ? [card('Terminal', vessel.terminal), card('Berth', vessel.berth)] : null,
       TIME_FIELDS.map(({ key, label }) => card(label, fmtStamp(vessel[key]))),
       vessel.delay_reason ? card('Delay reason', vessel.delay_reason) : null),
     durations.length ? h('div', { class: 'pills' }, durations) : null,

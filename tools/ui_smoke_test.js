@@ -214,6 +214,9 @@ async function login() {
     await go('calculations');
     const calcRows = () => $$('#c-tbody tr').filter((t) => t.textContent.includes(HOSTILE));
     ok(await waitFor(() => calcRows().length > 0), 'calculations: lines of the markup-like vessel are listed');
+    const portCol = $$('#c-head th').findIndex((th) => th.textContent.trim().startsWith('Port'));
+    ok($$('#c-head th').length === calcRows()[0].children.length
+      && (portCol < 0 || calcRows()[0].children[portCol].textContent.length > 0), 'calculations: the Port column lines up with its rows');
     ok(calcRows()[0].textContent.includes('<i>O</i>') && noMarkup($('#c-tbody')), 'calculations: vessel name and OPR show literally');
     ok([...$('#c-opr').options].some((o) => o.textContent === '<i>O</i>'), 'calculations: OPR filter lists the markup-like OPR as text');
 
@@ -660,7 +663,7 @@ async function login() {
 
   /* ======== master data page ======== */
   await go('master');
-  ok($$('#master-grid .panel h3').map((h) => h.textContent).join() === 'OPR,POC,Agent,Hotel,Airport,Port,Delay reason,Closure reason', 'master data has OPR, POC, Agent, Hotel, Airport, Port, Delay reason and Closure reason lists');
+  ok($$('#master-grid .panel h3').map((h) => h.textContent).join() === 'OPR,POC,Agent,Hotel,Airport,Port,Delay reason,Closure reason,Terminal', 'master data has OPR, POC, Agent, Hotel, Airport, Port, Delay reason, Closure reason and Terminal lists');
   ok($$('#master-grid details.master-list').every((d) => !d.open), 'master data: every list starts folded');
   type($('[data-new="agent"]'), 'SMOKE AGENT');
   click($('[data-act="add-option"][data-kind="agent"]'));
@@ -683,7 +686,7 @@ async function login() {
   }
   if (ROLE === 'admin') {
     const portChoices = (sel) => [...sel.options].map((o) => o.value).join();
-    ok($$('select[data-new-port]').length === 8 && portChoices($('select[data-new-port="agent"]')) === ',alexandria,portsaid,damietta,suez', 'admin: every list has a port choice (All ports + each port)');
+    ok($$('select[data-new-port]').length === 9 && portChoices($('select[data-new-port="agent"]')) === ',alexandria,portsaid,damietta,suez', 'admin: every list has a port choice (All ports + each port)');
     for (const [kind, value] of [['agent', 'SMOKE SUEZ AGENT'], ['hotel', 'SMOKE SUEZ HOTEL']]) {
       type($(`[data-new="${kind}"]`), value);
       type($(`select[data-new-port="${kind}"]`), 'suez');
@@ -880,9 +883,14 @@ async function login() {
   click($('[data-act="save-vessel"]'));
   ok(await waitFor(() => /Choose a delay reason/.test($('#modal .error')?.textContent || '')), 'a delayed vessel without a reason is refused');
   type($('#vessel-form [name=delay_reason]'), 'PORT CLOSED');
+  const terminal = [...$('#vessel-form [name=terminal]').options].find((o) => o.value)?.value;
+  ok(terminal, 'vessel form: the Terminal list offers the port\'s terminals');
+  type($('#vessel-form [name=terminal]'), terminal);
+  type($('#vessel-form [name=berth]'), '98/1');
   click($('[data-act="save-vessel"]'));
   ok(await waitFor(() => modalText().includes('15.01.2020 08:30') && modalText().includes('SMOKE AGENT')), 'times and agent saved and shown in the Port call block');
   ok(modalText().includes('Delay reason') && modalText().includes('PORT CLOSED'), 'the delay reason is shown with the times');
+  ok(modalText().includes(terminal) && modalText().includes('98/1'), 'terminal and berth are shown with the times');
   ok(modalText().includes('9h 30m') && modalText().includes('6h') && modalText().includes('12h'), 'durations: 9h 30m at berth, 6h operations, 12h in port');
   ok($('#modal .status-chip')?.textContent === 'Sailed', 'status chip shows "Sailed"');
   closeModal();

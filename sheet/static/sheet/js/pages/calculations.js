@@ -19,6 +19,7 @@ const COLUMNS = [
   { title: 'Date', sort: 'date' },
   { title: 'Vessel', sort: 'vessel' },
   { title: 'OPR', sort: 'opr' },
+  { title: 'Port', sort: 'port', multiPort: true }, // a one-port User's rows are all in their port
   { title: 'Item', sort: 'kind' },
   { title: 'Cost', sort: 'cost' },
   { title: 'Revenue', sort: 'revenue' },
@@ -93,6 +94,7 @@ function rowEl(row) {
     h('td', null, dmy(row.vessel.date)),
     h('td', null, h('a', { href: '#calculations', dataset: { act: 'summary', id: row.vessel.id } }, row.vessel.name)),
     h('td', null, row.vessel.opr || '—'),
+    ME.multiPort ? h('td', null, row.vessel.port_label) : null,
     h('td', null, itemCell(row)),
     h('td', { class: 'num' }, sideCell(row.cost)),
     h('td', { class: 'num' }, sideCell(row.revenue)),
@@ -137,7 +139,7 @@ function totalsEls(t) {
 }
 
 function render() {
-  setChildren($('#c-head'), h('tr', null, COLUMNS.map((c) => (c.sort
+  setChildren($('#c-head'), h('tr', null, COLUMNS.filter((c) => !c.multiPort || ME.multiPort).map((c) => (c.sort
     ? h('th', { dataset: { csort: c.sort } }, c.title, ' ', h('span', { class: 'arrow' }, sortIcon(filter.sort === c.sort, filter.dir)))
     : h('th', null, c.title)))));
   renderTicks();

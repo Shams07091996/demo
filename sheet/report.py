@@ -163,9 +163,10 @@ class _Times:
 
     def __init__(self):
         self.hours = [[], [], []]
-        self.with_times = self.delayed = 0
+        self.with_times = self.delayed = self.vessels = 0
 
     def add(self, vessel):
+        self.vessels += 1
         found = False
         for hours, (start, end) in zip(self.hours, self.PAIRS, strict=True):
             start, end = getattr(vessel, start), getattr(vessel, end)
@@ -181,17 +182,25 @@ class _Times:
 
 def _ports_perf(objects, r):
     head = ["Vessels with times", "Avg waiting (h)", "Avg at berth (h)", "Avg in port (h)", "Delayed vessels"]
-    ports, months, reasons = {}, {month: _Times() for month in _months(r)}, {}
+    ports, months, reasons, berths = {}, {month: _Times() for month in _months(r)}, {}, {}
     for vessel in objects:
         ports.setdefault(vessel.port, _Times()).add(vessel)
+        if vessel.terminal or vessel.berth:
+            berths.setdefault((vessel.port, vessel.terminal, vessel.berth), _Times()).add(vessel)
         months[f"{vessel.date:%Y-%m}"].add(vessel)
         if vessel.delay_reason:
             reasons[vessel.delay_reason] = reasons.get(vessel.delay_reason, 0) + 1
     by_reason = sorted(reasons.items(), key=lambda item: (-item[1], item[0].casefold()))
+    order = {key: i for i, (key, _) in enumerate(port_table.ordered())}
+    calls = sorted(berths.items(), key=lambda item: (order.get(item[0][0], len(order)), item[0][1].casefold(),
+                                                     item[0][2].casefold()))
     return _sheet("Port performance", [
         _table(["Port", *head], [ports[key].row(label) for key, label in port_table.ordered() if key in ports]),
         _table(["Month", *head], [times.row(month) for month, times in months.items()]),
         _table(["Delay reason", "Vessels"], [list(item) for item in by_reason]),
+        _table(["Port", "Terminal", "Berth", "Vessels", *head[1:]],
+               [[port_table.label(port), terminal or "-", berth or "-", times.vessels, *times.row("")[2:]]
+                for (port, terminal, berth), times in calls]),
     ], ["Averages count only vessels that have both times."])
 
 

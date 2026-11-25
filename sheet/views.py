@@ -747,7 +747,7 @@ def export_csv(request):
     response["Content-Disposition"] = 'attachment; filename="vessels.csv"'
     response.write("\ufeff")  # byte-order mark so Excel reads UTF-8
     writer = csv.writer(response)
-    head = (["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Date", "Status"]
+    head = (["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Terminal", "Berth", "Date", "Status"]
             + [label for _, label in TIME_FIELDS] + ["Delay reason", "Services", "Total Cost LE", "Total Profit LE"])
     lines = [
             [
@@ -757,6 +757,8 @@ def export_csv(request):
                 _csv_safe(data["arrival_agent"]),
                 _csv_safe(data["sailing_agent"]),
                 ports.label(data["port"]),
+                _csv_safe(data["terminal"]),
+                _csv_safe(data["berth"]),
                 date.fromisoformat(data["date"]).strftime("%d.%m.%Y"),
                 data["status"],
                 *[_display_time(data[key]) for key in TIME_KEYS],

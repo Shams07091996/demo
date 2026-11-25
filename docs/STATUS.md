@@ -5,6 +5,15 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Terminal / berth and the Calculations Port column (2026-11-25):** on branch **`feature/terminal-berth`**, **not
+  merged** (waiting for the user's OK). Needs migration **`0029_vessel_terminal_berth`** on the user's database
+  (adds two empty fields; nothing changes for existing vessels). A vessel has a Terminal (new Master data list per
+  port, optional) and a Berth (typed); both in the vessel form, the Port call block, the vessel CSV and a
+  terminal / berth table on the management Excel's Port performance sheet. The Calculations page has a sortable
+  Port column (for Admins and Users of 2+ ports; the export already had it). The other HTML pieces (collection,
+  crew extras, provider vs ARKAS cost, document control, reports) were **set aside by the user** (2026-11-25: "ignore,
+  I will give you other instructions"). 898 tests; check green; smoke alex / admin / viewer pass; self-review.
+
 - **Parcels extras, piece 2 of 8 (2026-11-25):** merged into main (2026-11-25), from branch `feature/parcel-extras`.
   No migration. Delivery Parcels and Landing get Transfer type (Vessel-to-Vessel /
   Vessel-to-Courier), Receiving vessel (typed, shown only for Vessel-to-Vessel), Courier (DHL / FedEx / Aramex /

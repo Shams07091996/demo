@@ -531,6 +531,10 @@ def clean_vessel(data, profile, existing=None):
         "port": port,
         "summary": clean_summary(data.get("summary")),
         "delay_reason": clean_delay_reason(data, times, port, existing),
+        # terminal / berth: optional; a save without the key keeps the stored value
+        "terminal": listed("terminal", data.get("terminal", getattr(existing, "terminal", "")), port,
+                           getattr(existing, "terminal", "")),
+        "berth": _short(data.get("berth", getattr(existing, "berth", "")), 20, "Berth"),
         "ship": ship,
         **times,
     }

@@ -102,7 +102,7 @@ export async function openVessel(id) {
 const selectField = (name, label, current, port, kind = name) =>
   h('div', { class: 'field' }, h('label', null, label), h('select', { attrs: { name } }, optionChoicesEl(kind, current, port)));
 
-const FORM_LISTS = [['opr', 'opr'], ['poc', 'poc'], ['arrival_agent', 'agent'], ['sailing_agent', 'agent'], ['delay_reason', 'delay']];
+const FORM_LISTS = [['opr', 'opr'], ['poc', 'poc'], ['arrival_agent', 'agent'], ['sailing_agent', 'agent'], ['delay_reason', 'delay'], ['terminal', 'terminal']];
 
 /** Show the delay reason while the times say the vessel berthed more than 2 hours after it arrived, or while a reason
  *  is chosen (the server then refuses the save until it is cleared: nothing is wiped silently). */
@@ -172,6 +172,10 @@ export function openVesselForm(vessel) {
         h('a', { href: '#master', dataset: { act: 'goto', page: 'master' }, style: { color: 'var(--accent)' } }, 'Master data'), '.'),
       h('div', { class: 'row two' },
         h('div', { class: 'field' }, h('label', null, 'Date'), h('input', { attrs: { type: 'date', name: 'date' }, value: vessel ? vessel.date : today() }))),
+      h('div', { class: 'row two' },
+        selectField('terminal', 'Terminal', vessel?.terminal, selectedPort),
+        h('div', { class: 'field' }, h('label', null, 'Berth'),
+          h('input', { attrs: { name: 'berth', maxlength: 20 }, value: vessel?.berth }))),
       h('div', { class: 'section-title', style: { marginTop: '6px' } },
         h('span', null, 'Port call times ',
           h('small', { class: 'none', style: { textTransform: 'none', letterSpacing: '0' } }, '(Cairo time, all optional)'))),
