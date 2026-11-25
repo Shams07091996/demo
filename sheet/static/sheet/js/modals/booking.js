@@ -3,7 +3,7 @@
 import { api, mutate } from '../api.js';
 import { showConflict } from '../conflict.js';
 import { headEl, optionChoicesEl } from '../components.js';
-import { el } from '../config.js';
+import { el, sees } from '../config.js';
 import { setStatus } from '../feedback.js';
 import { h, icon, optionEls, setChildren } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
@@ -234,7 +234,7 @@ async function prefill() {
     if (touches(form, 'airport') && !form.airport) form.airport = matchOption('airport', member?.city);
     if (touches(form, 'port') && !form.port_name) form.port_name = matchOption('port', vessel.port_label);
     const guestName = guests[0]?.name?.toUpperCase();
-    if (touchesHotel(form) && !form.hotel && guestName) {
+    if (touchesHotel(form) && !form.hotel && guestName && sees('hotels')) {
       try {
         const { bookings } = await api(`/api/hotels/?${new URLSearchParams({ q: guestName, page_size: 50 })}`);
         const stay = bookings.find((b) => b.hotel && b.vessel.id === vessel.id && b.guests.some((g) => g.name === guestName));

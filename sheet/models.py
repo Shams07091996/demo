@@ -75,7 +75,7 @@ class Profile(models.Model):
         counts with it, whatever is stored."""
         if self.is_admin:
             return True
-        if key not in (self.permissions or []):
+        if not isinstance(self.permissions, list) or key not in self.permissions:
             return False
         need = PERMISSION_NEEDS.get(key)
         if need is None:
@@ -91,7 +91,7 @@ class Profile(models.Model):
         need = PAGE_NEEDS.get(page)
         if page == "history":
             return self.can(need)
-        return page in (self.pages or []) and (need is None or self.can(need))
+        return isinstance(self.pages, list) and page in self.pages and (need is None or self.can(need))
 
 
 class Customer(models.Model):

@@ -257,6 +257,12 @@ async function login() {
     ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === 'vessels,services', 'marine: the sidebar is Vessels and Services');
     ok(await waitFor(() => $$('#tbody tr').length > 0) && !$('#tbody [data-act="del-vessel-row"]'), 'marine: no Delete button on vessel rows');
     ok(shown($('#addVesselBtn')), 'marine: + Add Vessel is there');
+    // No customers.edit: the ship type-ahead offers existing ships only, never "+ New ship" (the server would refuse).
+    type($('#qa-name'), 'MSC');
+    ok(await waitFor(() => $$('#quickAdd .ship-opt').length > 0) && !$$('#quickAdd .ship-opt').some((o) => o.textContent.startsWith('+ New ship')),
+      'marine: the ship list has no + New ship');
+    $('#qa-name').dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    type($('#qa-name'), '');
     await openRow('MSC AURORA');
     ok(!$('#modal [data-act="del-vessel"]') && !!$('#modal [data-act="edit-vessel"]') && !!$('#modal [data-act="add-service"]'),
       'marine: the vessel dialog edits but cannot delete');

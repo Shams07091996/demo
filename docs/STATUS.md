@@ -13,7 +13,7 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
   Operations employee, Branch manager, Accounts employee); the server refuses (403) anything not ticked, the sidebar
   shows only their pages, buttons only what they may do. Exports follow the pages; a User with History sees only
   their ports' records; the accounting Open / Closed switch is given to whoever has "Close / reopen lines". A new
-  account starts with nothing ticked (Vessels only). 809 backend tests; `npm run check` green; smoke test passes for
+  account starts with nothing ticked (Vessels only). 814 backend tests; `npm run check` green; smoke test passes for
   alex / admin / viewer / suez and the new demo user `marine`. **Next: piece 3** (money: what `money.view` /
   `money.edit` hide). Plan: `plans/2026-11-25-permissions-and-pages.md`.
 

@@ -122,6 +122,14 @@ def _vessel_port(vessel_id):
 # work. People, devices, ships, customers, rates, ports and All-ports Master data have no port and stay Admin-only
 # (a Profile record carries the home port, so it is left out by type, not by port).
 PORT_TYPES = ("vessel", "service", "hotelstay", "transfer", "guest", "option", "portclosure")
+# Records that belong to a page: only for people who have it (a guest belongs to either booking page).
+TYPE_PAGES = {"hotelstay": ("hotels",), "transfer": ("transport",), "guest": ("hotels", "transport"),
+              "portclosure": ("closures",)}
+
+
+def types_for(profile):
+    """The History record types a User may see: PORT_TYPES, minus those of pages they don't have."""
+    return [t for t in PORT_TYPES if any(profile.sees(page) for page in TYPE_PAGES.get(t, ("vessels",)))]
 
 
 def port_of(instance):

@@ -61,6 +61,26 @@ class PermissionModelTests(TestCase):
         p = profile("u", permissions=["accounting.close", "money.view"], pages=["vessels"])
         self.assertFalse(p.can("accounting.close"))
 
+    def test_lists_that_are_not_lists_give_nothing(self):
+        """Review fix: a value typed as text (e.g. in the admin pages) is no list: `"exports money.view"` must not
+        match as a substring."""
+        p = profile("u")
+        p.permissions, p.pages = "exports money.view", "calculations hotels"
+        self.assertFalse(p.can("exports"))
+        self.assertFalse(p.can("money.view"))
+        self.assertFalse(p.sees("hotels"))
+
+    def test_admin_pages_cannot_type_the_lists(self):
+        from django.contrib import admin as django_admin
+        from django.test import RequestFactory
+
+        from .admin import ProfileInline
+
+        request = RequestFactory().get("/")
+        request.user = User.objects.create_superuser("root", password="x")
+        inline = ProfileInline(User, django_admin.site)
+        self.assertLessEqual({"permissions", "pages"}, set(inline.get_readonly_fields(request)))
+
     def test_unknown_keys_are_false(self):
         p = profile("u")
         self.assertFalse(p.can("nope"))
@@ -199,6 +219,16 @@ class WritePermissionTests(Limited):
         status, body = self.call(self.without("bookings.edit"), "put", f"/api/services/{service.id}/", payload)
         self.assertEqual(status, 403, body)
         self.assertEqual(Service.objects.get(pk=service.pk).status, "in_progress")
+
+    def test_cancel_bookings_needs_services_cancel(self):
+        """Review fix: cancelling a crew change's bookings is part of cancelling the service (spec), so it needs
+        services.cancel too, even when the service is already Cancelled."""
+        service = self.service(status="cancelled")
+        payload = {**WATER, "status": "cancelled", "cancel_reason": "Owner",
+                   "cancel_bookings": [{"kind": "hotel", "id": self.stay.id}]}
+        status, body = self.call(self.without("services.cancel"), "put", f"/api/services/{service.id}/", payload)
+        self.assertEqual(status, 403, body)
+        self.assertFalse(HotelStay.objects.get(pk=self.stay.pk).cancelled)
 
     def test_service_bookings_list_needs_services_cancel(self):
         url = f"/api/services/{self.service().id}/bookings/"
@@ -361,6 +391,24 @@ class PageTests(Limited):
         self.assertEqual(self.status(self.without("exports"), "/api/export/all/", RANGE), 403)
         self.assertEqual(self.status(self.without(pages=ALL_PAGES_BUT("dashboard")), "/api/export/all/", RANGE), 403)
 
+    def test_management_excel_leaves_out_figures_of_pages_not_had(self):
+        """Review fix: without Hotels / Transport / Garbage, their money lines and the Crew sheet's hotel / transfer
+        columns are not in the management Excel."""
+        url = "/api/dashboard/export/"
+        full = read(self.without().get(url, RANGE).content)
+        service_names = [row[0] for row in full["Profit by service"] if row]
+        self.assertIn("Hotels", service_names)
+        self.assertIn("Transport", service_names)
+        client = self.without(pages=ALL_PAGES_BUT("hotels", "transport", "disposal"))
+        limited = read(client.get(url, RANGE).content)
+        service_names = [row[0] for row in limited["Profit by service"] if row]
+        self.assertNotIn("Hotels", service_names)
+        self.assertNotIn("Transport", service_names)
+        crew_cells = {cell for row in limited["Crew"] for cell in row if isinstance(cell, str)}
+        self.assertEqual(crew_cells & {"Hotel nights", "Transfers"}, set())
+        summary_cells = {cell for row in limited["Summary"] for cell in row if isinstance(cell, str)}
+        self.assertFalse(any("hotels" in str(cell).lower() for cell in summary_cells), summary_cells)
+
     def test_management_excel_leaves_out_closures_and_disposal(self):
         url = "/api/dashboard/export/"
         full = read(self.without().get(url, RANGE).content)
@@ -421,6 +469,22 @@ class HistoryTests(Limited):
         types = {r["object_type"] for r in self.records(self.without())}
         self.assertEqual(types & {"profile", "user", "customer", "exchangerate", "ship", "totpdevice"}, set())
         self.assertNotIn(("option", ""), {(r["object_type"], r["port"]) for r in self.records(self.without())})
+
+    def test_history_follows_booking_and_closure_pages(self):
+        """Review fix: the Accounts employee template has History but no Hotels / Transport / Port closures page:
+        those records stay out of their History (asking with type= too)."""
+        HotelStay.objects.filter(pk=self.stay.pk).update(nights=4)
+        self.stay.refresh_from_db()
+        self.stay.save()
+        PortClosure.objects.create(port="alexandria", start_at=timezone.now(), reason="WEATHER")
+        client = self.without(pages=ALL_PAGES_BUT("hotels", "transport", "closures"))
+        types = {r["object_type"] for r in self.records(client)}
+        self.assertEqual(types & {"hotelstay", "transfer", "guest", "portclosure"}, set())
+        self.assertIn("vessel", types)
+        self.assertEqual(self.call(client, "get", "/api/history/?type=guest")[1]["records"], [])
+        types = {r["object_type"] for r in self.records(self.without(pages=ALL_PAGES_BUT("transport", "closures")))}
+        self.assertLessEqual({"hotelstay", "guest"}, types)
+        self.assertEqual(types & {"transfer", "portclosure"}, set())
 
     def test_closure_changes_carry_their_port(self):
         closure = PortClosure.objects.create(port="alexandria", start_at=timezone.now(), reason="WEATHER")

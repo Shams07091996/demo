@@ -349,7 +349,8 @@ def service_detail(request, pk):
         service = conflicts.locked(service, payload, request.user)
         accounting.require_open(service)  # the fresh row: a dialog opened before accounting closed it is refused too
         refs = clean_booking_refs(payload.get("cancel_bookings"))
-        if refs:
+        if refs:  # cancelling the bookings is part of cancelling the service
+            require(request.profile, "services.cancel")
             require(request.profile, "bookings.edit")
         before = conflicts.snapshot(service)
         old_status = service.status
@@ -966,7 +967,7 @@ def history_list(request):
         raise BadRequest("Rows per page must be 10, 25, 50 or 100.")
     rows = ChangeRecord.objects.all()
     if not profile.is_admin:
-        rows = rows.filter(object_type__in=history.PORT_TYPES, port__in=ports_of(profile))
+        rows = rows.filter(object_type__in=history.types_for(profile), port__in=ports_of(profile))
     if date_from:
         rows = rows.filter(at__date__gte=date_from)
     if date_to:

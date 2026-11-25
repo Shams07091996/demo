@@ -1,7 +1,9 @@
 // The type-ahead on a vessel name box (quick-add bar and vessel form): as the person types, up to 10 active ships
-// matching the name or IMO; the last item is always "+ New ship". Picking fills the box and reports the ship;
+// matching the name or IMO; the last item is "+ New ship" (only with customers.edit). Picking fills the box and
+// reports the ship;
 // typing after a pick clears it. Keyboard: Up / Down, Enter, Escape. Built with dom.js only.
 import { api } from './api.js';
+import { can } from './config.js';
 import { h, setChildren } from './dom.js';
 
 const DELAY_MS = 250;
@@ -58,7 +60,7 @@ export function attachShipPicker(input, { picked = null, onPick, onClear, onNew,
       ships = []; // the "+ New ship" item still shows
     }
     if (mine !== ticket) return; // an older answer: a newer search is on its way
-    items = [...ships.map((ship) => ({ ship })), { name: text }];
+    items = [...ships.map((ship) => ({ ship })), ...(can('customers.edit') ? [{ name: text }] : [])];
     active = -1;
     render();
   }
@@ -84,7 +86,7 @@ export function attachShipPicker(input, { picked = null, onPick, onClear, onNew,
         const item = choose(active);
         if (item?.ship) onEnter?.();
       } else if (current) onEnter?.();
-      else if (input.value.trim()) { close(); onNew?.(input.value.trim().toUpperCase()); }
+      else if (input.value.trim() && can('customers.edit')) { close(); onNew?.(input.value.trim().toUpperCase()); }
     }
   });
   // mousedown, not click: the box keeps its focus, so the list doesn't close before the pick.
