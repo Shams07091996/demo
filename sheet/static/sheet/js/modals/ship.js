@@ -1,7 +1,7 @@
 // A ship's fields (name, IMO or No IMO, OPR, customer, active): in the Ships page's dialog, and as the small "New
 // ship" panel under a vessel name box (the app has one dialog, which may already show the vessel form).
 import { api, mutate } from '../api.js';
-import { headEl, optionChoicesEl } from '../components.js';
+import { deleteBtn, headEl, optionChoicesEl } from '../components.js';
 import { ME } from '../config.js';
 import { h } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
@@ -87,7 +87,7 @@ export async function openShipDialog(ship, onDone) {
     h('div', { class: 'm-body', id: 'ship-form' }, shipFieldsEl(ship, { port: ME.multiPort ? null : ME.homePort, withActive: true }),
       ship ? h('div', { class: 'none' }, `${ship.calls} port call${ship.calls === 1 ? '' : 's'}`) : null),
     h('div', { class: 'm-foot' },
-      ship && ME.isAdmin ? btn('danger', 'ship-del', 'Delete') : h('span'),
+      ship && ME.isAdmin ? deleteBtn('ship-del') : h('span'),
       h('div', { class: 'right' }, btn('ghost', 'close', 'Cancel'), ' ', btn('primary', 'ship-save', 'Save'))),
   );
 }

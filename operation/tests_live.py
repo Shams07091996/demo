@@ -29,7 +29,9 @@ class LiveTests(ApiTestCase):
         visit(cls.aict, "NEXT", eta="2026-11-27T08:00")
         visit(cls.aict, "YESTERDAY", eta="2026-11-24T08:00")
         visit(cls.aict, "TOO FAR", eta="2026-12-02T12:00")
-        visit(cls.aict, "LAST DAY", eta="2026-12-02T11:59")
+        visit(cls.aict, "LAST DAY", eta="2026-12-01T23:59")  # the 6th day after today: still in
+        visit(cls.aict, "THIS MORNING", eta="2026-11-25T08:00")  # due earlier today, not arrived: still in
+        visit(cls.aict, "ANCHORED", eta="2026-11-23T08:00", ata=NOW - timedelta(hours=5))  # arrived, not berthed
         visit(cls.off, "ON OLD", atb=NOW, ata=NOW)
         visit(cls.psd, "THEIRS", eta="2026-11-26T08:00")
         make_user("vesselsonly", "alexandria", pages=["op_vessels"])
@@ -48,13 +50,15 @@ class LiveTests(ApiTestCase):
         self.assertEqual([v["vessel_name"] for v in aict["working"]], ["EARLY", "LATE"])
         self.assertEqual(aict["working"][1]["live_rate"], 50.0)
         self.assertIsNone(aict["working"][0]["live_rate"])
-        self.assertEqual([v["vessel_name"] for v in aict["upcoming"]], ["SOON", "NEXT", "LAST DAY"])
-        self.assertEqual(aict["upcoming"][0]["eta"], "2026-11-25T18:00")
+        self.assertEqual([v["vessel_name"] for v in aict["upcoming"]],
+                         ["ANCHORED", "THIS MORNING", "SOON", "NEXT", "LAST DAY"])
+        self.assertEqual([v["arrived"] for v in aict["upcoming"]], [True, False, False, False, False])
+        self.assertEqual(aict["upcoming"][2]["eta"], "2026-11-25T18:00")
 
     def test_calls_in_last_7_days(self, _now):
         # ETA from 19 Nov 00:00 to the end of 25 Nov: the three created with the default ETA (21 Nov),
-        # YESTERDAY and SOON.
-        self.assertEqual(self.get("alex")[1]["calls_7d"], 5)
+        # YESTERDAY, SOON, THIS MORNING and ANCHORED.
+        self.assertEqual(self.get("alex")[1]["calls_7d"], 7)
 
     def test_needs_live_page(self, _now):
         self.assertEqual(self.call(self.login("vesselsonly"), "get", URL)[0], 403)

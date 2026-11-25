@@ -3,7 +3,7 @@
 import logging
 
 from django.conf import settings
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -76,7 +76,7 @@ NO_PORT = "Your account has no port yet. Ask an admin."
 class TwoStepMiddleware:
     """The one gate of the two-step login: a signed-in person who hasn't passed the code step (or must still choose
     their own password) reaches only the page of that step, the sign-in pages, Log out and static files. API calls
-    answer 401 (the page then goes back to sign-in), the CSV export 401, every other page (admin pages included)
+    answer 401 (the page then goes back to sign-in), every other page (admin pages included)
     redirects to the step."""
 
     def __init__(self, get_response):
@@ -92,8 +92,6 @@ class TwoStepMiddleware:
             if step == twostep.NO_PORT_STEP:
                 return JsonResponse({"error": NO_PORT}, status=403)
             return JsonResponse({"error": "Please log in again."}, status=401)
-        if request.path == reverse("export_csv"):
-            return HttpResponse(status=401)
         return redirect(step)
 
     @staticmethod

@@ -129,23 +129,32 @@ def save_visit(profile, data, existing=None):
     return visit
 
 
-EXPORT_HEAD = ["ID", "Vessel", "Line", "Terminal", "LOA (m)", "ETA", "ATA", "Planned berth", "ETB", "ETC", "ATB",
-               "Actual berth", "Cranes", "ATD", "Status", "Waiting (hrs)", "Operation (hrs)", "Discharge", "Loading",
-               "Total moves", "Moves/hr", "Port stay (hrs)"]
+# The Vessel Data table's headings, in its order (sheet/tests_page_excel.py keeps them equal to opVessels.js).
+EXPORT_HEAD = ["ID", "Vessel", "Line", "Terminal", "LOA", "ETA", "ETB", "ETC", "Planned berth", "ATA", "ATB", "ATD",
+               "Actual berth", "Cranes", "Status", "Waiting", "Operation", "Discharge", "Loading", "Total moves",
+               "Moves/hr", "Port stay"]
+STATUS_TONES = {"Planned": "info", "Working": "progress", "Completed": "done"}
 
 
 def export_file(profile, params):
-    """The filtered visits (every page of them) as a plain-table .xlsx: one header row, numbers as numbers."""
+    """The filtered visits (every page of them) as the Vessel Data table with the page look (sheet/xlsx.py)."""
+    from sheet.dataexport import filters_line
+
     def number(value):
         return xlsx.Number(float(value) if isinstance(value, Decimal) else value)
 
-    rows = [EXPORT_HEAD]
+    def text(value):
+        return value or None
+
+    rows = []
     for visit, n in filtered(profile, params):
         rows.append([
-            number(visit.id), visit.vessel_name, visit.shipping_line, visit.terminal.name, number(visit.loa),
-            xlsx.Moment(visit.eta), xlsx.Moment(visit.ata), visit.planned_berth, xlsx.Moment(visit.etb),
-            xlsx.Moment(visit.etc), xlsx.Moment(visit.atb), visit.actual_berth, number(visit.cranes),
-            xlsx.Moment(visit.atd), n["status"], number(n["waiting"]), number(n["operation"]), number(visit.discharge),
-            number(visit.loading), number(n["total_moves"]), number(n["productivity"]), number(n["port_stay"]),
+            number(visit.id), visit.vessel_name, text(visit.shipping_line), visit.terminal.name, number(visit.loa),
+            xlsx.Moment(visit.eta), xlsx.Moment(visit.etb), xlsx.Moment(visit.etc), text(visit.planned_berth),
+            xlsx.Moment(visit.ata), xlsx.Moment(visit.atb), xlsx.Moment(visit.atd), text(visit.actual_berth),
+            number(visit.cranes), xlsx.Status(n["status"], STATUS_TONES.get(n["status"], "muted")),
+            number(n["waiting"]), number(n["operation"]), number(visit.discharge), number(visit.loading),
+            number(n["total_moves"]), number(n["productivity"]), number(n["port_stay"]),
         ])
-    return xlsx.build([xlsx.Sheet("Vessel Data", rows, widths=[14] * len(EXPORT_HEAD))])
+    return xlsx.build([xlsx.table_sheet("Vessel Data", "Vessel Data", filters_line(profile, params), EXPORT_HEAD,
+                                        rows)])

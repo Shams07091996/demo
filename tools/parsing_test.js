@@ -19,6 +19,7 @@ const { isDelayed, limitRows, statusNeeds, tickSummary } = load('util.js');
 const { fillRevenue, rateFor } = load('rates.js');
 const { stripMoney } = load('moneyKeys.js');
 const { crewBookingDefaults } = load('crewBookings.js');
+const { CAN_GROUPS, PAGE_GROUPS, grouped, withNeeds } = load('tickGroups.js');
 
 let failed = 0;
 const check = (cond, label) => { console.log(`${cond ? 'PASS' : 'FAIL'} ${label}`); if (!cond) failed += 1; };
@@ -147,4 +148,16 @@ check(crewBookingDefaults(oneLeg({ arrivalTime: '31 FEB 10:05' }), 'on', '2026-1
   'crew defaults: an impossible day falls back to the vessel date');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
+/* ---------- Accounts dialog: Can / Pages groups and what an "All" tick brings with it (js/tickGroups.js) ---------- */
+check(same(CAN_GROUPS.map(([g]) => g), ['Marine', 'Operation', 'General']), 'ticks: Can groups');
+check(same(PAGE_GROUPS.map(([g]) => g), ['Marine', 'Operation', 'Reports', 'Master data']), 'ticks: Pages groups like the sidebar');
+check(same(CAN_GROUPS[1][1], ['operation.edit', 'operation.delete', 'operation.master']), 'ticks: Operation can');
+check(same([...withNeeds(['perm:operation.edit'])].sort(), ['page:op_vessels', 'perm:operation.edit']), 'ticks: operation needs Vessel Data');
+check(same([...withNeeds(['perm:accounting.close'])].sort(), ['page:calculations', 'perm:accounting.close', 'perm:money.view']),
+  'ticks: close lines needs Calculations and so See money');
+check(same([...withNeeds(['page:history'])].sort(), ['page:history', 'perm:history.view', 'perm:money.view']), 'ticks: History page chain');
+const g = grouped([['vessels.edit', 'A'], ['exports', 'B'], ['new.thing', 'C']], CAN_GROUPS);
+check(same(g.map(([label, items]) => [label, items.map(([k]) => k)]), [['Marine', ['vessels.edit']], ['General', ['exports']], ['Other', ['new.thing']]]),
+  'ticks: grouped keeps the server order, drops empty groups, unknown keys go to Other');
+
 process.exit(failed ? 1 : 0);

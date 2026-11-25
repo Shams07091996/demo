@@ -2,7 +2,7 @@
 // other guests), fill in the booking and an optional price. The server checks everything again.
 import { api, mutate } from '../api.js';
 import { showConflict } from '../conflict.js';
-import { headEl, optionChoicesEl } from '../components.js';
+import { deleteBtn, headEl, optionChoicesEl } from '../components.js';
 import { can, el, sees } from '../config.js';
 import { setStatus } from '../feedback.js';
 import { h, icon, optionEls, setChildren } from '../dom.js';
@@ -213,7 +213,7 @@ function render({ fresh = false } = {}) {
     headEl(title),
     h('div', { class: 'm-body', id: 'booking-form' }, vesselBlock(), guestsBlock(), detailsBlock()),
     h('div', { class: 'm-foot' },
-      id ? btn('danger', 'booking-delete', 'Delete') : h('span'),
+      id ? deleteBtn('booking-delete') : h('span'),
       h('div', { class: 'right' }, btn('ghost', 'close', 'Cancel'), ' ',
         h('button', { class: 'btn primary', dataset: { act: 'booking-save' }, disabled: !(ctx().vessel && !ctx().saving) }, 'Save'))),
   );

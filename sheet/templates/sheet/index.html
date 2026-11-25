@@ -123,6 +123,7 @@
         <div class="tools">
           <select id="portSelect" class="select" hidden></select>
           <input id="search" class="input search" type="search" placeholder="Search vessel, OPR, POC, agent, service…">
+          {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="vessels"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
           <button class="btn primary" id="addVesselBtn">+ Add Vessel</button>
         </div>
       </div>

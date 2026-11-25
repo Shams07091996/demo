@@ -1,6 +1,5 @@
 """HTTP handlers: the page, the JSON API and the CSV export."""
 
-import csv
 import logging
 import re
 from datetime import date
@@ -69,9 +68,8 @@ from .constants import (
     SERVICE_TYPES,
     SUMMARY_FIELDS,
     TIME_FIELDS,
-    TIME_KEYS,
 )
-from .errors import BadRequest, Forbidden, TooManyRequests
+from .errors import BadRequest, Forbidden
 from .models import (
     ChangeRecord,
     Customer,
@@ -711,74 +709,6 @@ def option_detail(request, pk):
 
 
 # ---- CSV export -----------------------------------------------------------------------------
-
-
-def _csv_safe(cell):
-    """Stop spreadsheet formula injection when the file is opened in Excel."""
-    cell = str(cell)
-    return "'" + cell if cell[:1] in ("=", "+", "-", "@", "\t", "\r") else cell
-
-
-def _display_time(local_iso_value):
-    """'2026-11-13T08:30' -> '13.11.2026 08:30'"""
-    if not local_iso_value:
-        return ""
-    day, clock = local_iso_value.split("T")
-    return f"{'.'.join(reversed(day.split('-')))} {clock}"
-
-
-@require_http_methods(["GET"])
-def export_csv(request):
-    if not request.user.is_authenticated:
-        return HttpResponse(status=401)
-    try:
-        ratelimit.check(request, "export")
-    except TooManyRequests as error:
-        return JsonResponse({"error": str(error)}, status=error.status)
-    profile = profile_of(request.user)
-    if not profile.can("exports"):
-        return HttpResponse("You don't have permission: Excel / data exports.", status=403,
-                            content_type="text/plain; charset=utf-8")
-    try:
-        filters = listing.parse_filters(request.GET, paged=False)
-    except BadRequest as error:
-        return HttpResponse(str(error), status=400, content_type="text/plain; charset=utf-8")
-    try:
-        moneyaccess.require_sort(profile, filters.sort)
-    except Forbidden as error:
-        return HttpResponse(str(error), status=403, content_type="text/plain; charset=utf-8")
-    rows = listing.matching(listing.range_rows(profile, filters), filters)
-    response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="vessels.csv"'
-    response.write("\ufeff")  # byte-order mark so Excel reads UTF-8
-    writer = csv.writer(response)
-    head = (["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Terminal", "Berth", "Date", "Status"]
-            + [label for _, label in TIME_FIELDS] + ["Delay reason", "Services", "Total Cost LE", "Total Profit LE"])
-    lines = [
-            [
-                _csv_safe(data["name"]),
-                _csv_safe(data["opr"]),
-                _csv_safe(data["poc"]),
-                _csv_safe(data["arrival_agent"]),
-                _csv_safe(data["sailing_agent"]),
-                ports.label(data["port"]),
-                _csv_safe(data["terminal"]),
-                _csv_safe(data["berth"]),
-                date.fromisoformat(data["date"]).strftime("%d.%m.%Y"),
-                data["status"],
-                *[_display_time(data[key]) for key in TIME_KEYS],
-                _csv_safe(data["delay_reason"]),
-                _csv_safe(", ".join(s["type"] for s in data["services"])),
-                data["total_cost_egp"],
-                data["total_profit_egp"],
-            ]
-            for data in rows
-    ]
-    head, lines = moneyaccess.drop_columns(head, lines, profile)
-    writer.writerow(head)
-    writer.writerows(lines)
-    audit(request, "export.csv")
-    return response
 
 
 # ---- port closures (see closures.py) -----------------------------------------------------------

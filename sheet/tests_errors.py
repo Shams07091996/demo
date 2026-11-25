@@ -45,11 +45,11 @@ class ErrorResponseTests(ApiTestCase):
         self.assertTrue(client.login(username="alex", password="correct-horse-battery"))
         pass_two_step(client, "alex")
         with (
-            mock.patch("sheet.listing.parse_filters", side_effect=RuntimeError("boom")),
+            mock.patch("sheet.views.script_modules", side_effect=RuntimeError("boom")),
             self.assertLogs("sheet.security", level="ERROR") as logs,
             self.assertLogs("django.request", level="ERROR"),
         ):
-            response = client.get("/export.csv")
+            response = client.get("/")
         self.assertEqual(response.status_code, 500)
         text = response.content.decode()
         self.assertNotIn("Traceback", text)

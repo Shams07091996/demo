@@ -2,7 +2,7 @@
 // on the list is kept). The figures are the server's, shown read-only. Without "Add / edit vessel data" it only shows.
 import { api, mutate } from '../api.js';
 import { showConflict } from '../conflict.js';
-import { headEl } from '../components.js';
+import { deleteBtn, headEl } from '../components.js';
 import { can } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
@@ -71,7 +71,7 @@ export async function openVisitDialog(id = null) {
       h('div', { class: 'row four' }, NUMBERS.filter(([name]) => name !== 'loa').map(([name, label, step]) =>
         field(label, input(name, { type: 'number', min: name === 'cranes' ? 1 : 0, step }))))),
     h('div', { class: 'm-foot' },
-      visit && can('operation.delete') ? btn('danger', 'opv-del', 'Delete') : h('span'),
+      visit && can('operation.delete') ? deleteBtn('opv-del') : h('span'),
       h('div', { class: 'right' }, btn('ghost', 'close', editable ? 'Cancel' : 'Close'),
         editable ? [' ', btn('primary', 'opv-save', 'Save')] : null)),
   );

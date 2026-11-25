@@ -3,6 +3,10 @@
 An .xlsx file is a zip of XML parts: the workbook, one part per sheet, a style sheet, and per sheet with charts a
 drawing that places DrawingML chart parts. Excel draws the charts from the sheet's own cells (no cached values).
 
+The page look (`table_sheet`): a title line, the filters line, then the table with a bold header on the page's
+header colour, thin row lines, columns sized to fit, the header frozen with filter arrows, status cells coloured like
+the page's pills and a bold totals row. Colours are the light theme's tokens (app.css).
+
 Safety: every text is an inline string, escaped, with characters XML cannot hold removed; text never becomes a formula
 (no <f> element is ever written), whatever it starts with. Numbers are written as numbers.
 """
@@ -30,6 +34,7 @@ _EPOCH = datetime(1899, 12, 30)  # Excel's day 0 (it counts 1900 as a leap year;
 CHART_COLS, CHART_ROWS = 8, 18
 _BAD_XML = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
 _BAD_NAME = re.compile(r"[\[\]:*?/\\]")
+_CURRENCY = re.compile(r"[A-Z]{2,4}")
 
 
 @dataclass(frozen=True)
@@ -69,6 +74,30 @@ class Moment:
     value: datetime | None
 
 
+@dataclass(frozen=True)
+class Status:
+    """A status word coloured like the page's pill: tone is a key of TONES."""
+
+    text: str
+    tone: str
+
+
+@dataclass(frozen=True)
+class Price:
+    """An amount shown with its currency, as the page shows it ("USD 1,234.50"); still a number in Excel. A currency
+    that is not 2-4 capital letters is shown as plain money."""
+
+    value: float
+    currency: str
+
+
+@dataclass(frozen=True)
+class Title:
+    """The big bold first line of a table sheet."""
+
+    text: str
+
+
 @dataclass
 class Chart:
     kind: str  # "bar" (horizontal bars), "column" or "line"
@@ -84,6 +113,22 @@ class Sheet:
     rows: list
     widths: list = field(default_factory=list)
     charts: list = field(default_factory=list)
+    looks: dict = field(default_factory=dict)  # row index (0-based) -> "header" | "body" | "total" | "muted"
+    freeze: int = 0  # rows kept on screen when scrolling (the title lines and the header)
+    filter: tuple | None = None  # (header row, last row, columns), 0-based: the filter arrows
+
+
+# The light theme (app.css): header row on --surface2 with --muted text, lines in --line; pills are the status
+# colour at ~16 % over white (fill) with the colour itself as text.
+HEADER_FILL, HEADER_TEXT, LINE, STRONG_LINE = "FFEEF0F2", "FF1B1D20", "FFE3E7EC", "FF9AA1AB"
+TONES = {
+    "progress": ("FFEFE6D6", "FF9A5B00"),  # In progress / Working
+    "done": ("FFDBEAE1", "FF1B7A43"),  # Completed / Closed
+    "cancel": ("FFEDEDED", "FF646A73"),  # Cancelled (struck through)
+    "info": ("FFDEE8FC", "FF2563EB"),  # Planned / Open
+    "muted": ("FFEDEDED", "FF646A73"),
+}
+MIN_WIDTH, MAX_WIDTH = 8, 60
 
 
 def safe_sheet_name(name):
@@ -122,52 +167,220 @@ def _serial(value):
     return (value - _EPOCH.date()).days
 
 
-def _cell(ref, value):
-    """One <c> element, or "" for an empty cell."""
+def _content(value):
+    """(number format id, bold, tone, xml after the style) of a non-empty cell, or None for an empty one."""
     if value is None:
-        return ""
+        return None
     if isinstance(value, Number):
-        return "" if value.value is None else f'<c r="{ref}"><v>{_number(value.value)}</v></c>'
+        return None if value.value is None else (0, False, None, f"><v>{_number(value.value)}</v></c>")
     if isinstance(value, Day | Moment):
         if value.value is None:
-            return ""
-        style = DAY if isinstance(value, Day) else MOMENT
-        return f'<c r="{ref}" s="{style}"><v>{_number(_serial(value.value))}</v></c>'
-    if isinstance(value, Bold):
-        style, text = BOLD, value.text
-    elif isinstance(value, Hours | Money):
+            return None
+        return (165 if isinstance(value, Day) else 166, False, None, f"><v>{_number(_serial(value.value))}</v></c>")
+    if isinstance(value, Price):
+        fmt = f'"{value.currency} "#,##0.00' if _CURRENCY.fullmatch(str(value.currency)) else 4
+        return (fmt, False, None, f"><v>{_number(value.value)}</v></c>")
+    if isinstance(value, Hours | Money):
         if value.value is None:
-            return ""
-        return f'<c r="{ref}" s="{HOURS if isinstance(value, Hours) else MONEY}"><v>{_number(value.value)}</v></c>'
+            return None
+        return (164 if isinstance(value, Hours) else 4, False, None, f"><v>{_number(value.value)}</v></c>")
+    if isinstance(value, int) and not isinstance(value, bool):
+        return (3, False, None, f"><v>{value}</v></c>")
+    if isinstance(value, float):
+        return (4, False, None, f"><v>{_number(value)}</v></c>")
+    bold, tone = False, None
+    if isinstance(value, Bold | Title):
+        bold, text = True, value.text
+    elif isinstance(value, Status):
+        tone, text = value.tone, value.text
     elif isinstance(value, bool):
-        style, text = NORMAL, "Yes" if value else "No"
-    elif isinstance(value, int):
-        return f'<c r="{ref}" s="{WHOLE}"><v>{value}</v></c>'
-    elif isinstance(value, float):
-        return f'<c r="{ref}" s="{MONEY}"><v>{_number(value)}</v></c>'
+        text = "Yes" if value else "No"
     else:
-        style, text = NORMAL, value
+        text = value
     text = str(text).replace("_x", "_x005F_x")  # Excel decodes _xHHHH_ in strings; escape it to show what was typed
     space = ' xml:space="preserve"' if text != text.strip() else ""
-    style_attr = f' s="{style}"' if style else ""
-    return f'<c r="{ref}"{style_attr} t="inlineStr"><is><t{space}>{_text(text)}</t></is></c>'
+    return (0, bold, tone, f' t="inlineStr"><is><t{space}>{_text(text)}</t></is></c>')
 
 
-def _sheet_xml(sheet, has_drawing):
+# The fixed cell styles of a sheet without a look (NORMAL, BOLD, WHOLE, MONEY, HOURS, DAY, MOMENT).
+_PLAIN = {(0, False): NORMAL, (0, True): BOLD, (3, False): WHOLE, (4, False): MONEY, (164, False): HOURS,
+          (165, False): DAY, (166, False): MOMENT}
+
+
+class _Styles:
+    """The workbook's fonts, fills, borders and cell formats; the first seven formats are the fixed ones."""
+
+    def __init__(self):
+        self.fonts = ["<font><sz val=\"11\"/><name val=\"Calibri\"/></font>",
+                      "<font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font>"]
+        self.fills = ['<fill><patternFill patternType="none"/></fill>',
+                      '<fill><patternFill patternType="gray125"/></fill>']
+        self.borders = ["<border><left/><right/><top/><bottom/><diagonal/></border>"]
+        self.formats = {}  # format code -> id (164.. are fixed below; currencies from 167)
+        self.xfs = [(0, 0, 0, 0), (0, 1, 0, 0), (3, 0, 0, 0), (4, 0, 0, 0), (164, 0, 0, 0), (165, 0, 0, 0),
+                    (166, 0, 0, 0)]
+
+    @staticmethod
+    def _add(items, xml):
+        if xml not in items:
+            items.append(xml)
+        return items.index(xml)
+
+    def font(self, bold=False, size=11, color=None, strike=False):
+        xml = ("<font>" + ("<b/>" if bold else "") + ("<strike/>" if strike else "") + f'<sz val="{size}"/>'
+               + (f'<color rgb="{color}"/>' if color else "") + '<name val="Calibri"/></font>')
+        return self._add(self.fonts, xml)
+
+    def fill(self, rgb):
+        return self._add(self.fills, f'<fill><patternFill patternType="solid"><fgColor rgb="{rgb}"/>'
+                                     f'<bgColor indexed="64"/></patternFill></fill>')
+
+    def border(self, top="thin", bottom="thin", top_color=LINE, bottom_color=LINE):
+        side = f'<left style="thin"><color rgb="{LINE}"/></left><right style="thin"><color rgb="{LINE}"/></right>'
+        return self._add(self.borders, f'<border>{side}<top style="{top}"><color rgb="{top_color}"/></top>'
+                                       f'<bottom style="{bottom}"><color rgb="{bottom_color}"/></bottom>'
+                                       f"<diagonal/></border>")
+
+    def xf(self, fmt, font, fill, border, wrap=False):
+        if isinstance(fmt, str):
+            fmt = self.formats.setdefault(fmt, 167 + len(self.formats))
+        key = (fmt, font, fill, border) + ((True,) if wrap else ())
+        if key not in self.xfs:
+            self.xfs.append(key)
+        return self.xfs.index(key)
+
+    def look(self, look, fmt, bold, tone, wrap=False):
+        """The cell format of one cell of a row with a look (`wrap`: a text of several lines)."""
+        if look == "title":
+            return self.xf(fmt, self.font(bold=True, size=14), 0, 0)
+        if look == "muted":
+            return self.xf(fmt, self.font(size=10, color=TONES["muted"][1]), 0, 0)
+        if look == "header":
+            return self.xf(fmt, self.font(bold=True, color=HEADER_TEXT), self.fill(HEADER_FILL),
+                           self.border(bottom="medium", bottom_color=STRONG_LINE))
+        if look == "total":
+            return self.xf(fmt, self.font(bold=True), 0, self.border(top="medium", top_color=STRONG_LINE))
+        if tone in TONES:
+            fill, color = TONES[tone]
+            return self.xf(fmt, self.font(bold=True, color=color, strike=tone == "cancel"), self.fill(fill),
+                           self.border(), wrap)
+        return self.xf(fmt, self.font(bold=bold) if bold else 0, 0, self.border(), wrap)
+
+    def xml(self):
+        xfs = "".join(f'<xf numFmtId="{fmt}" fontId="{font}" fillId="{fill}" borderId="{border}" xfId="0"'
+                      + (' applyNumberFormat="1"' if fmt else "") + (' applyFont="1"' if font else "")
+                      + (' applyFill="1"' if fill else "") + (' applyBorder="1"' if border else "")
+                      + (' applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>' if wrap else "/>")
+                      for fmt, font, fill, border, *wrap in self.xfs)
+        return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="{MAIN}">'
+                f'<numFmts count="{3 + len(self.formats)}"><numFmt numFmtId="164" formatCode="0.0"/>'
+                '<numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>'
+                '<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/>'
+                + "".join(f'<numFmt numFmtId="{i}" formatCode="{_attr(code)}"/>' for code, i in self.formats.items())
+                + "</numFmts>"
+                f'<fonts count="{len(self.fonts)}">{"".join(self.fonts)}</fonts>'
+                f'<fills count="{len(self.fills)}">{"".join(self.fills)}</fills>'
+                f'<borders count="{len(self.borders)}">{"".join(self.borders)}</borders>'
+                '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+                f'<cellXfs count="{len(self.xfs)}">{xfs}</cellXfs>'
+                '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
+
+
+def _cell(ref, value, styles=None, look=None):
+    """One <c> element, or "" for an empty cell (a styled row's empty cells keep their lines and colour)."""
+    content = _content(value)
+    if look and look not in ("title", "muted"):
+        fmt, bold, tone, body = content or (0, False, None, "/>")
+        style = styles.look(look, fmt, bold, tone, wrap="\n" in body)
+        return f'<c r="{ref}" s="{style}"{body if content else "/>"}'
+    if content is None:
+        return ""
+    fmt, bold, tone, body = content
+    if look:
+        style = styles.look(look, fmt, bold, tone)
+    elif isinstance(fmt, str):
+        style = styles.xf(fmt, 0, 0, 0)
+    else:
+        style = _PLAIN.get((fmt, bold), NORMAL)
+    if isinstance(value, Number):
+        style = NORMAL
+    return f'<c r="{ref}"' + (f' s="{style}"' if style else "") + body
+
+
+def _sheet_xml(sheet, has_drawing, styles):
     cols = "".join(f'<col min="{i + 1}" max="{i + 1}" width="{w}" customWidth="1"/>'
                    for i, w in enumerate(sheet.widths) if w)
+    width = max((len(row) for row in sheet.rows), default=0)
     rows = []
     for r, row in enumerate(sheet.rows, 1):
-        cells = "".join(_cell(f"{_col(c)}{r}", value) for c, value in enumerate(row))
-        rows.append(f'<row r="{r}">{cells}</row>')
+        look = sheet.looks.get(r - 1)
+        cells = list(row) + [None] * (width - len(row)) if look in ("header", "body", "total") else row
+        xml = "".join(_cell(f"{_col(c)}{r}", value, styles, look) for c, value in enumerate(cells))
+        rows.append(f'<row r="{r}">{xml}</row>')
+    view = ""
+    if sheet.freeze:
+        view = (f'<sheetViews><sheetView workbookViewId="0"><pane ySplit="{sheet.freeze}" '
+                f'topLeftCell="A{sheet.freeze + 1}" activePane="bottomLeft" state="frozen"/>'
+                f'<selection pane="bottomLeft"/></sheetView></sheetViews>')
+    auto = f'<autoFilter ref="{_filter_ref(sheet.filter)}"/>' if sheet.filter else ""
     return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="{MAIN}" xmlns:r="{REL}">'
-            + (f"<cols>{cols}</cols>" if cols else "") + f"<sheetData>{''.join(rows)}</sheetData>"
-            + ('<drawing r:id="rId1"/>' if has_drawing else "") + "</worksheet>")
+            + view + (f"<cols>{cols}</cols>" if cols else "") + f"<sheetData>{''.join(rows)}</sheetData>"
+            + auto + ('<drawing r:id="rId1"/>' if has_drawing else "") + "</worksheet>")
+
+
+def _filter_ref(spec, absolute=False):
+    first, last, columns = spec
+    sign = "$" if absolute else ""
+    return f"{sign}A{sign}{first + 1}:{sign}{_col(max(columns, 1) - 1)}{sign}{max(last, first) + 1}"
+
+
+def _shown(value):
+    """How many characters a cell needs on screen (for the column width)."""
+    if isinstance(value, Day):
+        return 10 if value.value else 0
+    if isinstance(value, Moment):
+        return 16 if value.value else 0
+    if isinstance(value, Price):
+        return len(value.currency) + 1 + len(f"{value.value:,.2f}")
+    if isinstance(value, Number | Hours | Money):
+        value = value.value
+        if value is None:
+            return 0
+    if isinstance(value, bool):
+        return 3
+    if isinstance(value, int | float):
+        return len(f"{value:,.2f}") if isinstance(value, float) else len(f"{value:,}")
+    if isinstance(value, Bold | Status | Title):
+        value = value.text
+    return max((len(line) for line in str(value).splitlines()), default=0) if value is not None else 0
+
+
+def fit_widths(rows):
+    """Column widths that fit the longest value of each column (header included), within MIN_WIDTH..MAX_WIDTH."""
+    columns = max((len(row) for row in rows), default=0)
+    return [min(MAX_WIDTH, max(MIN_WIDTH, max((_shown(row[c]) for row in rows if c < len(row)), default=0) + 3))
+            for c in range(columns)]
+
+
+def table_sheet(name, title, subtitle, head, rows, total=None):
+    """A page's table with the page look: title, filters line, empty line, header, rows, optional totals row."""
+    rows = [list(row) for row in rows]
+    layout = [[Title(title)], [subtitle] if subtitle else [], [], list(head), *rows]
+    looks = {3: "header", 1: "muted", 0: "title"}
+    looks.update({4 + i: "body" for i in range(len(rows))})
+    if total:
+        layout.append(list(total))
+        looks[len(layout) - 1] = "total"
+    return Sheet(name, layout, widths=fit_widths([head, *rows, *([total] if total else [])]), looks=looks, freeze=4,
+                 filter=(3, 3 + len(rows), len(head)))
+
+
+def _quoted(sheet_name):
+    return "'" + sheet_name.replace("'", "''") + "'"
 
 
 def _ref(sheet_name, first_row, last_row, col):
-    quoted = sheet_name.replace("'", "''")
-    return f"'{quoted}'!${_col(col)}${first_row + 1}:${_col(col)}${last_row + 1}"
+    return f"{_quoted(sheet_name)}!${_col(col)}${first_row + 1}:${_col(col)}${last_row + 1}"
 
 
 def _chart_xml(sheet_name, chart):
@@ -233,27 +446,6 @@ def _rels(targets):
             f'<Relationships xmlns="{PKG_REL}">{items}</Relationships>')
 
 
-STYLES = (
-    f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="{MAIN}">'
-    '<numFmts count="3"><numFmt numFmtId="164" formatCode="0.0"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>'
-    '<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/></numFmts>'
-    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>'
-    '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
-    '<fills count="2"><fill><patternFill patternType="none"/></fill>'
-    '<fill><patternFill patternType="gray125"/></fill></fills>'
-    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
-    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    '<cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
-    '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
-    '<xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
-    '<xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
-    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
-    '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
-    '<xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>'
-    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'
-)
-
-
 def build(sheets):
     """The workbook as .xlsx bytes. Sheet names are made safe and unique."""
     names, seen = [], set()
@@ -270,8 +462,9 @@ def build(sheets):
     overrides = [("/xl/workbook.xml", f"{CT}.spreadsheetml.sheet.main+xml"),
                  ("/xl/styles.xml", f"{CT}.spreadsheetml.styles+xml")]
     drawing_no = chart_no = 0
+    styles = _Styles()
     for i, (sheet, name) in enumerate(zip(sheets, names, strict=True), 1):
-        parts[f"xl/worksheets/sheet{i}.xml"] = _sheet_xml(sheet, bool(sheet.charts))
+        parts[f"xl/worksheets/sheet{i}.xml"] = _sheet_xml(sheet, bool(sheet.charts), styles)
         overrides.append((f"/xl/worksheets/sheet{i}.xml", f"{CT}.spreadsheetml.worksheet+xml"))
         if not sheet.charts:
             continue
@@ -289,11 +482,16 @@ def build(sheets):
 
     sheet_list = "".join(f'<sheet name="{_attr(name)}" sheetId="{i}" r:id="rId{i}"/>'
                          for i, name in enumerate(names, 1))
+    filters = "".join(
+        f'<definedName name="_xlnm._FilterDatabase" localSheetId="{i}" hidden="1">'
+        f"{_text(_quoted(name))}!{_filter_ref(sheet.filter, absolute=True)}</definedName>"
+        for i, (sheet, name) in enumerate(zip(sheets, names, strict=True)) if sheet.filter)
     parts["xl/workbook.xml"] = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-                                f'<workbook xmlns="{MAIN}" xmlns:r="{REL}"><sheets>{sheet_list}</sheets></workbook>')
+                                f'<workbook xmlns="{MAIN}" xmlns:r="{REL}"><sheets>{sheet_list}</sheets>'
+                                + (f"<definedNames>{filters}</definedNames>" if filters else "") + "</workbook>")
     parts["xl/_rels/workbook.xml.rels"] = _rels(
         [("worksheet", f"worksheets/sheet{i}.xml") for i in range(1, len(sheets) + 1)] + [("styles", "styles.xml")])
-    parts["xl/styles.xml"] = STYLES
+    parts["xl/styles.xml"] = styles.xml()
     parts["_rels/.rels"] = _rels([("officeDocument", "xl/workbook.xml")])
     types = "".join(f'<Override PartName="{p}" ContentType="{t}"/>' for p, t in overrides)
     parts["[Content_Types].xml"] = (

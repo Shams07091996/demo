@@ -7,6 +7,7 @@ import { headEl } from '../components.js';
 import { h, optionEls } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
 import { state } from '../state.js';
+import { CAN_GROUPS, NEEDS, PAGE_GROUPS, grouped, withNeeds } from '../tickGroups.js';
 import { $, $$ } from '../util.js';
 
 const field = (label, control) => h('div', { class: 'field' }, h('label', null, label), control);
@@ -28,26 +29,55 @@ function syncHomeTick() {
   });
 }
 
-// Ticks that need another one are disabled (and unticked) without it: Calculations / Exchange rates and History
-// need See money; Close / reopen lines needs the Calculations page. Vessels is always on; the History page follows
-// the History permission (the server stores it the same way).
+// Ticks that need another one are disabled (and unticked) without it (tickGroups.NEEDS, the server's rule): e.g.
+// Calculations / Exchange rates and History need See money; Close / reopen lines needs the Calculations page; the
+// Operation ticks need Vessel Data. Vessels is always on; the History page follows the History permission.
 const box = (attr, key) => $(`#account-form [data-${attr}="${key}"]`);
+const tickOf = (id) => {
+  const [kind, key] = id.split(':');
+  return box(kind === 'perm' ? 'perm' : 'tick-page', key);
+};
+
 function syncNeeds() {
   if (!box('perm', 'money.view')) return;
-  const set = (attr, key, enabled, forced) => {
-    const el = box(attr, key);
-    if (!el) return;
-    el.disabled = !enabled;
-    if (forced !== undefined) el.checked = forced;
-    else if (!enabled) el.checked = false;
-  };
-  const money = box('perm', 'money.view').checked;
-  set('tick-page', 'calculations', money);
-  set('tick-page', 'rates', money);
-  set('perm', 'history.view', money);
-  set('perm', 'accounting.close', box('tick-page', 'calculations').checked);
-  set('tick-page', 'vessels', false, true);
-  set('tick-page', 'history', false, box('perm', 'history.view').checked);
+  for (let pass = 0; pass < 3; pass += 1) {
+    Object.entries(NEEDS).forEach(([id, need]) => {
+      const el = tickOf(id);
+      const needed = tickOf(need);
+      if (!el || !needed) return;
+      if (id === 'page:history') {
+        el.disabled = true;
+        el.checked = needed.checked;
+        return;
+      }
+      el.disabled = !needed.checked;
+      if (el.disabled) el.checked = false;
+    });
+  }
+  const vessels = box('tick-page', 'vessels');
+  if (vessels) {
+    vessels.disabled = true;
+    vessels.checked = true;
+  }
+  // Each "All" shows ticked when every box it covers is.
+  $$('#account-form [data-all]').forEach((all) => {
+    all.checked = all.dataset.all.split(',').every((id) => tickOf(id)?.checked);
+  });
+}
+
+// An "All" ticks (or unticks) every box it covers, and with them what they need.
+function toggleAll(all) {
+  const ids = all.dataset.all.split(',');
+  const set = (id, on) => { const el = tickOf(id); if (el) el.checked = on; };
+  if (all.checked) withNeeds(ids).forEach((id) => set(id, true));
+  else ids.forEach((id) => set(id, false));
+  syncNeeds();
+}
+
+function allEl(ids, label) {
+  const all = h('input', { attrs: { type: 'checkbox' }, dataset: { all: ids.join(',') } });
+  all.addEventListener('change', () => toggleAll(all));
+  return h('label', { class: 'tick tick-all' }, all, ` ${label}`);
 }
 
 function applyTemplate(templates, key) {
@@ -59,12 +89,14 @@ function applyTemplate(templates, key) {
   syncNeeds();
 }
 
-function ticksEl(list, attr, chosen) {
-  return h('div', { class: 'ticks' }, list.map(([key, label]) => {
-    const tick = h('input', { attrs: { type: 'checkbox' }, dataset: { [attr]: key }, checked: chosen.has(key) });
-    tick.addEventListener('change', syncNeeds);
-    return h('label', { class: 'tick' }, tick, ` ${label}`);
-  }));
+function ticksEl(list, groups, attr, prefix, chosen) {
+  return h('div', null, grouped(list, groups).map(([label, items]) => h('div', { class: 'tick-group' },
+    allEl(items.map(([key]) => `${prefix}:${key}`), label),
+    h('div', { class: 'ticks' }, items.map(([key, itemLabel]) => {
+      const tick = h('input', { attrs: { type: 'checkbox' }, dataset: { [attr]: key }, checked: chosen.has(key) });
+      tick.addEventListener('change', syncNeeds);
+      return h('label', { class: 'tick' }, tick, ` ${itemLabel}`);
+    })))));
 }
 
 export function openAccountDialog(account, lists, onDone) {
@@ -85,8 +117,9 @@ export function openAccountDialog(account, lists, onDone) {
   const template = h('select', { attrs: { name: 'template', 'aria-label': 'Template' } },
     optionEls([['', 'Custom'], ...templates.map(([key, label]) => [key, label])], ''));
   template.addEventListener('change', () => applyTemplate(templates, template.value));
-  const pageTicks = ticksEl(pages, 'tickPage', new Set(account?.pages ?? ['vessels']));
-  const permTicks = ticksEl(permissions, 'perm', new Set(account?.permissions ?? []));
+  const pageTicks = ticksEl(pages, PAGE_GROUPS, 'tickPage', 'page', new Set(account?.pages ?? ['vessels']));
+  const permTicks = ticksEl(permissions, CAN_GROUPS, 'perm', 'perm', new Set(account?.permissions ?? []));
+  const everything = [...pages.map(([key]) => `page:${key}`), ...permissions.map(([key]) => `perm:${key}`)];
   const ticks = offered.map(([key, label]) => h('label', { class: 'tick' },
     h('input', { attrs: { type: 'checkbox' }, dataset: { port: key, locked: locked ? '1' : '0' }, checked: has.has(key) }),
     ` ${label}`));
@@ -100,6 +133,7 @@ export function openAccountDialog(account, lists, onDone) {
       locked ? null : field('Home port', home),
       locked ? null : field('Extra ports', h('div', { class: 'ticks' }, ticks)),
       locked ? null : field('Template', template),
+      locked ? null : allEl(everything, 'All'),
       locked ? null : field('Pages', pageTicks),
       locked ? null : field('Can', permTicks),
       account ? null : field('Temporary password', h('div', null, password,

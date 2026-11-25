@@ -109,7 +109,7 @@ routes call `access.require_page(profile, page)` (see **Permissions and pages**)
 with `api.audit(...)`; values go through `api.log_safe`. `handler404` / `handler500` (`views.not_found` /
 `server_error`) answer JSON under `/api/`, plain pages elsewhere.
 
-**Security plumbing:** `ratelimit.py` (writes per user / address, CSV per user, counted in `RateCounter`; a broken
+**Security plumbing:** `ratelimit.py` (writes per user / address, exports per user, counted in `RateCounter`; a broken
 counter refuses writes, allows reads), `alerts.note(kind)` (threshold → one `sheet.alert` record + `mail_admins`),
 `checks.py` (deploy check `sheet.E001`). **Change history** (`history.py`): model signals on Vessel, Service,
 HotelStay, Transfer, Guest, Option, ExchangeRate, PortClosure, Profile and auth `User` (no password hash, no last_login) write a `ChangeRecord` (who / when / IP / old → new) in the
@@ -155,7 +155,7 @@ maths for the live preview (`js/calc.js`, same rounding), but the server's numbe
 **Vessel list** (`listing.py`): the database narrows by date range and port; every vessel in that range gets its
 figures computed once; then search (literal, case-insensitive), OPR bucket (ARK / MSK / other / with services), exact
 OPR, sorting (ties by newest id) and paging run in Python. `totals` cover range + port only. The same module serves
-the alerts (today / tomorrow in Cairo time, and past vessels missing details) and the CSV export.
+the alerts (today / tomorrow in Cairo time, and past vessels missing details) and the Vessels Excel.
 
 **Dashboard** (`dashboard.py`, `GET /api/dashboard/` and `/api/dashboard/jobs/`): vessels in date range + port (+ exact
 OPR) → jobs (arrival = 1 for the arrival agent, sailing = 1 for the sailing agent, each service = 1 for its agent; a
@@ -196,7 +196,7 @@ days before the vessel date, 60-day look-back, cleared by any broken-visa amount
 letter for boarding" as a PDF written with the **standard library only** (the user refused any PDF library): built-in
 fonts with WinAnsi (`to_winansi`: Ş → S, Cyrillic → ?), JPEGs placed raw (`/DCTDecode`, only the header is read), every
 value a plain escaped PDF string, never `{{ }}`. Edit roles only (`require_edit`, scoped, Crew Change on-signers), rate
-limited like the CSV export, recorded in the History (action `letter`). The logo / stamp / footer JPEGs come from
+limited like the exports, recorded in the History (action `letter`). The logo / stamp / footer JPEGs come from
 `DJANGO_LETTERHEAD_DIR` (`logo.jpg`, `stamp.jpg`, `footer.jpg`) — **never in git (the GitHub repo is public) and never
 under `static/`**; missing → the letter has no pictures. "TO:" is every flight leg's airline, each once, joined with " / " (`views._airlines`). Its layout: bold "Flight:" above the flights on page 1, the
 personal details on page 2 under a bold "Personal details:" with the stamp beside them.
@@ -212,17 +212,34 @@ no revenue → the label only); POST with the edited text (`validators.clean_rec
 History records action `receipt` (migration 0017 widened `ChangeRecord.action` to 7). Scoped, `require_edit`, rate
 limited with the exports. The LOG and the receipt download through `api.download()`.
 
-**Management Excel** (`xlsx.py`, `report.py`, `GET /api/dashboard/export/?from=&to=&port=`, `views.dashboard_export`, the Dashboard's **Excel** button `data-act="dashboard-export"`): a `.xlsx` written with the **standard library only** (`zipfile` + escaped XML; text cells are always inline strings, never formulas; native DrawingML charts). `report.data(profile, Range, now)` builds ten sheets of tables (`{"head", "rows", "total"}`); money comes **only** from `calculations.rows_for` (so it equals the Calculations page, hotels / transport / garbage included), job counts from `dashboard.response`; `report.workbook` lays them out (title, range line, tables, notes, one chart; a sheet whose figures are all zero shows "No data"). From and To required, at most 24 months; everyone, Users get their ports (a one-port User's files are named after it); rate limited with the exports; audit `dashboard.export`. `crewbookings.early_on_signers(service)` counts every early on-signer (visa charged or not).
+**Management Excel** (`xlsx.py`, `report.py`, `GET /api/dashboard/export/?from=&to=&port=`, `views.dashboard_export`, the Dashboard's **Excel** button `data-act="dashboard-export"`): a `.xlsx` written with the **standard library only** (`zipfile` + escaped XML; text cells are always inline strings, never formulas; native DrawingML charts). `report.data(profile, Range, now)` builds ten sheets of tables (`{"head", "rows", "total"}`); money comes **only** from `calculations.rows_for` (so it equals the Calculations page, hotels / transport / garbage included), job counts from `dashboard.response`; `report.workbook` lays them out with the page look (title, range line, tables with styled header / row lines / bold totals, fitted widths, the first table's header frozen, notes, one chart; a sheet whose figures are all zero shows "No data"). From and To required, at most 24 months; everyone, Users get their ports (a one-port User's files are named after it); rate limited with the exports; audit `dashboard.export`. `crewbookings.early_on_signers(service)` counts every early on-signer (visa charged or not).
 
-**Data export** (`dataexport.py`, `GET /api/export/<page>/?<that page's list query>` with page `hotels` / `transfers` /
-`closures` / `disposal` / `calculations`, and `GET /api/export/all/?from=&to=&port=`; `views.data_export` /
-`data_export_all`; buttons `data-act="page-export" data-page=…` on each page and `dashboard-data-export` beside the
-Dashboard's Excel): plain tables for other programs — one fixed header row, one row per record, numbers as numbers,
-`xlsx.Day` / `xlsx.Moment` real Excel dates (Cairo time), no titles / totals / notes. Each sheet takes its page's own
-unpaged rows (`logistics.filtered`, `closures.filtered`, `calculations.filtered`, `disposal.response`), so filters and
-port scoping are the page's; the page modules' `exportQuery()` is their list query without `page` / `page_size`. All
-data: the five sheets, From–To required (at most 24 months, `views._export_range`, shared with the management Excel),
-each page reading the range its own way. Every role; rate limited with the exports; audit `data.export`.
+**Page Excel files** (`dataexport.py`, `GET /api/export/<page>/?<that page's list query>` with page `vessels` /
+`hotels` / `transfers` / `closures` / `disposal` / `calculations` / `services`, and `GET /api/export/all/?from=&to=&port=`;
+`views.data_export` / `data_export_all`; buttons `data-act="page-export" data-page=…` on each page (Vessels too, beside
++ Add Vessel; the old `/export.csv` is gone) and `dashboard-data-export` beside the Dashboard's Excel): **each file is the
+page's table with the page look** (user's decision, 2026-11-26). `dataexport.COLUMNS[page]` = the page's headings in its
+order, each with the page's rule (`port` = several ports, `money.edit`, `completed` = Completed ticked on Services);
+`tests_page_excel` reads the front end's headings (`bookings.js` HOTEL/TRANSFER_COLUMNS, `closures.js` / `calculations.js`
+COLUMNS, `disposal.js` / `services.js` `heads`, the Vessels `<thead>` in `index.html`, `opVessels.js` COLUMNS for
+`operation/visits.EXPORT_HEAD`) and must stay equal: **a new page column needs its export column**. No ids or other
+columns the page does not show; a two-amount cell becomes two columns (`SPLIT`: Garbage & Sludge LE / USD); Calculations'
+Cost / Revenue are the LE amounts, with the page's totals as a bold last row (Garbage & Sludge too, with `money.view`).
+Values typed: numbers, `xlsx.Day` / `Moment` (Cairo), `xlsx.Price(value, currency)` (a number shown "USD 1,234.00"),
+`xlsx.Status(text, tone)` coloured like the pills, "—" = empty. Each sheet takes its page's own unpaged rows
+(`listing.matching`, `logistics.filtered`, `closures.filtered`, `calculations.filtered`, `disposal.response`,
+`services.filtered`), so filters and port scoping are the page's; the page modules' `exportQuery()` is their list query
+without `page` / `page_size`. All data: five sheets (not Vessels / Services), From–To required (at most 24 months,
+`views._export_range`, shared with the management Excel), each page reading the range its own way. Every role with
+`exports` and the page; rate limited with the exports; audit `data.export`.
+
+**Excel look** (`xlsx.table_sheet(name, title, filters line, head, rows, total=None)`): title (bold 14), the filters
+line (`dataexport.filters_line`: range, ports, search), an empty line, the header (bold on `HEADER_FILL` with a line
+under), body rows with thin lines, the totals row bold with a line over; `fit_widths` sizes columns (8–60), the header is
+frozen (`Sheet.freeze`) with filter arrows (`Sheet.filter` + the `_xlnm._FilterDatabase` name); a text of several lines
+wraps. `Sheet.looks` maps row index → `title` / `muted` / `header` / `body` / `total`; a sheet without looks writes
+exactly as before (fixed styles 0–6). Styles are collected per workbook (`xlsx._Styles`); currencies get number formats
+from 167. Colours are the light theme tokens (`HEADER_FILL`, `TONES`).
 
 **Edit conflicts** (`conflicts.py`, migration 0018, `js/conflict.js`): Vessel, Service, HotelStay, Transfer and PortClosure have `version`. Every update of those (vessel / service PUT-PATCH, booking / closure PUT) must send it (missing → 400 "This page is out of date…"); `conflicts.locked` re-reads the row with `select_for_update`, a different version → **409** `{"error": "conflict", "conflict": {who, same_person, at, fields, version}}` and nothing saved (who / fields from the History records whose version rose). `bump_if_changed` raises it **before** the save, only when the values (compared with `==`; booking guests in any order) really differ; automatic writes (`crewbookings.sync`, sailing-day rule) never touch it. Admin-page saves raise it (`admin.VersionedAdmin`; read-only there). The History page hides `version`. Front end: `api()` errors carry `.status` / `.data`; `mutate(action, onConflict)` sends a 409 to `showConflict` (panel `#conflict-panel`, `data-act` `conflict-reload` / `conflict-force`); each dialog keeps the version it opened with. Tests: `ApiTestCase.call` adds the current version to such updates itself; the real check is in `tests_conflicts_api` (raw requests).
 
@@ -326,7 +343,7 @@ Cancelled `services.cancel`, to or from Completed `services.complete`; a new ser
 Page-only routes: `/api/services/` services, `/api/hotels|transfers/…` hotels / transport (crew picker: either),
 `/api/closures/…`, `/api/disposal/…`, `/api/calculations/`, `/api/dashboard/` + jobs, `/api/rates/` and
 `/api/disposal-prices/` (rates page). Vessels, alerts, options, ships and customers stay readable for dropdowns.
-Exports: `exports` + the page (`dataexport.EXPORT_PAGE`); the CSV `exports`; All data and the management Excel need
+Exports: `exports` + the page (`dataexport.EXPORT_PAGE`, Vessels included); All data and the management Excel need
 the Dashboard page and leave out the sheets of pages not had (`dataexport.all_pages_for`, `report.data`); the
 alerts' `Hotel: …` / `Transport: …` lines follow those pages. History: `history.view`; a User gets only
 `history.PORT_TYPES` records of their ports (Profile records carry a home port, so types, not ports, keep people out;
@@ -351,9 +368,10 @@ has a stable 12-hex `uid` made by `validators._uid`; `keep_booking_money`; `save
 **sending any key is 403** (`service_money_sent`, `booking_money_sent`, `"rates" in payload`); `cancel_bookings(...,
 zero_money=)` zeroes booking money only with it. **`money.view`** (overviews): `vessel_out` drops `total_cost_egp` /
 `total_profit_egp` and every service's `calc`, `totals_out` the list's money totals, `require_sort` refuses
-`sort=total_cost_egp` (403, list and CSV), `dashboard_out` the Dashboard's money keys, `disposal_out` the page's
+`sort=total_cost_egp` (403, list and Vessels Excel), `dashboard_out` the Dashboard's money keys, `disposal_out` the page's
 `totals`, `tags_out` the Services page's `Cost` / `Revenue` / `Rate` tags (also in `missing=1` and the export),
-`drop_columns` / `money_columns` every column whose head is in `MONEY_HEADS` (CSV, data exports, management Excel;
+`money_columns` every column whose head is in `MONEY_HEADS` (the management Excel; the page Excel files follow their
+page's own column rules;
 the Excel also drops "Profit by service" and the Summary's money notes; `report.CHARTS` name their series by head,
 so a chart whose column is gone is not drawn). Front end: `config.can('money.edit' | 'money.view')` hides the boxes /
 pills / columns / panels (the template leaves out the Dashboard's money panels), `js/moneyKeys.js` `stripMoney` (twin
@@ -373,7 +391,11 @@ account already has it; at most 50), `permissions` / `pages` (`_account_ticks`: 
 Vessels added, History set from `history.view`; dependencies refused; absent on an existing account = kept),
 password through Django's `validate_password`; existing → names / ports / ticks / `active` only, anything else
 ignored. The dialog: Home port select + Extra ports ticks (the home's tick on and fixed), Template (fills the ticks,
-not saved), Pages and Can ticks (a tick that needs another is disabled and unticked without it). Superuser and staff accounts are
+not saved), Pages ticks grouped like the sidebar (Marine / Operation / Reports / Master data) and Can ticks grouped
+Marine / Operation / General (`js/tickGroups.js`, twin of `PAGE_NEEDS` / `PERMISSION_NEEDS`, checked by
+`tests_permissions.TickGroupsTwinTests`; a new permission or page must be put in a group), each group with an **All**
+tick plus one top **All** (an All also ticks what its boxes need); a tick that needs another is disabled and unticked
+without it. Superuser and staff accounts are
 refused (`accounts.LOCKED_ACCOUNT`, managed in the admin pages); the page never sets either flag. Turn off =
 `is_active=False` (Django drops the session on the next request) + the user's remembered computers deleted. The
 temporary password triggers `must_change_password` through the existing signal; History via the User / Profile
@@ -413,7 +435,8 @@ Live data's moves/hr = moves ÷ hours since ATB. Pages (`constants.PAGES` `op_ve
 with them off, the Branch manager template has them. **Vessel Data** (`visits.py`, `GET/POST /api/operation/visits/`,
 `PUT/DELETE …/<id>/` with `conflicts`, filters status / terminal / line / q / from–to on the report date (ATA's Cairo
 date, else ETA's) / port, sorts, paging; Excel `…/visits/export/` with `exports`), **Live data** (`live.py`, one card
-per turned-on terminal: calls in 7 days, Working vessels, those due in 7 days; All / one-terminal buttons in the
+per turned-on terminal: calls in 7 days, Working vessels, Next 7 days = not berthed and ETA from today 00:00 Cairo through the 6th day
+after, plus every arrived-not-berthed vessel marked Arrived; All / one-terminal buttons in the
 page; the terminal's picture on top when the server has one: `pictures.py`, `<letterhead folder>/terminals/<CODE>.png|.jpg`,
 PNG / JPEG by first bytes, 1 MB, codes of letters / digits / _ / - only, `GET …/terminals/<id>/picture/` scoped; no upload
 in the app, never in git — the cut demo pictures live in git-ignored `terminal-pictures/`), **Vessel list** (`vessel_list.py`,
@@ -431,7 +454,7 @@ Operation ticks.
 
 **Terminal / berth** (migration 0029): `Vessel.terminal` (Master data "Terminal" list of its port, optional) and
 `Vessel.berth` (typed, 20 characters); a save without the key keeps the stored value. Shown in the vessel form and
-Port call block, in the vessel CSV, and as a "Port / Terminal / Berth" table on the management Excel's Port
+Port call block, and as a "Port / Terminal / Berth" table on the management Excel's Port
 performance sheet. `seed_demo` adds terminals for every demo port (Alexandria ACCHCO / AICT, Port Said TMT…).
 
 **Delay reason:** `Vessel.delay_reason` (Master data "Delay reason" list) is required when berthing is more than 2
@@ -473,6 +496,8 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
   and `sheet/tests_frontend_safety.py` checks the files. Hide/show template elements with the `hidden` attribute.
   No Trusted Types policy may be created (`trusted-types 'none'`); there is no PDF reader any more (removed for
   security; crew are added with + Add and pasted text).
+- **Delete / Remove buttons** show only the bin icon: `components.deleteBtn(act, dataset, cls = 'danger', label =
+  'Delete')` (`title` and `aria-label` carry the word).
 - **Icons** are one inline SVG sprite, `templates/sheet/icons.svg`, included once per page; templates use
   `<svg class="ic" aria-hidden="true"><use href="#i-NAME"></use></svg>` and JS uses `dom.js` `icon(name)`, which only
   accepts names in `ICONS` (kept equal to the sprite by `tests_look`). No emoji or dingbat anywhere in templates / JS

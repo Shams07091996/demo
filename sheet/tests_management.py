@@ -235,6 +235,15 @@ class ExportTests(ManagementFixture):
         self.assertEqual(re.findall(r'<sheet name="([^"]+)"', files["xl/workbook.xml"]), SHEETS)
         self.assertIn("xl/charts/chart1.xml", files)
 
+    def test_export_has_the_page_look(self):
+        files = parts(self.get("admin"))
+        sheet = files["xl/worksheets/sheet1.xml"]
+        self.assertIn('<pane ySplit="4" topLeftCell="A5"', sheet)  # the first table's header stays on screen
+        header = int(re.search(r'<c r="A4" s="(\d+)"', sheet).group(1))
+        xf = re.findall(r"<xf [^>]*/>", re.search(r"<cellXfs[^>]*>(.*?)</cellXfs>", files["xl/styles.xml"]).group(1))
+        self.assertIn('applyFill="1"', xf[header])  # header on the page's header colour
+        self.assertNotIn('width="14"', sheet)  # widths fitted, not a fixed 14
+
     def test_export_needs_a_range(self):
         client = self.login("admin")
         response = client.get(self.URL)

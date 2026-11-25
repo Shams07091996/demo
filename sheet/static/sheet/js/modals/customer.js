@@ -1,7 +1,7 @@
 // The customer dialog: name, notes, active, contacts, agreed rates (one per service type; what a rate means is
 // RATE_UNITS) and the linked ships. Admins edit; everyone else sees it read-only.
 import { api, mutate } from '../api.js';
-import { headEl } from '../components.js';
+import { deleteBtn, headEl } from '../components.js';
 import { ME, RATE_UNITS, can } from '../config.js';
 import { h, optionEls } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
@@ -26,7 +26,7 @@ function contactRowEl(c = {}) {
     input('c_role', c.role, { maxlength: 60, 'aria-label': 'Role' }),
     input('c_email', c.email, { maxlength: 254, type: 'email', 'aria-label': 'Email' }),
     h('div', { class: 'with-btn' }, input('c_phone', c.phone, { maxlength: 40, type: 'tel', 'aria-label': 'Phone' }),
-      mayEdit() ? h('button', { class: 'btn ghost small', attrs: { type: 'button', title: 'Remove' }, dataset: { act: 'contact-remove' } }, 'Remove') : null));
+      mayEdit() ? deleteBtn('contact-remove', {}, 'ghost small', 'Remove') : null));
 }
 
 function rateRowEl(type, rate) {
@@ -64,7 +64,7 @@ export function openCustomerDialog(customer, onDone) {
           : h('span', { class: 'none' }, 'None'))
         : null),
     h('div', { class: 'm-foot' },
-      customer && ME.isAdmin ? btn('danger', 'customer-del', 'Delete') : h('span'),
+      customer && ME.isAdmin ? deleteBtn('customer-del') : h('span'),
       h('div', { class: 'right' }, btn('ghost', 'close', mayEdit() ? 'Cancel' : 'Close'),
         mayEdit() ? ' ' : null, mayEdit() ? btn('primary', 'customer-save', 'Save') : null)),
   );

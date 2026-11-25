@@ -4,7 +4,7 @@ from datetime import date
 
 from .models import ChangeRecord, Customer, HotelStay, Service, Ship
 from .tests import ApiTestCase
-from .tests_dataexport import read
+from .tests_dataexport import read, table
 
 
 class ServiceBillingTests(ApiTestCase):
@@ -135,10 +135,10 @@ class CalculationsBillingTests(ApiTestCase):
 
     def test_calculations_export_has_billing_columns(self):
         content = self.login("admin").get("/api/export/calculations/", {"port": "alexandria"}).content
-        sheet = read(content)["Calculations"]
-        head = sheet[0]
-        self.assertEqual(head[head.index("Accounting") + 1:], ["Billing party", "Billing"])
-        cash = next(r for r in sheet[1:] if r[head.index("Item")] == "Certificates")
-        hotel = next(r for r in sheet[1:] if r[head.index("Item")] == "Hotel stay")
-        self.assertEqual(cash[-2:], ["Blue Owners", "Cash"])
-        self.assertEqual([c or "" for c in hotel[-2:]], ["", ""])
+        head, *rows = table(read(content)["Calculations"])
+        party = head.index("Billing party")
+        self.assertEqual(head[party - 1:party + 3], ["Status", "Billing party", "Billing", "Accounting"])
+        cash = next(r for r in rows if r[head.index("Item")].startswith("Certificates"))
+        hotel = next(r for r in rows if r[head.index("Item")].startswith("Hotel ·"))
+        self.assertEqual(cash[party:party + 2], ["Blue Owners", "Cash"])
+        self.assertEqual([c or "" for c in (hotel + [None] * 12)[party:party + 2]], ["", ""])

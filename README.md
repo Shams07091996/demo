@@ -97,7 +97,7 @@ location / {
 
 | Page | What it is for |
 |---|---|
-| Vessels | The vessel table for a **From – To date range** (this month by default), quick-add bar, search / ARK–MSK filters, sorting and paging (10 / 25 / 50 / 100 rows) – all done by the server – a *Summary of services* button on every vessel, CSV export of everything matching |
+| Vessels | The vessel table for a **From – To date range** (this month by default), quick-add bar, search / ARK–MSK filters, sorting and paging (10 / 25 / 50 / 100 rows) – all done by the server – a *Summary of services* button on every vessel, an **Excel** button (the table as on the page, every matching row) |
 | Hotels | Every hotel stay (one room, 1–6 crew guests, check-in, nights, hotel from Master data) with guest and vessel, for a date range and port; cost and revenue per night; Users add / edit / delete in their ports |
 | Transport | Every transfer between an airport, a hotel and a port — saying which one of each, from Master data — with date and time, 1–6 guests, flight and vessel; same rules as Hotels |
 | Calculations | Every money line — each service (each entry of Parcels / Courier / Landing), hotel stay and transfer — for a vessel-date range, OPR and port, showing its working (amount × rate = EGP) and one totals line (revenue, cost, profit, lines without an exchange rate). Everyone sees their ports' lines |
@@ -114,7 +114,7 @@ out-of-order times are rejected.
 
 | Area | Details |
 |---|---|
-| Vessels | Quick-add bar (with arrival agent), add / edit / delete, date range, search, ARK / MSK / Other filters, sorting, paging, status chip, CSV export. A vessel saved outside the range shows a notice with **Show it** |
+| Vessels | Quick-add bar (with arrival agent), add / edit / delete, date range, search, ARK / MSK / Other filters, sorting, paging, status chip, Excel export. A vessel saved outside the range shows a notice with **Show it** |
 | Port call | Arrival and sailing agents plus arrival, berthing, operations start / end and sailing times, with durations |
 | Services | Crew Change, Delivery Parcels, Delivery Courier, Medical Treatment, Landing, Certificates, Fresh Water, Cash to Master, Others / Remarks. A vessel can have several of one type |
 | Money | Cost / revenue / profit in EGP, live preview while typing, USD converted with the vessel's monthly rate or a per-service override |
@@ -147,7 +147,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet operation   # 976 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
+python manage.py test sheet operation   # 997 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)
@@ -187,11 +187,11 @@ sheet/
   api.py, errors.py     JSON endpoint plumbing, audit log
   listing.py            vessel list: date range, search, sorting, paging, totals, alerts
   dashboard.py          Dashboard: jobs per agent, services / money per month, OPR figures
-  views.py              page, API, CSV
+  views.py              page, API, downloads
   xlsx.py, report.py    Excel writer (standard library only) and the management workbook
   dataexport.py         plain-table Excel files of five pages (Data export)
   throttle.py, signals.py   login failure counting and security logging
-  ratelimit.py          API rate limits (writes, CSV export)
+  ratelimit.py          API rate limits (writes, exports)
   alerts.py             alert record / e-mail when lock-outs, denials or errors pass a threshold
   history.py            change history (signals + request context), History API in views.py
   checks.py             deploy check: proxy without client-IP header

@@ -1,9 +1,9 @@
 // The Port closures page: when each port was shut (weather, fog, strike...), filtered by a date range (closures that
 // overlap it) and, for admins / read-only, by port. The server scopes port users to their own port.
 import { api, mutate } from '../api.js';
-import { portOptionEls } from '../components.js';
+import { deleteBtn, portOptionEls } from '../components.js';
 import { ME, can } from '../config.js';
-import { h, icon, setChildren } from '../dom.js';
+import { h, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { defaultRange } from '../state.js';
 import { $, fmtStamp } from '../util.js';
@@ -31,8 +31,7 @@ function params() {
 }
 
 const deleteButton = (c) =>
-  h('button', { class: 'btn danger small', dataset: { act: 'closure-del', id: c.id }, attrs: { title: 'Delete this closure' } },
-    icon('trash'), ' Delete');
+  deleteBtn('closure-del', { id: c.id }, 'danger small');
 
 function render() {
   setChildren($('#pc-head'), h('tr', null, COLUMNS.map((c) => h('th', null, c.title)), can('closures.edit') ? h('th') : null));

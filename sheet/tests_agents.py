@@ -111,12 +111,13 @@ class AgentApiTests(ApiTestCase):
     def test_csv_has_arrival_and_sailing_agent_columns(self):
         Vessel.objects.create(name="CSV", date=date(2026, 11, 13), port="alexandria",
                               arrival_agent="DELTA", sailing_agent="NILE")
-        header, *rows = self.login("admin").get("/export.csv").content.decode("utf-8-sig").splitlines()
-        columns = header.split(",")
+        from .tests_dataexport import vessel_rows
+
+        columns, *rows = vessel_rows(self.login("admin").get("/api/export/vessels/"))
         self.assertIn("Arrival agent", columns)
         self.assertIn("Sailing agent", columns)
         self.assertNotIn("Agent", columns)
-        row = next(r.split(",") for r in rows if r.startswith("CSV,"))
+        row = next(r for r in rows if r[0] == "CSV")
         self.assertEqual(row[columns.index("Arrival agent")], "DELTA")
         self.assertEqual(row[columns.index("Sailing agent")], "NILE")
 

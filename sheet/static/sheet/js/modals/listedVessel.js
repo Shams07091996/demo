@@ -1,6 +1,6 @@
 // One entry of the vessel list: name and LOA. Read-only without "Edit terminals and vessel list"; Delete for Admins.
 import { api, mutate } from '../api.js';
-import { headEl } from '../components.js';
+import { deleteBtn, headEl } from '../components.js';
 import { ME, can } from '../config.js';
 import { h } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
@@ -20,7 +20,7 @@ export function openListedDialog(vessel, onDone) {
         field('Vessel name', h('input', { attrs: { name: 'name', maxlength: 100, autocomplete: 'off' }, value: vessel?.name ?? '', disabled: !editable })),
         field('LOA (m)', h('input', { attrs: { name: 'loa', type: 'number', min: 0, max: 500, step: '0.1' }, value: vessel?.loa ?? '', disabled: !editable })))),
     h('div', { class: 'm-foot' },
-      vessel && ME.isAdmin ? btn('danger', 'vl-del', 'Delete') : h('span'),
+      vessel && ME.isAdmin ? deleteBtn('vl-del') : h('span'),
       h('div', { class: 'right' }, btn('ghost', 'close', editable ? 'Cancel' : 'Close'),
         editable ? [' ', btn('primary', 'vl-save', 'Save')] : null)),
   );

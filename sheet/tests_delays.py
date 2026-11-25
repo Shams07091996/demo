@@ -62,16 +62,6 @@ class DelayReasonTests(ApiTestCase):
                    "berthing_at": "2026-11-13T12:00"}
         self.assertEqual(self.call(self.alex, "put", f"/api/vessels/{vessel['id']}/", payload), (400, {"error": NEEDS_REASON}))
 
-    def test_csv_has_delay_reason_column(self):
-        self.create("2026-11-13T11:00", delay_reason="WEATHER")
-        text = self.alex.get("/export.csv?from=2026-11-01&to=2026-11-30").content.decode("utf-8-sig")
-        header, *rows = text.splitlines()
-        columns = header.split(",")
-        self.assertIn("Delay reason", columns)
-        self.assertEqual(columns.index("Delay reason"), columns.index("Sailed") + 1)
-        late = next(r.split(",") for r in rows if r.startswith("LATE"))
-        self.assertEqual(late[columns.index("Delay reason")], "WEATHER")
-
     def test_search_matches_delay_reason(self):
         self.create("2026-11-13T11:00", delay_reason="WEATHER")
         _, data = self.call(self.alex, "get", "/api/vessels/?q=weather&from=2026-11-01&to=2026-11-30")

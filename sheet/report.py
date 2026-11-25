@@ -16,7 +16,7 @@ from . import dashboard as dashboard_figures
 from . import ports as port_table
 from .access import scoped_closures, scoped_vessels
 from .constants import SERVICE_STATUSES, SERVICE_TYPES, is_delayed
-from .xlsx import Bold, Hours
+from .xlsx import Hours
 
 NO_LINE, NO_AGENT_LABEL = "(no line)", "(no agent)"
 MONEY_HEAD = ["Revenue (EGP)", "Cost (EGP)", "Profit (EGP)"]
@@ -407,16 +407,21 @@ def _has_data(sheet):
 
 
 def _layout(key, sheet, subtitle):
-    rows, starts = [[Bold(sheet["title"])], [subtitle], []], []
+    """One sheet with the page look (xlsx): big title, muted line, each table with a styled header, row lines and a
+    bold totals row; the first table's header stays on screen when scrolling; columns sized to fit."""
+    rows, starts, looks = [[xlsx.Title(sheet["title"])], [subtitle], []], [], {0: "title", 1: "muted"}
     if not _has_data(sheet):
         rows.append(["No data"])
-        return xlsx.Sheet(name=xlsx.safe_sheet_name(sheet["title"]), rows=rows, widths=[24], charts=[])
+        return xlsx.Sheet(name=xlsx.safe_sheet_name(sheet["title"]), rows=rows, widths=[24], charts=[], looks=looks)
     for table in sheet["tables"]:
         starts.append(len(rows))
-        rows.append([Bold(str(cell)) for cell in table["head"]])
+        looks[len(rows)] = "header"
+        rows.append([str(cell) for cell in table["head"]])
+        looks.update({len(rows) + i: "body" for i in range(len(table["rows"]))})
         rows += table["rows"]
         if table["total"]:
-            rows.append([Bold(str(table["total"][0])), *table["total"][1:]])
+            looks[len(rows)] = "total"
+            rows.append(list(table["total"]))
         rows.append([])
     rows += [[note] for note in sheet["notes"]]
     widest = max(len(table["head"]) for table in sheet["tables"])
@@ -429,8 +434,9 @@ def _layout(key, sheet, subtitle):
         series = [(head, first, last, len(names) - 1 - names[::-1].index(head)) for head in heads]
         charts.append(xlsx.Chart(kind=kind, title=title, categories=(first, last, 0), series=series,
                                  anchor=(widest + 1, 3)))
-    return xlsx.Sheet(name=xlsx.safe_sheet_name(sheet["title"]), rows=rows, widths=[24] + [14] * (widest - 1),
-                      charts=charts)
+    tables = [row for i, row in enumerate(rows) if looks.get(i) in ("header", "body", "total")]
+    return xlsx.Sheet(name=xlsx.safe_sheet_name(sheet["title"]), rows=rows, widths=xlsx.fit_widths(tables),
+                      charts=charts, looks=looks, freeze=starts[0] + 1)
 
 
 def subtitle(r, now):

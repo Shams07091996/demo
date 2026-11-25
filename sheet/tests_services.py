@@ -263,14 +263,13 @@ class ServiceListTests(ApiTestCase):
 class ServiceExportTests(ApiTestCase):
     """GET /api/export/services/: the page's filtered rows, every page of them, as a plain table."""
 
-    HEAD = ["Service id", "Vessel id", "Vessel", "Port", "Vessel date", "Service", "Agent", "Status",
-            "Cancellation reason", "Completed", "Sailed", "Missing", "Billing party", "Billing"]
+    HEAD = ["Vessel", "Date", "Service", "Agent", "Status", "Missing"]
 
     def export(self, user, query=""):
-        from .tests_dataexport import read
+        from .tests_dataexport import read, table
         response = self.login(user).get(f"/api/export/services/?{query}")
         self.assertEqual(response.status_code, 200)
-        return next(iter(read(response.content).values()))
+        return table(next(iter(read(response.content).values())))
 
     def test_services_export_header_and_rows(self):
         Service.objects.all().delete()
@@ -283,10 +282,11 @@ class ServiceExportTests(ApiTestCase):
         rows = self.export("admin", "page_size=1&page=2")
         self.assertEqual(rows[0], self.HEAD)
         self.assertEqual(len(rows), 3)  # both in-progress services: every page, not page 2 of 1
-        first = rows[1]
-        self.assertEqual((first[0], first[2], first[3], first[5], first[7], first[10], first[11], first[13]),
-                         (float(gap.id), "ALEX SHIP", "Alexandria", "Landing", "In progress", "Yes",
-                          "Agent, Revenue", "On account"))
+        self.assertEqual(rows[1], ["ALEX SHIP", rows[1][1], "Landing", None, "In progress · Sailed",
+                                   "Agent, Revenue"])
+        self.assertEqual(self.export("admin", "status=completed")[0],
+                         ["Vessel", "Date", "Service", "Agent", "Status", "Completed", "Missing"])
+        self.assertTrue(gap.id)
         self.assertEqual(len(self.export("alex")), 2)  # a port user: only their port
         self.assertEqual(len(self.export("admin", "missing=1")), 2)
 
