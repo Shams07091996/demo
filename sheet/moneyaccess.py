@@ -12,6 +12,7 @@ A `profile` of None means an internal caller: everything.
 
 import copy
 
+from . import access
 from .constants import MULTI_TYPES
 
 EDIT = "money.edit"
@@ -95,3 +96,68 @@ def keep_service_money(service_type, cleaned, stored_type, stored):
                 if match is not None and key in match:
                     item[key] = copy.deepcopy(match[key])
     return result
+
+
+# ---- vessels (serializers.vessel_to_dict) and the vessel list -----------------------------------------------
+
+VESSEL_TOTALS = ("total_cost_egp", "total_profit_egp")
+LIST_TOTALS = ("cost_egp", "profit_egp")
+MONEY_SORTS = ("total_cost_egp",)
+
+
+def vessel_out(row, profile):
+    """A vessel dict as this person may get it: totals and each service's figures need money.view, the services'
+    money boxes money.edit, the month rate either (the service dialog's live preview uses it)."""
+    see, edit = views(profile), edits(profile)
+    if see and edit:
+        return row
+    row = {key: value for key, value in row.items() if see or key not in VESSEL_TOTALS}
+    if not (see or edit):
+        row.pop("rate", None)
+    row["services"] = [_service_out(service, see, edit) for service in row["services"]]
+    return row
+
+
+def _service_out(service, see, edit):
+    service = {key: value for key, value in service.items() if see or key != "calc"}
+    if not edit:
+        service["data"] = strip_service_data(service["type"], service["data"])
+    return service
+
+
+def totals_out(totals, profile):
+    return totals if views(profile) else {k: v for k, v in totals.items() if k not in LIST_TOTALS}
+
+
+def require_sort(profile, sort):
+    """Sorting by money would show its order: money.view only."""
+    if sort in MONEY_SORTS:
+        access.require(profile, VIEW)
+
+
+# ---- export / report columns -----------------------------------------------------------------------------
+
+MONEY_HEADS = frozenset({
+    # vessels CSV
+    "Total Cost LE", "Total Profit LE",
+    # data exports (dataexport)
+    "Cost per night", "Revenue per night", "Cost", "Revenue", "Cost currency", "Revenue currency", "Exchange rate",
+    "Revenue EGP", "Cost EGP", "Profit EGP", "Revenue USD", "Cost USD", "Profit USD", "Rate missing",
+    "Price missing",
+    # management Excel (report)
+    "Revenue (EGP)", "Cost (EGP)", "Profit (EGP)", "Broken visa revenue (EGP)",
+})
+
+
+def money_columns(head, profile):
+    """Indexes of the columns this person may not get (none with money.view)."""
+    return set() if views(profile) else {i for i, name in enumerate(head) if str(name) in MONEY_HEADS}
+
+
+def drop_columns(head, rows, profile):
+    """(head, rows) without the money columns this person may not get."""
+    gone = money_columns(head, profile)
+    if not gone:
+        return head, rows
+    keep = [i for i in range(len(head)) if i not in gone]
+    return [head[i] for i in keep], [[row[i] for i in keep] for row in rows]

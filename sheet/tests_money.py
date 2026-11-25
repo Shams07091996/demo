@@ -5,10 +5,13 @@ from datetime import date
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import SimpleTestCase, TransactionTestCase
+from django.utils import timezone
 
-from .constants import MULTI_TYPES
-from .models import Service
+from . import crewbookings
+from .constants import MULTI_TYPES, PAGE_KEYS, PERMISSION_KEYS
+from .models import ChangeRecord, ExchangeRate, Guest, HotelStay, Service, Vessel
 from .moneyaccess import keep_service_money, service_money_sent, strip_service_data
+from .tests import FAST_HASHER, NEEDED, ApiTestCase, make_user
 from .validators import UID_RE, clean_service_data
 
 A, B, C, D = "aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc", "dddddddddddd"
@@ -113,3 +116,176 @@ class EntryUidMigrationTests(TransactionTestCase):
         self.assertEqual(entries[0]["cost"], 5)
         self.assertEqual(Service.objects.get(pk=water.pk).data, {"cost": 5})
         self.assertIn("Landing", MULTI_TYPES)
+
+
+# ---- Task 2: vessels and services -------------------------------------------------------------------------------
+
+NO_MONEY_PAGES = ("calculations", "rates", "history")
+OVERVIEW_KEYS = {"total_cost_egp", "total_profit_egp", "calc"}
+BOX_KEYS = {"cost", "costCurrency", "revenue", "revenueCurrency", "exchangeRate", "brokenVisa", "amount",
+            "shareMode", "percentage", "fixedRevenue"}
+
+
+def all_but(keys, *gone):
+    return [key for key in keys if key not in gone]
+
+
+def keys_in(value):
+    """Every dict key anywhere inside a JSON value."""
+    if isinstance(value, dict):
+        return set(value) | {k for v in value.values() for k in keys_in(v)}
+    if isinstance(value, list):
+        return {k for v in value for k in keys_in(v)}
+    return set()
+
+
+def service_keys(vessel_json):
+    return keys_in([s["data"] for s in vessel_json["services"]])
+
+
+class MoneyUsers(ApiTestCase):
+    """edit_only: money.edit, no money.view; view_only: money.view, no money.edit; neither. A vessel dated today with
+    a three-line Landing, a Crew Change with a broken visa and a Fresh Water service, and a month rate of 50."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        make_user("edit_only", "alexandria", permissions=all_but(PERMISSION_KEYS, "money.view", "history.view"),
+                  pages=all_but(PAGE_KEYS, *NO_MONEY_PAGES))
+        make_user("view_only", "alexandria", permissions=all_but(PERMISSION_KEYS, "money.edit"))
+        make_user("neither", "alexandria", permissions=all_but(PERMISSION_KEYS, "money.edit", "money.view",
+                                                               "history.view"),
+                  pages=all_but(PAGE_KEYS, *NO_MONEY_PAGES))
+        cls.vessel = Vessel.objects.create(name="TODAY SHIP", date=timezone.localdate(), port="alexandria")
+        ExchangeRate.objects.create(month=cls.vessel.date.replace(day=1), rate=50)
+        cls.landing = Service.objects.create(vessel=cls.vessel, service_type="Landing", data=clean_service_data(
+            "Landing", {"entries": [_entry(A, 1, "1"), _entry(B, 2, "2"), _entry(C, 3, "3")]}))
+        cls.crew = Service.objects.create(vessel=cls.vessel, service_type="Crew Change", data=clean_service_data(
+            "Crew Change", {"onSigners": [{"uid": D, "name": "ALI", "brokenVisa": {"cost": 5, "revenue": 9}}],
+                            "cost": 30, "revenue": 40}))
+        cls.water = Service.objects.create(vessel=cls.vessel, service_type="Fresh Water",
+                                           data=clean_service_data("Fresh Water", {"quantity": 7, "cost": 10}))
+        crewbookings.sync(cls.vessel)  # the crew's draft bookings, as an API save would have made them
+
+
+@FAST_HASHER
+class VesselMoneyApiTests(MoneyUsers):
+    def vessel_routes(self, who):
+        """Every route that sends this vessel's JSON: list, detail, alerts, and the write responses."""
+        client = self.login(who)
+        url = f"/api/vessels/{self.vessel.pk}/"
+        found = {}
+        body = self.call(client, "get", "/api/vessels/")[1]
+        found["list"] = next(v for v in body["vessels"] if v["id"] == self.vessel.pk)
+        found["totals"] = body["totals"]
+        found["detail"] = self.call(client, "get", url)[1]
+        found["alerts"] = next(v for v in self.call(client, "get", "/api/vessels/alerts/")[1]["today"]
+                               if v["id"] == self.vessel.pk)
+        found["vessel put"] = self.call(client, "put", url, {**found["detail"], **NEEDED})[1]
+        found["service post"] = self.call(client, "post", f"{url}services/",
+                                          {"type": "Certificates", "data": {"certName": "X"}})[1]
+        water = next(s for s in found["detail"]["services"] if s["id"] == self.water.pk)
+        found["service put"] = self.call(client, "put", f"/api/services/{self.water.pk}/",
+                                         {"type": "Fresh Water", "data": water["data"]})[1]
+        return found
+
+    def test_every_vessel_route_hides_overviews_without_view(self):
+        for route, body in self.vessel_routes("edit_only").items():
+            if route == "totals":
+                self.assertNotIn("cost_egp", body)
+                self.assertNotIn("profit_egp", body)
+                continue
+            self.assertEqual(keys_in(body) & {"total_cost_egp", "total_profit_egp"}, set(), route)
+            self.assertFalse(any("calc" in s for s in body["services"]), route)
+            self.assertIn("cost", service_keys(body), route)
+            self.assertEqual(body["rate"], 50.0, route)
+
+    def test_every_vessel_route_hides_boxes_without_edit(self):
+        for route, body in self.vessel_routes("view_only").items():
+            if route == "totals":
+                self.assertIn("profit_egp", body)
+                continue
+            self.assertIn("total_profit_egp", body, route)
+            self.assertTrue(all("calc" in s for s in body["services"]), route)
+            keys = service_keys(body)
+            self.assertEqual(keys & BOX_KEYS, set(), route)
+            self.assertLessEqual({"quantity", "awb", "uid", "name"}, keys, route)
+
+    def test_neither_gets_no_rate(self):
+        body = self.call(self.login("neither"), "get", f"/api/vessels/{self.vessel.pk}/")[1]
+        self.assertNotIn("rate", body)
+        self.assertEqual(keys_in(body) & (OVERVIEW_KEYS | BOX_KEYS), set())
+
+    def test_sort_by_money_needs_view(self):
+        for path in ("/api/vessels/?sort=total_cost_egp", "/export.csv?sort=total_cost_egp"):
+            self.assertEqual(self.login("edit_only").get(path).status_code, 403, path)
+            self.assertEqual(self.login("admin").get(path).status_code, 200, path)
+
+    def test_csv_drops_money_columns(self):
+        head = self.login("edit_only").get("/export.csv").content.decode("utf-8-sig").splitlines()[0]
+        self.assertNotIn("Total Cost LE", head)
+        self.assertNotIn("Total Profit LE", head)
+        self.assertIn("Services", head)
+        admin = self.login("admin").get("/export.csv").content.decode("utf-8-sig").splitlines()[0]
+        self.assertIn("Total Profit LE", admin)
+
+    def put_as_sent(self, who, service, change=None, client=None, **extra):
+        """GET the vessel as `who`, then PUT the service back as it was sent (after `change`)."""
+        client = client or self.login(who)
+        body = self.call(client, "get", f"/api/vessels/{self.vessel.pk}/")[1]
+        sent = next(s for s in body["services"] if s["id"] == service.pk)
+        data = change(sent["data"]) if change else sent["data"]
+        return self.call(client, "put", f"/api/services/{service.pk}/", {"type": sent["type"], "data": data, **extra})
+
+    def test_save_without_money_keeps_it_and_changes_nothing(self):
+        client = self.login("view_only")  # signing in writes History of its own
+        for service in (self.landing, self.crew, self.water):
+            before, records = Service.objects.get(pk=service.pk), ChangeRecord.objects.count()
+            self.assertEqual(self.put_as_sent("view_only", service, client=client)[0], 200)
+            after = Service.objects.get(pk=service.pk)
+            self.assertEqual(after.data, before.data, service.service_type)
+            self.assertEqual(after.version, before.version, service.service_type)
+            self.assertEqual(ChangeRecord.objects.count(), records, service.service_type)
+
+    def test_removing_a_line_keeps_the_others_money(self):
+        def drop_middle(data):
+            return {**data, "entries": [data["entries"][0], data["entries"][2]]}
+
+        self.assertEqual(self.put_as_sent("view_only", self.landing, drop_middle)[0], 200)
+        entries = Service.objects.get(pk=self.landing.pk).data["entries"]
+        self.assertEqual([(e["uid"], e["cost"], e["revenue"]) for e in entries], [(A, 1, 2), (C, 3, 6)])
+
+    def test_sending_money_without_edit_is_403(self):
+        changes = [
+            (self.water, lambda d: {**d, "cost": 99}),
+            (self.landing, lambda d: {**d, "entries": [{**d["entries"][0], "revenue": 99}]}),
+            (self.crew, lambda d: {**d, "onSigners": [{**d["onSigners"][0], "brokenVisa": {"cost": 99}}]}),
+        ]
+        for service, change in changes:
+            before = Service.objects.get(pk=service.pk).data
+            self.assertEqual(self.put_as_sent("view_only", service, change)[0], 403, service.service_type)
+            self.assertEqual(Service.objects.get(pk=service.pk).data, before)
+        status, _ = self.call(self.login("view_only"), "post", f"/api/vessels/{self.vessel.pk}/services/",
+                              {"type": "Fresh Water", "data": {"cost": 5}})
+        self.assertEqual(status, 403)
+
+    def test_new_service_without_edit_has_no_money(self):
+        status, _ = self.call(self.login("view_only"), "post", f"/api/vessels/{self.vessel.pk}/services/",
+                              {"type": "Fresh Water", "data": {"quantity": 3}})
+        self.assertEqual(status, 201)
+        data = Service.objects.filter(vessel=self.vessel, service_type="Fresh Water").latest("id").data
+        self.assertEqual((data["quantity"], data["cost"]), (3, None))
+
+    def test_cancel_bookings_keeps_money_without_edit(self):
+        for who, kept in (("view_only", True), ("admin", False)):
+            HotelStay.objects.all().delete()
+            Service.objects.filter(pk=self.crew.pk).update(status="in_progress", cancel_reason="")
+            stay = HotelStay.objects.create(vessel=self.vessel, hotel="HILTON", check_in=self.vessel.date, nights=1,
+                                            cost_per_night=100, revenue_per_night=100, draft=False)
+            Guest.objects.create(stay=stay, name="ALI", crew_uid=D)
+            status, _ = self.put_as_sent(who, self.crew, status="cancelled", cancel_reason="Owner",
+                                         cancel_bookings=[{"kind": "hotel", "id": stay.pk}])
+            self.assertEqual(status, 200, who)
+            stay.refresh_from_db()
+            self.assertTrue(stay.cancelled, who)
+            self.assertEqual(stay.cost_per_night == 100, kept, who)

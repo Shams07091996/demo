@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from django.db.models import F, Prefetch, Q
 from django.utils import timezone
 
+from . import moneyaccess
 from .access import scoped_vessels
 from .constants import DELAY_LIMIT, SERVICE_TYPES, TIME_FIELDS, TIME_KEYS, is_delayed
 from .errors import BadRequest
@@ -152,16 +153,17 @@ def totals(rows):
 
 def list_response(profile, params):
     f = parse_filters(params)
+    moneyaccess.require_sort(profile, f.sort)
     in_range = range_rows(profile, f)
     rows = matching(in_range, f)
     start = (f.page - 1) * f.page_size
     return {
-        "vessels": rows[start : start + f.page_size],
+        "vessels": [moneyaccess.vessel_out(row, profile) for row in rows[start : start + f.page_size]],
         "page": f.page,
         "page_size": f.page_size,
         "count": len(rows),
         "pages": max(1, math.ceil(len(rows) / f.page_size)),
-        "totals": totals(in_range),
+        "totals": moneyaccess.totals_out(totals(in_range), profile),
     }
 
 
@@ -174,7 +176,7 @@ def alerts_response(profile, params):
     today = timezone.localdate()
     tomorrow = today + timedelta(days=1)
     vessels = scoped_vessels(profile, params.get("port") or None).filter(date__in=[today, tomorrow])
-    rows = _figures(vessels.order_by("-id"))
+    rows = [moneyaccess.vessel_out(row, profile) for row in _figures(vessels.order_by("-id"))]
     return {
         "today": [r for r in rows if r["date"] == today.isoformat()],
         "tomorrow": [r for r in rows if r["date"] == tomorrow.isoformat()],
