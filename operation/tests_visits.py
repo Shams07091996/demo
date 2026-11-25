@@ -140,7 +140,8 @@ class VisitWriteTests(VisitData):
         self.aict.lines = ["ARKAS"]
         self.aict.save()
         old = visit(self.aict, line="CUL")
-        status, body = self.call(self.login("alex"), "put", f"{URL}{old.id}/", {**FULL, "terminal": self.aict.id, "shipping_line": "CUL"})
+        status, body = self.call(self.login("alex"), "put", f"{URL}{old.id}/",
+                                 {**FULL, "terminal": self.aict.id, "shipping_line": "CUL"})
         self.assertEqual((status, body["shipping_line"]), (200, "CUL"))
 
     def test_ticks(self):

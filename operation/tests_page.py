@@ -1,4 +1,5 @@
-"""The page: the Operation folder and its items follow the ticks; Terminals is for Admins and the Edit terminals tick."""
+"""The page: the Operation folder and its items follow the ticks; Terminals is for Admins and the Edit terminals
+tick."""
 
 from sheet.constants import PERMISSION_KEYS
 from sheet.tests import ApiTestCase, make_user

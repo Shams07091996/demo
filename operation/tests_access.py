@@ -37,7 +37,8 @@ class OperationTicksTests(ApiTestCase):
                 self.assertFalse(set(pages) & set(OPERATION_PAGES))
 
     def test_edit_needs_vessel_data_page(self):
-        user = make_user("editor", "alexandria", permissions=["operation.edit", "operation.delete", "operation.master"], pages=["op_live"])
+        user = make_user("editor", "alexandria", permissions=["operation.edit", "operation.delete", "operation.master"],
+                         pages=["op_live"])
         profile = Profile.objects.get(user=user)
         self.assertFalse(profile.can("operation.edit"))
         self.assertFalse(profile.can("operation.delete"))

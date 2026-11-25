@@ -42,7 +42,8 @@ def _berths(value):
 
 
 def _lines(value, port, saved):
-    """The terminal's shipping lines: each from the Master data list of its port (a line already saved stays allowed)."""
+    """The terminal's shipping lines: each from the Master data list of its port (a line already saved stays
+    allowed)."""
     if value is None:
         return list(saved)
     if not isinstance(value, list) or len(value) > MAX_LINES:

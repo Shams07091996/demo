@@ -37,7 +37,7 @@ class SeedTests(TestCase):
         alex, viewer, marine = (Profile.objects.get(user__username=n) for n in ("alex", "viewer", "marine"))
         self.assertTrue(alex.sees("op_live") and alex.can("operation.edit") and alex.can("operation.delete"))
         self.assertTrue(viewer.sees("op_vessels") and viewer.sees("op_charts"))
-        self.assertFalse(viewer.can("operation.edit") or viewer.can("operation.delete") or viewer.can("operation.master"))
+        self.assertFalse(any(viewer.can(key) for key in ("operation.edit", "operation.delete", "operation.master")))
         fleet = dict(ListedVessel.objects.values_list("name", "loa"))
         self.assertEqual(float(fleet["NORDIC STAR"]), 210.0)
         self.assertTrue(set(Visit.objects.values_list("vessel_name", flat=True)) <= set(fleet))

@@ -1,7 +1,7 @@
 """Terminals: Admins add / change them (never delete); people with an Operation page read their ports' ones."""
 
-from sheet.models import Port, Profile
 from sheet.constants import PERMISSION_KEYS
+from sheet.models import Port, Profile
 from sheet.tests import ApiTestCase, allow, make_user
 
 from .access import scoped_visits
@@ -85,8 +85,10 @@ class TerminalApiTests(ApiTestCase):
         self.assertEqual(self.call(alex, "post", URL, {**NEW, "name": "PSD WEST", "port": "portsaid"})[0], 403)
         status, body = self.call(alex, "put", f"{URL}{self.aict.id}/", {**NEW, "name": "AICT - ALX", "cranes": 6})
         self.assertEqual((status, body["cranes"]), (200, 6))
-        self.assertEqual(self.call(alex, "put", f"{URL}{self.aict.id}/", {**NEW, "name": "AICT - ALX", "port": "portsaid"})[0], 403)
-        self.assertEqual(self.call(alex, "put", f"{URL}{self.psd.id}/", {**NEW, "name": "PSD EAST", "port": "portsaid"})[0], 404)
+        moved = {**NEW, "name": "AICT - ALX", "port": "portsaid"}
+        self.assertEqual(self.call(alex, "put", f"{URL}{self.aict.id}/", moved)[0], 403)
+        theirs = {**NEW, "name": "PSD EAST", "port": "portsaid"}
+        self.assertEqual(self.call(alex, "put", f"{URL}{self.psd.id}/", theirs)[0], 404)
 
     def test_terminal_shipping_lines(self):
         admin = self.login("admin")
