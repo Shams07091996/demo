@@ -1,5 +1,8 @@
 """Access rework piece 3: what money.edit (the forms' money boxes) and money.view (the overviews) hide."""
 
+import io
+import re
+import zipfile
 from datetime import date
 
 from django.db import connection
@@ -10,8 +13,9 @@ from django.utils import timezone
 from . import crewbookings
 from .constants import MULTI_TYPES, PAGE_KEYS, PERMISSION_KEYS
 from .models import ChangeRecord, Customer, CustomerRate, ExchangeRate, Guest, HotelStay, Service, Transfer, Vessel
-from .moneyaccess import keep_service_money, service_money_sent, strip_service_data
+from .moneyaccess import MONEY_HEADS, keep_service_money, service_money_sent, strip_service_data
 from .tests import FAST_HASHER, NEEDED, ApiTestCase, allow, make_user
+from .tests_dataexport import read
 from .tests_logistics import stay, trip
 from .validators import UID_RE, clean_service_data
 
@@ -398,3 +402,73 @@ class FormMoneyApiTests(MoneyUsers):
         self.assertEqual(self.call(self.login("view_only"), "get", url)[1]["receipt"]["services"], "Fresh Water")
         self.assertEqual(self.call(self.login("edit_only"), "get", url)[1]["receipt"]["services"],
                          "Fresh Water with cost $120")
+
+
+# ---- Task 4: overviews -----------------------------------------------------------------------------------------
+
+DASH_MONEY = {"cost_egp", "revenue_egp", "profit_egp"}
+
+
+def chart_titles(data):
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    return {title for name in archive.namelist() if name.startswith("xl/charts/")
+            for title in re.findall(r"<a:t>([^<]+)</a:t>", archive.read(name).decode())}
+
+
+@FAST_HASHER
+class OverviewMoneyTests(MoneyUsers):
+    def range(self):
+        day = self.vessel.date.isoformat()
+        return f"from={day}&to={day}"
+
+    def test_dashboard_money_needs_view(self):
+        body = self.call(self.login("edit_only"), "get", f"/api/dashboard/?{self.range()}")[1]
+        self.assertEqual(keys_in([body["totals"], body["months"], body["oprs"]]) & DASH_MONEY, set())
+        self.assertEqual(body["totals"]["services"], 3)
+        self.assertIn("status", body)
+        admin = self.call(self.login("admin"), "get", f"/api/dashboard/?{self.range()}")[1]
+        self.assertIn("profit_egp", admin["totals"])
+        self.assertIn("profit_egp", admin["months"][0])
+
+    def test_services_money_tags_need_view(self):
+        Service.objects.create(vessel=self.vessel, service_type="Certificates",
+                               data=clean_service_data("Certificates", {"certName": "X"}))
+        url = f"/api/services/?{self.range()}&type=Certificates"
+        rows = self.call(self.login("edit_only"), "get", url)[1]["services"]
+        self.assertEqual(rows[0]["missing"], ["Agent"])
+        rows = self.call(self.login("admin"), "get", url)[1]["services"]
+        self.assertEqual(rows[0]["missing"], ["Agent", "Cost", "Revenue"])
+        Service.objects.filter(service_type="Certificates").update(agent="A")
+        allow("agent", "A")
+        self.assertEqual(self.call(self.login("edit_only"), "get", f"{url}&missing=1")[1]["services"], [])
+        self.assertEqual(len(self.call(self.login("admin"), "get", f"{url}&missing=1")[1]["services"]), 1)
+
+    def test_excel_without_view(self):
+        response = self.login("edit_only").get(f"/api/dashboard/export/?{self.range()}")
+        self.assertEqual(response.status_code, 200)
+        sheets = read(response.content)
+        self.assertNotIn("Profit by service", sheets)
+        heads = {cell for rows in sheets.values() for row in rows for cell in row if isinstance(cell, str)}
+        self.assertEqual(heads & MONEY_HEADS, set())
+        self.assertFalse(any("Money includes" in cell for cell in heads))
+        titles = chart_titles(response.content)
+        self.assertIn("Jobs per agent", titles)
+        self.assertFalse({"Profit per port (EGP)", "Revenue per line (EGP)"} & titles)
+        admin = self.login("admin").get(f"/api/dashboard/export/?{self.range()}").content
+        self.assertIn("Profit by service", read(admin))
+        self.assertLessEqual({"Profit per port (EGP)", "Jobs per agent"}, chart_titles(admin))
+
+    def test_data_export_without_view(self):
+        HotelStay.objects.create(vessel=self.vessel, hotel="HILTON", check_in=self.vessel.date, nights=1,
+                                 cost_per_night=80)
+        for page in ("hotels", "disposal"):
+            response = self.login("edit_only").get(f"/api/export/{page}/?{self.range()}")
+            self.assertEqual(response.status_code, 200, page)
+            (rows,) = read(response.content).values()
+            self.assertEqual(set(rows[0]) & MONEY_HEADS, set(), page)
+            self.assertIn("Vessel", rows[0])
+        (rows,) = read(self.login("admin").get(f"/api/export/hotels/?{self.range()}").content).values()
+        self.assertIn("Cost per night", rows[0])
+        sheets = read(self.login("edit_only").get(f"/api/export/all/?{self.range()}").content)
+        self.assertNotIn("Calculations", sheets)
+        self.assertEqual({c for rows in sheets.values() for c in rows[0]} & MONEY_HEADS, set())

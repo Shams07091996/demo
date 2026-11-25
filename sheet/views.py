@@ -190,7 +190,8 @@ def vessel_alerts(request):
 @require_http_methods(["GET"])
 def dashboard(request):
     require_page(request.profile, "dashboard")
-    return JsonResponse(dashboard_figures.response(request.profile, request.GET))
+    return JsonResponse(moneyaccess.dashboard_out(dashboard_figures.response(request.profile, request.GET),
+                                                  request.profile))
 
 
 @json_api

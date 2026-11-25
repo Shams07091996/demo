@@ -9,7 +9,7 @@ paging), so port users get only their port. `all_file` puts the five in one work
 
 from datetime import date, datetime
 
-from . import calculations, closures, disposal, logistics, ports, services, xlsx
+from . import calculations, closures, disposal, logistics, moneyaccess, ports, services, xlsx
 from .constants import BILLING, SERVICE_STATUSES
 
 TITLES = {"hotels": "Hotels", "transfers": "Transport", "closures": "Port closures", "disposal": "Garbage & Sludge",
@@ -146,7 +146,7 @@ def _plain(value):
 
 def sheet(page, profile, params):
     """One page's rows (its list query, all pages of it) as an xlsx.Sheet: header row, then one row per record."""
-    head, rows = BUILDERS[page](profile, params)
+    head, rows = moneyaccess.drop_columns(*BUILDERS[page](profile, params), profile)  # money columns: money.view
     rows = [[_plain(value) for value in row] for row in rows]
     return xlsx.Sheet(TITLES[page], [head, *rows], widths=[16] * len(head))
 

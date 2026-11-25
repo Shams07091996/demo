@@ -215,3 +215,28 @@ def disposal_out(response, profile):
 
 def customer_out(row, profile):
     return row if edits(profile) else {k: v for k, v in row.items() if k != "rates"}
+
+
+# ---- overviews: the Dashboard, the Services page's tags ------------------------------------------------------
+
+DASHBOARD_MONEY = ("cost_egp", "revenue_egp", "profit_egp")
+
+
+def dashboard_out(response, profile):
+    """The Dashboard's figures: jobs and counts for everyone, money only with money.view."""
+    if views(profile):
+        return response
+
+    def plain(item):
+        return {k: v for k, v in item.items() if k not in DASHBOARD_MONEY}
+
+    return {**response, "totals": plain(response["totals"]), "months": [plain(m) for m in response["months"]],
+            "oprs": [plain(o) for o in response["oprs"]]}
+
+
+MONEY_TAGS = ("Cost", "Revenue", "Rate")
+
+
+def tags_out(tags, profile):
+    """A service's "missing" tags: the money ones (an empty money box, a missing rate) only with money.view."""
+    return tags if views(profile) else [tag for tag in tags if tag not in MONEY_TAGS]
