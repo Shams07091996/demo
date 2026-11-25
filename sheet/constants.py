@@ -95,6 +95,24 @@ SERVICE_FIELDS = {
                        "suffix": ""},
 }
 
+# Parcel extras (2026-11-25, piece 2 of the HTML gaps). "when" [key, value]: the field is only for that choice.
+_TRANSFER = ("Vessel-to-Vessel", "Vessel-to-Courier")
+_COURIERS = ("DHL", "FedEx", "Aramex", "Other")
+_PAYMENT = _f("payment", "Courier payment", "choice", choices=("Paid", "Not Paid"))
+_PARCEL = {"fields": [
+    _f("transferType", "Transfer type", "choice", choices=_TRANSFER),
+    _f("receivingVessel", "Receiving vessel", when=("transferType", "Vessel-to-Vessel")),
+    _f("courier", "Courier", "choice", choices=_COURIERS, when=("transferType", "Vessel-to-Courier")),
+    _PAYMENT,
+], "label": None, "suffix": ""}
+SERVICE_FIELDS["Delivery Parcels"] = _PARCEL
+SERVICE_FIELDS["Landing"] = _PARCEL
+SERVICE_FIELDS["Delivery Courier"] = {"fields": [
+    _f("courier", "Courier", "choice", choices=_COURIERS),
+    _f("deliveryStatus", "Delivery status", "choice", choices=("Pending", "Dispatched", "Delivered")),
+    _PAYMENT,
+], "label": None, "suffix": ""}
+
 # Optional vendor / invoice notes kept on a vessel for its summary.
 SUMMARY_FIELDS = (
     "Vendor Name",

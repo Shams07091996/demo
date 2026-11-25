@@ -138,7 +138,10 @@ choices?}], label, suffix, cost_label?, cost_currency?}}`, kinds text / number /
 `serviceDetails`) for the service form, card and Summary. The agreed "unit" rate multiplies the field `quantity`.
 Types (2026-11-25, from the manager's HTML): Suez Canal Transit (cost labelled SCA charges, USD), Surveyors
 Attendance, Supply, SIM Cards (per card), Tourism Tours; Cash to Master (= the HTML's CTM) has Reference /
-Beneficiary. A new type needs a chart colour (`--c1`… in `app.css`, `CHART_COLORS`; `tests_look`).
+Beneficiary. Parcels (piece 2): Delivery Parcels / Landing have Transfer type (Vessel-to-Vessel / Vessel-to-Courier),
+Receiving vessel (free text) and Courier, each shown only for its choice (field `when` [key, value]; sent under
+another choice → refused), and Courier payment; Delivery Courier has Courier, Delivery status and Courier payment.
+A new type needs a chart colour (`--c1`… in `app.css`, `CHART_COLORS`; `tests_look`).
 
 **Money** is worked out only in `finance.py`: `service_lines` gives each service's money lines with their working
 (every service, Crew Change and Others / Remarks included, has cost and revenue) and `finance.compute` adds them up

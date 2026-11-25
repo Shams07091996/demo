@@ -1058,8 +1058,15 @@ async function login() {
   type(first.querySelector('[data-f=awb]'), 'AWB-1'); type(first.querySelector('[data-f=weight]'), '3');
   type(first.querySelector('[data-f=cost]'), '250'); type(first.querySelector('[data-f=revenue]'), '10');
   click(second.querySelector('[data-act="rm-entry"]'));
+  const boxOf = (name) => $(`#svc-form [name=${name}]`).closest('.field');
+  ok(boxOf('receivingVessel').hidden && boxOf('courier').hidden, 'parcels: receiving vessel and courier wait for a transfer type');
+  type($('#svc-form [name=transferType]'), 'Vessel-to-Vessel');
+  ok(shown(boxOf('receivingVessel')) && boxOf('courier').hidden, 'parcels: Vessel-to-Vessel shows the receiving vessel');
+  type($('#svc-form [name=receivingVessel]'), 'MSC LUNA');
+  type($('#svc-form [name=payment]'), 'Paid');
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => modalText().includes('AWB-1') && modalText().includes('3 kg')), 'Delivery Parcels saved');
+  ok(modalText().includes('Receiving vessel: MSC LUNA') && modalText().includes('Courier payment: Paid'), 'parcels: the transfer details show on the card');
 
   /* ======== crew change ======== */
   click($('[data-act="add-service"]'));
