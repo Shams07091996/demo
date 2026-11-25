@@ -5,8 +5,8 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Terminal / berth and the Calculations Port column (2026-11-25):** on branch **`feature/terminal-berth`**, **not
-  merged** (waiting for the user's OK). Needs migrations **`0028`** (service-type choices of piece 1, left out of git then: no table change) and **`0029_vessel_terminal_berth`** on the user's database
+- **Terminal / berth and the Calculations Port column (2026-11-25):** merged into main by the user (2026-11-25), from branch
+  `feature/terminal-berth`. Needs migrations **`0028`** (service-type choices of piece 1, left out of git then: no table change) and **`0029_vessel_terminal_berth`** on the user's database
   (adds two empty fields; nothing changes for existing vessels). A vessel has a Terminal (new Master data list per
   port, optional) and a Berth (typed); both in the vessel form, the Port call block, the vessel CSV and a
   terminal / berth table on the management Excel's Port performance sheet. The Calculations page has a sortable
