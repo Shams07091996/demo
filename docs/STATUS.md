@@ -1,9 +1,32 @@
 # Project status
 
-Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each feature has a design
+Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each feature has a design
 (`docs/superpowers/specs/`) and a build plan (`docs/superpowers/plans/`) that record what was decided and why.
 
 ## Where things stand right now
+
+- **Page-like Excel, icon delete buttons, Live data today, grouped ticks (2026-11-26):** on branch
+  `feature/page-excel-and-ticks`, **not merged** (waiting for the user). No migration. Design
+  `specs/2026-11-26-page-excel-and-ticks-design.md`.
+  - Live data's **Next 7 days** starts today 00:00 (Cairo) and also lists every arrived-not-berthed vessel, marked
+    **Arrived**.
+  - **Every Excel file is the page's table** with the page look: same headings / order / visibility as the table on
+    screen (no ids), title + filters line, styled header, row lines, fitted widths, frozen header with filter arrows,
+    statuses coloured like the pills, bold totals where the page has them; money shown "USD 1,234.00" but still a
+    number. Vessels gets an **Excel** button (the **CSV export is gone**: it now gives only the Vessels table's columns,
+    no times / delay reason / terminal / berth / totals). Vessel Data and the management Excel get the look (the
+    management workbook keeps its content). Own writer extended, no library. `tests_page_excel` keeps the files'
+    headings equal to the front end's.
+  - Rulings (mine): Garbage & Sludge's two-amount cells become two columns (Revenue LE / Revenue USD …);
+    Calculations' Cost / Revenue are the LE amounts (the page shows "USD 100 × 50 = 5,000"); booking prices and
+    Garbage & Sludge money follow the page's rule **Enter money** (before: See money), so someone with Enter money but
+    not See money now gets the prices they see on the page; the bookings' Vessel cell carries the page's tags
+    ("· To complete", "· Cancelled", "· Closed").
+  - Delete buttons (and the in-form Remove buttons: crew member, entry line, contact) show only the **bin icon**.
+  - Accounts: **Pages** ticks grouped like the sidebar, **Can** ticks grouped Marine / Operation / General, each group
+    with **All**, plus one **All** at the top; All also ticks what its boxes need. Front end only.
+  - 997 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass; files opened in Excel
+    (frozen header, filters, look checked). Self-review only.
 
 - **Operation, round 2 (2026-11-26):** merged into main by the user (2026-11-26), from branch `feature/operation-round2` (deleted).
   Needs migrations **`operation 0002_terminal_lines`** and **`0003_listed_vessel`**. Vessel Data shows ETA / ETB /
@@ -371,6 +394,12 @@ Ideas raised along the way:
   rest); a rates payload with the same service type twice keeps the last one instead of being refused; port users
   see each ship's port calls counted over all ports; the service dialog can open a moment after a quick second click
   while customers load.
+- **Page Excel / grouped ticks (self-review of 2026-11-26, not fixed):** in a row with a wrapped two-line cell the
+  other cells sit at the bottom; Garbage & Sludge's totals row for someone with See money but not Enter money is the
+  word "Total" alone (the money columns are left out); the management Excel has no filter arrows (several tables per
+  sheet); the Accounts dialog's Marine Pages "All" always counts Vessels (always on). Older ones still open: a moved
+  terminal keeps the old port's lines; the API-only visit move keeps the old berth / line; Live data doesn't remember
+  the chosen terminal after a reload.
 Edit-conflict warning (from the final review, minor):
 - "Guests" can be missing from the field list when another save in between changed other booking fields.
 - Field names are the stored ones ("Draft" can appear; "On signers" rather than the form's "On-signers").
