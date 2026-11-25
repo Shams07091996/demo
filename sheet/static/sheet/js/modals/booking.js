@@ -3,7 +3,7 @@
 import { api, mutate } from '../api.js';
 import { showConflict } from '../conflict.js';
 import { headEl, optionChoicesEl } from '../components.js';
-import { el, sees } from '../config.js';
+import { can, el, sees } from '../config.js';
 import { setStatus } from '../feedback.js';
 import { h, icon, optionEls, setChildren } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
@@ -11,6 +11,8 @@ import { bookingsPage } from '../pages/bookings.js';
 import { optionValues, state } from '../state.js';
 import { $, $$, dmy } from '../util.js';
 
+// The price boxes need money.edit: without it the server sends no money and keeps the stored one.
+const MONEY_FIELDS = ['cost_currency', 'revenue_currency', 'exchange_rate'];
 const PLACES = [['airport', 'Airport'], ['hotel', 'Hotel'], ['port', 'Port']];
 // The API names of the cost / revenue amounts (per room per night for hotels, per trip for transfers).
 const MONEY_KEYS = { hotels: ['cost_per_night', 'revenue_per_night'], transfers: ['cost', 'revenue'] };
@@ -176,9 +178,10 @@ function detailsBlock() {
   const amount = (key) => input(key, 'number', { min: 0, step: 'any' });
   const usd = form.cost_currency === 'USD' || form.revenue_currency === 'USD';
   const per = isHotel() ? ' per night' : '';
-  const price = [
-    h('label', { class: 'check' },
-      h('input', { attrs: { type: 'checkbox' }, dataset: { bf: 'cancelled' }, checked: Boolean(form.cancelled) }), ' Cancelled'),
+  const cancelled = h('label', { class: 'check' },
+    h('input', { attrs: { type: 'checkbox' }, dataset: { bf: 'cancelled' }, checked: Boolean(form.cancelled) }), ' Cancelled');
+  const price = !can('money.edit') ? [cancelled] : [
+    cancelled,
     h('div', { class: 'section-title' }, h('span', null, `Money ${isHotel() ? '(per room per night)' : '(per trip)'} — optional`)),
     h('div', { class: 'row three' },
       field(`Cost${per} (we pay)`, amount('cost')),
@@ -297,7 +300,7 @@ export function onBookingInput(event) {
   if (input.dataset.bf === 'cancelled') {
     if (event.type !== 'change') return;
     form.cancelled = input.checked;
-    if (input.checked) Object.assign(form, { cost: '0', revenue: '0' }); // a fee can still be typed
+    if (input.checked && can('money.edit')) Object.assign(form, { cost: '0', revenue: '0' }); // a fee can still be typed
     render();
     return;
   }
@@ -384,6 +387,7 @@ export async function saveBooking(version) {
     [costKey]: cost,
     [revenueKey]: revenue,
   };
+  if (!can('money.edit')) [costKey, revenueKey, ...MONEY_FIELDS].forEach((key) => { delete payload[key]; });
   if (kind === 'hotels') payload.nights = Number(form.nights);
   if (id) payload.version = version ?? mine.version;
   const saved = await once(mine, () => (id ? api(`/api/${kind}/${id}/`, 'PUT', payload) : api(`/api/${kind}/`, 'POST', payload)),

@@ -1,5 +1,6 @@
 // The Customers page: who we bill, with contacts, agreed rates and linked ships. Everyone reads it (a row opens the
 // customer, read-only for non-admins); only admins add and change customers.
+import { can } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { openCustomerDialog } from '../modals/customer.js';
@@ -8,9 +9,10 @@ import { $ } from '../util.js';
 
 function render() {
   const list = customers();
-  setChildren($('#cu-head'), h('tr', null, ['Name', 'Contacts', 'Agreed rates', 'Ships'].map((t) => h('th', null, t))));
+  const rates = can('money.edit'); // agreed rates are money (piece 3)
+  setChildren($('#cu-head'), h('tr', null, ['Name', 'Contacts', ...(rates ? ['Agreed rates'] : []), 'Ships'].map((t) => h('th', null, t))));
   setChildren($('#cu-tbody'), list.map((c) => h('tr', { class: c.active ? 'clickable' : 'clickable inactive', dataset: { act: 'customer-open', id: c.id } },
-    h('td', null, c.name), h('td', null, String(c.contacts.length)), h('td', null, String(Object.keys(c.rates).length)),
+    h('td', null, c.name), h('td', null, String(c.contacts.length)), rates ? h('td', null, String(Object.keys(c.rates).length)) : null,
     h('td', null, String(c.ships.length)))));
   $('#cu-empty').hidden = list.length > 0;
 }

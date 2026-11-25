@@ -155,9 +155,10 @@ def booking_ref(kind, booking):
             "cancelled": booking.cancelled, "closed": booking.acct_closed}
 
 
-def cancel_bookings(service, refs):
+def cancel_bookings(service, refs, zero_money=True):
     """Cancel the listed saved bookings of a cancelled Crew Change (cleaned refs [(kind, id)]): each is marked
-    cancelled, its money set to 0 (a fee can be typed later) and its version raised. Anything not that crew change's,
+    cancelled, its money set to 0 when `zero_money` (the person has money.edit; a fee can be typed later) and its
+    version raised. Anything not that crew change's,
     or closed by accounting, refuses the whole save."""
     if not refs:
         return []
@@ -175,7 +176,7 @@ def cancel_bookings(service, refs):
         if booking.cancelled:
             continue
         booking.cancelled = True
-        for key in MONEY_KEYS[plural]:
+        for key in MONEY_KEYS[plural] if zero_money else ():
             setattr(booking, key, 0)
         booking.version += 1
         booking.save()

@@ -310,13 +310,15 @@
         <section class="panel"><h3>Jobs per agent</h3><div id="chart-agents"></div><div id="tbl-agents"></div></section>
         <section class="panel"><h3>Services per month</h3><div id="chart-months"></div><div id="tbl-months"></div></section>
       </div>
-      <section class="panel dash-wide"><h3>Money per month (LE)</h3><div id="tbl-money"></div></section>
+      {% if "money.view" in me.permissions %}<section class="panel dash-wide"><h3>Money per month (LE)</h3><div id="tbl-money"></div></section>{% endif %}
       <section class="panel dash-wide"><h3>Service status</h3><div id="tbl-status"></div></section>
       <div class="dash-grid">
         <section class="panel"><h3>Vessels per OPR</h3><div id="chart-vessels"></div></section>
         <section class="panel"><h3>Services per OPR</h3><div id="chart-services"></div></section>
+        {% if "money.view" in me.permissions %}
         <section class="panel"><h3>Total cost (LE) per OPR</h3><div id="chart-cost"></div></section>
         <section class="panel"><h3>Profit (LE) per OPR</h3><div id="chart-profit"></div></section>
+        {% endif %}
       </div>
       <h3 class="dash-title">OPR summary</h3>
       <div class="opr-cards" id="opr-cards"></div>

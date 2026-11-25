@@ -129,7 +129,7 @@ out-of-order times are rejected.
 | Who | Sees | Can edit |
 |---|---|---|
 | Admin (a superuser) | every port | everything: accounts, ports (add / rename / turn off, never delete), exchange rates, prices, All-ports master data, the History, the accounting Open / Closed switch |
-| User | their home port and extra ports, and only the **pages** an Admin ticks | in those ports, only what their **permissions** allow (16 ticks on the Accounts page, filled in from a template: Marine employee, Operations employee, Branch manager, Accounts employee) |
+| User | their home port and extra ports, and only the **pages** an Admin ticks | in those ports, only what their **permissions** allow (16 ticks on the Accounts page, filled in from a template: Marine employee, Operations employee, Branch manager); money in forms needs **Enter / edit prices and costs**, totals / profit / money charts and money columns need **See money (overviews)** — without them the server never sends those values |
 
 Port restrictions are enforced on the server for every request, not just hidden in the page: asking for another
 port never shows more, and writing into a port that isn't theirs is refused. A turned-off port takes no new records.
@@ -147,7 +147,7 @@ field-level encryption) and the deployment checklist.
 ## Tests
 
 ```bash
-python manage.py test sheet         # 814 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
+python manage.py test sheet         # 849 backend tests: maths, validation, permissions, CSRF, throttling, two-step login, agents, closures, LOG, receipt, Excel, edit conflicts...
 pip install -r requirements-dev.txt # dev tools: ruff (with security rules), pip-audit, pip-tools
 cd tools && npm install && npm run check   # every check and test in one go (ruff, ESLint, pip-audit, npm audit,
                                            # Django's production-settings check, backend and front-end tests)

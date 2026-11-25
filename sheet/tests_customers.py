@@ -39,7 +39,10 @@ class CustomerApiTests(ApiTestCase):
             client = self.login(name)
             status, body = self.call(client, "get", "/api/customers/")
             self.assertEqual(status, 200)
-            self.assertEqual(body["customers"][0]["rates"]["Fresh Water"]["amount"], 12.5)
+            if name == "reader":  # no money.edit: the agreed rates are money (piece 3)
+                self.assertNotIn("rates", body["customers"][0])
+            else:
+                self.assertEqual(body["customers"][0]["rates"]["Fresh Water"]["amount"], 12.5)
             self.assertEqual(body["customers"][0]["contacts"][0]["email"], "mona@example.com")
 
     def test_update_replaces_contacts_and_rates(self):

@@ -5,17 +5,28 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Access rework, piece 3 of 3 — money (2026-11-25):** built on branch **`feature/money-permissions`**, **not
+  merged** (waiting for the final review and the user's OK). Needs migration **`0026_entry_uids`** on the user's
+  database (gives every Delivery / Landing line a stable id; no data changes otherwise). **Enter / edit prices and
+  costs** (`money.edit`) now decides who sees and types the money boxes of the forms (services, hotel / transport
+  prices, garbage & sludge money, agreed rates, the receipt's amounts); **See money (overviews)** (`money.view`)
+  decides who gets vessel totals and profit, each service's figures, the Dashboard's money, totals rows, the
+  Services page's money tags and the money columns of the CSV, the data exports and the management Excel. Without
+  them the server never sends those values; saves keep the stored money; sending money anyway is refused. The
+  **Accounts employee template is gone** (the user cancelled it; accounts made with it keep their ticks). One place
+  decides: `sheet/moneyaccess.py`. After a fresh review (one finding fixed test-first). 849 backend tests; `npm run check` green; smoke test passes for alex / admin /
+  viewer / suez / marine. Plan: `plans/2026-11-25-money-permissions.md`.
+
 - **Access rework, piece 2 of 3 — permissions and pages (2026-11-25):** **merged into `main`**
   (2026-11-25, after a fresh review — five findings fixed test-first — and the user's OK). Needs
   migration **`0025_profile_permissions`** on the user's database: **every existing account gets all 16 permissions
   and every page** (nobody loses anything); an Admin then takes away what each job doesn't need. Each User now has
   16 permission ticks and page ticks on the Accounts page, filled in from four templates (Marine employee,
-  Operations employee, Branch manager, Accounts employee); the server refuses (403) anything not ticked, the sidebar
+  Operations employee, Branch manager, Accounts employee — the last one cancelled in piece 3); the server refuses (403) anything not ticked, the sidebar
   shows only their pages, buttons only what they may do. Exports follow the pages; a User with History sees only
   their ports' records; the accounting Open / Closed switch is given to whoever has "Close / reopen lines". A new
   account starts with nothing ticked (Vessels only). 814 backend tests; `npm run check` green; smoke test passes for
-  alex / admin / viewer / suez and the new demo user `marine`. **Next: piece 3** (money: what `money.view` /
-  `money.edit` hide). Plan: `plans/2026-11-25-permissions-and-pages.md`.
+  alex / admin / viewer / suez and the new demo user `marine`. Plan: `plans/2026-11-25-permissions-and-pages.md`.
 
 - **Access rework, piece 1 of 3 — ports and people (2026-11-25):** **merged into `main`**
   (2026-11-25, after a fresh review — two findings fixed test-first — and the user's OK). Needs migrations **`0023_port`** (the four
@@ -148,6 +159,10 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Decisions the user made (respect these)
 
+- **Money (2026-11-25, piece 3):** "people type money as part of their work, but the overview is given out on
+  purpose": `money.edit` = the forms' money boxes, `money.view` = the overviews; without them the server never sends
+  the figures. The **Accounts employee template is cancelled** (Marine employee, Operations employee and Branch
+  manager remain).
 - **Accounts page (2026-11-24):** for **superusers only** (option A, not a new permission flag; about 3 people);
   adding people, changing their role / port, **turn off / turn on** (never delete); username fixed once made; last
   save wins; resets, the two-step exception and superuser / staff stay in the admin pages.
@@ -249,6 +264,10 @@ Ideas raised along the way:
 
 ## Left open — small things the user hasn't decided on yet
 
+- **Money (piece 3):** the Dashboard's status counts and the Excel "Service status" sheet still give Open / Closed
+  counts of Calculations lines to people without the Calculations page (counts only, no money; from piece 2's
+  review). Someone with See money but not Enter / edit prices sees profit on the vessel page but not the typed cost
+  and revenue inside a service (the Calculations page shows them).
 - **Permissions and pages (review of 2026-11-25, not fixed):** a crew change's bookings list shows hotel / route /
   guest names to someone with Cancel a service but no booking page; the CSV export counts the rate limit before the
   Exports check and its 403 isn't logged; the Dashboard's status counts and the Excel "Service status" sheet give

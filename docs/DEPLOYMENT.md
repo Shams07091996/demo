@@ -307,7 +307,12 @@ later never changes people who already have an account):
 | Marine employee | add / edit vessels and services, mark Completed, enter prices and costs | Services |
 | Operations employee | Marine + cancel a service, customers and ships, hotels & transport bookings | Services, Hotels, Transport, Ships, Customers |
 | Branch manager | all 16 | all |
-| Accounts employee | see money, exports, History, close / reopen lines | Services, Calculations, Dashboard, Exchange rates, History |
+
+The two money ticks: **Enter / edit prices and costs** shows (and lets them type) the money boxes of the forms —
+services, hotel / transport prices, garbage & sludge money, customers' agreed rates, the amounts on the master
+receipt; **See money (overviews)** shows vessel totals and profit, the Dashboard's money, totals rows and the money
+columns of the Excel files. Without a tick the server never sends those figures, and their saves keep the money
+already stored.
 
 Some ticks need another: Calculations, Exchange rates and History need **See money (overviews)**; **Close / reopen
 lines** needs the Calculations page. Vessels is always on. Everyone who had an account before this update keeps

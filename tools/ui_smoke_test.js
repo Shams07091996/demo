@@ -267,8 +267,12 @@ async function login() {
     ok(!$('#modal [data-act="del-vessel"]') && !!$('#modal [data-act="edit-vessel"]') && !!$('#modal [data-act="add-service"]'),
       'marine: the vessel dialog edits but cannot delete');
     ok(!$('#modal [data-act="receipt"]'), 'marine: no Receipt button without documents');
+    // Money (piece 3): they type money (money.edit) but get no overview (no money.view).
+    ok(!$('#modal').textContent.includes('Total profit') && !$('#modal').textContent.includes('Total cost'),
+      'marine: the vessel dialog shows no total cost or profit');
     click($('#modal [data-act="edit-service"]'));
     ok(await waitFor(() => $('#svc-form [name=status]')), 'marine: a service opens for editing');
+    ok(!!$('#svc-form [name=cost]') && !!$('#svc-form #preview'), 'marine: the service dialog has its Cost box and the preview');
     const option = (value) => [...$('#svc-form [name=status]').options].find((o) => o.value === value);
     ok(!option('completed').disabled && option('cancelled').disabled, 'marine: Completed can be chosen, Cancelled cannot');
     closeModal();
@@ -278,6 +282,10 @@ async function login() {
     ok(await waitFor(() => $('#pageTitle').textContent === 'Vessels'), 'marine: #calculations lands on Vessels');
     ok((await w.fetch('/api/calculations/')).status === 403, 'marine: the Calculations API refuses them');
     ok((await w.fetch('/api/history/')).status === 403, 'marine: the History API refuses them');
+    ok((await w.fetch('/api/vessels/?sort=total_cost_egp')).status === 403, 'marine: sorting vessels by money is refused');
+    const listed = await (await w.fetch('/api/vessels/')).json();
+    ok(!('profit_egp' in listed.totals) && listed.vessels.every((v) => !('total_profit_egp' in v)),
+      'marine: the vessel list sends no totals or profit');
     return finish();
   }
 
@@ -1629,21 +1637,21 @@ async function login() {
     type($('#account-form [name=home_port]'), 'suez');
     tick('damietta').checked = false;
     tick('portsaid').checked = false;
-    // Template: Accounts employee fills in its ticks (money, exports, history, closing lines + their pages).
+    // Template: Branch manager fills in every tick (the Accounts employee template was cancelled, 2026-11-25).
     const perm = (key) => $(`#account-form [data-perm="${key}"]`);
     const page = (key) => $(`#account-form [data-tick-page="${key}"]`);
     ok(perm('history.view').disabled && page('calculations').disabled && page('vessels').checked && page('vessels').disabled,
       'accounts: ticks that need See money are disabled; Vessels is always on');
-    type($('#account-form [name=template]'), 'accounts');
-    ok(perm('money.view').checked && perm('accounting.close').checked && !perm('vessels.edit').checked
+    type($('#account-form [name=template]'), 'manager');
+    ok(perm('money.view').checked && perm('accounting.close').checked && perm('vessels.edit').checked
       && page('calculations').checked && page('history').checked && page('history').disabled,
-      'accounts: the Accounts employee template ticks its boxes');
+      'accounts: the Branch manager template ticks every box');
     click($('[data-act="account-save"]'));
     ok(await waitFor(() => acRow(username)?.children[2].textContent === 'Suez (home)'), 'accounts: the ports change');
-    ok(acRow(username).children[3].textContent === '4 of 16', 'accounts: the Can column counts the permissions');
+    ok(acRow(username).children[3].textContent === '16 of 16', 'accounts: the Can column counts the permissions');
     click(acRow(username));
     ok(await waitFor(() => $('#account-form') && $('#account-form [data-perm="exports"]')?.checked
-      && !$('#account-form [data-perm="vessels.edit"]').checked), 'accounts: the ticks are saved');
+      && $('#account-form [data-perm="vessels.delete"]').checked), 'accounts: the ticks are saved');
     perm('money.view').checked = false;
     perm('money.view').dispatchEvent(new w.Event('change', { bubbles: true }));
     ok(!perm('history.view').checked && !page('calculations').checked && !perm('accounting.close').checked,

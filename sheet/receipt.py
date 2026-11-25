@@ -25,22 +25,23 @@ def _revenue(service):
     return totals
 
 
-def services_line(service):
-    """e.g. "Landing with cost $120.50 and EGP 3,000"; just the label when there is no revenue."""
+def services_line(service, with_amounts=True):
+    """e.g. "Landing with cost $120.50 and EGP 3,000"; just the label when there is no revenue, or without
+    `with_amounts` (a person without money.edit)."""
     label = service.service_type
     if label == "Others / Remarks":
         note = str((service.data or {}).get("note") or "").strip()
         label = note.splitlines()[0].strip() if note else label
-    totals = _revenue(service)
+    totals = _revenue(service) if with_amounts else {}
     amounts = [_amount_text(round(totals[c], 2), c) for c in ("USD", "EGP") if c in totals]
     return f"{label} with cost {' and '.join(amounts)}" if amounts else label
 
 
-def prefill(service):
+def prefill(service, with_amounts=True):
     vessel = service.vessel
     return {
         "port": ports.label(vessel.port),
         "date": timezone.localdate().strftime("%d/%m/%Y"),
         "vessel": vessel.name,
-        "services": services_line(service),
+        "services": services_line(service, with_amounts),
     }

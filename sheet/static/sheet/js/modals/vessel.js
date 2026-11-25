@@ -67,9 +67,9 @@ export async function openVessel(id) {
   const vessel = await ensureVessel(id);
   if (!vessel) return;
   state.ctx = { view: 'vessel', vesselId: id };
-  const rateMissing = vessel.services.some((s) => s.calc.rate_missing);
+  const rateMissing = vessel.services.some((s) => s.calc?.rate_missing);
   const month = `${vessel.date.slice(5, 7)}.${vessel.date.slice(0, 4)}`;
-  const totals = vessel.services.length
+  const totals = vessel.services.length && can('money.view')
     ? h('div', { class: 'totals' },
       pillEl('Total cost', `LE ${fmt(vessel.total_cost_egp)}`), ' ',
       pillEl('Total profit', `LE ${sign(vessel.total_profit_egp)}`, profitClass(vessel.total_profit_egp)))

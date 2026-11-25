@@ -30,8 +30,8 @@ const HOTEL_COLUMNS = [
   { title: 'Guests', sort: 'guest', cell: (b) => guestsCell(b.guests) },
   { title: 'Nationality', cell: (b) => [...new Set(b.guests.map((g) => g.nationality).filter(Boolean))].join(', ') || '—' },
   { title: 'Vessel', sort: 'vessel', cell: vesselCell },
-  { title: 'Cost/night', cell: (b) => priceCell(b.cost_per_night, b.cost_currency) },
-  { title: 'Revenue/night', cell: (b) => priceCell(b.revenue_per_night, b.revenue_currency) },
+  { title: 'Cost/night', money: true, cell: (b) => priceCell(b.cost_per_night, b.cost_currency) },
+  { title: 'Revenue/night', money: true, cell: (b) => priceCell(b.revenue_per_night, b.revenue_currency) },
 ];
 
 const TRANSFER_COLUMNS = [
@@ -49,8 +49,8 @@ const TRANSFER_COLUMNS = [
   { title: 'Guests', sort: 'guest', cell: (b) => guestsCell(b.guests) },
   { title: 'Flight', cell: (b) => [...new Set(b.guests.map((g) => g.flight).filter(Boolean))].join(', ') || '—' },
   { title: 'Vessel', sort: 'vessel', cell: vesselCell },
-  { title: 'Cost', cell: (b) => priceCell(b.cost, b.cost_currency) },
-  { title: 'Revenue', cell: (b) => priceCell(b.revenue, b.revenue_currency) },
+  { title: 'Cost', money: true, cell: (b) => priceCell(b.cost, b.cost_currency) },
+  { title: 'Revenue', money: true, cell: (b) => priceCell(b.revenue, b.revenue_currency) },
 ];
 
 function savedSize(key) {
@@ -65,7 +65,7 @@ function savedSize(key) {
 function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
   const sizeKey = `sheet.${kind}.pageSize`;
   const id = (name) => `#${prefix}-${name}`;
-  const cols = columns; // every role sees all columns, money included (user decision)
+  const cols = columns.filter((c) => !c.money || can('money.edit')); // the prices: money.edit (piece 3)
   const filter = { ...defaultRange(), q: '', port: 'ALL', sort: defaultSort, dir: 'asc', page: 1, pageSize: savedSize(sizeKey) };
   let list = { bookings: [], count: 0, pages: 1, page: 1 };
   let ticket = 0;

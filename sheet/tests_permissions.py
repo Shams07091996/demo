@@ -86,16 +86,19 @@ class PermissionModelTests(TestCase):
         self.assertFalse(p.can("nope"))
         self.assertFalse(p.sees("nope"))
 
+    def test_templates_are_marine_operations_manager(self):
+        """The Accounts employee template was cancelled (2026-11-25): three templates, in this order."""
+        self.assertEqual([key for key, *_ in TEMPLATES], ["marine", "operations", "manager"])
+
     def test_templates_are_consistent(self):
         found = {key: (set(perms), set(pages)) for key, _, perms, pages in TEMPLATES}
-        self.assertEqual(set(found), {"marine", "operations", "manager", "accounts"})
+        self.assertEqual(set(found), {"marine", "operations", "manager"})
         for perms, pages in found.values():
             self.assertLessEqual(perms, set(PERMISSION_KEYS))
             self.assertLessEqual(pages, set(PAGE_KEYS))
             self.assertIn("vessels", pages)
             self.assertEqual("history" in pages, "history.view" in perms)
         self.assertEqual(found["manager"], (set(PERMISSION_KEYS), set(PAGE_KEYS)))
-        self.assertEqual(found["accounts"][0], {"money.view", "exports", "history.view", "accounting.close"})
         self.assertEqual(found["operations"][0] - found["marine"][0],
                          {"services.cancel", "customers.edit", "bookings.edit"})
         self.assertEqual(found["marine"][0], {"vessels.edit", "services.edit", "services.complete", "money.edit"})
@@ -272,7 +275,8 @@ class WritePermissionTests(Limited):
         self.assertEqual(status, 201, made)
         url = f"/api/customers/{made['id']}/"
         self.assertEqual(self.call(client, "put", url, {**body, "name": "Renamed"})[0], 403)
-        self.assertEqual(self.call(self.without("money.edit"), "put", url, {**body, "name": "Renamed"})[0], 200)
+        no_rates = {key: value for key, value in body.items() if key != "rates"}
+        self.assertEqual(self.call(self.without("money.edit"), "put", url, {**no_rates, "name": "Renamed"})[0], 200)
 
     def test_customer_rates_need_money_edit(self):
         rates = {"Fresh Water": {"amount": 12.5, "currency": "USD"}}
@@ -282,7 +286,11 @@ class WritePermissionTests(Limited):
         status, made = self.call(self.without(), "post", "/api/customers/", body)
         self.assertEqual(status, 201, made)
         url = f"/api/customers/{made['id']}/"
-        self.assertEqual(self.call(client, "put", url, {**body, "name": "Same rates"})[0], 200)
+        # Piece 3: rates are never sent to a person without money.edit, so sending any (even unchanged) is refused;
+        # a save without them keeps them.
+        self.assertEqual(self.call(client, "put", url, {**body, "name": "Same rates"})[0], 403)
+        no_rates = {key: value for key, value in body.items() if key != "rates"}
+        self.assertEqual(self.call(client, "put", url, {**no_rates, "name": "Same rates"})[0], 200)
         changed = {**body, "rates": {"Fresh Water": {"amount": 13, "currency": "USD"}}}
         self.assertEqual(self.call(client, "put", url, changed)[0], 403)
         self.assertEqual(self.call(client, "put", url, {**body, "rates": {}})[0], 403)
@@ -471,8 +479,8 @@ class HistoryTests(Limited):
         self.assertNotIn(("option", ""), {(r["object_type"], r["port"]) for r in self.records(self.without())})
 
     def test_history_follows_booking_and_closure_pages(self):
-        """Review fix: the Accounts employee template has History but no Hotels / Transport / Port closures page:
-        those records stay out of their History (asking with type= too)."""
+        """Review fix: someone with History but no Hotels / Transport / Port closures page: those records stay out of
+        their History (asking with type= too)."""
         HotelStay.objects.filter(pk=self.stay.pk).update(nights=4)
         self.stay.refresh_from_db()
         self.stay.save()

@@ -3,7 +3,7 @@ import {
   headEl, inProgressTagEl, metaBadgesEl, pillEl, portCallBlockEl, profitClass, serviceCountsEl, serviceStatusEl,
   statusChipEl, tagLabel,
 } from '../components.js';
-import { MULTI, NO_AGENT, SINGLE_EXTRA } from '../config.js';
+import { MULTI, NO_AGENT, SINGLE_EXTRA, can } from '../config.js';
 import { h, icon } from '../dom.js';
 import { openModal } from '../modal.js';
 import { api } from '../api.js';
@@ -36,11 +36,15 @@ function crewTable(list, group) {
     rows);
 }
 
+// Typed amounts come only with money.edit, figures (profit, totals) only with money.view: show what was sent.
+const seeMoney = () => can('money.view');
+const editMoney = () => can('money.edit');
+
 function multiEntryBlock(service) {
   const entries = service.data.entries || [];
   if (!entries.length) return h('div', { class: 'none' }, 'No entries.');
   const lines = entries.map((entry, i) => {
-    const calc = (service.calc.entries || [])[i] || {};
+    const calc = (service.calc?.entries || [])[i] || {};
     const profit = calc.profit_egp || 0;
     return h('div', { class: 'entry-line' },
       h('div', { class: 't' }, `Entry ${i + 1}${entry.awb ? ` — AWB: ${entry.awb}` : ''}`),
@@ -48,20 +52,21 @@ function multiEntryBlock(service) {
         entry.weight ? pillEl('Weight', `${txt(entry.weight)} kg`) : null,
         entry.cost != null ? pillEl('Cost', `${txt(entry.costCurrency)} ${fmt(entry.cost)}`) : null,
         entry.revenue != null ? pillEl('Revenue', `${txt(entry.revenueCurrency)} ${fmt(entry.revenue)}`, 'good') : null,
-        pillEl('Profit (EGP)', sign(profit), profitClass(profit))));
+        seeMoney() ? pillEl('Profit (EGP)', sign(profit), profitClass(profit)) : null));
   });
   return [lines, h('div', { class: 'pills' }, pillEl('Entries', entries.length),
-    pillEl('Total profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp)))];
+    seeMoney() ? pillEl('Total profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp)) : null)];
 }
 
 function cashToMasterBlock(service) {
   const d = service.data;
+  if (!editMoney() && !seeMoney()) return null;
   const share = d.shareMode === 'fixed' ? `${txt(d.amountCurrency)} ${fmt(d.fixedRevenue)}` : `${txt(d.percentage ?? 0)}%`;
   return pillsTight(
-    pillEl('Amount', `${txt(d.amountCurrency)} ${fmt(d.amount)}`), pillEl('Our share', share),
-    pillEl('Our revenue (EGP)', fmt(service.calc.revenue_egp), 'good'),
-    pillEl('Paid to master (EGP)', fmt(service.calc.to_master_egp)),
-    pillEl('Profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp)),
+    editMoney() ? [pillEl('Amount', `${txt(d.amountCurrency)} ${fmt(d.amount)}`), pillEl('Our share', share)] : null,
+    seeMoney() ? [pillEl('Our revenue (EGP)', fmt(service.calc.revenue_egp), 'good'),
+      pillEl('Paid to master (EGP)', fmt(service.calc.to_master_egp)),
+      pillEl('Profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp))] : null,
     d.exchangeRate ? pillEl('Rate used', txt(d.exchangeRate)) : null);
 }
 
@@ -71,13 +76,17 @@ function singleBlock(service) {
   const extraLine = extra && d[extra.name]
     ? h('div', { class: 'none', style: { marginBottom: '6px' } }, `${extra.label}: `, h('b', { style: { color: 'var(--text)' } }, d[extra.name]))
     : null;
+  if (!editMoney() && !seeMoney()) return extraLine;
   return [extraLine, pillsTight(
-    pillEl('Cost', `${txt(d.costCurrency)} ${fmt(d.cost)}`), pillEl('Revenue', `${txt(d.revenueCurrency)} ${fmt(d.revenue)}`, 'good'),
-    pillEl('Profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp)),
+    editMoney() ? [pillEl('Cost', `${txt(d.costCurrency)} ${fmt(d.cost)}`), pillEl('Revenue', `${txt(d.revenueCurrency)} ${fmt(d.revenue)}`, 'good')] : null,
+    seeMoney() ? pillEl('Profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp)) : null,
     d.exchangeRate ? pillEl('Rate used', txt(d.exchangeRate)) : null)];
 }
 
-const hasMoney = (service) => service.calc.cost_egp || service.calc.revenue_egp;
+// Any money on the service, judged from what this person was sent (figures, else the typed amounts).
+const hasMoney = (service) => (service.calc
+  ? service.calc.cost_egp || service.calc.revenue_egp
+  : (service.data.cost ?? '') !== '' || (service.data.revenue ?? '') !== '');
 
 function serviceBlock(service) {
   let inner;
@@ -111,12 +120,12 @@ export async function openSummary(id) {
     services.length ? null : h('div', { class: 'hint' }, 'No services recorded.'),
     services.filter((s) => s.type !== 'Crew Change').map(serviceBlock),
     services.filter((s) => s.type === 'Crew Change').map(crewBlock),
-    services.some(hasMoney)
+    seeMoney() && services.some(hasMoney)
       ? h('div', { class: 'profit-banner' }, h('b', null, 'TOTAL PROFIT (EGP)'),
         h('span', { style: { color: `var(${vessel.total_profit_egp >= 0 ? '--success' : '--danger'})` } }, `${sign(vessel.total_profit_egp)} EGP`))
       : null,
   ];
-  const summaryCards = [['Total Cost LE', fmt(vessel.total_cost_egp)], ...Object.entries(vessel.summary || {})]
+  const summaryCards = [...(seeMoney() ? [['Total Cost LE', fmt(vessel.total_cost_egp)]] : []), ...Object.entries(vessel.summary || {})]
     .map(([key, value]) => h('div', { class: 'sum-card' }, h('span', null, key), h('b', null, value)));
 
   openModal(
@@ -148,7 +157,7 @@ function dashboardFiltered(vessels) {
   return vessels
     .map((v) => {
       const services = v.services.filter(counted);
-      const cost = services.reduce((n, s) => n + s.calc.cost_egp, 0);
+      const cost = services.reduce((n, s) => n + (s.calc?.cost_egp ?? 0), 0);
       return { ...v, services, total_cost_egp: Math.round(cost * 100) / 100, keep: services.length > 0 || portCall(v) };
     })
     .filter((v) => v.keep);
@@ -174,14 +183,15 @@ export async function openOprSummary(opr) {
   const perVessel = vessels.map((v) => h('div', { class: 'svc-card clickable', dataset: { act: 'summary', id: v.id } },
     h('div', { class: 'svc-top' }, h('strong', null, v.name),
       h('span', { class: 'none', style: { fontSize: '12px' } }, `${dmy(v.date)} · `,
-        h('span', { class: 'num' }, v.total_cost_egp ? `LE ${fmt(v.total_cost_egp)}` : '—'))),
+        seeMoney() ? h('span', { class: 'num' }, v.total_cost_egp ? `LE ${fmt(v.total_cost_egp)}` : '—') : null)),
     h('div', { style: { marginTop: '8px' } }, v.services.length
       ? v.services.map((s) => h('span', { class: 'svc-chip' }, tagLabel(s)))
       : h('span', { class: 'none' }, h('i', null, 'No services')))));
   const countPills = Object.entries(counts).map(([k, n]) => pillEl(k, n, 'good'));
 
   openModal(
-    headEl(`${opr} — Services summary`, `${figures.vessels} vessels · ${figures.services} services · LE ${fmt(figures.cost_egp)}`),
+    headEl(`${opr} — Services summary`, `${figures.vessels} vessels · ${figures.services} services`
+      + (figures.cost_egp === undefined ? '' : ` · LE ${fmt(figures.cost_egp)}`)),
     h('div', { class: 'm-body' },
       list.count > list.vessels.length ? h('div', { class: 'hint' }, `Showing the first ${list.vessels.length} of ${list.count} vessels.`) : null,
       sectionTitle('All services (combined)'),

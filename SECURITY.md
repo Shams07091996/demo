@@ -79,8 +79,8 @@ The full step-by-step procedure (database logins, service, web server, accounts,
 
 ## 5. What is tested
 
-`python manage.py test sheet` (814 tests on SQLite; all 452 also passed on PostgreSQL 17 on 2026-11-19; three of them check the
-history's append-only trigger and run on PostgreSQL only): access control for every endpoint, Admin and User, port isolation (including Users of several ports), CSRF, malformed / hostile JSON,
+`python manage.py test sheet` (849 tests on SQLite; all 452 also passed on PostgreSQL 17 on 2026-11-19; three of them check the
+history's append-only trigger and run on PostgreSQL only): access control for every endpoint, Admin and User, port isolation (including Users of several ports), money withheld from people without the money permissions (every route that sends a vessel, booking, customer, export or report; saves keep it), CSRF, malformed / hostile JSON,
 validation limits, money maths, login throttling (user, IP, admin login, proxy header spoofing), password change
 rules, audit / security logging without secrets, headers and CSP, CSV injection, port-call time
 rules, database settings, the dependency lock, API rate limits, JSON errors with references, alerting, the change

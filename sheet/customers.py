@@ -4,6 +4,7 @@ pre-fill the service dialog's revenue (js/rates.js); the server never checks a r
 
 from django.db.models import ProtectedError
 
+from . import moneyaccess
 from .errors import BadRequest, Forbidden
 from .models import Customer, CustomerContact, CustomerRate
 from .ships import IN_USE
@@ -23,27 +24,24 @@ def customer_to_dict(customer):
     }
 
 
-def list_response():
+def list_response(profile=None):
     customers = Customer.objects.prefetch_related("contacts", "rates", "ships").order_by("name", "id")
-    return {"customers": [customer_to_dict(c) for c in customers]}
+    return {"customers": [moneyaccess.customer_out(customer_to_dict(c), profile) for c in customers]}
 
 
 RATES_NEED_MONEY = "You don't have permission: Enter / edit prices and costs."
-
-
-def _rate_set(rates):
-    return {(r["service_type"], r["amount"], r["currency"]) for r in rates}
 
 
 def save_customer(payload, existing=None, may_change_rates=True):
     """Create or update a customer; its contacts and rates become what was sent (in the request's one transaction,
     so a refused payload changes nothing). Only rows that really change are written, so the History shows just
     what someone changed."""
-    values = clean_customer(payload, existing)
-    if not may_change_rates:  # agreed rates are money: only with money.edit (sending them unchanged is fine)
-        stored = list(existing.rates.values("service_type", "amount", "currency")) if existing else []
-        if _rate_set(values["rates"]) != _rate_set(stored):
-            raise Forbidden(RATES_NEED_MONEY)
+    if not may_change_rates and isinstance(payload, dict) and "rates" in payload:
+        raise Forbidden(RATES_NEED_MONEY)  # agreed rates are money: never sent to, nor taken from, a person without it
+    values = clean_customer({**payload, "rates": {}} if not may_change_rates and isinstance(payload, dict) else payload,
+                            existing)
+    if not may_change_rates:  # rates not sent: the stored ones stay
+        values["rates"] = list(existing.rates.values("service_type", "amount", "currency")) if existing else []
     customer = existing or Customer()
     for key in ("name", "notes", "active"):
         setattr(customer, key, values[key])

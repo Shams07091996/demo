@@ -11,7 +11,7 @@ from datetime import date, datetime, time, timedelta
 
 from django.utils import timezone
 
-from . import calculations, crewbookings, xlsx
+from . import calculations, crewbookings, moneyaccess, xlsx
 from . import dashboard as dashboard_figures
 from . import ports as port_table
 from .access import scoped_closures, scoped_vessels
@@ -93,6 +93,8 @@ def _summary(vessels, money, rows, profile):
     table = _table(["Port", "Vessels", "Services", *MONEY_HEAD],
                    [groups[key].row(label) for key, label in port_table.ordered() if key in groups],
                    ["Total", len(vessels), sum(v["services_count"] for v in vessels), *_totals(rows)])
+    if not moneyaccess.views(profile):  # the notes are about money
+        return _sheet("Summary", [table])
     extras = [name for name, page in (("hotels", "hotels"), ("transport", "transport"),
                                       ("garbage & sludge", "disposal")) if profile.sees(page)]
     notes = [f"Money includes {', '.join(extras[:-1])} and {extras[-1]}." if len(extras) > 1
@@ -113,9 +115,11 @@ def _by_month(vessels, money, rows, r):
     return _sheet("By month", [_table(["Month", "Vessels", "Services", *MONEY_HEAD], table_rows, total)])
 
 
-def _by_line(vessels, money):
+def _by_line(vessels, money, profile):
     lines = _grouped(vessels, money, lambda v: v["opr"] or NO_LINE)
-    order = sorted(lines, key=lambda name: (-lines[name].revenue, name.casefold()))
+    # Ranked by revenue only for people who may see it; otherwise by vessels (the order would show the money).
+    rank = (lambda name: -lines[name].revenue) if moneyaccess.views(profile) else (lambda name: -lines[name].vessels)
+    order = sorted(lines, key=lambda name: (rank(name), name.casefold()))
     first = _table(["Line", "Vessels", "Services", *MONEY_HEAD], [lines[name].row(name) for name in order])
     pairs = _grouped(vessels, money, lambda v: (v["opr"] or NO_LINE, v["port"]))
     second = _table(["Line", "Port", "Vessels", "Services", *MONEY_HEAD],
@@ -331,7 +335,7 @@ def data(profile, r, now=None):
     sheets = {
         "summary": _summary(vessels, money, rows, profile),
         "months": _by_month(vessels, money, rows, r),
-        "lines": _by_line(vessels, money),
+        "lines": _by_line(vessels, money, profile),
         "services": _by_service(rows),
         "ports_perf": _ports_perf(objects, r),
         "closures": _closures(profile, r, now or timezone.now()) if profile.sees("closures") else None,
@@ -340,26 +344,45 @@ def data(profile, r, now=None):
         "disposal": _disposal(objects, rows, r) if profile.sees("disposal") else None,
         "service_status": _service_status(objects, rows, r),
     }
-    # Sheets of pages the person doesn't have are left out (access rework piece 2).
-    return {key: sheet for key, sheet in sheets.items() if sheet is not None}
+    # Sheets of pages the person doesn't have are left out (access rework piece 2); without money.view, the money
+    # columns and the sheet that is only money (piece 3).
+    if not moneyaccess.views(profile):
+        sheets["services"] = None
+    return {key: _without_money(sheet, profile) for key, sheet in sheets.items() if sheet is not None}
+
+
+def _pick(row, keep):
+    return [row[i] for i in keep]
+
+
+def _without_money(sheet, profile):
+    """The sheet without the money columns this person may not get (head, rows and total alike)."""
+    tables = []
+    for table in sheet["tables"]:
+        gone = moneyaccess.money_columns(table["head"], profile)
+        keep = [i for i in range(len(table["head"])) if i not in gone]
+        tables.append(_table(_pick(table["head"], keep), [_pick(row, keep) for row in table["rows"]],
+                             _pick(table["total"], keep) if table["total"] else table["total"]))
+    return {**sheet, "tables": tables}
 
 
 def port_label(r):
     return port_table.label(r.port) if r.port else "All ports"
 
 
-# (chart kind, title, table index, [series columns]); the first column of that table holds the categories.
+# (chart kind, title, table index, [series column heads]); the first column of that table holds the categories.
+# A chart whose series column is not there (money columns without money.view) is not drawn.
 CHARTS = {
-    "summary": ("column", "Profit per port (EGP)", 0, [5]),
-    "months": ("line", "Revenue, cost and profit per month (EGP)", 0, [3, 4, 5]),
-    "lines": ("bar", "Revenue per line (EGP)", 0, [3]),
-    "services": ("bar", "Profit per service (EGP)", 0, [4]),
-    "ports_perf": ("column", "Average waiting per port (h)", 0, [2]),
-    "closures": ("column", "Hours closed per port", 0, [2]),
-    "agents": ("bar", "Jobs per agent", 0, [-1]),
-    "crew": ("column", "On- and off-signers per line", 0, [2, 3]),
-    "disposal": ("column", "Garbage (m³) and sludge (t) per month", 1, [1, 2]),
-    "service_status": ("column", "Services per status per month", 0, [1, 2, 3]),
+    "summary": ("column", "Profit per port (EGP)", 0, ["Profit (EGP)"]),
+    "months": ("line", "Revenue, cost and profit per month (EGP)", 0, ["Revenue (EGP)", "Cost (EGP)", "Profit (EGP)"]),
+    "lines": ("bar", "Revenue per line (EGP)", 0, ["Revenue (EGP)"]),
+    "services": ("bar", "Profit per service (EGP)", 0, ["Profit (EGP)"]),
+    "ports_perf": ("column", "Average waiting per port (h)", 0, ["Avg waiting (h)"]),
+    "closures": ("column", "Hours closed per port", 0, ["Hours closed"]),
+    "agents": ("bar", "Jobs per agent", 0, ["Total"]),
+    "crew": ("column", "On- and off-signers per line", 0, ["On-signers", "Off-signers"]),
+    "disposal": ("column", "Garbage (m³) and sludge (t) per month", 1, ["Garbage (m³)", "Sludge (t)"]),
+    "service_status": ("column", "Services per status per month", 0, ["In progress", "Completed", "Cancelled"]),
 }
 
 
@@ -389,11 +412,12 @@ def _layout(key, sheet, subtitle):
     rows += [[note] for note in sheet["notes"]]
     widest = max(len(table["head"]) for table in sheet["tables"])
     charts = []
-    kind, title, index, columns = CHARTS[key]
+    kind, title, index, heads = CHARTS[key]
     table = sheet["tables"][index]
-    if table["rows"]:
+    names = [str(cell) for cell in table["head"]]
+    if table["rows"] and all(head in names for head in heads):
         first, last = starts[index] + 1, starts[index] + len(table["rows"])
-        series = [(str(table["head"][col]), first, last, col % len(table["head"])) for col in columns]
+        series = [(head, first, last, len(names) - 1 - names[::-1].index(head)) for head in heads]
         charts.append(xlsx.Chart(kind=kind, title=title, categories=(first, last, 0), series=series,
                                  anchor=(widest + 1, 3)))
     return xlsx.Sheet(name=xlsx.safe_sheet_name(sheet["title"]), rows=rows, widths=[24] + [14] * (widest - 1),

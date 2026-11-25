@@ -35,6 +35,7 @@ from . import (
     listing,
     logistics,
     logpdf,
+    moneyaccess,
     ports,
     ratelimit,
     receipt,
@@ -161,10 +162,10 @@ def index(request):
 # ---- vessels --------------------------------------------------------------------------------
 
 
-def _vessel_json(pk, status=200):
-    """Re-read a vessel (with its services) and return it as a JSON response."""
+def _vessel_json(pk, profile, status=200):
+    """Re-read a vessel (with its services) and return it as a JSON response, with the money this person may get."""
     vessel = Vessel.objects.prefetch_related("services").get(pk=pk)
-    return JsonResponse(vessel_to_dict(vessel, month_rates()), status=status)
+    return JsonResponse(moneyaccess.vessel_out(vessel_to_dict(vessel, month_rates()), profile), status=status)
 
 
 @json_api
@@ -176,7 +177,7 @@ def vessels(request):
     require(request.profile, "vessels.edit")
     vessel = Vessel.objects.create(**clean_vessel(read_json(request), request.profile))
     audit(request, "vessel.create", id=vessel.id, port=vessel.port)
-    return _vessel_json(vessel.pk, status=201)
+    return _vessel_json(vessel.pk, request.profile, status=201)
 
 
 @json_api
@@ -189,7 +190,8 @@ def vessel_alerts(request):
 @require_http_methods(["GET"])
 def dashboard(request):
     require_page(request.profile, "dashboard")
-    return JsonResponse(dashboard_figures.response(request.profile, request.GET))
+    return JsonResponse(moneyaccess.dashboard_out(dashboard_figures.response(request.profile, request.GET),
+                                                  request.profile))
 
 
 @json_api
@@ -280,7 +282,7 @@ def data_export_all(request):
 def vessel_detail(request, pk):
     vessel = get_object_or_404(scoped_vessels(request.profile), pk=pk)
     if request.method == "GET":
-        return JsonResponse(vessel_to_dict(vessel, month_rates()))
+        return JsonResponse(moneyaccess.vessel_out(vessel_to_dict(vessel, month_rates()), request.profile))
 
     if request.method == "DELETE":
         require(request.profile, "vessels.delete")
@@ -299,22 +301,29 @@ def vessel_detail(request, pk):
     vessel.save()
     crewbookings.sync(vessel)  # draft dates follow the vessel date (e.g. it became the sailing day)
     audit(request, "vessel.update", id=vessel.id)
-    return _vessel_json(vessel.pk)
+    return _vessel_json(vessel.pk, request.profile)
 
 
 # ---- services -------------------------------------------------------------------------------
 
 
 def _read_service(request, vessel, existing=None):
-    """{service_type, agent, data, status, cancel_reason} of a service sent by the browser for `vessel`."""
+    """{service_type, agent, data, status, cancel_reason} of a service sent by the browser for `vessel`. Without
+    money.edit the data carries no money: sending some is refused, and a saved service keeps its stored money."""
     payload = read_json(request)
     service_type = payload.get("type")
     if service_type not in SERVICE_TYPES:
         raise BadRequest("Choose a service type.")
+    may_edit_money = moneyaccess.edits(request.profile)
+    if not may_edit_money and moneyaccess.service_money_sent(service_type, payload.get("data")):
+        require(request.profile, moneyaccess.EDIT)
+    data = clean_service_data(service_type, payload.get("data"))
+    if not may_edit_money and existing is not None:
+        data = moneyaccess.keep_service_money(service_type, data, existing.service_type, existing.data)
     agent = clean_agent(payload.get("agent"), vessel.port, getattr(existing, "agent", ""))
     status, reason = clean_service_status(payload, existing)
     billing, party = clean_service_billing(payload, vessel, existing)
-    return {"service_type": service_type, "agent": agent, "data": clean_service_data(service_type, payload.get("data")),
+    return {"service_type": service_type, "agent": agent, "data": data,
             "status": status, "cancel_reason": reason, "billing": billing, "billing_party": party}
 
 
@@ -331,7 +340,7 @@ def service_create(request, pk):
     service.save()
     crewbookings.sync(vessel)
     audit(request, "service.create", id=service.id, vessel=vessel.id, type=service.service_type)
-    return _vessel_json(vessel.pk, status=201)
+    return _vessel_json(vessel.pk, request.profile, status=201)
 
 
 @json_api
@@ -362,11 +371,11 @@ def service_detail(request, pk):
         services.stamp_completed(service, old_status, timezone.now())
         conflicts.bump_if_changed(service, before)
         service.save()
-        cancelled = crewbookings.cancel_bookings(service, refs)
+        cancelled = crewbookings.cancel_bookings(service, refs, zero_money=moneyaccess.edits(request.profile))
         extra = {"cancelled_bookings": ",".join(f"{kind}:{pk}" for kind, pk in cancelled)} if cancelled else {}
         audit(request, "service.update", id=service.id, vessel=service.vessel_id, **extra)
     crewbookings.sync(service.vessel)  # automatic bookings follow the crew (a deleted service drops its drafts)
-    return _vessel_json(service.vessel_id)
+    return _vessel_json(service.vessel_id, request.profile)
 
 
 @json_api
@@ -465,7 +474,7 @@ def service_receipt(request, pk):
     allowed = scoped_vessels(request.profile, prefetch=False)
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed).select_related("vessel"), pk=pk)
     if request.method == "GET":
-        return JsonResponse({"receipt": receipt.prefill(service)})
+        return JsonResponse({"receipt": receipt.prefill(service, moneyaccess.edits(request.profile))})
     ratelimit.check(request, "export")
     fields = clean_receipt(read_json(request))
     pdf = logpdf.build_receipt(fields, _letterhead_images())
@@ -552,7 +561,7 @@ def disposal_price_delete(request, pk):
 @require_http_methods(["GET"])
 def disposal_list(request):
     require_page(request.profile, "disposal")
-    return JsonResponse(disposal.response(request.profile, request.GET))
+    return JsonResponse(moneyaccess.disposal_out(disposal.response(request.profile, request.GET), request.profile))
 
 
 @json_api
@@ -565,7 +574,7 @@ def disposal_update(request, vessel_id):
     changes = clean_disposal_quantities(read_json(request))
     result = disposal.save(vessel, changes)
     audit(request, "disposal.save", vessel=vessel.id, **changes)
-    return JsonResponse(result)
+    return JsonResponse(moneyaccess.disposal_row_out(result, request.profile))
 
 
 # ---- master data (OPR / POC options) --------------------------------------------------------
@@ -704,18 +713,18 @@ def export_csv(request):
         filters = listing.parse_filters(request.GET, paged=False)
     except BadRequest as error:
         return HttpResponse(str(error), status=400, content_type="text/plain; charset=utf-8")
+    try:
+        moneyaccess.require_sort(profile, filters.sort)
+    except Forbidden as error:
+        return HttpResponse(str(error), status=403, content_type="text/plain; charset=utf-8")
     rows = listing.matching(listing.range_rows(profile, filters), filters)
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="vessels.csv"'
     response.write("\ufeff")  # byte-order mark so Excel reads UTF-8
     writer = csv.writer(response)
-    writer.writerow(
-        ["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Date", "Status"]
-        + [label for _, label in TIME_FIELDS]
-        + ["Delay reason", "Services", "Total Cost LE", "Total Profit LE"]
-    )
-    for data in rows:
-        writer.writerow(
+    head = (["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Date", "Status"]
+            + [label for _, label in TIME_FIELDS] + ["Delay reason", "Services", "Total Cost LE", "Total Profit LE"])
+    lines = [
             [
                 _csv_safe(data["name"]),
                 _csv_safe(data["opr"]),
@@ -731,7 +740,11 @@ def export_csv(request):
                 data["total_cost_egp"],
                 data["total_profit_egp"],
             ]
-        )
+            for data in rows
+    ]
+    head, lines = moneyaccess.drop_columns(head, lines, profile)
+    writer.writerow(head)
+    writer.writerows(lines)
     audit(request, "export.csv")
     return response
 
@@ -774,11 +787,11 @@ def ship_detail(request, pk):
 @require_http_methods(["GET", "POST"])
 def customers_list(request):
     if request.method == "GET":
-        return JsonResponse(customers.list_response())
+        return JsonResponse(customers.list_response(request.profile))
     require(request.profile, "customers.edit")
     customer = customers.save_customer(read_json(request), may_change_rates=request.profile.can("money.edit"))
     audit(request, "customer.create", id=customer.id)
-    return JsonResponse(customers.customer_to_dict(customer), status=201)
+    return JsonResponse(moneyaccess.customer_out(customers.customer_to_dict(customer), request.profile), status=201)
 
 
 @json_api
@@ -794,7 +807,7 @@ def customer_detail(request, pk):
     customer = customers.save_customer(read_json(request), existing=customer,
                                        may_change_rates=request.profile.can("money.edit"))
     audit(request, "customer.update", id=customer.id)
-    return JsonResponse(customers.customer_to_dict(customer))
+    return JsonResponse(moneyaccess.customer_out(customers.customer_to_dict(customer), request.profile))
 
 
 @json_api

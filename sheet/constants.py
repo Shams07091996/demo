@@ -152,6 +152,4 @@ TEMPLATES = (
     ("operations", "Operations employee", _OPERATIONS,
      ("vessels", "services", "hotels", "transport", "ships", "customers")),
     ("manager", "Branch manager", PERMISSION_KEYS, PAGE_KEYS),
-    ("accounts", "Accounts employee", ("money.view", "exports", "history.view", "accounting.close"),
-     ("vessels", "services", "calculations", "dashboard", "rates", "history")),
 )

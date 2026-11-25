@@ -1,6 +1,6 @@
 // The dashboard tab, as the server totals it (state.dashboard, loaded by data.loadDashboard): its own filters, jobs
 // per agent, services and money per month, then the OPR charts and cards. Charts are plain divs (no library).
-import { CHART_COLORS, NO_AGENT, TYPES } from '../config.js';
+import { CHART_COLORS, NO_AGENT, TYPES, can } from '../config.js';
 import { state } from '../state.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { $, fmt, fmtShort } from '../util.js';
@@ -10,6 +10,8 @@ const monthLabel = (ym) => `${MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} ${ym.slic
 const typeColor = (type) => CHART_COLORS[Math.max(0, TYPES.indexOf(type)) % CHART_COLORS.length];
 const agentLabel = (agent) => agent || '(no agent)';
 const noData = () => h('div', { class: 'none' }, 'No data.');
+// The money panels are in the page only with money.view (the template leaves them out, the server sends no money).
+const seeMoney = () => can('money.view');
 
 function renderBars(selector, labels, values, format) {
   const container = $(selector);
@@ -37,7 +39,7 @@ function renderOprCards(oprs) {
         h('div', { class: 'n', style: { color } }, t.opr),
         h('div', { class: 'big' }, t.vessels, ' ', h('small', null, 'vessels')),
         h('div', { class: 'none' }, `${t.services} services`),
-        h('div', { class: 'num', style: { marginTop: '4px' } }, `${fmtShort(t.cost_egp)} LE cost`));
+        seeMoney() ? h('div', { class: 'num', style: { marginTop: '4px' } }, `${fmtShort(t.cost_egp)} LE cost`) : null);
     })
     : h('div', { class: 'none' }, 'No data for the selected filters.'));
 }
@@ -93,7 +95,7 @@ function renderAgents({ agents, service_types: types, totals }) {
 
 function renderMonths({ months, service_types: types, totals }) {
   if (!months.length) {
-    for (const selector of ['#chart-months', '#tbl-months', '#tbl-money']) setChildren($(selector), noData());
+    for (const selector of ['#chart-months', '#tbl-months', ...(seeMoney() ? ['#tbl-money'] : [])]) setChildren($(selector), noData());
     return;
   }
   const max = Math.max(...months.map((m) => m.total), 1);
@@ -111,6 +113,7 @@ function renderMonths({ months, service_types: types, totals }) {
   const typeRows = types.map((t) => [[t, ...months.map((m) => m.by_type[t] || 0), months.reduce((n, m) => n + (m.by_type[t] || 0), 0)]]);
   typeRows.push([['Total', ...months.map((m) => m.total), totals.services], { class: 'total' }]);
   setChildren($('#tbl-months'), figTable(heads, typeRows));
+  if (!seeMoney()) return;
 
   const moneyCell = (value, negative) => h('td', { class: negative && value < 0 ? 'num neg' : 'num' }, fmt(value));
   const moneyRows = [['Cost', 'cost_egp'], ['Revenue', 'revenue_egp'], ['Profit', 'profit_egp']].map(([label, key]) => [
@@ -146,7 +149,9 @@ export function renderDashboard() {
   const column = (key) => oprs.map((o) => o[key]);
   renderBars('#chart-vessels', labels, column('vessels'), (n) => n);
   renderBars('#chart-services', labels, column('services'), (n) => n);
-  renderBars('#chart-cost', labels, column('cost_egp'), fmtShort);
-  renderBars('#chart-profit', labels, column('profit_egp'), fmtShort);
+  if (seeMoney()) {
+    renderBars('#chart-cost', labels, column('cost_egp'), fmtShort);
+    renderBars('#chart-profit', labels, column('profit_egp'), fmtShort);
+  }
   renderOprCards(oprs);
 }

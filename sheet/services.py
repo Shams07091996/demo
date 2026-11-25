@@ -2,7 +2,7 @@
 
 from django.utils import timezone
 
-from . import crewbookings, finance
+from . import crewbookings, finance, moneyaccess
 from .access import scoped_vessels
 from .constants import MULTI_TYPES, NO_AGENT, SERVICE_STATUSES, SERVICE_TYPES
 from .errors import BadRequest
@@ -165,7 +165,7 @@ def filtered(profile, params, today=None, now=None):
                              or (date_to and completed_day(service) > date_to)):
             continue
         month = (service.vessel.date.year, service.vessel.date.month)
-        gaps = missing(service, rates.get(month), incomplete)
+        gaps = moneyaccess.tags_out(missing(service, rates.get(month), incomplete), profile)
         if params.get("missing") == "1" and not gaps:
             continue
         picked.append((service, gaps))

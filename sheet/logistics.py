@@ -14,7 +14,7 @@ from django.db import transaction
 from django.http import Http404
 from django.utils import timezone
 
-from . import conflicts, finance, history, ports
+from . import access, conflicts, finance, history, moneyaccess, ports
 from .access import scoped_vessels
 from .constants import MAX_NIGHTS
 from .errors import BadRequest
@@ -130,7 +130,7 @@ def booking_to_dict(kind, obj, profile):
             "exchange_rate": as_float(obj.exchange_rate),
         }
     )
-    return row
+    return moneyaccess.booking_out(kind, row, profile)
 
 
 def _place(transfer, place):
@@ -217,7 +217,12 @@ def _vessel_for(profile, raw_id):
 def save_booking(kind, profile, data, existing=None):
     """Create (existing=None) or replace a booking from browser data. The vessel of an existing booking never
     changes; a new booking's vessel must be one the profile may see (else 404)."""
+    if not moneyaccess.edits(profile):  # no money boxes: sending some is refused, the stored money stays
+        if moneyaccess.booking_money_sent(kind, data):
+            access.require(profile, moneyaccess.EDIT)
     cleaned = CLEANERS[kind](data)
+    if not moneyaccess.edits(profile):
+        moneyaccess.keep_booking_money(kind, cleaned, existing)
     guests = cleaned.pop("guests")
     if cleaned["cancelled"] is None:  # not sent: a new booking is not cancelled, a saved one keeps its state
         cleaned["cancelled"] = existing.cancelled if existing else False
