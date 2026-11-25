@@ -5,8 +5,8 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Access rework, piece 3 of 3 — money (2026-11-25):** built on branch **`feature/money-permissions`**, **not
-  merged** (waiting for the final review and the user's OK). Needs migration **`0026_entry_uids`** on the user's
+- **Access rework, piece 3 of 3 — money (2026-11-25):** **merged into `main`** (2026-11-25, after a
+  fresh review and the user's OK; not pushed). Needs migration **`0026_entry_uids`** on the user's
   database (gives every Delivery / Landing line a stable id; no data changes otherwise). **Enter / edit prices and
   costs** (`money.edit`) now decides who sees and types the money boxes of the forms (services, hotel / transport
   prices, garbage & sludge money, agreed rates, the receipt's amounts); **See money (overviews)** (`money.view`)
