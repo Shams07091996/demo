@@ -142,3 +142,13 @@ class PriceCellTests(SimpleTestCase):
     def test_odd_currency_falls_back_to_plain_money(self):
         xml = parts_of(xlsx.Sheet("S", [[xlsx.Price(5, '"; X')]]))["xl/worksheets/sheet1.xml"]
         self.assertIn(f'<c r="A1" s="{xlsx.MONEY}"><v>5</v></c>', xml)
+
+
+class WrapTests(SimpleTestCase):
+    def test_a_two_line_cell_wraps(self):
+        parts = parts_of(xlsx.table_sheet("S", "S", "x", ["Item", "Other"], [["Fresh Water\nnote", "one line"]]))
+        xml, styles = parts["xl/worksheets/sheet1.xml"], parts["xl/styles.xml"]
+        two = re.search(r"<cellXfs[^>]*>(.*?)</cellXfs>", styles).group(1)
+        xfs = re.findall(r"<xf [^>]*?(?:/>|>.*?</xf>)", two)
+        self.assertIn('wrapText="1"', xfs[cell_style(xml, "A5")])
+        self.assertNotIn('wrapText="1"', xfs[cell_style(xml, "B5")])

@@ -241,16 +241,16 @@ class _Styles:
                                        f'<bottom style="{bottom}"><color rgb="{bottom_color}"/></bottom>'
                                        f"<diagonal/></border>")
 
-    def xf(self, fmt, font, fill, border):
+    def xf(self, fmt, font, fill, border, wrap=False):
         if isinstance(fmt, str):
             fmt = self.formats.setdefault(fmt, 167 + len(self.formats))
-        key = (fmt, font, fill, border)
+        key = (fmt, font, fill, border) + ((True,) if wrap else ())
         if key not in self.xfs:
             self.xfs.append(key)
         return self.xfs.index(key)
 
-    def look(self, look, fmt, bold, tone):
-        """The cell format of one cell of a row with a look."""
+    def look(self, look, fmt, bold, tone, wrap=False):
+        """The cell format of one cell of a row with a look (`wrap`: a text of several lines)."""
         if look == "title":
             return self.xf(fmt, self.font(bold=True, size=14), 0, 0)
         if look == "muted":
@@ -263,14 +263,15 @@ class _Styles:
         if tone in TONES:
             fill, color = TONES[tone]
             return self.xf(fmt, self.font(bold=True, color=color, strike=tone == "cancel"), self.fill(fill),
-                           self.border())
-        return self.xf(fmt, self.font(bold=bold) if bold else 0, 0, self.border())
+                           self.border(), wrap)
+        return self.xf(fmt, self.font(bold=bold) if bold else 0, 0, self.border(), wrap)
 
     def xml(self):
         xfs = "".join(f'<xf numFmtId="{fmt}" fontId="{font}" fillId="{fill}" borderId="{border}" xfId="0"'
                       + (' applyNumberFormat="1"' if fmt else "") + (' applyFont="1"' if font else "")
-                      + (' applyFill="1"' if fill else "") + (' applyBorder="1"' if border else "") + "/>"
-                      for fmt, font, fill, border in self.xfs)
+                      + (' applyFill="1"' if fill else "") + (' applyBorder="1"' if border else "")
+                      + (' applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>' if wrap else "/>")
+                      for fmt, font, fill, border, *wrap in self.xfs)
         return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="{MAIN}">'
                 f'<numFmts count="{3 + len(self.formats)}"><numFmt numFmtId="164" formatCode="0.0"/>'
                 '<numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>'
@@ -290,7 +291,7 @@ def _cell(ref, value, styles=None, look=None):
     content = _content(value)
     if look and look not in ("title", "muted"):
         fmt, bold, tone, body = content or (0, False, None, "/>")
-        style = styles.look(look, fmt, bold, tone)
+        style = styles.look(look, fmt, bold, tone, wrap="\n" in body)
         return f'<c r="{ref}" s="{style}"{body if content else "/>"}'
     if content is None:
         return ""
