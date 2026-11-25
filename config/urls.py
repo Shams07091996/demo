@@ -9,5 +9,6 @@ handler500 = "sheet.views.server_error"
 
 urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
+    path("", include("operation.urls")),
     path("", include("sheet.urls")),
 ]
