@@ -126,6 +126,7 @@ SUMMARY_FIELDS = (
 OPTION_KINDS = [
     ("opr", "OPR"), ("poc", "POC"), ("agent", "Agent"), ("hotel", "Hotel"), ("airport", "Airport"), ("port", "Port"),
     ("delay", "Delay reason"), ("closure", "Closure reason"), ("terminal", "Terminal"),
+    ("line", "Shipping line"),
 ]
 OPTION_KIND_KEYS = [key for key, _ in OPTION_KINDS]
 

@@ -612,8 +612,13 @@ def _usage_counts(profile):
     counts = {
         kind: {row[kind]: row["n"] for row in vessels.values(kind).annotate(n=Count("id")).order_by()}
         for kind in OPTION_KIND_KEYS
-        if kind not in BOOKING_KINDS and kind not in ("agent", "delay", "closure")
+        if kind not in BOOKING_KINDS and kind not in ("agent", "delay", "closure", "line")
     }
+    # Shipping lines are used by the Operation app's visits (scoped by their terminal's port).
+    from operation.access import scoped_visits
+
+    lines = scoped_visits(profile).values("shipping_line").annotate(n=Count("id")).order_by()
+    counts["line"] = {row["shipping_line"]: row["n"] for row in lines}
     # Delay reasons are used by vessels, closure reasons by port closures (fields not named after the kind).
     delays = vessels.exclude(delay_reason="").values("delay_reason").annotate(n=Count("id")).order_by()
     counts["delay"] = {row["delay_reason"]: row["n"] for row in delays}

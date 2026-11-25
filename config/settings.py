@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "django_otp.plugins.otp_totp",
     "sheet",  # before staticfiles, so sheet's runserver (no-cache static files) is the one used
     "django.contrib.staticfiles",
+    "operation",  # port berthing (needs sheet: access, history, validators)
 ]
 
 MIDDLEWARE = [

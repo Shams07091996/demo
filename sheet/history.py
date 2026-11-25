@@ -133,6 +133,8 @@ def types_for(profile):
 
 
 def port_of(instance):
+    if hasattr(instance, "history_port"):  # models of other apps (operation) say their own port
+        return instance.history_port() or ""
     if isinstance(instance, (Vessel, Option, PortClosure)):
         return instance.port or ""
     if isinstance(instance, (Service, HotelStay, Transfer)):
@@ -206,8 +208,13 @@ def _before_delete(sender, instance, **kwargs):
     record("delete", instance, {k: [v, None] for k, v in _values(instance).items()})
 
 
-def connect():
-    for model in TRACKED:
+def track(*models):
+    """Record the changes of other apps' models too (operation: terminals and visits)."""
+    connect(models)
+
+
+def connect(models=TRACKED):
+    for model in models:
         uid = f"history-{model._meta.label}"
         pre_save.connect(_before_save, sender=model, dispatch_uid=f"{uid}-pre-save")
         post_save.connect(_after_save, sender=model, dispatch_uid=f"{uid}-post-save")
