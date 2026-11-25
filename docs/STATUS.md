@@ -5,8 +5,8 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Parcels extras, piece 2 of 8 (2026-11-25):** on branch **`feature/parcel-extras`**, **not merged** (waiting
-  for the user's OK). No migration. Delivery Parcels and Landing get Transfer type (Vessel-to-Vessel /
+- **Parcels extras, piece 2 of 8 (2026-11-25):** merged into main (2026-11-25), from branch `feature/parcel-extras`.
+  No migration. Delivery Parcels and Landing get Transfer type (Vessel-to-Vessel /
   Vessel-to-Courier), Receiving vessel (typed, shown only for Vessel-to-Vessel), Courier (DHL / FedEx / Aramex /
   Other, only for Vessel-to-Courier) and Courier payment (Paid / Not Paid); Delivery Courier gets Courier, Delivery
   status (Pending / Dispatched / Delivered) and Courier payment. Per service, not per AWB line (the user approved);
