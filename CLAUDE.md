@@ -11,7 +11,7 @@ port, accounts, ports, rates, the History, accounting. Everyone else is a **User
 (`Profile.home_port` / `ports`); no port → blocked ("no port yet"). The Read-only role is gone (migration 0024).
 In their ports a User does only what their **16 permissions** allow and sees only their **pages**
 (`Profile.permissions` / `pages`, piece 2 of the access rework, `specs/2026-11-24-access-rework-design.md`); piece 3
-(hiding money from people without `money.view` / `money.edit`) is still to build.
+(`money.edit` hides the forms' money, `money.view` the overviews) is `moneyaccess.py` (see **Money permissions**).
 See `README.md` and `SECURITY.md`.
 
 The project is a **git repository** (branch `main`; each feature on its own branch, merged only when the user agrees)
@@ -66,7 +66,8 @@ cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_sm
 - `suez` (a port user outside Alexandria) and `viewer` (the three-port User: port choices, a Damietta vessel, no Suez,
   no Open / Closed buttons) are short separate runs; the full script is written for alex / admin. The admin run also
   adds a `Smoke…` port on the Ports page each time (ports are never deleted).
-- `marine` (Alexandria, Marine template: Vessels + Services, no delete / cancel / exports) is a short separate run too.
+- `marine` (Alexandria, Marine template: Vessels + Services, no delete / cancel / exports; money in forms but no
+  totals: `money.edit` without `money.view`) is a short separate run too.
 - `seed_demo` only sets passwords for users it creates; on a database that already has them, use a new database.
 - A run that fails part-way leaves its test vessels behind and later runs then fail on them: start from a fresh
   database (or delete the leftovers) before trusting a result.
@@ -314,6 +315,29 @@ account starts with nothing (Vessels only); `tests.make_user(..., permissions=No
 with `exports`; JS uses `config.can(key)` / `sees(page)` (no `canEdit` any more), the router lands unseen pages on
 Vessels, the service dialog disables statuses `util.statusNeeds` (twin of the server rule, `parsing_test.js`) says
 are not allowed. `seed_demo` adds `marine` (Alexandria, Marine template); other demo Users have everything.
+Templates: Marine employee, Operations employee, Branch manager (the Accounts employee template was cancelled).
+
+**Money permissions** (access rework piece 3, `moneyaccess.py`, `tests_money`, migration 0026): the one place that
+knows which values are money; the maths (`finance`, `calculations`, `vessel_to_dict`) always works on full data and
+responses go through `moneyaccess` last (`profile=None` = internal, everything). **`money.edit`** (the forms): a
+service's money keys (`SERVICE_MONEY`: cost / revenue / currencies / `exchangeRate`; per line of `MULTI_TYPES` the
+four price keys; on-signers' `brokenVisa`; Cash to Master's six keys), a booking's prices (`BOOKING_MONEY`, incl.
+currencies and `exchange_rate`), the Garbage & Sludge rows' money (`disposal_row_out`, also each line's), customers'
+`rates`, the receipt's amounts (`receipt.prefill(service, with_amounts)`), and with either permission the vessel's
+month `rate`. Without it the server never sends them, a save **keeps the stored values**
+(`keep_service_money` matches lines / on-signers **by uid**: since 0026 every line of a Delivery / Landing service
+has a stable 12-hex `uid` made by `validators._uid`; `keep_booking_money`; `save_customer` keeps the rates) and
+**sending any key is 403** (`service_money_sent`, `booking_money_sent`, `"rates" in payload`); `cancel_bookings(...,
+zero_money=)` zeroes booking money only with it. **`money.view`** (overviews): `vessel_out` drops `total_cost_egp` /
+`total_profit_egp` and every service's `calc`, `totals_out` the list's money totals, `require_sort` refuses
+`sort=total_cost_egp` (403, list and CSV), `dashboard_out` the Dashboard's money keys, `disposal_out` the page's
+`totals`, `tags_out` the Services page's `Cost` / `Revenue` / `Rate` tags (also in `missing=1` and the export),
+`drop_columns` / `money_columns` every column whose head is in `MONEY_HEADS` (CSV, data exports, management Excel;
+the Excel also drops "Profit by service" and the Summary's money notes; `report.CHARTS` name their series by head,
+so a chart whose column is gone is not drawn). Front end: `config.can('money.edit' | 'money.view')` hides the boxes /
+pills / columns / panels (the template leaves out the Dashboard's money panels), `js/moneyKeys.js` `stripMoney` (twin
+of `SERVICE_MONEY`, `parsing_test.js`) cleans what the service dialog sends; the dialog's entry rows carry `data-uid`.
+A new money field: add it to `moneyaccess` (and `moneyKeys.js` for service data).
 
 **Accounts page** (`accounts.py`, `GET/POST /api/accounts/`, `PUT /api/accounts/<id>/`, page `js/pages/accounts.js`,
 dialog `js/modals/account.js`): **Admins (superusers) only** (`access.require_superuser(request)`, `me.isSuperuser`

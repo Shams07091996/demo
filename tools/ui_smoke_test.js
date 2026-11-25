@@ -1637,21 +1637,21 @@ async function login() {
     type($('#account-form [name=home_port]'), 'suez');
     tick('damietta').checked = false;
     tick('portsaid').checked = false;
-    // Template: Accounts employee fills in its ticks (money, exports, history, closing lines + their pages).
+    // Template: Branch manager fills in every tick (the Accounts employee template was cancelled, 2026-11-25).
     const perm = (key) => $(`#account-form [data-perm="${key}"]`);
     const page = (key) => $(`#account-form [data-tick-page="${key}"]`);
     ok(perm('history.view').disabled && page('calculations').disabled && page('vessels').checked && page('vessels').disabled,
       'accounts: ticks that need See money are disabled; Vessels is always on');
-    type($('#account-form [name=template]'), 'accounts');
-    ok(perm('money.view').checked && perm('accounting.close').checked && !perm('vessels.edit').checked
+    type($('#account-form [name=template]'), 'manager');
+    ok(perm('money.view').checked && perm('accounting.close').checked && perm('vessels.edit').checked
       && page('calculations').checked && page('history').checked && page('history').disabled,
-      'accounts: the Accounts employee template ticks its boxes');
+      'accounts: the Branch manager template ticks every box');
     click($('[data-act="account-save"]'));
     ok(await waitFor(() => acRow(username)?.children[2].textContent === 'Suez (home)'), 'accounts: the ports change');
-    ok(acRow(username).children[3].textContent === '4 of 16', 'accounts: the Can column counts the permissions');
+    ok(acRow(username).children[3].textContent === '16 of 16', 'accounts: the Can column counts the permissions');
     click(acRow(username));
     ok(await waitFor(() => $('#account-form') && $('#account-form [data-perm="exports"]')?.checked
-      && !$('#account-form [data-perm="vessels.edit"]').checked), 'accounts: the ticks are saved');
+      && $('#account-form [data-perm="vessels.delete"]').checked), 'accounts: the ticks are saved');
     perm('money.view').checked = false;
     perm('money.view').dispatchEvent(new w.Event('change', { bubbles: true }));
     ok(!perm('history.view').checked && !page('calculations').checked && !perm('accounting.close').checked,
