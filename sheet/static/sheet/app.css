@@ -289,6 +289,8 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .crew-head span{font-weight:600;font-size:13px}
 .crew-actions{display:flex;gap:6px;align-items:center}
 .crew-body .check{display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 10px}
+.crew-toggles{display:flex;gap:8px;margin:0 0 8px}.crew-toggle.on{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.crew-booking{margin-bottom:6px}
 .crew-body .check input{width:auto}
 .crew-body{display:none;padding:0 12px 10px}.crew-card.open .crew-body{display:block}
 .crew-body .field{margin-bottom:8px}.crew-body textarea{min-height:90px;font-size:12px}

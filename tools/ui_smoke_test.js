@@ -1061,12 +1061,38 @@ async function login() {
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => modalText().includes('On-signers (1): Ahmed Test')), 'Crew Change saved');
   ok($$('.svc-card').some((c) => c.textContent.includes('Crew Change') && c.textContent.includes('LE 100.00')), 'crew change: its cost shows on the vessel');
-  // Saved: each card has Needs hotel; on-signers have Broken visa and a LOG link (off-signers neither).
+  // Saved: each card has Hotel / Transport; on-signers have Broken visa and a LOG link (off-signers neither).
   click($$('.svc-card').find((c) => c.textContent.includes('Crew Change')).querySelector('[data-act="edit-service"]'));
   ok(await waitFor(() => $('.crew-card[data-group="onSigners"] [data-act="crew-log"]')), 'crew change: a saved on-signer has a LOG link');
   const onCardSaved = $('.crew-card[data-group="onSigners"]');
   const offCardSaved = $('.crew-card[data-group="offSigners"]');
-  ok(onCardSaved.querySelector('[data-crew="needsHotel"]') && onCardSaved.querySelector('[data-crew="visa.cost"]') && offCardSaved.querySelector('[data-crew="needsHotel"]') && !offCardSaved.querySelector('[data-crew="visa.cost"]') && !offCardSaved.querySelector('[data-act="crew-log"]'), 'crew change: Needs hotel on every card, Broken visa and LOG on on-signers only');
+  ok(onCardSaved.querySelector('[data-act="crew-hotel"]') && onCardSaved.querySelector('[data-act="crew-transport"]') && onCardSaved.querySelector('[data-crew="visa.cost"]') && offCardSaved.querySelector('[data-act="crew-hotel"]') && offCardSaved.querySelector('[data-act="crew-transport"]') && !offCardSaved.querySelector('[data-crew="visa.cost"]') && !offCardSaved.querySelector('[data-act="crew-log"]'), 'crew change: Hotel / Transport on every card, Broken visa and LOG on on-signers only');
+  // Hotel / Transport: pressed, the boxes open filled from the flight (none here: the vessel date); saved, they are the
+  // member's drafts on the Hotels / Transport pages; released, the draft goes.
+  const onCard = () => $('.crew-card[data-group="onSigners"]');
+  ok(onCard().querySelector('[data-act="crew-transport"]').getAttribute('aria-pressed') === 'false' && !onCard().querySelector('[data-crew="transport.at"]'), 'crew: Transport starts released');
+  click(onCard().querySelector('[data-act="crew-transport"]'));
+  ok(onCard().querySelector('[data-crew="transport.from"]').value === 'airport' && onCard().querySelector('[data-crew="transport.to"]').value === 'port'
+    && onCard().querySelector('[data-crew="transport.at"]').value === '2020-01-15T00:00', 'crew: Transport opens From / To / At filled in');
+  click(onCard().querySelector('[data-act="crew-hotel"]'));
+  type(onCard().querySelector('[data-crew="hotel.name"]'), '<b>G</b> hotel');
+  ok(onCard().querySelector('[data-crew="hotel.checkIn"]').value === '2020-01-15' && onCard().querySelector('[data-crew="hotel.checkOut"]').value === '2020-01-16', 'crew: Hotel opens check-in / check-out filled in');
+  type(onCard().querySelector('[data-crew="hotel.checkOut"]'), '2020-01-18');
+  click($('[data-act="save-service"]'));
+  ok(await waitFor(() => modalText().includes('On-signers (1): Ahmed Test') && !$('#svc-form')), 'crew change saved with Hotel / Transport');
+  const bookingsOf = async (kind) => (await (await w.fetch(`/api/${kind}/?from=2020-01-01&to=2020-01-31&page_size=200`)).json()).bookings
+    .filter((b) => b.guests.some((g) => g.name === 'AHMED TEST') && b.vessel.name === NAME);
+  const [stay] = await bookingsOf('hotels');
+  ok(stay && stay.hotel === '<b>G</b> hotel' && stay.nights === 3, 'crew: the hotel typed on the card is on the Hotels page (3 nights)');
+  ok((await bookingsOf('transfers')).length === 1, 'crew: the pressed Transport is on the Transport page');
+  click($$('.svc-card').find((c) => c.textContent.includes('Crew Change')).querySelector('[data-act="edit-service"]'));
+  ok(await waitFor(() => onCard()?.querySelector('[data-crew="hotel.name"]')?.value === '<b>G</b> hotel'), 'crew: the typed hotel comes back');
+  click(onCard().querySelector('[data-act="crew-transport"]'));
+  click($('[data-act="save-service"]'));
+  await waitFor(() => !$('#svc-form'));
+  ok((await bookingsOf('transfers')).length === 0, 'crew: releasing Transport removes the draft');
+  click($$('.svc-card').find((c) => c.textContent.includes('Crew Change')).querySelector('[data-act="edit-service"]'));
+  await waitFor(() => $('#svc-form'));
   click($('[data-act="back"]'));
   await waitFor(() => $$('.svc-card').length > 0);
 

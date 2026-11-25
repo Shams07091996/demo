@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { calcLocal } from '../calc.js';
 import { closedNoteEl, headEl, optionChoicesEl } from '../components.js';
 import { BILLING, MULTI, RATE_UNITS, SERVICE_STATUS, SINGLE_EXTRA, TYPES, can } from '../config.js';
+import { crewBookingDefaults } from '../crewBookings.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
@@ -180,8 +181,81 @@ const logLink = (m) => (can('documents') && state.ctx.serviceId && m.uid
   ? h('a', { class: 'btn ghost small', href: `/api/services/${state.ctx.serviceId}/log/${m.uid}/`, dataset: { act: 'crew-log' } }, 'LOG')
   : null);
 
+/* Hotel / Transport on a crew member: two buttons; pressed, their boxes show and become the member's draft booking on
+   the Hotels / Transport page when the crew change is saved (sheet/crewbookings.py). A booking saved on its own page
+   is never changed from here: the card says so instead. */
+const PLACES = [['airport', 'Airport'], ['hotel', 'Hotel'], ['port', 'Port']];
+const PLACE_LIST = { airport: 'airport', hotel: 'hotel', port: 'port' };
+const BOOKING_PAGE = { hotel: 'Hotels', transport: 'Transport' };
+const FLAG = { hotel: 'needsHotel', transport: 'needsTransport' };
+
+const savedOnPage = (m, kind) => Boolean(state.ctx.crewSaved?.[m.uid]?.[kind]);
+
+const bookingButton = (m, kind, label) => {
+  const pressed = Boolean(m[FLAG[kind]]) || savedOnPage(m, kind);
+  return h('button', {
+    class: `btn ghost small crew-toggle ${pressed ? 'on' : ''}`.trim(), disabled: savedOnPage(m, kind),
+    attrs: { type: 'button', 'aria-pressed': String(pressed) }, dataset: { act: `crew-${kind}` },
+  }, label);
+};
+
+function hotelBoxEl(m, port) {
+  const hotel = m.hotel || {};
+  return h('div', { class: 'crew-booking row three' },
+    field('Hotel', h('select', { dataset: { crew: 'hotel.name' } }, optionChoicesEl('hotel', hotel.name || '', port))),
+    field('Check-in', h('input', { attrs: { type: 'date' }, dataset: { crew: 'hotel.checkIn' }, value: hotel.checkIn || '' })),
+    field('Check-out', h('input', { attrs: { type: 'date' }, dataset: { crew: 'hotel.checkOut' }, value: hotel.checkOut || '' })));
+}
+
+function transportBoxEl(m, port) {
+  const t = m.transport || {};
+  const end = (key, label) => field(label, h('div', { class: 'row two' },
+    h('select', { dataset: { crew: `transport.${key}` } }, optionEls([['', '—'], ...PLACES], t[key] || '')),
+    h('select', { dataset: { crew: `transport.${key}Name` }, disabled: !t[key] },
+      t[key] ? optionChoicesEl(PLACE_LIST[t[key]], t[`${key}Name`] || '', port) : h('option', { value: '' }, '—'))));
+  return h('div', { class: 'crew-booking row three' },
+    end('from', 'From'), end('to', 'To'),
+    field('At', h('input', { attrs: { type: 'datetime-local' }, dataset: { crew: 'transport.at' }, value: t.at || '' })));
+}
+
+function crewBookingsEl(m, vessel) {
+  const box = (kind, build) => {
+    if (savedOnPage(m, kind)) return h('div', { class: 'none' }, `Saved on the ${BOOKING_PAGE[kind]} page`);
+    return m[FLAG[kind]] ? build(m, vessel.port) : null;
+  };
+  return [
+    h('div', { class: 'crew-toggles' }, bookingButton(m, 'hotel', 'Hotel'), bookingButton(m, 'transport', 'Transport')),
+    box('hotel', hotelBoxEl),
+    box('transport', transportBoxEl),
+  ];
+}
+
+/** Hotel / Transport button pressed: switch it; a first press fills the empty boxes with the automatic values. */
+export function toggleCrewBooking(member, kind, group) {
+  member[FLAG[kind]] = !member[FLAG[kind]];
+  if (!member[FLAG[kind]]) return;
+  const defaults = crewBookingDefaults(member, group === 'offSigners' ? 'off' : 'on', getVessel(state.ctx.vesselId).date);
+  const current = { ...(kind === 'hotel' ? { name: '' } : { fromName: '', toName: '' }), ...(member[kind] || {}) };
+  Object.entries(defaults[kind]).forEach(([key, value]) => { if (!current[key]) current[key] = value; });
+  member[kind] = current;
+}
+
+/** A saved Crew Change: which members' bookings were saved on their page (shown instead of the boxes). */
+async function loadCrewSaved() {
+  const mine = state.ctx;
+  try {
+    const { saved } = await api(`/api/services/${mine.serviceId}/crew-bookings/`);
+    if (state.ctx !== mine) return;
+    mine.crewSaved = saved;
+    renderCrewEditor();
+  } catch {
+    // not known: the boxes show; the server never changes a saved booking anyway
+  }
+}
+
 function crewGroupEl(group, label, color) {
   const isOff = group === 'offSigners';
+  const vessel = getVessel(state.ctx.vesselId);
   const cards = state.crew[group].map((m, i) =>
     h('div', { class: `crew-card ${m._open ? 'open' : ''}`.trim(), dataset: { group, i } },
       h('div', { class: 'crew-head', dataset: { act: 'toggle-crew' } },
@@ -194,8 +268,7 @@ function crewGroupEl(group, label, color) {
           h('div', { class: 'parsed', dataset: { parsed: 'flight' } }, flightNote(m))),
         field('Personal data', h('textarea', { dataset: { crew: 'personalData' }, value: m.personalData }),
           h('div', { class: 'parsed', dataset: { parsed: 'personal' } }, personalNote(m))),
-        h('label', { class: 'check' },
-          h('input', { attrs: { type: 'checkbox' }, dataset: { crew: 'needsHotel' }, checked: Boolean(m.needsHotel) }), ' Needs hotel'),
+        crewBookingsEl(m, vessel),
         isOff || !mayMoney() ? null : h('div', { class: 'row two' },
           visaField(m, 'cost', 'Broken visa cost', 'USD'), visaField(m, 'revenue', 'Broken visa revenue', 'USD')))));
   return [
@@ -296,7 +369,10 @@ export async function openServiceForm(type, service, { from = '' } = {}) {
       formFields(type, vessel, data)),
     footer(h('button', { class: 'btn primary', dataset: { act: 'save-service' } }, 'Save')),
   );
-  if (type === 'Crew Change') renderCrewEditor();
+  if (type === 'Crew Change') {
+    renderCrewEditor();
+    if (service) loadCrewSaved();
+  }
   renumberEntries();
   updatePreview();
   applyRate({ fill: state.ctx.isNew }); // a new service gets the agreed rate; opening a saved one only shows it
@@ -363,8 +439,13 @@ export function onModalInput(event) {
   const card = field.closest('.crew-card');
   const member = state.crew[card.dataset.group][Number(card.dataset.i)];
   const kind = field.dataset.crew;
-  if (kind === 'needsHotel') {
-    member.needsHotel = field.checked;
+  if (kind.startsWith('hotel.') || kind.startsWith('transport.')) {
+    const [box, key] = kind.split('.');
+    member[box] = { ...member[box], [key]: field.value };
+    if (box === 'transport' && (key === 'from' || key === 'to')) {
+      member.transport[`${key}Name`] = ''; // the name list follows the place
+      renderCrewEditor();
+    }
     return;
   }
   if (kind.startsWith('visa.')) {
