@@ -87,6 +87,7 @@ from .models import (
 )
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import (
+    check_crew_lists,
     clean_agent,
     clean_booking_refs,
     clean_disposal_price,
@@ -318,6 +319,8 @@ def _read_service(request, vessel, existing=None):
     if not may_edit_money and moneyaccess.service_money_sent(service_type, payload.get("data")):
         require(request.profile, moneyaccess.EDIT)
     data = clean_service_data(service_type, payload.get("data"))
+    if service_type == "Crew Change":
+        check_crew_lists(data, vessel.port, getattr(existing, "data", None))
     if not may_edit_money and existing is not None:
         data = moneyaccess.keep_service_money(service_type, data, existing.service_type, existing.data)
     agent = clean_agent(payload.get("agent"), vessel.port, getattr(existing, "agent", ""))
@@ -395,6 +398,17 @@ def service_bookings(request, pk):
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed), pk=pk)
     bookings = crewbookings.saved_bookings(service)
     return JsonResponse({"bookings": [crewbookings.booking_ref(kind, booking) for kind, booking in bookings]})
+
+
+@json_api
+@require_http_methods(["GET"])
+def service_crew_bookings(request, pk):
+    """Which crew members of a Crew Change have a hotel stay / transfer saved on its own page (the crew card then
+    shows "Saved on the ... page" instead of its fields)."""
+    require(request.profile, "services.edit")
+    allowed = scoped_vessels(request.profile, prefetch=False)
+    service = get_object_or_404(Service.objects.filter(vessel__in=allowed, service_type="Crew Change"), pk=pk)
+    return JsonResponse({"saved": crewbookings.saved_by_member(service)})
 
 
 # ---- LOG letter (see logpdf.py) --------------------------------------------------------------

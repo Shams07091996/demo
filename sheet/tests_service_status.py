@@ -84,7 +84,8 @@ class StatusTests(ApiTestCase):
         self.assertEqual(set(Service.objects.values_list("status", flat=True)), {"completed"})
 
 
-CREW = {"type": "Crew Change", "data": {"onSigners": [{"name": "Ahmed Test", "rank": "AB", "needsHotel": True}],
+CREW = {"type": "Crew Change", "data": {"onSigners": [{"name": "Ahmed Test", "rank": "AB", "needsHotel": True,
+                                                       "needsTransport": True}],
                                         "offSigners": []}}
 
 

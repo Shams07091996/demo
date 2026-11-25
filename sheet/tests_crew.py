@@ -88,7 +88,7 @@ def seg(arrival_time):
 
 def member(name, landing="15 NOV 10:00", **extra):
     flight = {"segments": [seg(landing)]} if landing else {"segments": []}
-    return {"name": name, "flightStructured": flight, **extra}
+    return {"name": name, "flightStructured": flight, "needsTransport": True, **extra}
 
 
 class DraftBookingTests(ApiTestCase):
@@ -116,7 +116,7 @@ class DraftBookingTests(ApiTestCase):
     def stays(self):
         return HotelStay.objects.filter(vessel=self.vessel).order_by("id")
 
-    def test_every_member_gets_a_draft_transfer(self):
+    def test_pressed_transport_makes_a_draft_transfer(self):
         self.post_crew(on=[member("J SMITH")], off=[member("A OFF", landing="14 NOV 05:00")])
         on, off = self.transfers()
         self.assertTrue(on.draft and off.draft)

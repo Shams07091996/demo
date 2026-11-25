@@ -18,6 +18,7 @@ const { parsePersonal, parseFlightText } = load('crewParsing.js');
 const { isDelayed, limitRows, statusNeeds, tickSummary } = load('util.js');
 const { fillRevenue, rateFor } = load('rates.js');
 const { stripMoney } = load('moneyKeys.js');
+const { crewBookingDefaults } = load('crewBookings.js');
 
 let failed = 0;
 const check = (cond, label) => { console.log(`${cond ? 'PASS' : 'FAIL'} ${label}`); if (!cond) failed += 1; };
@@ -126,6 +127,24 @@ check(same(stripMoney('Crew Change', { onSigners: [{ uid: 'a', name: 'Ali', need
 check(same(stripMoney('Cash to Master', { amount: 100, amountCurrency: 'USD', shareMode: 'percent', percentage: 5, fixedRevenue: null, exchangeRate: null }), {}),
   'money: Cash to Master sends nothing');
 check(same(stripMoney('Others / Remarks', { note: 'x', cost: 1 }), { note: 'x' }), 'money: a note stays');
+
+/* ---------- crew card Hotel / Transport: the boxes' starting values (twin of crewbookings._when) ---------- */
+const oneLeg = (extra) => ({ flightStructured: { segments: [{ arrivalTime: '', departureTime: '', date: '', ...extra }] } });
+check(same(crewBookingDefaults({ flightStructured: { segments: [{ arrivalTime: '01 NOV 05:00' }, { arrivalTime: '20 NOV 14:30' }] } }, 'on', '2026-11-13'),
+  { hotel: { checkIn: '2026-11-20', checkOut: '2026-11-21' }, transport: { from: 'airport', to: 'port', at: '2026-11-20T14:30' } }),
+'crew defaults: on-signer lands on the last leg, hotel from that day for 1 night');
+check(same(crewBookingDefaults({ flightStructured: { segments: [{ departureTime: '25 NOV 09:00' }, { departureTime: '26 NOV 01:00' }] } }, 'off', '2026-11-24'),
+  { hotel: { checkIn: '2026-11-24', checkOut: '2026-11-25' }, transport: { from: 'port', to: 'airport', at: '2026-11-25T09:00' } }),
+'crew defaults: off-signer takes off on the first leg, hotel from the vessel date');
+check(same(crewBookingDefaults({}, 'on', '2026-11-30'),
+  { hotel: { checkIn: '2026-11-30', checkOut: '2026-12-01' }, transport: { from: 'airport', to: 'port', at: '2026-11-30T00:00' } }),
+'crew defaults: no flight -> vessel date 00:00');
+check(crewBookingDefaults(oneLeg({ arrivalTime: '10:05', date: '02.01.2027' }), 'on', '2026-12-30').transport.at === '2027-01-02T10:05',
+  'crew defaults: a time plus a dd.mm.yyyy date');
+check(crewBookingDefaults(oneLeg({ arrivalTime: '02 JAN 10:05' }), 'on', '2026-12-30').transport.at === '2027-01-02T10:05',
+  'crew defaults: no year -> the one nearest the vessel date');
+check(crewBookingDefaults(oneLeg({ arrivalTime: '31 FEB 10:05' }), 'on', '2026-12-30').transport.at === '2026-12-30T00:00',
+  'crew defaults: an impossible day falls back to the vessel date');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);
