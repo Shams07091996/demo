@@ -5,6 +5,16 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Operation app (2026-11-25):** on branch `feature/operation-app`, **not merged** (waiting for the user). Needs
+  migrations **`operation 0001_initial`** and **`sheet 0030_option_line`** (new tables; a new Master data list
+  "Shipping line"). A new folder **Operation** below Marine with Vessel Data, Live data, Analysis reports and Report
+  charts (the user's `ARKAS_Port_Berthing` workbook, hidden sheet ignored) and a Terminals page for Admins under
+  Master data. Every vessel at every terminal, separate from Vessels. Terminals belong to a port; Users see only their
+  ports'. Four page ticks and two permission ticks (Add / edit, Delete vessel data), **off for existing accounts**,
+  on in the Branch manager template. `npm run check` now also runs the `operation` tests. 958 tests, check green,
+  smoke alex / admin / viewer / suez / marine pass. Design `specs/2026-11-25-operation-app-design.md`, plan
+  `plans/2026-11-25-operation-app.md`.
+
 - **Terminal / berth and the Calculations Port column (2026-11-25):** merged into main by the user (2026-11-25), from branch
   `feature/terminal-berth`. Needs migrations **`0028`** (service-type choices of piece 1, left out of git then: no table change) and **`0029_vessel_terminal_berth`** on the user's database
   (adds two empty fields; nothing changes for existing vessels). A vessel has a Terminal (new Master data list per
@@ -204,6 +214,11 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Decisions the user made (respect these)
 
+- **Operation (2026-11-25):** its own Django app in the same page (option A); a separate sidebar folder right below
+  Marine; it lists **all vessels at all terminals** (Vessels stays the company's own); terminals belong to a port;
+  the new ticks start off, an Admin ticks them; all data was demo, no old data moved. The Shipping line table has one
+  row per line; Live data moves/hr = moves so far ÷ hours since ATB; Analysis adds Calls per week / month / year
+  when From and To are both set.
 - **Money (2026-11-25, piece 3):** "people type money as part of their work, but the overview is given out on
   purpose": `money.edit` = the forms' money boxes, `money.view` = the overviews; without them the server never sends
   the figures. The **Accounts employee template is cancelled** (Marine employee, Operations employee and Branch

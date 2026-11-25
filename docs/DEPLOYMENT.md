@@ -306,7 +306,7 @@ later never changes people who already have an account):
 |---|---|---|
 | Marine employee | add / edit vessels and services, mark Completed, enter prices and costs | Services |
 | Operations employee | Marine + cancel a service, customers and ships, hotels & transport bookings | Services, Hotels, Transport, Ships, Customers |
-| Branch manager | all 16 | all |
+| Branch manager | all 18 | all |
 
 The two money ticks: **Enter / edit prices and costs** shows (and lets them type) the money boxes of the forms —
 services, hotel / transport prices, garbage & sludge money, customers' agreed rates, the amounts on the master
@@ -440,7 +440,9 @@ its home port, an "admin" account that isn't a superuser becomes a User of all f
 turned off** (they have no port), and nobody but a superuser keeps staff status — check the Accounts page afterwards; undoing it with
 `migrate sheet 0023` gives back each account's role, but not the staff flags or the turned-off accounts);
 `0025_profile_permissions`: every existing account gets all 16 permissions and every page — take away on the
-Accounts page what each job doesn't need).
+Accounts page what each job doesn't need; `operation 0001_initial` and `sheet 0030_option_line`: nothing to do —
+the Operation pages and their two ticks start **off** for every existing account; tick them per person on the
+Accounts page, add the terminals on the Terminals page and the shipping lines in Master data).
 After an
 update, people should reload the page: a page opened before it can't save edits until reloaded ("This page is out
 of date. Reload it and try again.").

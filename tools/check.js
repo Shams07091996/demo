@@ -21,7 +21,7 @@ const steps = [
   ['pip-audit (known holes in Python packages)', venv('pip-audit'), ['-r', 'requirements.txt'], ROOT],
   ['npm audit (known holes in the test tools)', process.execPath, [NPM_CLI, 'audit', '--omit=optional'], __dirname],
   ['Django production settings check', venv('python'), ['manage.py', 'check', '--deploy', '--fail-level', 'WARNING'], ROOT, prodEnv],
-  ['backend tests', venv('python'), ['manage.py', 'test', 'sheet'], ROOT, cleanEnv],
+  ['backend tests', venv('python'), ['manage.py', 'test', 'sheet', 'operation'], ROOT, cleanEnv],
   ['parser tests', process.execPath, ['parsing_test.js'], __dirname],
 ];
 steps.push(['element builder tests', process.execPath, ['dom_test.js'], __dirname]);

@@ -258,6 +258,7 @@ async function login() {
   // Services only; add / edit vessels and services, mark Completed, money in forms; no delete, cancel, exports.
   if (ROLE === 'marine') {
     ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === 'vessels,services', 'marine: the sidebar is Vessels and Services');
+    ok(!$('[data-group="operation"]') && (await w.fetch('/api/operation/visits/')).status === 403, 'marine: no Operation folder, its API refuses them');
     ok(await waitFor(() => $$('#tbody tr').length > 0) && !$('#tbody [data-act="del-vessel-row"]'), 'marine: no Delete button on vessel rows');
     ok(shown($('#addVesselBtn')), 'marine: + Add Vessel is there');
     // No customers.edit: the ship type-ahead offers existing ships only, never "+ New ship" (the server would refuse).
@@ -346,15 +347,76 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 15 : 13), 'sidebar lists the pages (Admins also have Accounts and Ports; no Bulk add)');
-  const pageOrder = 'vessels,services,closures,ships,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
-    + (ROLE === 'admin' ? ',ports,accounts' : '') + ',history';
-  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'sidebar: Marine, Reports, Master data folders in order; History last');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 20 : 17), 'sidebar lists the pages (Admins also have Accounts, Ports and Terminals; no Bulk add)');
+  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_analysis,op_charts,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
+    + (ROLE === 'admin' ? ',ports,terminals,accounts' : '') + ',history';
+  ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'sidebar: Marine, Operation, Reports, Master data folders in order; History last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
   for (const [page, title] of [['services', 'Services'], ['hotels', 'Hotels'], ['transport', 'Transport'], ['closures', 'Port closures'], ['disposal', 'Garbage & Sludge'], ['calculations', 'Calculations'], ['dashboard', 'Dashboard'], ['ships', 'Ships'], ['customers', 'Customers'], ['master', 'Master data'], ['rates', 'Exchange rates'], ['vessels', 'Vessels']]) {
     await go(page);
     ok($$('.page').filter((p) => !p.hidden).length === 1 && $('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).classList.contains('active'), `sidebar opens "${title}"`);
+  }
+
+  /* ---- Operation folder: Vessel Data, Live data, Analysis reports, Report charts (seed_demo: the workbook's visits,
+     NORDIC STAR working at ACCHCO - ALX) ---- */
+  for (const [page, title] of [['op_vessels', 'Vessel Data'], ['op_live', 'Live data'], ['op_analysis', 'Analysis reports'], ['op_charts', 'Report charts']]) {
+    await go(page);
+    ok($('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).closest('[data-group="operation"]'), `operation: "${title}" opens from the Operation folder`);
+  }
+  await go('op_live');
+  ok(await waitFor(() => $('#ol-cards').textContent.includes('NORDIC STAR')), 'operation: Live data shows the vessel under operation');
+  await go('op_analysis');
+  ok(await waitFor(() => $$('#oa-tiles .stat').length >= 5 && Number($('#oa-tiles .stat b').textContent) > 0), 'operation: Analysis shows the vessel calls');
+  ok($$('#oa-terminals tbody tr').length >= 5 && $('#oa-lines').textContent.includes('ARKAS'), 'operation: Analysis has the terminal and shipping line tables');
+  await go('op_charts');
+  ok(await waitFor(() => $$('#oc-calls .bar').length >= 5 && $$('#oc-hours .bar').length >= 5), 'operation: Report charts draws the bars');
+  if (ROLE === 'alex') {
+    await go('op_vessels');
+    const ovRow = (name) => $$('#ov-tbody tr').find((r) => r.children[1].textContent === name);
+    ok(await waitFor(() => $$('#ov-tbody tr').length > 0), 'operation: Vessel Data lists the visits');
+    click($('[data-act="opv-new"]'));
+    ok(await waitFor(() => $('#visit-form [name=terminal]')), 'operation: + Add visit opens the dialog');
+    const vf = (name) => $(`#visit-form [name="${name}"]`);
+    type(vf('vessel_name'), 'smoke visit');
+    type(vf('shipping_line'), 'ARKAS');
+    type(vf('eta'), '2026-11-20T08:00');
+    type(vf('cranes'), '2');
+    click($('[data-act="opv-save"]'));
+    ok(await waitFor(() => ovRow('SMOKE VISIT')?.textContent.includes('Planned')), 'operation: a new visit is saved upper-case and Planned');
+    click(ovRow('SMOKE VISIT').querySelector('td'));
+    ok(await waitFor(() => $('#modal h2')?.textContent.includes('SMOKE VISIT')), 'operation: a visit opens');
+    type(vf('ata'), '2026-11-20T09:00');
+    type(vf('atb'), '2026-11-20T11:00');
+    type(vf('atd'), '2026-11-20T21:00');
+    type(vf('discharge'), '300');
+    type(vf('loading'), '200');
+    click($('[data-act="opv-save"]'));
+    ok(await waitFor(() => ovRow('SMOKE VISIT')?.textContent.includes('Completed')), 'operation: with ATD the visit is Completed');
+    const done = ovRow('SMOKE VISIT').children;
+    ok(done[15].textContent === '2' && done[16].textContent === '10' && done[20].textContent === '50',
+      `operation: waiting, operation and moves/hr worked out (${done[15].textContent} / ${done[16].textContent} / ${done[20].textContent})`);
+    click(ovRow('SMOKE VISIT').querySelector('td'));
+    await waitFor(() => $('#modal [data-act="opv-del"]'));
+    click($('#modal [data-act="opv-del"]'));
+    ok(await waitFor(() => !ovRow('SMOKE VISIT')), 'operation: a visit is deleted');
+  }
+  if (ROLE === 'admin') {
+    await go('terminals');
+    const tmRow = (name) => $$('#tm-tbody tr').find((r) => r.children[0].textContent === name);
+    ok(await waitFor(() => tmRow('ACCHCO - ALX')), 'terminals: the page lists the terminals');
+    const tname = `Smoke${Date.now().toString(36)}`;
+    click($('[data-act="terminal-new"]'));
+    await waitFor(() => $('#terminal-form'));
+    const tf = (name) => $(`#terminal-form [name="${name}"]`);
+    type(tf('name'), tname);
+    type(tf('code'), 'SMK');
+    type(tf('port'), 'alexandria');
+    type(tf('quay_length'), '400');
+    type(tf('cranes'), '3');
+    type($('#terminal-form [data-berth]'), 'S1');
+    click($('[data-act="terminal-save"]'));
+    ok(await waitFor(() => tmRow(tname)), 'terminals: + Add terminal adds one');
   }
 
   /* ---- services page: the work list (seed_demo: MSC AURORA's Crew Change has draft bookings, SEA BREEZE's
@@ -663,7 +725,7 @@ async function login() {
 
   /* ======== master data page ======== */
   await go('master');
-  ok($$('#master-grid .panel h3').map((h) => h.textContent).join() === 'OPR,POC,Agent,Hotel,Airport,Port,Delay reason,Closure reason,Terminal', 'master data has OPR, POC, Agent, Hotel, Airport, Port, Delay reason, Closure reason and Terminal lists');
+  ok($$('#master-grid .panel h3').map((h) => h.textContent).join() === 'OPR,POC,Agent,Hotel,Airport,Port,Delay reason,Closure reason,Terminal,Shipping line', 'master data has OPR, POC, Agent, Hotel, Airport, Port, Delay reason, Closure reason, Terminal and Shipping line lists');
   ok($$('#master-grid details.master-list').every((d) => !d.open), 'master data: every list starts folded');
   type($('[data-new="agent"]'), 'SMOKE AGENT');
   click($('[data-act="add-option"][data-kind="agent"]'));
@@ -686,7 +748,7 @@ async function login() {
   }
   if (ROLE === 'admin') {
     const portChoices = (sel) => [...sel.options].map((o) => o.value).join();
-    ok($$('select[data-new-port]').length === 9 && portChoices($('select[data-new-port="agent"]')) === ',alexandria,portsaid,damietta,suez', 'admin: every list has a port choice (All ports + each port)');
+    ok($$('select[data-new-port]').length === 10 && portChoices($('select[data-new-port="agent"]')) === ',alexandria,portsaid,damietta,suez', 'admin: every list has a port choice (All ports + each port)');
     for (const [kind, value] of [['agent', 'SMOKE SUEZ AGENT'], ['hotel', 'SMOKE SUEZ HOTEL']]) {
       type($(`[data-new="${kind}"]`), value);
       type($(`select[data-new-port="${kind}"]`), 'suez');
@@ -1515,7 +1577,7 @@ async function login() {
   async function checkDashboard() {
     // The sidebar folders: Reports closes, and opening one of its pages opens it again.
     const reports = $('#nav .nav-group[data-group="reports"]');
-    ok($$('#nav .nav-group').map((g) => g.dataset.group).join() === 'marine,reports,master', 'sidebar: Marine, Reports, Master data folders');
+    ok($$('#nav .nav-group').map((g) => g.dataset.group).join() === 'marine,operation,reports,master', 'sidebar: Marine, Operation, Reports, Master data folders');
     await go('vessels');
     click(reports.querySelector('[data-act="toggle-nav-group"]'));
     ok(reports.querySelector('.nav-group-items').hidden && reports.querySelector('.nav-group-head').getAttribute('aria-expanded') === 'false', 'sidebar: a folder closes');
@@ -1713,7 +1775,7 @@ async function login() {
       'accounts: the Branch manager template ticks every box');
     click($('[data-act="account-save"]'));
     ok(await waitFor(() => acRow(username)?.children[2].textContent === 'Suez (home)'), 'accounts: the ports change');
-    ok(acRow(username).children[3].textContent === '16 of 16', 'accounts: the Can column counts the permissions');
+    ok(acRow(username).children[3].textContent === '18 of 18', 'accounts: the Can column counts the permissions');
     click(acRow(username));
     ok(await waitFor(() => $('#account-form') && $('#account-form [data-perm="exports"]')?.checked
       && $('#account-form [data-perm="vessels.delete"]').checked), 'accounts: the ticks are saved');

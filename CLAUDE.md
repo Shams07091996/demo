@@ -5,11 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Marine Service Sheet: a Django 5.2 app replacing an Excel sheet of vessels and the services done for them (crew change,
-deliveries, cash to master…), with cost / revenue / profit in EGP. One Django app (`sheet`) plus a vanilla ES-module
+deliveries, cash to master…), with cost / revenue / profit in EGP. Two Django apps (`sheet`, and `operation` for every
+vessel at every terminal, see **Operation**) plus a vanilla ES-module
 front end with **no build step**. **Admins are the superusers** (made with `createsuperuser`, never by the app): every
 port, accounts, ports, rates, the History, accounting. Everyone else is a **User** with a home port and extra ports
 (`Profile.home_port` / `ports`); no port → blocked ("no port yet"). The Read-only role is gone (migration 0024).
-In their ports a User does only what their **16 permissions** allow and sees only their **pages**
+In their ports a User does only what their **18 permissions** allow and sees only their **pages**
 (`Profile.permissions` / `pages`, piece 2 of the access rework, `specs/2026-11-24-access-rework-design.md`); piece 3
 (`money.edit` hides the forms' money, `money.view` the overviews) is `moneyaccess.py` (see **Money permissions**).
 See `README.md` and `SECURITY.md`.
@@ -36,7 +37,7 @@ no secret key). `manage.py runserver` and `manage.py test` set it themselves (`m
 (`migrate`, `makemigrations`, `seed_demo`, `createsuperuser`, `check`) needs it in the environment.
 
 ```bash
-python manage.py test sheet                                    # all backend tests
+python manage.py test sheet operation                          # all backend tests
 python manage.py test sheet.tests_listing.ListingTests         # one class
 python manage.py test sheet.tests.AccessTests.test_read_only_user_can_read_but_not_write   # one test
 DJANGO_DEBUG=1 python manage.py makemigrations sheet
@@ -65,7 +66,8 @@ cd tools && UI_TEST_PASSWORD="<long password>" UI_TEST_TOTP_KEY=<KEY> node ui_sm
 
 - `suez` (a port user outside Alexandria) and `viewer` (the three-port User: port choices, a Damietta vessel, no Suez,
   no Open / Closed buttons) are short separate runs; the full script is written for alex / admin. The admin run also
-  adds a `Smoke…` port on the Ports page each time (ports are never deleted).
+  adds a `Smoke…` port on the Ports page and a `Smoke…` terminal on the Terminals page each time (neither is ever
+  deleted). Both walk the Operation pages; alex also adds, completes and deletes a visit.
 - `marine` (Alexandria, Marine template: Vessels + Services, no delete / cancel / exports; money in forms but no
   totals: `money.edit` without `money.view`) is a short separate run too.
 - `seed_demo` only sets passwords for users it creates; on a database that already has them, use a new database.
@@ -362,7 +364,7 @@ A new money field: add it to `moneyaccess` (and `moneyKeys.js` for service data)
 dialog `js/modals/account.js`): **Admins (superusers) only** (`access.require_superuser(request)`, `me.isSuperuser`
 renders the nav item / page). Lists every account (on first, then username) with home port / ports (column "Ports":
 "Alexandria (home), Damietta", superusers "Admin · all ports"), `two_step` (`set_up` / `waiting` / `expired` /
-`exempt`), last sign-in, "Can" (`8 of 16`); a GET never creates a Profile; the response's `ports` is
+`exempt`), last sign-in, "Can" (`8 of 18`); a GET never creates a Profile; the response's `ports` is
 `[[key, name, active]]`, plus `permissions` / `pages` (`[[key, label]]`) and `templates` (`[[key, label, perms,
 pages]]`).
 `validators.clean_account`: new → username (`USERNAME_RE`, unique ignoring case: `accounts.TAKEN`), names (150),
@@ -391,6 +393,31 @@ did that service), all plain text from the Agent list, empty until chosen. `list
 "Missing details" alert (key `missing`): vessels dated before today (Cairo) missing any of the five times, a needed
 delay reason, or any agent (every service type needs one).
 
+**Operation** (Django app `operation`, its own migrations from `operation 0001`; design
+`specs/2026-11-25-operation-app-design.md`): the user's workbook `ARKAS_Port_Berthing` as four pages — every vessel
+at every terminal, separate from Vessels (which lists only the vessels the company serves). `Terminal` (name, code,
+`port`, quay length, cranes, `berths` JSON list, `active`; Admins only on the Terminals page, `GET/POST
+/api/operation/terminals/`, `PUT …/<id>/`, never deleted) and `Visit` (terminal PROTECT, vessel name upper-cased,
+shipping line from the Master data "Shipping line" list, LOA, ETA / ATA / ETB / ETC / ATB / ATD, planned / actual
+berth from the terminal's list (the saved value stays allowed), cranes, discharge / loading, `version`). A visit's
+port is its terminal's: `operation.access.scoped_terminals` / `scoped_visits` (`terminal__port__in`), every write
+`require_port`; another port's visit is 404, moving one to another port's terminal 403. Input in
+`operation/validators.py` (refused, never fixed; ETA required; ATB needs ATA, ATD needs ATB, order checked). Figures
+only in `operation/figures.py`, worked out on read, never stored: status Completed (ATD) / Working (ATB) / Planned,
+waiting ATB−ATA, operation ATD−ATB, port stay ATD−ATA (hours, 1 decimal), total moves, moves/hr = total ÷ operation;
+Live data's moves/hr = moves ÷ hours since ATB. Pages (`constants.PAGES` `op_vessels` / `op_live` / `op_analysis` /
+`op_charts`) and permissions `operation.edit` / `operation.delete` (both need `op_vessels`); existing accounts start
+with them off, the Branch manager template has them. **Vessel Data** (`visits.py`, `GET/POST /api/operation/visits/`,
+`PUT/DELETE …/<id>/` with `conflicts`, filters status / terminal / line / q / from–to on the report date (ATA's Cairo
+date, else ETA's) / port, sorts, paging; Excel `…/visits/export/` with `exports`), **Live data** (`live.py`, one card
+per turned-on terminal: calls in 7 days, Working vessels, those due in 7 days), **Analysis reports** and **Report
+charts** (one response, `analysis.py`: headline averages, Calls per week / month / year when From and To are both set,
+a row per terminal in scope and per shipping line; filters port / terminal / berth / line / from–to). History tracks
+both models (`history.track`, `history_port()`; type `visit` is in `PORT_TYPES`). Front end: `js/operation/shared.js`,
+`js/pages/opVessels.js`, `opLive.js`, `opAnalysis.js`, `terminals.js`, dialogs `js/modals/visit.js`, `terminal.js`.
+`seed_demo` adds five Alexandria terminals and PSD EAST (Port Said), six lines and the workbook's seven visits plus
+two Working and four upcoming ones; `viewer` has the pages without edit / delete.
+
 **Terminal / berth** (migration 0029): `Vessel.terminal` (Master data "Terminal" list of its port, optional) and
 `Vessel.berth` (typed, 20 characters); a save without the key keeps the stored value. Shown in the vessel form and
 Port call block, in the vessel CSV, and as a "Port / Terminal / Berth" table on the management Excel's Port
@@ -406,16 +433,16 @@ closed from, reopened or empty = still closed, reason from the "Closure reason" 
 Scoped by its own port with `access.scoped_closures`; the list shows closures overlapping a date range. Page
 `js/pages/closures.js`, dialog `js/modals/closure.js`.
 
-**Master data** (`Option`: kind, value, `port`): nine lists (OPR, POC, Agent, Hotel, Airport, Port, Delay reason,
-Closure reason, Terminal). `port` is `""`
+**Master data** (`Option`: kind, value, `port`): ten lists (OPR, POC, Agent, Hotel, Airport, Port, Delay reason,
+Closure reason, Terminal, Shipping line — the last used only by Operation's visits). `port` is `""`
 for All ports or one port key. Users only ever create values for one of their ports (home port when none is named;
 never All ports) and see All-ports + their own; admins choose the port when adding and move values with `PATCH /api/options/<id>/` (admin only). Every dropdown is
 built with `optionChoices(kind, current, port)` → only that port's + All-ports values, always keeping `current`.
 
 **Front end** (`static/sheet/js/`, entry `main.js`):
 - **Sidebar folders:** `index.html` groups the nav into **Marine** (Vessels, Services, Port closures, Ships),
-  **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations) and **Master data** (Master data,
-  Customers, Exchange rates, Ports, Accounts, History); each item keeps its own `{% if %}`, a folder with none is not
+  **Operation** (Vessel Data, Live data, Analysis reports, Report charts), **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations) and **Master data** (Master data,
+  Customers, Exchange rates, Ports, Terminals, Accounts, History); each item keeps its own `{% if %}`, a folder with none is not
   rendered. `js/navGroups.js`: `data-act="toggle-nav-group"` opens / closes (localStorage `sheet.navGroups`), the
   router opens the folder of the page on screen.
 - **The person's ports:** `me` (`json_script`) has `ports` (every key for Admins), `homePort` ("" for Admins),
