@@ -3,7 +3,7 @@
 from datetime import date
 
 from .models import Customer, CustomerContact, CustomerRate, Service, Ship, Vessel
-from .tests import ApiTestCase
+from .tests import ApiTestCase, make_user
 
 BLUE = {
     "name": "Blue Owners",
@@ -31,11 +31,12 @@ class CustomerApiTests(ApiTestCase):
                                              "Cash to Master": {"amount": 5.0, "currency": "USD"}})
         self.assertEqual(customer["ships"], [])
 
-    def test_only_admin_writes_everyone_reads(self):
+    def test_customers_edit_writes_everyone_reads(self):
         self.create()
-        for name in ("alex", "viewer"):
+        make_user("reader", "alexandria", permissions=[])
+        self.assertEqual(self.call(self.login("reader"), "post", "/api/customers/", {**BLUE, "name": "Other"})[0], 403)
+        for name in ("alex", "viewer", "reader"):
             client = self.login(name)
-            self.assertEqual(self.call(client, "post", "/api/customers/", {**BLUE, "name": "Other"})[0], 403)
             status, body = self.call(client, "get", "/api/customers/")
             self.assertEqual(status, 200)
             self.assertEqual(body["customers"][0]["rates"]["Fresh Water"]["amount"], 12.5)

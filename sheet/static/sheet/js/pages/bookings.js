@@ -2,7 +2,7 @@
 // (/api/hotels/, /api/transfers/); read-only users get no prices and no Add button.
 import { api } from '../api.js';
 import { closedNoteEl, portOptionEls, serviceStatusEl, sortIcon } from '../components.js';
-import { ME } from '../config.js';
+import { ME, can } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { pagerEl } from '../render/pager.js';
@@ -86,7 +86,7 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
 
   function render() {
     renderHead();
-    const rowProps = (b) => (ME.canEdit ? { class: 'clickable', dataset: { act: 'booking-open', kind, id: b.id } } : null);
+    const rowProps = (b) => (can('bookings.edit') ? { class: 'clickable', dataset: { act: 'booking-open', kind, id: b.id } } : null);
     setChildren($(id('tbody')), list.bookings.map((b) => h('tr', rowProps(b), cols.map((c) => h('td', null, c.cell(b))))));
     $(id('empty')).hidden = list.bookings.length > 0;
     setChildren($(id('pager')), pagerEl({
@@ -138,7 +138,7 @@ function createBookingsPage({ kind, prefix, noun, columns, defaultSort }) {
   function wire() {
     if (wired) return;
     wired = true;
-    $(id('add')).hidden = !ME.canEdit;
+    $(id('add')).hidden = !can('bookings.edit');
     if (ME.multiPort) {
       const select = $(id('port'));
       setChildren(select, portOptionEls({ all: true }));

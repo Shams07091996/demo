@@ -11,6 +11,19 @@ from .models import Guest, HotelStay, Service
 from .serializers import local_iso, month_rates
 
 
+def status_permissions(old, new):
+    """The permissions a change of status needs: to or from Cancelled `services.cancel`, to or from Completed
+    `services.complete` (Cancelled -> Completed both); none when it stays the same."""
+    if old == new:
+        return []
+    needs = []
+    if "cancelled" in (old, new):
+        needs.append("services.cancel")
+    if "completed" in (old, new):
+        needs.append("services.complete")
+    return needs
+
+
 def stamp_completed(service, old_status, now):
     """completed_at follows the status, never the payload: it becomes Completed -> now; it leaves Completed -> None;
     otherwise unchanged (a save that keeps it Completed keeps its time)."""

@@ -10,6 +10,7 @@ from django.utils.crypto import get_random_string
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from sheet import crewbookings
+from sheet.constants import PAGE_KEYS, PERMISSION_KEYS, TEMPLATES
 from sheet.models import (
     Customer,
     CustomerRate,
@@ -31,7 +32,10 @@ DEMO_USERS = [
     ("portsaid", "portsaid"),
     ("damietta", "damietta"),
     ("suez", "suez"),
+    ("marine", "alexandria"),
 ]
+# Demo users that start from a template (constants.TEMPLATES); every other User gets every permission and page.
+DEMO_TEMPLATES = {"marine": "marine"}
 
 
 class Command(BaseCommand):
@@ -86,8 +90,11 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {username:<9} {', '.join(role) if isinstance(role, list) else role:<10}"
                                   f" password: {password}")
             ports = [] if role == "admin" else ([role] if isinstance(role, str) else list(role))
+            template = next((t for t in TEMPLATES if t[0] == DEMO_TEMPLATES.get(username)), None)
+            permissions, pages = (template[2], template[3]) if template else (PERMISSION_KEYS, PAGE_KEYS)
             Profile.objects.update_or_create(user=user, defaults={"home_port": ports[0] if ports else "",
-                                                                  "ports": ports})
+                                                                  "ports": ports, "permissions": list(permissions),
+                                                                  "pages": list(pages)})
 
     def _create_vessels(self):
         today = date.today()

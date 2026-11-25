@@ -2,7 +2,7 @@
 // always added for a ship, so with none picked the New ship panel opens under the bar.
 import { api, mutate } from './api.js';
 import { portOptionEls } from './components.js';
-import { ME, openPorts } from './config.js';
+import { ME, can, openPorts } from './config.js';
 import { afterVesselSaved } from './data.js';
 import { h, setChildren } from './dom.js';
 import { newShipPanel } from './modals/ship.js';
@@ -70,7 +70,7 @@ async function addVessel({ thenOpen }) {
 }
 
 export function setupQuickAdd() {
-  if (!ME.canEdit) {
+  if (!can('vessels.edit')) {
     $('#quickAdd').hidden = true;
     return;
   }

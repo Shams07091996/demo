@@ -2,7 +2,7 @@
 import { initTheme } from './theme.js';
 import { actions, moveOption } from './actions.js';
 import { portOptionEls } from './components.js';
-import { ME, el, myPorts, openPorts } from './config.js';
+import { ME, can, el, myPorts, openPorts } from './config.js';
 import { loadAlerts, loadOptions, loadVessels, setDashboardFilter, setFilter } from './data.js';
 import { setChildren } from './dom.js';
 import { setStatus } from './feedback.js';
@@ -144,7 +144,7 @@ $('#master-grid').addEventListener('change', (event) => {
   if (event.target.matches('select[data-option-port]')) moveOption(event.target);
 });
 
-if (ME.canEdit) $('#addVesselBtn').addEventListener('click', () => openVesselForm(null));
+if (can('vessels.edit')) $('#addVesselBtn').addEventListener('click', () => openVesselForm(null));
 else $('#addVesselBtn').hidden = true;
 setupQuickAdd();
 

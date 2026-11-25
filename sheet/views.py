@@ -46,10 +46,11 @@ from . import (
 from . import dashboard as dashboard_figures
 from .access import (
     asked_port,
+    ports_of,
     profile_of,
-    require_accounting,
+    require,
     require_admin,
-    require_edit,
+    require_page,
     require_port,
     require_superuser,
     scoped_closures,
@@ -60,6 +61,8 @@ from .constants import (
     NO_AGENT,
     OPTION_KIND_KEYS,
     OPTION_KINDS,
+    PAGE_KEYS,
+    PERMISSION_KEYS,
     RATE_UNITS,
     SERVICE_TYPES,
     SUMMARY_FIELDS,
@@ -130,7 +133,10 @@ def index(request):
             "ports": ports.keys() if profile.is_admin else list(profile.ports),
             "homePort": "" if profile.is_admin else profile.home_port,
             "multiPort": profile.is_admin or len(profile.ports) > 1,
-            "canEdit": profile.can_edit,
+            # What the screens may offer (the server checks every request anyway): the lists as they apply,
+            # dependencies included, so the sidebar and buttons never show more than the server allows.
+            "permissions": [key for key in PERMISSION_KEYS if profile.can(key)],
+            "pages": [key for key in PAGE_KEYS if profile.sees(key)],
             "isAdmin": profile.is_admin,
             "isSuperuser": request.user.is_superuser,
         },
@@ -167,7 +173,7 @@ def vessels(request):
     if request.method == "GET":
         return JsonResponse(listing.list_response(request.profile, request.GET))
 
-    require_edit(request.profile)
+    require(request.profile, "vessels.edit")
     vessel = Vessel.objects.create(**clean_vessel(read_json(request), request.profile))
     audit(request, "vessel.create", id=vessel.id, port=vessel.port)
     return _vessel_json(vessel.pk, status=201)
@@ -182,12 +188,14 @@ def vessel_alerts(request):
 @json_api
 @require_http_methods(["GET"])
 def dashboard(request):
+    require_page(request.profile, "dashboard")
     return JsonResponse(dashboard_figures.response(request.profile, request.GET))
 
 
 @json_api
 @require_http_methods(["GET"])
 def dashboard_jobs(request):
+    require_page(request.profile, "dashboard")
     return JsonResponse(dashboard_figures.jobs_response(request.profile, request.GET))
 
 
@@ -221,7 +229,10 @@ def _xlsx_response(content, filename):
 @require_http_methods(["GET"])
 def dashboard_export(request):
     """The management workbook (.xlsx) for a From–To range and port. Everyone may download it; a User gets their
-    own ports whatever they ask."""
+    own ports whatever they ask. Needs the Dashboard page and exports; sheets of pages the person doesn't have are
+    left out (report.data)."""
+    require_page(request.profile, "dashboard")
+    require(request.profile, "exports")
     ratelimit.check(request, "export")
     date_from, date_to, port = _export_range(request)
     r = report.Range(date_from, date_to, port)
@@ -237,6 +248,8 @@ def data_export(request, page):
     """One page's rows (its own list query, every page of it) as a plain-table .xlsx for other programs."""
     if page not in dataexport.PAGES:
         raise Http404
+    require_page(request.profile, dataexport.EXPORT_PAGE[page])
+    require(request.profile, "exports")
     ratelimit.check(request, "export")
     content = dataexport.page_file(page, request.profile, request.GET)
     # Which filters were used, not their values: a search is often a person's name.
@@ -248,7 +261,12 @@ def data_export(request, page):
 @json_api
 @require_http_methods(["GET"])
 def data_export_all(request):
-    """The five pages' rows for a From–To range and port, one sheet each."""
+    """The five pages' rows for a From–To range and port, one sheet each (only the pages the person has; the button
+    is beside the Dashboard's Excel)."""
+    require_page(request.profile, "dashboard")
+    require(request.profile, "exports")
+    if not dataexport.all_pages_for(request.profile):
+        raise Forbidden("None of these pages is open to you.")
     ratelimit.check(request, "export")
     date_from, date_to, port = _export_range(request)
     content = dataexport.all_file(request.profile, date_from, date_to, port)
@@ -264,13 +282,14 @@ def vessel_detail(request, pk):
     if request.method == "GET":
         return JsonResponse(vessel_to_dict(vessel, month_rates()))
 
-    require_edit(request.profile)
     if request.method == "DELETE":
+        require(request.profile, "vessels.delete")
         accounting.require_vessel_open(vessel)
         vessel.delete()
         audit(request, "vessel.delete", id=pk)
         return JsonResponse({"ok": True})
 
+    require(request.profile, "vessels.edit")
     payload = read_json(request)
     vessel = conflicts.locked(vessel, payload, request.user)
     before = conflicts.snapshot(vessel)
@@ -302,9 +321,11 @@ def _read_service(request, vessel, existing=None):
 @json_api
 @require_http_methods(["POST"])
 def service_create(request, pk):
-    require_edit(request.profile)
+    require(request.profile, "services.edit")
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
     fields = _read_service(request, vessel)
+    for key in services.status_permissions("in_progress", fields["status"]):  # a new service starts In progress
+        require(request.profile, key)
     service = Service(vessel=vessel, **fields)
     services.stamp_completed(service, None, timezone.now())
     service.save()
@@ -316,7 +337,7 @@ def service_create(request, pk):
 @json_api
 @require_http_methods(["PUT", "PATCH", "DELETE"])
 def service_detail(request, pk):
-    require_edit(request.profile)
+    require(request.profile, "services.edit")
     allowed = scoped_vessels(request.profile, prefetch=False)
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed), pk=pk)
     if request.method == "DELETE":
@@ -328,9 +349,15 @@ def service_detail(request, pk):
         service = conflicts.locked(service, payload, request.user)
         accounting.require_open(service)  # the fresh row: a dialog opened before accounting closed it is refused too
         refs = clean_booking_refs(payload.get("cancel_bookings"))
+        if refs:  # cancelling the bookings is part of cancelling the service
+            require(request.profile, "services.cancel")
+            require(request.profile, "bookings.edit")
         before = conflicts.snapshot(service)
         old_status = service.status
-        for field, value in _read_service(request, service.vessel, service).items():
+        fields = _read_service(request, service.vessel, service)
+        for key in services.status_permissions(old_status, fields["status"]):
+            require(request.profile, key)
+        for field, value in fields.items():
             setattr(service, field, value)
         services.stamp_completed(service, old_status, timezone.now())
         conflicts.bump_if_changed(service, before)
@@ -346,6 +373,7 @@ def service_detail(request, pk):
 @require_http_methods(["GET"])
 def services_list(request):
     """The Services page: services as a work list (In progress by default) with what each one is missing."""
+    require_page(request.profile, "services")
     return JsonResponse(services.list_response(request.profile, request.GET))
 
 
@@ -353,6 +381,7 @@ def services_list(request):
 @require_http_methods(["GET"])
 def service_bookings(request, pk):
     """A Crew Change's saved hotel stays and transfers, for the dialog's "cancel these too" list."""
+    require(request.profile, "services.cancel")
     allowed = scoped_vessels(request.profile, prefetch=False)
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed), pk=pk)
     bookings = crewbookings.saved_bookings(service)
@@ -397,7 +426,7 @@ AIRLINE_DATE_TAIL = re.compile(
 @require_http_methods(["GET"])
 def service_log(request, pk, uid):
     """The LOG letter (PDF) of one on-signer of a Crew Change. Anyone who can edit the vessel may make it."""
-    require_edit(request.profile)
+    require(request.profile, "documents")
     ratelimit.check(request, "export")
     allowed = scoped_vessels(request.profile, prefetch=False)
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed, service_type="Crew Change")
@@ -432,7 +461,7 @@ def service_log(request, pk, uid):
 def service_receipt(request, pk):
     """The master receipt of a service: GET the pre-filled text, POST the edited text to get the PDF (no stamp).
     Nothing typed is stored; making one is recorded in the History."""
-    require_edit(request.profile)
+    require(request.profile, "documents")
     allowed = scoped_vessels(request.profile, prefetch=False)
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed).select_related("vessel"), pk=pk)
     if request.method == "GET":
@@ -473,6 +502,7 @@ def _read_rate(payload):
 @json_api
 @require_http_methods(["GET", "POST"])
 def rates(request):
+    require_page(request.profile, "rates")
     if request.method == "POST":
         require_admin(request.profile)  # one rate per month, shared by every port
         first_of_month, rate = _read_rate(read_json(request))
@@ -500,6 +530,7 @@ def _disposal_prices_json(profile):
 @json_api
 @require_http_methods(["GET", "POST"])
 def disposal_prices_list(request):
+    require_page(request.profile, "rates")  # the prices are kept on the Exchange rates page
     if request.method == "POST":
         require_admin(request.profile)  # money settings, like exchange rates
         month, port, fields = clean_disposal_price(read_json(request))
@@ -520,13 +551,15 @@ def disposal_price_delete(request, pk):
 @json_api
 @require_http_methods(["GET"])
 def disposal_list(request):
+    require_page(request.profile, "disposal")
     return JsonResponse(disposal.response(request.profile, request.GET))
 
 
 @json_api
 @require_http_methods(["PUT"])
 def disposal_update(request, vessel_id):
-    require_edit(request.profile)
+    require_page(request.profile, "disposal")
+    require(request.profile, "disposal.edit")
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=vessel_id)
     accounting.require_open(VesselDisposal.objects.filter(vessel=vessel).select_for_update().first())
     changes = clean_disposal_quantities(read_json(request))
@@ -589,7 +622,7 @@ def _options_json(profile):
 def options(request):
     profile = request.profile
     if request.method == "POST":
-        require_edit(profile)
+        require(profile, "master.edit")
         payload = read_json(request)
         kind = payload.get("kind")
         value = str(payload.get("value", "")).strip()
@@ -618,7 +651,6 @@ def option_detail(request, pk):
     """DELETE removes a value (port users: their port's only); PATCH {port} moves it to a port or to all ports
     ("") — admins only."""
     profile = request.profile
-    require_edit(profile)
     option = get_object_or_404(Option, pk=pk)
     if request.method == "PATCH":
         require_admin(profile)
@@ -631,6 +663,7 @@ def option_detail(request, pk):
         option.save(update_fields=["port"])
         audit(request, "option.port", id=pk, port=port or "all")
         return _options_json(profile)
+    require(profile, "master.edit")
     if not profile.is_admin and (option.port == "" or option.port not in profile.ports):
         raise Forbidden("You can only remove options for your own ports.")
     option.delete()
@@ -664,6 +697,9 @@ def export_csv(request):
     except TooManyRequests as error:
         return JsonResponse({"error": str(error)}, status=error.status)
     profile = profile_of(request.user)
+    if not profile.can("exports"):
+        return HttpResponse("You don't have permission: Excel / data exports.", status=403,
+                            content_type="text/plain; charset=utf-8")
     try:
         filters = listing.parse_filters(request.GET, paged=False)
     except BadRequest as error:
@@ -712,7 +748,7 @@ def ships_list(request):
     profile = request.profile
     if request.method == "GET":
         return JsonResponse(ships.list_response(request.GET))
-    require_edit(profile)
+    require(profile, "customers.edit")
     ship = ships.save_ship(profile, read_json(request))
     audit(request, "ship.create", id=ship.id)
     return JsonResponse(ships.ship_to_dict(ship), status=201)
@@ -722,13 +758,13 @@ def ships_list(request):
 @require_http_methods(["PUT", "DELETE"])
 def ship_detail(request, pk):
     profile = request.profile
-    require_edit(profile)
     ship = get_object_or_404(Ship, pk=pk)
     if request.method == "DELETE":
         require_admin(profile)
         ships.delete_ship(ship)
         audit(request, "ship.delete", id=pk)
         return JsonResponse({"ok": True})
+    require(profile, "customers.edit")
     ship = ships.save_ship(profile, read_json(request), existing=ship)
     audit(request, "ship.update", id=ship.id)
     return JsonResponse(ships.ship_to_dict(ship))
@@ -739,8 +775,8 @@ def ship_detail(request, pk):
 def customers_list(request):
     if request.method == "GET":
         return JsonResponse(customers.list_response())
-    require_admin(request.profile)
-    customer = customers.save_customer(read_json(request))
+    require(request.profile, "customers.edit")
+    customer = customers.save_customer(read_json(request), may_change_rates=request.profile.can("money.edit"))
     audit(request, "customer.create", id=customer.id)
     return JsonResponse(customers.customer_to_dict(customer), status=201)
 
@@ -748,13 +784,15 @@ def customers_list(request):
 @json_api
 @require_http_methods(["PUT", "DELETE"])
 def customer_detail(request, pk):
-    require_admin(request.profile)
     customer = get_object_or_404(Customer, pk=pk)
     if request.method == "DELETE":
+        require_admin(request.profile)
         customers.delete_customer(customer)
         audit(request, "customer.delete", id=pk)
         return JsonResponse({"ok": True})
-    customer = customers.save_customer(read_json(request), existing=customer)
+    require(request.profile, "customers.edit")
+    customer = customers.save_customer(read_json(request), existing=customer,
+                                       may_change_rates=request.profile.can("money.edit"))
     audit(request, "customer.update", id=customer.id)
     return JsonResponse(customers.customer_to_dict(customer))
 
@@ -763,9 +801,10 @@ def customer_detail(request, pk):
 @require_http_methods(["GET", "POST"])
 def closures_list(request):
     profile = request.profile
+    require_page(profile, "closures")
     if request.method == "GET":
         return JsonResponse(closures.list_response(profile, request.GET))
-    require_edit(profile)
+    require(profile, "closures.edit")
     closure = closures.save_closure(profile, read_json(request))
     audit(request, "closure.create", id=closure.id, port=closure.port)
     return JsonResponse(closures.closure_to_dict(closure, profile), status=201)
@@ -775,7 +814,8 @@ def closures_list(request):
 @require_http_methods(["PUT", "DELETE"])
 def closure_detail(request, pk):
     profile = request.profile
-    require_edit(profile)
+    require_page(profile, "closures")
+    require(profile, "closures.edit")
     closure = closures.get_closure(profile, pk)
     if request.method == "DELETE":
         closure.delete()
@@ -790,15 +830,17 @@ def closure_detail(request, pk):
 # ---- hotels and transport (see logistics.py) ---------------------------------------------------
 
 _AUDIT_NAME = {"hotels": "hotel", "transfers": "transfer"}
+_BOOKING_PAGE = {"hotels": "hotels", "transfers": "transport"}
 
 
 @json_api
 @require_http_methods(["GET", "POST"])
 def bookings(request, kind):
     profile = request.profile
+    require_page(profile, _BOOKING_PAGE[kind])
     if request.method == "GET":
         return JsonResponse(logistics.list_response(kind, profile, request.GET))
-    require_edit(profile)
+    require(profile, "bookings.edit")
     booking = logistics.save_booking(kind, profile, read_json(request))
     audit(request, f"{_AUDIT_NAME[kind]}.create", id=booking.id, vessel=booking.vessel_id)
     return JsonResponse(logistics.booking_to_dict(kind, booking, profile), status=201)
@@ -808,10 +850,11 @@ def bookings(request, kind):
 @require_http_methods(["GET", "PUT", "DELETE"])
 def booking_detail(request, kind, pk):
     profile = request.profile
+    require_page(profile, _BOOKING_PAGE[kind])
     booking = logistics.get_booking(kind, profile, pk)
     if request.method == "GET":
         return JsonResponse(logistics.booking_to_dict(kind, booking, profile))
-    require_edit(profile)
+    require(profile, "bookings.edit")
     if request.method == "DELETE":
         accounting.require_open(booking)
         booking.delete()
@@ -828,7 +871,9 @@ def booking_detail(request, kind, pk):
 @json_api
 @require_http_methods(["GET"])
 def vessel_crew(request, pk):
-    """The vessel's crew-change guests, for picking hotel / transfer guests."""
+    """The vessel's crew-change guests, for picking hotel / transfer guests (the booking dialog of either page)."""
+    if not (request.profile.sees("hotels") or request.profile.sees("transport")):
+        require_page(request.profile, "hotels")
     vessel = get_object_or_404(scoped_vessels(request.profile, prefetch=False), pk=pk)
     return JsonResponse({"crew": logistics.crew_of(vessel)})
 
@@ -839,8 +884,8 @@ def vessel_crew(request, pk):
 @json_api
 @require_http_methods(["POST"])
 def accounting_set(request):
-    """Close or reopen one Calculations row (accounting.py): read-only (accounting) and admins only."""
-    require_accounting(request.profile)
+    """Close or reopen one Calculations row (accounting.py): needs accounting.close (and so the Calculations page)."""
+    require(request.profile, "accounting.close")
     kind, pk, closed = accounting.clean_request(read_json(request))
     accounting.set_closed(request.profile, kind, pk, closed)
     audit(request, "accounting.close" if closed else "accounting.open", kind=kind, id=pk)
@@ -850,7 +895,8 @@ def accounting_set(request):
 @json_api
 @require_http_methods(["GET"])
 def calculations_list(request):
-    """Every money line of the vessels in range / OPR / port, with totals. Every role may read it."""
+    """Every money line of the vessels in range / OPR / port, with totals: the Calculations page."""
+    require_page(request.profile, "calculations")
     return JsonResponse(calculations.response(request.profile, request.GET))
 
 
@@ -906,9 +952,11 @@ def _shown_changes(record):
 @json_api
 @require_http_methods(["GET"])
 def history_list(request):
-    """The change history, newest first; admins only (it spans every port). Filters: from / to (dates, Cairo time),
-    type (object type), user (username), page, page_size."""
-    require_admin(request.profile)
+    """The change history, newest first: Admins everything; a User with history.view only their ports' records of
+    history.PORT_TYPES. Filters: from / to (dates, Cairo time), type (object type), user (username), page,
+    page_size."""
+    profile = request.profile
+    require(profile, "history.view")
     params = request.GET
     date_from, date_to = listing.date_param(params, "from"), listing.date_param(params, "to")
     if date_from and date_to and date_from > date_to:
@@ -918,6 +966,8 @@ def history_list(request):
     if page_size not in HISTORY_PAGE_SIZES:
         raise BadRequest("Rows per page must be 10, 25, 50 or 100.")
     rows = ChangeRecord.objects.all()
+    if not profile.is_admin:
+        rows = rows.filter(object_type__in=history.types_for(profile), port__in=ports_of(profile))
     if date_from:
         rows = rows.filter(at__date__gte=date_from)
     if date_to:

@@ -17,6 +17,7 @@ from django.test import Client, SimpleTestCase, TestCase, override_settings
 from config.database import build_database_settings
 
 from . import finance, throttle
+from .constants import PAGE_KEYS, PERMISSION_KEYS
 from .errors import BadRequest
 from .models import (
     ExchangeRate,
@@ -62,16 +63,18 @@ def allow(kind, *values, port=""):
         Option.objects.get_or_create(kind=kind, value=value, port=port)
 
 
-def make_user(username, ports):
+def make_user(username, ports, permissions=None, pages=None):
     """"admin": a superuser (an Admin, every port); a port key or a list of keys: a User of those ports (the first
-    is the home port)."""
+    is the home port) with `permissions` and `pages` (None: all of them)."""
     if ports == "admin":
         user = User.objects.create_superuser(username, password=PASSWORD)
         Profile.objects.create(user=user)
         return user
     ports = [ports] if isinstance(ports, str) else list(ports)
     user = User.objects.create_user(username, password=PASSWORD)
-    Profile.objects.create(user=user, home_port=ports[0], ports=ports)
+    Profile.objects.create(user=user, home_port=ports[0], ports=ports,
+                           permissions=list(PERMISSION_KEYS if permissions is None else permissions),
+                           pages=list(PAGE_KEYS if pages is None else pages))
     return user
 
 
@@ -255,13 +258,11 @@ class AccessTests(ApiTestCase):
         self.assertEqual(Vessel.objects.get(pk=vessel["id"]).port, "alexandria")
 
     def test_users_cannot_do_admin_things(self):
-        """Exchange rates, All-ports Master data and accounting belong to the Admins, whatever ports a User has."""
+        """Exchange rates and All-ports Master data belong to the Admins, whatever ports a User has (closing
+        accounting lines needs accounting.close: tests_permissions)."""
         for name in ("viewer", "alex"):
             user = self.login(name)
             self.assertEqual(self.call(user, "post", "/api/rates/", {"month": "2026-10", "rate": "50"})[0], 403)
-            self.assertEqual(self.call(user, "get", "/api/history/")[0], 403)
-            self.assertEqual(self.call(user, "post", "/api/accounting/",
-                                       {"kind": "service", "id": self.suez_service.id, "closed": True})[0], 403)
 
     def test_only_admins_change_exchange_rates(self):
         """Rates are shared by every port, so a port user must not be able to change them."""
@@ -500,6 +501,16 @@ class SeedCommandTests(TestCase):
         call_command("seed_demo", stdout=out)
         self.assertNotIn("demo12345", out.getvalue())
         self.assertTrue(Vessel.objects.exists())
+
+    @FAST_HASHER
+    @override_settings(DEBUG=True)
+    def test_demo_marine_user_has_the_marine_template(self):
+        call_command("seed_demo", stdout=StringIO())
+        marine = Profile.objects.get(user__username="marine")
+        self.assertEqual((marine.ports, marine.permissions, marine.pages),
+                         (["alexandria"], ["vessels.edit", "services.edit", "services.complete", "money.edit"],
+                          ["vessels", "services"]))
+        self.assertEqual(Profile.objects.get(user__username="alex").permissions, list(PERMISSION_KEYS))
 
     @FAST_HASHER
     @override_settings(DEBUG=True)

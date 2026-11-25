@@ -19,6 +19,8 @@ from .constants import (
     MAX_NIGHTS,
     MULTI_TYPES,
     OPTION_KINDS,
+    PAGE_KEYS,
+    PERMISSION_KEYS,
     PLACE_KEYS,
     RATE_UNITS,
     SERVICE_STATUSES,
@@ -840,10 +842,38 @@ def _account_ports(data, existing):
     return {"home_port": home, "ports": chosen}
 
 
+def _tick_list(value, known, message):
+    """A list of known keys, in the fixed order, each once; anything else is refused."""
+    if not isinstance(value, list) or not all(isinstance(key, str) and key in known for key in value):
+        raise BadRequest(message)
+    chosen = set(value)
+    return [key for key in known if key in chosen]
+
+
+def _account_ticks(data, existing):
+    """Permissions and pages (constants.PERMISSIONS / PAGES). Absent on an existing account: kept; on a new one:
+    none. Vessels is always a page; History is a page exactly when history.view is ticked (whatever `pages` says).
+    A box that needs another is refused without it."""
+    profile = getattr(existing, "profile", None) if existing is not None else None
+    permissions = data.get("permissions", list(profile.permissions) if profile is not None else [])
+    pages = data.get("pages", list(profile.pages) if profile is not None else [])
+    permissions = _tick_list(permissions, PERMISSION_KEYS, "Unknown permission.")
+    pages = set(_tick_list(pages, PAGE_KEYS, "Unknown page.")) - {"history"}
+    pages |= {"vessels"} | ({"history"} if "history.view" in permissions else set())
+    if pages & {"calculations", "rates"} and "money.view" not in permissions:
+        raise BadRequest("Calculations and Exchange rates need See money.")
+    if "history.view" in permissions and "money.view" not in permissions:
+        raise BadRequest("History needs See money.")
+    if "accounting.close" in permissions and "calculations" not in pages:
+        raise BadRequest("Close / reopen lines needs the Calculations page.")
+    return {"permissions": permissions, "pages": [key for key in PAGE_KEYS if key in pages]}
+
+
 def clean_account(data, existing=None):
     """An account from the Accounts page. New: username (3-30 letters / digits / . _ -), names, home port, extra
-    ports and a temporary password that passes Django's password rules. Existing: only names, ports and active
-    (absent keys are kept); anything else sent (username, password, superuser / staff) is ignored."""
+    ports, permissions, pages and a temporary password that passes Django's password rules. Existing: only names,
+    ports, permissions, pages and active (absent keys are kept); anything else sent (username, password,
+    superuser / staff) is ignored."""
     from django.contrib.auth.models import User
     from django.contrib.auth.password_validation import validate_password
 
@@ -853,6 +883,8 @@ def clean_account(data, existing=None):
             values[key] = _short(data.get(key), 150, label)
     if existing is None or "home_port" in data or "ports" in data:
         values.update(_account_ports(data, existing))
+    if existing is None or "permissions" in data or "pages" in data:
+        values.update(_account_ticks(data, existing))
     if existing is not None:
         if "active" in data:
             if not isinstance(data["active"], bool):

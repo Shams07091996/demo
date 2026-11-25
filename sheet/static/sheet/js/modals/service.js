@@ -2,14 +2,14 @@
 import { api } from '../api.js';
 import { calcLocal } from '../calc.js';
 import { closedNoteEl, headEl, optionChoicesEl } from '../components.js';
-import { BILLING, ME, MULTI, RATE_UNITS, SERVICE_STATUS, SINGLE_EXTRA, TYPES } from '../config.js';
+import { BILLING, MULTI, RATE_UNITS, SERVICE_STATUS, SINGLE_EXTRA, TYPES, can } from '../config.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { customerById, customerOptionEls, loadCustomers } from '../parties.js';
 import { fillRevenue, rateFor } from '../rates.js';
 import { getVessel, state } from '../state.js';
-import { $, $$, fmt, formValues, sign } from '../util.js';
+import { $, $$, fmt, formValues, sign, statusNeeds } from '../util.js';
 
 /* ---------- form field builders ---------- */
 
@@ -31,13 +31,20 @@ const rateField = (vessel, data) =>
 
 const previewBox = () => h('div', { id: 'preview', class: 'preview' });
 
+// A status the person may not move to (services.cancel / services.complete) is offered but disabled.
+function statusSelect(status) {
+  const select = h('select', { attrs: { name: 'status' } }, optionEls(Object.entries(SERVICE_STATUS), status));
+  [...select.options].forEach((option) => { option.disabled = !statusNeeds(status, option.value).every(can); });
+  return select;
+}
+
 // Agent and operations status side by side; the reason only while Cancelled is chosen.
 const agentStatusFields = (vessel, service) => {
   const status = service?.status || 'in_progress';
   return [
     h('div', { class: 'row two' },
       field('Agent', h('select', { attrs: { name: 'agent' } }, optionChoicesEl('agent', service?.agent || '', vessel.port))),
-      field('Status', h('select', { attrs: { name: 'status' } }, optionEls(Object.entries(SERVICE_STATUS), status)))),
+      field('Status', statusSelect(status))),
     h('div', { class: 'field', id: 'svc-reason', hidden: status !== 'cancelled' },
       h('label', null, 'Cancellation reason'),
       h('textarea', { attrs: { name: 'cancel_reason', maxlength: 500 }, value: service?.cancel_reason || '' })),
@@ -164,7 +171,7 @@ const visaField = (m, side, label, defaultCurrency) => {
 };
 
 // The LOG letter (PDF) of a saved on-signer: a plain link, the server sends it as a download.
-const logLink = (m) => (ME.canEdit && state.ctx.serviceId && m.uid
+const logLink = (m) => (can('documents') && state.ctx.serviceId && m.uid
   ? h('a', { class: 'btn ghost small', href: `/api/services/${state.ctx.serviceId}/log/${m.uid}/`, dataset: { act: 'crew-log' } }, 'LOG')
   : null);
 

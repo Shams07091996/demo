@@ -2,7 +2,7 @@
 // overlap it) and, for admins / read-only, by port. The server scopes port users to their own port.
 import { api, mutate } from '../api.js';
 import { portOptionEls } from '../components.js';
-import { ME } from '../config.js';
+import { ME, can } from '../config.js';
 import { h, icon, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { defaultRange } from '../state.js';
@@ -35,10 +35,10 @@ const deleteButton = (c) =>
     icon('trash'), ' Delete');
 
 function render() {
-  setChildren($('#pc-head'), h('tr', null, COLUMNS.map((c) => h('th', null, c.title)), ME.canEdit ? h('th') : null));
+  setChildren($('#pc-head'), h('tr', null, COLUMNS.map((c) => h('th', null, c.title)), can('closures.edit') ? h('th') : null));
   const row = (c) => h('tr', c.can_edit ? { class: 'clickable', dataset: { act: 'closure-open', id: c.id } } : null,
     COLUMNS.map((col) => h('td', null, col.cell(c))),
-    ME.canEdit ? h('td', null, c.can_edit ? deleteButton(c) : null) : null);
+    can('closures.edit') ? h('td', null, c.can_edit ? deleteButton(c) : null) : null);
   setChildren($('#pc-tbody'), closures.map(row));
   $('#pc-empty').hidden = closures.length > 0;
   const from = $('#pc-from');

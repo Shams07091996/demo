@@ -251,12 +251,42 @@ async function login() {
     return finish();
   }
 
+  // A Marine employee (run: node ui_smoke_test.js marine): seed_demo gives them the Marine template — Vessels and
+  // Services only; add / edit vessels and services, mark Completed, money in forms; no delete, cancel, exports.
+  if (ROLE === 'marine') {
+    ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === 'vessels,services', 'marine: the sidebar is Vessels and Services');
+    ok(await waitFor(() => $$('#tbody tr').length > 0) && !$('#tbody [data-act="del-vessel-row"]'), 'marine: no Delete button on vessel rows');
+    ok(shown($('#addVesselBtn')), 'marine: + Add Vessel is there');
+    // No customers.edit: the ship type-ahead offers existing ships only, never "+ New ship" (the server would refuse).
+    type($('#qa-name'), 'MSC');
+    ok(await waitFor(() => $$('#quickAdd .ship-opt').length > 0) && !$$('#quickAdd .ship-opt').some((o) => o.textContent.startsWith('+ New ship')),
+      'marine: the ship list has no + New ship');
+    $('#qa-name').dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    type($('#qa-name'), '');
+    await openRow('MSC AURORA');
+    ok(!$('#modal [data-act="del-vessel"]') && !!$('#modal [data-act="edit-vessel"]') && !!$('#modal [data-act="add-service"]'),
+      'marine: the vessel dialog edits but cannot delete');
+    ok(!$('#modal [data-act="receipt"]'), 'marine: no Receipt button without documents');
+    click($('#modal [data-act="edit-service"]'));
+    ok(await waitFor(() => $('#svc-form [name=status]')), 'marine: a service opens for editing');
+    const option = (value) => [...$('#svc-form [name=status]').options].find((o) => o.value === value);
+    ok(!option('completed').disabled && option('cancelled').disabled, 'marine: Completed can be chosen, Cancelled cannot');
+    closeModal();
+    await go('services');
+    ok(!$('#page-services [data-act="page-export"]'), 'marine: no Excel button');
+    w.location.hash = 'calculations';
+    ok(await waitFor(() => $('#pageTitle').textContent === 'Vessels'), 'marine: #calculations lands on Vessels');
+    ok((await w.fetch('/api/calculations/')).status === 403, 'marine: the Calculations API refuses them');
+    ok((await w.fetch('/api/history/')).status === 403, 'marine: the History API refuses them');
+    return finish();
+  }
+
   // A User of three ports (run: node ui_smoke_test.js viewer): Alexandria (home), Port Said and Damietta, never Suez.
   // A short, separate run: the full edit flows are walked by alex.
   if (ROLE === 'viewer') {
     const labels = (el) => [...el.options].map((o) => o.textContent).join();
-    ok(!$('#nav [data-page="history"]') && !$('#nav [data-page="accounts"]') && !$('#nav [data-page="ports"]'),
-      'three-port user: no History, Accounts or Ports in the sidebar');
+    ok(!!$('#nav [data-page="history"]') && !$('#nav [data-page="accounts"]') && !$('#nav [data-page="ports"]'),
+      'three-port user: History (they have it), no Accounts or Ports in the sidebar');
     ok($('#roleLabel').textContent === 'Alexandria, Port Said, Damietta', 'three-port user: the sidebar names their ports');
     ok(shown($('#portSelect')) && labels($('#portSelect')) === 'All my ports,Alexandria,Port Said,Damietta',
       'three-port user: the port filter offers exactly their three ports');
@@ -294,10 +324,10 @@ async function login() {
     ok(await waitFor(() => $('#closure-form [name=port]')) && labels($('#closure-form [name=port]')) === 'Alexandria,Port Said,Damietta',
       'three-port user: the closure dialog offers their ports');
     closeModal();
-    // Calculations: money is shown, but Open / Closed is the Admins' switch.
+    // Calculations: with Close / reopen lines (seed_demo gives full Users everything) the switch is there.
     await go('calculations');
-    ok(await waitFor(() => $$('#c-tbody tr').length > 0) && !$('#c-tbody [data-act="acct-toggle"]') && !!$('#c-tbody .acct-label'),
-      'three-port user: Calculations has no Open / Closed buttons');
+    ok(await waitFor(() => $$('#c-tbody tr').length > 0) && !!$('#c-tbody [data-act="acct-toggle"]'),
+      'three-port user: Calculations has the Open / Closed switch');
     ok((await w.fetch(`/api/vessels/${made.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } })).ok, 'three-port user: the Damietta vessel is deleted');
     await checkHistory();
     return finish();
@@ -305,8 +335,8 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 15 : 12), 'sidebar lists the pages (Admins also have History, Accounts and Ports; no Bulk add)');
-  const pageOrder = 'vessels,services,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates' + (ROLE === 'admin' ? ',history,accounts,ports' : '');
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 15 : 13), 'sidebar lists the pages (Admins also have Accounts and Ports; no Bulk add)');
+  const pageOrder = 'vessels,services,hotels,transport,closures,disposal,calculations,dashboard,ships,customers,master,rates,history' + (ROLE === 'admin' ? ',accounts,ports' : '');
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'Port closures and Calculations sit after Transport; History (admins) last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
   ok(!$('#page-vessels').hidden && $('#pageTitle').textContent === 'Vessels', 'starts on the Vessels page');
@@ -469,7 +499,7 @@ async function login() {
       ok(await waitFor(() => waterRow()?.textContent.includes('USD 900.00 × 50.00 = 45,000.00')), 'accounting: clearing the kept rate goes back to the month rate');
     }
   } else {
-    ok(waterRow().querySelector('.acct-label') && !$('#c-tbody [data-act="acct-toggle"]'), 'accounting: port users see Open / Closed but cannot switch it');
+    ok(!!waterRow().querySelector('[data-act="acct-toggle"]'), 'accounting: a User with Close / reopen lines has the switch');
   }
   if (ROLE === 'alex') {
     // Operations: a service set to Cancelled needs a reason, its money goes to 0, its card says so.
@@ -743,7 +773,9 @@ async function login() {
     click($('[data-act="customer-save"]'));
     await waitFor(() => !$('#customer-form'));
   } else {
-    ok(rateBox('Fresh Water').disabled && !$('[data-act="customer-save"]'), `customers: ${ROLE} sees the rates read-only`);
+    // seed_demo's port Users have customers.edit and money.edit (piece 2): they may change a customer's rates.
+    ok(!rateBox('Fresh Water').disabled && !!$('[data-act="customer-save"]') && !$('[data-act="customer-del"]'),
+      `customers: ${ROLE} may edit the rates but not delete the customer`);
     closeModal();
   }
   await go('vessels');
@@ -1554,10 +1586,12 @@ async function login() {
       type($('#hi-type'), 'exchangerate');
       ok(await waitFor(() => historyRows().length > 0 && historyRows().every((r) => r.textContent.includes('Exchange rate'))), 'history: filter by what changed');
     } else {
-      ok(historyStatus === 403, `history: ${ROLE} gets 403 from the history API`);
-      ok(!$('#nav [data-page="history"]') && !$('#page-history'), `history: ${ROLE} has no History page`);
-      w.location.hash = 'history';
-      ok(await waitFor(() => $('#pageTitle').textContent === 'Vessels'), `history: ${ROLE} opening #history lands on Vessels`);
+      // seed_demo's port Users have History: only their own ports' records, never people / shared records.
+      ok(historyStatus === 200, `history: ${ROLE} (History ticked) may read it`);
+      const mine = JSON.parse($('#me-data').textContent).ports;
+      const { records } = await (await w.fetch('/api/history/?page_size=100')).json();
+      ok(records.every((r) => mine.includes(r.port) && r.object_type !== 'profile'), `history: ${ROLE} sees only their ports' records`);
+      ok(await go('history'), `history: ${ROLE} has the History page`);
     }
     await checkAccounts();
     await checkPorts();
@@ -1595,8 +1629,26 @@ async function login() {
     type($('#account-form [name=home_port]'), 'suez');
     tick('damietta').checked = false;
     tick('portsaid').checked = false;
+    // Template: Accounts employee fills in its ticks (money, exports, history, closing lines + their pages).
+    const perm = (key) => $(`#account-form [data-perm="${key}"]`);
+    const page = (key) => $(`#account-form [data-tick-page="${key}"]`);
+    ok(perm('history.view').disabled && page('calculations').disabled && page('vessels').checked && page('vessels').disabled,
+      'accounts: ticks that need See money are disabled; Vessels is always on');
+    type($('#account-form [name=template]'), 'accounts');
+    ok(perm('money.view').checked && perm('accounting.close').checked && !perm('vessels.edit').checked
+      && page('calculations').checked && page('history').checked && page('history').disabled,
+      'accounts: the Accounts employee template ticks its boxes');
     click($('[data-act="account-save"]'));
     ok(await waitFor(() => acRow(username)?.children[2].textContent === 'Suez (home)'), 'accounts: the ports change');
+    ok(acRow(username).children[3].textContent === '4 of 16', 'accounts: the Can column counts the permissions');
+    click(acRow(username));
+    ok(await waitFor(() => $('#account-form') && $('#account-form [data-perm="exports"]')?.checked
+      && !$('#account-form [data-perm="vessels.edit"]').checked), 'accounts: the ticks are saved');
+    perm('money.view').checked = false;
+    perm('money.view').dispatchEvent(new w.Event('change', { bubbles: true }));
+    ok(!perm('history.view').checked && !page('calculations').checked && !perm('accounting.close').checked,
+      'accounts: unticking See money unticks what needs it');
+    closeModal();
     click(acRow(username));
     await waitFor(() => $('[data-act="account-toggle"]'));
     click($('[data-act="account-toggle"]'));

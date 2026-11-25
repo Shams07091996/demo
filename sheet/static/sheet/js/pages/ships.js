@@ -1,7 +1,7 @@
 // The Ships page: every ship (name, IMO, OPR, customer, port calls), searched by name or IMO. Admins and port users
 // add and edit ships; everyone reads them. Inactive ships are greyed (and left out of the vessel name dropdown).
 import { api } from '../api.js';
-import { ME } from '../config.js';
+import { can } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { openShipDialog } from '../modals/ship.js';
@@ -15,8 +15,8 @@ let wired = false;
 
 function render() {
   setChildren($('#sh-head'), h('tr', null, ['Name', 'IMO', 'OPR', 'Customer', 'Port calls'].map((t) => h('th', null, t))));
-  const row = (s) => h('tr', { class: [ME.canEdit ? 'clickable' : '', s.active ? '' : 'inactive'].join(' ').trim(),
-    dataset: ME.canEdit ? { act: 'ship-open', id: s.id } : null },
+  const row = (s) => h('tr', { class: [can('customers.edit') ? 'clickable' : '', s.active ? '' : 'inactive'].join(' ').trim(),
+    dataset: can('customers.edit') ? { act: 'ship-open', id: s.id } : null },
   h('td', null, s.name), h('td', null, s.imo || 'No IMO'), h('td', null, s.opr || '—'),
   h('td', null, s.customer ? s.customer.name : '—'), h('td', null, String(s.calls)));
   setChildren($('#sh-tbody'), ships.map(row));
@@ -56,7 +56,7 @@ export const shipsPage = {
   },
   /** Open a ship that may not be on this page yet (from a customer's ship list); edit roles only. */
   async openById(id) {
-    if (!ME.canEdit) return;
+    if (!can('customers.edit')) return;
     const ship = (await api('/api/ships/')).ships.find((s) => s.id === id);
     if (ship) openShipDialog(ship, () => shipsPage.load());
   },

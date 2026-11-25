@@ -4,7 +4,7 @@ pre-fill the service dialog's revenue (js/rates.js); the server never checks a r
 
 from django.db.models import ProtectedError
 
-from .errors import BadRequest
+from .errors import BadRequest, Forbidden
 from .models import Customer, CustomerContact, CustomerRate
 from .ships import IN_USE
 from .validators import clean_customer
@@ -28,11 +28,22 @@ def list_response():
     return {"customers": [customer_to_dict(c) for c in customers]}
 
 
-def save_customer(payload, existing=None):
+RATES_NEED_MONEY = "You don't have permission: Enter / edit prices and costs."
+
+
+def _rate_set(rates):
+    return {(r["service_type"], r["amount"], r["currency"]) for r in rates}
+
+
+def save_customer(payload, existing=None, may_change_rates=True):
     """Create or update a customer; its contacts and rates become what was sent (in the request's one transaction,
     so a refused payload changes nothing). Only rows that really change are written, so the History shows just
     what someone changed."""
     values = clean_customer(payload, existing)
+    if not may_change_rates:  # agreed rates are money: only with money.edit (sending them unchanged is fine)
+        stored = list(existing.rates.values("service_type", "amount", "currency")) if existing else []
+        if _rate_set(values["rates"]) != _rate_set(stored):
+            raise Forbidden(RATES_NEED_MONEY)
     customer = existing or Customer()
     for key in ("name", "notes", "active"):
         setattr(customer, key, values[key])

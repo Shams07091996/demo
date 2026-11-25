@@ -6,7 +6,7 @@ import { setStatus } from '../feedback.js';
 import { openAccountDialog } from '../modals/account.js';
 import { $, fmtStamp } from '../util.js';
 
-let data = { accounts: [], ports: [] };
+let data = { accounts: [], ports: [], permissions: [], pages: [], templates: [] };
 let ticket = 0;
 
 // "Alexandria (home), Damietta"; an Admin (superuser) works in every port.
@@ -26,12 +26,13 @@ export function twoStepLabel(account) {
 }
 
 function render() {
-  const heads = ['Username', 'Name', 'Ports', 'Two-step', 'Last sign-in', 'State'];
+  const heads = ['Username', 'Name', 'Ports', 'Can', 'Two-step', 'Last sign-in', 'State'];
   setChildren($('#ac-head'), h('tr', null, heads.map((t) => h('th', null, t))));
   const row = (a) => h('tr', { class: a.active ? 'clickable' : 'clickable inactive', dataset: { act: 'account-open', id: a.id } },
     h('td', null, a.username),
     h('td', null, [a.first_name, a.last_name].filter(Boolean).join(' ') || '—'),
     h('td', null, portsLabel(a, data.ports)),
+    h('td', null, a.superuser ? 'All' : `${a.permissions.length} of ${data.permissions.length}`),
     h('td', null, twoStepLabel(a)),
     h('td', null, a.last_login ? fmtStamp(a.last_login) : '—'),
     h('td', null, a.active ? 'On' : 'Off'));
@@ -54,6 +55,6 @@ export const accountsPage = {
   open(id) {
     const account = id ? data.accounts.find((a) => a.id === id) : null;
     if (id && !account) return;
-    openAccountDialog(account, data.ports, () => accountsPage.load());
+    openAccountDialog(account, data, () => accountsPage.load());
   },
 };

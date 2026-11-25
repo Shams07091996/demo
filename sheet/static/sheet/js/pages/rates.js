@@ -19,7 +19,7 @@ export function renderRatesPage() {
         field('Rate (EGP per USD)', h('input', { attrs: { type: 'number', step: 'any', min: 0, name: 'rate', placeholder: 'e.g. 50.25' } })),
         field(null, h('button', { class: 'btn primary', dataset: { act: 'save-rate' } }, 'Save rate'))),
     ];
-  } else if (ME.canEdit) {
+  } else {
     form = h('p', { class: 'help' }, 'Exchange rates are shared by every port; ask an admin to add or change one.');
   }
   setChildren($('#rates-panel'), chips.length ? chips : h('div', { class: 'none' }, 'No rates set yet.'), form);

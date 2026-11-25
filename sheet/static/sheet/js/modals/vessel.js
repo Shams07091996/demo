@@ -3,7 +3,7 @@ import {
   closedNoteEl, formPorts, headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass,
   serviceStatusEl, statusChipEl,
 } from '../components.js';
-import { ME, MULTI, openPorts, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
+import { ME, MULTI, can, openPorts, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
 import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { attachShipPicker } from '../shipPicker.js';
@@ -46,10 +46,11 @@ function serviceSummary(service) {
 }
 
 function serviceCard(service) {
-  const actions = ME.canEdit
-    ? [btn('ghost small', 'receipt', [icon('file'), ' Receipt'], { id: service.id }), ' ',
-      btn('ghost small', 'edit-service', [icon('pencil'), ' Edit'], { id: service.id }), ' ', btn('danger small', 'del-service', [icon('trash'), ' Delete'], { id: service.id })]
-    : null;
+  const actions = [
+    can('documents') ? [btn('ghost small', 'receipt', [icon('file'), ' Receipt'], { id: service.id }), ' '] : null,
+    can('services.edit') ? [btn('ghost small', 'edit-service', [icon('pencil'), ' Edit'], { id: service.id }), ' ',
+      btn('danger small', 'del-service', [icon('trash'), ' Delete'], { id: service.id })] : null,
+  ];
   return h('div', { class: 'svc-card' },
     h('div', { class: 'svc-top' },
       h('span', null, h('strong', null, service.type), ' ', serviceStatusEl(service.status),
@@ -81,17 +82,17 @@ export async function openVessel(id) {
           h('a', { href: '#rates', dataset: { act: 'goto', page: 'rates' } }, 'Set rates'))
         : null,
       h('div', { class: 'section-title' }, h('span', null, 'Port call'),
-        ME.canEdit ? btn('ghost small', 'edit-vessel', [icon('pencil'), ' Edit times & agents']) : null),
+        can('vessels.edit') ? btn('ghost small', 'edit-vessel', [icon('pencil'), ' Edit times & agents']) : null),
       portCallBlockEl(vessel),
       h('div', { class: 'section-title', style: { marginTop: '20px' } }, h('span', null, 'Services'),
         h('span', null, btn('ghost small btn-green', 'summary', [icon('file'), ' Summary of services'], { id: vessel.id }), ' ',
-          ME.canEdit ? btn('primary small', 'add-service', '+ Add service') : null)),
+          can('services.edit') ? btn('primary small', 'add-service', '+ Add service') : null)),
       totals,
       vessel.services.length ? vessel.services.map(serviceCard) : h('div', { class: 'hint' }, 'No services recorded for this vessel yet.')),
     h('div', { class: 'm-foot' },
-      ME.canEdit ? btn('danger', 'del-vessel', 'Delete vessel') : h('span'),
+      can('vessels.delete') ? btn('danger', 'del-vessel', 'Delete vessel') : h('span'),
       h('div', { class: 'right' },
-        ME.canEdit ? btn('ghost', 'edit-vessel', 'Edit vessel info') : null, ' ',
+        can('vessels.edit') ? btn('ghost', 'edit-vessel', 'Edit vessel info') : null, ' ',
         btn('ghost', 'close', 'Close'))),
   );
 }

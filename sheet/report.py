@@ -21,6 +21,8 @@ from .xlsx import Bold, Hours
 NO_LINE, NO_AGENT_LABEL = "(no line)", "(no agent)"
 MONEY_HEAD = ["Revenue (EGP)", "Cost (EGP)", "Profit (EGP)"]
 KIND_NAMES = {"Hotel stay": "Hotels", "Transfer": "Transport"}
+# Calculations rows that belong to a page: a person without it gets the workbook without those lines.
+ROW_PAGES = {"Hotel stay": "hotels", "Transfer": "transport", "Garbage & Sludge": "disposal"}
 SERVICE_ORDER = [*SERVICE_TYPES, "Hotels", "Transport", "Garbage & Sludge"]
 
 
@@ -86,12 +88,15 @@ def _totals(rows):
     return [round(sum(r[key] for r in rows), 2) for key in ("revenue_egp", "cost_egp", "profit_egp")]
 
 
-def _summary(vessels, money, rows):
+def _summary(vessels, money, rows, profile):
     groups = _grouped(vessels, money, lambda v: v["port"])
     table = _table(["Port", "Vessels", "Services", *MONEY_HEAD],
                    [groups[key].row(label) for key, label in port_table.ordered() if key in groups],
                    ["Total", len(vessels), sum(v["services_count"] for v in vessels), *_totals(rows)])
-    notes = ["Money includes hotels, transport and garbage & sludge."]
+    extras = [name for name, page in (("hotels", "hotels"), ("transport", "transport"),
+                                      ("garbage & sludge", "disposal")) if profile.sees(page)]
+    notes = [f"Money includes {', '.join(extras[:-1])} and {extras[-1]}." if len(extras) > 1
+             else f"Money includes {extras[0]}."] if extras else []
     rate_missing = sum(1 for r in rows if r["rate_missing"])
     price_missing = sum(1 for r in rows if r.get("price_missing"))
     if rate_missing:
@@ -214,7 +219,7 @@ def _closures(profile, r, now):
     ], ["Hours count only the part of each closure inside the range; a closure still going on counts up to now."])
 
 
-def _crew(objects, rows):
+def _crew(objects, rows, profile):
     lines = {}
 
     def line(vessel):
@@ -243,6 +248,11 @@ def _crew(objects, rows):
              round(sum(row[5] for row in table_rows), 2), *(sum(row[i] for row in table_rows) for i in (6, 7))]
     head = ["Line", "Crew changes", "On-signers", "Off-signers", "Early arrivals", "Broken visa revenue (EGP)",
             "Hotel nights", "Transfers"]
+    # The Hotel nights / Transfers columns only for people with that page.
+    keep = [i for i, name in enumerate(head) if not ((name == "Hotel nights" and not profile.sees("hotels"))
+                                                     or (name == "Transfers" and not profile.sees("transport")))]
+    head, total = [head[i] for i in keep], [total[i] for i in keep]
+    table_rows = [[row[i] for i in keep] for row in table_rows]
     return _sheet("Crew", [_table(head, table_rows, total if table_rows else None)],
                   ["Early arrivals: on-signers landing 2 or more days before the vessel date."])
 
@@ -315,20 +325,23 @@ def data(profile, r, now=None):
     queryset, objects, vessels = _vessels(profile, r)
     known = {v["id"] for v in vessels}
     # Only the vessels read above: one saved into the range meanwhile must not crash the report (or be half in it).
-    rows = [row for row in calculations.rows_for(queryset) if row["vessel"]["id"] in known]
+    rows = [row for row in calculations.rows_for(queryset) if row["vessel"]["id"] in known
+            and profile.sees(ROW_PAGES.get(row["kind"], "vessels"))]
     money = {v["id"]: (0.0, 0.0, 0.0) for v in vessels} | _money_by_vessel(rows)
-    return {
-        "summary": _summary(vessels, money, rows),
+    sheets = {
+        "summary": _summary(vessels, money, rows, profile),
         "months": _by_month(vessels, money, rows, r),
         "lines": _by_line(vessels, money),
         "services": _by_service(rows),
         "ports_perf": _ports_perf(objects, r),
-        "closures": _closures(profile, r, now or timezone.now()),
+        "closures": _closures(profile, r, now or timezone.now()) if profile.sees("closures") else None,
         "agents": _agents(profile, r),
-        "crew": _crew(objects, rows),
-        "disposal": _disposal(objects, rows, r),
+        "crew": _crew(objects, rows, profile),
+        "disposal": _disposal(objects, rows, r) if profile.sees("disposal") else None,
         "service_status": _service_status(objects, rows, r),
     }
+    # Sheets of pages the person doesn't have are left out (access rework piece 2).
+    return {key: sheet for key, sheet in sheets.items() if sheet is not None}
 
 
 def port_label(r):

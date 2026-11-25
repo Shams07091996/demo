@@ -1,6 +1,7 @@
 """Who may see and change what."""
 
 from . import ports
+from .constants import PAGE_LABELS, PERMISSION_LABELS
 from .errors import BadRequest, Forbidden
 from .models import PortClosure, Profile, Vessel
 
@@ -15,15 +16,16 @@ def profile_of(user):
         return profile
 
 
-def require_edit(profile):
-    if not profile.can_edit:
-        raise Forbidden("Your account is read-only.")
+def require(profile, key):
+    """403 unless the person has permission `key` (constants.PERMISSIONS)."""
+    if not profile.can(key):
+        raise Forbidden(f"You don't have permission: {PERMISSION_LABELS[key]}.")
 
 
-def require_accounting(profile):
-    """Accounting (Open / Closed on Calculations): admins only."""
-    if not profile.is_admin:
-        raise Forbidden("Only an admin can change this.")
+def require_page(profile, page):
+    """403 unless the person has `page` (constants.PAGES): the routes that only serve that page."""
+    if not profile.sees(page):
+        raise Forbidden(f"You don't have access to {PAGE_LABELS[page]}.")
 
 
 def require_superuser(request):
