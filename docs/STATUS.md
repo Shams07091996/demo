@@ -5,6 +5,19 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Crew Hotel / Transport, LOG airlines, sidebar folders (2026-11-25):** on branch
+  **`feature/crew-bookings-folders`**, **not merged** (waiting for the user's OK). Needs migration
+  **`0027_crew_transport`** on the user's database (crew members that already have a transfer get their new
+  Transport button pressed, so nothing disappears). (1) The LOG letter's "TO:" lists every airline of the journey,
+  each once, joined with " / ". (2) Each crew card has **Hotel** and **Transport** buttons (replacing "Needs hotel");
+  pressed, their boxes open (hotel, check-in / check-out; from / to with which airport / hotel / port, date and time),
+  filled from the flight; saving the crew change makes them the member's drafts on the Hotels / Transport pages
+  (cost and revenue are still typed there). **Transport is only made when its button is pressed** (the user's
+  decision; before, every member got one). A booking saved on its page shows "Saved on the … page" and is never
+  changed from the crew card. (3) The sidebar is grouped into **Marine**, **Reports** and **Master data** folders that
+  open and close (remembered per computer). 868 backend tests; `npm run check` green; smoke test passes for alex /
+  admin / viewer / suez / marine. Plan: `plans/2026-11-25-crew-bookings-and-folders.md`.
+
 - **Access rework, piece 3 of 3 — money (2026-11-25):** **merged into `main`** (2026-11-25, after a
   fresh review and the user's OK; not pushed). Needs migration **`0026_entry_uids`** on the user's
   database (gives every Delivery / Landing line a stable id; no data changes otherwise). **Enter / edit prices and

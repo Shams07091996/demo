@@ -161,10 +161,17 @@ figure. `crew_of(vessel)` feeds the dialog's crew picker (on-signers use their l
 first). The two pages are one module configured twice (`js/pages/bookings.js`) plus the dialog (`js/modals/booking.js`).
 
 **Automatic crew bookings** (`crewbookings.py`): every crew member has a stable `uid` (12 hex, made by
-`validators._clean_crew_change`), `needsHotel`, and on-signers a `brokenVisa` cost / revenue (a money line of the Crew
-Change in `finance`). After every Crew Change write, `crewbookings.sync(vessel)` gives each member a **draft** transfer
-(on: airport → port at landing; off: port → airport at take-off; else the vessel date 00:00) and, while Needs hotel is
-on, a draft hotel stay (hotel "", 1 night). Drafts (`draft=True`) are linked by `Guest.crew_uid`, follow their member
+`validators._clean_crew_change`), the crew card's **Hotel** / **Transport** buttons (`needsHotel`, `needsTransport`)
+with what was typed under them (`hotel {name, checkIn, checkOut}`, `transport {from, fromName, to, toName, at}`, all
+strings, "" = automatic; names checked against the port's Master data by `validators.check_crew_lists`, the member's
+saved name allowed), and on-signers a `brokenVisa` cost / revenue (a money line of the Crew Change in `finance`).
+After every Crew Change write, `crewbookings.sync(vessel)` gives each member, **only while its button is pressed**, a
+**draft** transfer (typed values, else on: airport → port at landing; off: port → airport at take-off; else the
+vessel date 00:00) and a draft hotel stay (typed hotel / dates, else the landing day or vessel date, 1 night).
+Transport became opt-in in migration 0027, which pressed it for every member that already had a transfer. The
+dialog's boxes start from `js/crewBookings.js` (twin of `_when` / `parse_flight_time`, `parsing_test.js`);
+`GET /api/services/<id>/crew-bookings/` (`saved_by_member`, `services.edit`) tells it whose booking was saved on its
+page, shown as "Saved on the … page" instead of the boxes. Drafts (`draft=True`) are linked by `Guest.crew_uid`, follow their member
 while they hold that one guest, and are deleted when the member goes away; a booking saved in the dialog becomes
 `draft=False` and is never touched again (the dialog keeps `crew_uid`). The alerts add `early` (on-signers landing 2+
 days before the vessel date, 60-day look-back, cleared by any broken-visa amount incl. 0) and, in `missing`,
@@ -178,7 +185,7 @@ fonts with WinAnsi (`to_winansi`: Ş → S, Cyrillic → ?), JPEGs placed raw (`
 value a plain escaped PDF string, never `{{ }}`. Edit roles only (`require_edit`, scoped, Crew Change on-signers), rate
 limited like the CSV export, recorded in the History (action `letter`). The logo / stamp / footer JPEGs come from
 `DJANGO_LETTERHEAD_DIR` (`logo.jpg`, `stamp.jpg`, `footer.jpg`) — **never in git (the GitHub repo is public) and never
-under `static/`**; missing → the letter has no pictures. Its layout: bold "Flight:" above the flights on page 1, the
+under `static/`**; missing → the letter has no pictures. "TO:" is every flight leg's airline, each once, joined with " / " (`views._airlines`). Its layout: bold "Flight:" above the flights on page 1, the
 personal details on page 2 under a bold "Personal details:" with the stamp beside them.
 
 **Master receipt** (`logpdf.build_receipt`, `receipt.py`, `GET/POST /api/services/<id>/receipt/`,
@@ -389,6 +396,11 @@ never All ports) and see All-ports + their own; admins choose the port when addi
 built with `optionChoices(kind, current, port)` → only that port's + All-ports values, always keeping `current`.
 
 **Front end** (`static/sheet/js/`, entry `main.js`):
+- **Sidebar folders:** `index.html` groups the nav into **Marine** (Vessels, Services, Port closures, Ships),
+  **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations) and **Master data** (Master data,
+  Customers, Exchange rates, Ports, Accounts, History); each item keeps its own `{% if %}`, a folder with none is not
+  rendered. `js/navGroups.js`: `data-act="toggle-nav-group"` opens / closes (localStorage `sheet.navGroups`), the
+  router opens the folder of the page on screen.
 - **The person's ports:** `me` (`json_script`) has `ports` (every key for Admins), `homePort` ("" for Admins),
   `multiPort` (Admin or 2+ ports), `isAdmin`, `isSuperuser`, `permissions`, `pages`. `config.myPorts()` (filters) and
   `openPorts()` (turned-on ones, for new records) are functions because the Ports page changes `PORTS` in place;
