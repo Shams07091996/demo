@@ -27,7 +27,9 @@ function card(t) {
     h('td', null, stamp(v.atb)), h('td', null, figure(v.cranes)), h('td', null, figure(v.discharge)),
     h('td', null, figure(v.loading)), h('td', null, figure(v.live_rate))));
   const upcoming = t.upcoming.map((v) => h('tr', null,
-    h('td', null, v.vessel_name), h('td', null, v.shipping_line), h('td', null, stamp(v.eta)),
+    h('td', null, v.vessel_name, v.arrived
+      ? [' ', h('span', { class: 'status-chip st-operating', attrs: { title: `ATA ${stamp(v.ata)}` } }, 'Arrived')] : null),
+    h('td', null, v.shipping_line), h('td', null, stamp(v.eta)),
     h('td', null, figure(v.loa)), h('td', null, v.planned_berth || '—'), h('td', null, stamp(v.etb)),
     h('td', null, stamp(v.etc))));
   return h('section', { class: 'panel op-card' },
@@ -41,7 +43,7 @@ function card(t) {
     h('div', { class: 'op-live-grid' },
       h('div', null, h('div', { class: 'dash-title' }, 'Under operation'),
         table(['Vessel', 'Line', 'Berth', 'ATB', 'Cranes', 'Discharge', 'Loading', 'Moves/hr'], working)),
-      h('div', null, h('div', { class: 'dash-title' }, 'Next 7 days'),
+      h('div', null, h('div', { class: 'dash-title' }, 'Next 7 days (from today)'),
         table(['Vessel', 'Line', 'ETA', 'LOA', 'Berth', 'ETB', 'ETC'], upcoming))));
 }
 
