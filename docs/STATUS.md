@@ -5,6 +5,19 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **New services from the manager's HTML, piece 1 of 8 (2026-11-25):** on branch **`feature/new-services`**, **not
+  merged** (waiting for the user's OK). No migration. Five new service types: **Suez Canal Transit** (direction,
+  origin / destination port, expected transit, ETA Suez, booking ref, canal agent, convoy no., pilot boarding, canal
+  entry / exit, SCA invoice no.; the cost box is "SCA charges", in USD), **Surveyors Attendance**, **Supply**, **SIM
+  Cards** (agreed rate per card) and **Tourism Tours**; **Cash to Master** (the HTML's CTM, same thing — the user's
+  decision) gets Reference and Beneficiary. The user chose to follow the app's own style, not copy the HTML box for
+  box. One field table (`constants.SERVICE_FIELDS`) drives the form, card, Summary and money line labels. 882 backend
+  tests; `npm run check` green; smoke test passes for alex / admin / marine. Final review: a self-review (the user
+  asked to keep token use down). The other seven pieces, in the agreed order: parcels extras (transfer type,
+  receiving vessel, paid), collection (collected / partly / not, amount, owed report), terminal and berth, crew extras
+  (planned vs actual, PCR, 15-person limit), provider vs ARKAS cost, document control, the extra reports.
+  Plan: `plans/2026-11-25-new-services.md`.
+
 - **Crew Hotel / Transport, LOG airlines, sidebar folders (2026-11-25):** **merged into `main`** (2026-11-25, after a
   fresh review and the user's OK; branch deleted; not pushed). Needs migration
   **`0027_crew_transport`** on the user's database (crew members that already have a transfer get their new

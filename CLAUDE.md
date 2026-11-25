@@ -130,7 +130,15 @@ the user's decision), exchange rates <= 0 (`_rate`), percentages outside 0-100. 
 hotel / airport / port must be in Master data for the vessel's port or All ports (`listed`, `check_booking_lists`);
 the value already saved on the record stays allowed. Tests add list values with `tests.allow(kind, *values)`;
 pasted crew-change details are still trimmed. Services store their
-details as JSON in `Service.data`, whose shape per type is defined by `clean_service_data`.
+details as JSON in `Service.data`, whose shape per type is defined by `clean_service_data`. A type's own detail
+fields (not money) are listed once in **`constants.SERVICE_FIELDS`** (`{type: {fields: [{key, label, kind, max?,
+choices?}], label, suffix, cost_label?, cost_currency?}}`, kinds text / number / date / datetime / choice):
+`validators._clean_details` cleans them (refused, never fixed), `finance._single_label` names the money line from the
+`label` field ("Fresh Water · 5 t"), and the page sends the table as `service-fields-data` (`config.SERVICE_FIELDS`,
+`serviceDetails`) for the service form, card and Summary. The agreed "unit" rate multiplies the field `quantity`.
+Types (2026-11-25, from the manager's HTML): Suez Canal Transit (cost labelled SCA charges, USD), Surveyors
+Attendance, Supply, SIM Cards (per card), Tourism Tours; Cash to Master (= the HTML's CTM) has Reference /
+Beneficiary. A new type needs a chart colour (`--c1`… in `app.css`, `CHART_COLORS`; `tests_look`).
 
 **Money** is worked out only in `finance.py`: `service_lines` gives each service's money lines with their working
 (every service, Crew Change and Others / Remarks included, has cost and revenue) and `finance.compute` adds them up
