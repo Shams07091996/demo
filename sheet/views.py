@@ -473,7 +473,7 @@ def service_receipt(request, pk):
     allowed = scoped_vessels(request.profile, prefetch=False)
     service = get_object_or_404(Service.objects.filter(vessel__in=allowed).select_related("vessel"), pk=pk)
     if request.method == "GET":
-        return JsonResponse({"receipt": receipt.prefill(service)})
+        return JsonResponse({"receipt": receipt.prefill(service, moneyaccess.edits(request.profile))})
     ratelimit.check(request, "export")
     fields = clean_receipt(read_json(request))
     pdf = logpdf.build_receipt(fields, _letterhead_images())
@@ -560,7 +560,7 @@ def disposal_price_delete(request, pk):
 @require_http_methods(["GET"])
 def disposal_list(request):
     require_page(request.profile, "disposal")
-    return JsonResponse(disposal.response(request.profile, request.GET))
+    return JsonResponse(moneyaccess.disposal_out(disposal.response(request.profile, request.GET), request.profile))
 
 
 @json_api
@@ -573,7 +573,7 @@ def disposal_update(request, vessel_id):
     changes = clean_disposal_quantities(read_json(request))
     result = disposal.save(vessel, changes)
     audit(request, "disposal.save", vessel=vessel.id, **changes)
-    return JsonResponse(result)
+    return JsonResponse(moneyaccess.disposal_row_out(result, request.profile))
 
 
 # ---- master data (OPR / POC options) --------------------------------------------------------
@@ -786,11 +786,11 @@ def ship_detail(request, pk):
 @require_http_methods(["GET", "POST"])
 def customers_list(request):
     if request.method == "GET":
-        return JsonResponse(customers.list_response())
+        return JsonResponse(customers.list_response(request.profile))
     require(request.profile, "customers.edit")
     customer = customers.save_customer(read_json(request), may_change_rates=request.profile.can("money.edit"))
     audit(request, "customer.create", id=customer.id)
-    return JsonResponse(customers.customer_to_dict(customer), status=201)
+    return JsonResponse(moneyaccess.customer_out(customers.customer_to_dict(customer), request.profile), status=201)
 
 
 @json_api
@@ -806,7 +806,7 @@ def customer_detail(request, pk):
     customer = customers.save_customer(read_json(request), existing=customer,
                                        may_change_rates=request.profile.can("money.edit"))
     audit(request, "customer.update", id=customer.id)
-    return JsonResponse(customers.customer_to_dict(customer))
+    return JsonResponse(moneyaccess.customer_out(customers.customer_to_dict(customer), request.profile))
 
 
 @json_api

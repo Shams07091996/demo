@@ -272,7 +272,8 @@ class WritePermissionTests(Limited):
         self.assertEqual(status, 201, made)
         url = f"/api/customers/{made['id']}/"
         self.assertEqual(self.call(client, "put", url, {**body, "name": "Renamed"})[0], 403)
-        self.assertEqual(self.call(self.without("money.edit"), "put", url, {**body, "name": "Renamed"})[0], 200)
+        no_rates = {key: value for key, value in body.items() if key != "rates"}
+        self.assertEqual(self.call(self.without("money.edit"), "put", url, {**no_rates, "name": "Renamed"})[0], 200)
 
     def test_customer_rates_need_money_edit(self):
         rates = {"Fresh Water": {"amount": 12.5, "currency": "USD"}}
@@ -282,7 +283,11 @@ class WritePermissionTests(Limited):
         status, made = self.call(self.without(), "post", "/api/customers/", body)
         self.assertEqual(status, 201, made)
         url = f"/api/customers/{made['id']}/"
-        self.assertEqual(self.call(client, "put", url, {**body, "name": "Same rates"})[0], 200)
+        # Piece 3: rates are never sent to a person without money.edit, so sending any (even unchanged) is refused;
+        # a save without them keeps them.
+        self.assertEqual(self.call(client, "put", url, {**body, "name": "Same rates"})[0], 403)
+        no_rates = {key: value for key, value in body.items() if key != "rates"}
+        self.assertEqual(self.call(client, "put", url, {**no_rates, "name": "Same rates"})[0], 200)
         changed = {**body, "rates": {"Fresh Water": {"amount": 13, "currency": "USD"}}}
         self.assertEqual(self.call(client, "put", url, changed)[0], 403)
         self.assertEqual(self.call(client, "put", url, {**body, "rates": {}})[0], 403)

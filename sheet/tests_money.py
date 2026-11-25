@@ -9,9 +9,10 @@ from django.utils import timezone
 
 from . import crewbookings
 from .constants import MULTI_TYPES, PAGE_KEYS, PERMISSION_KEYS
-from .models import ChangeRecord, ExchangeRate, Guest, HotelStay, Service, Vessel
+from .models import ChangeRecord, Customer, CustomerRate, ExchangeRate, Guest, HotelStay, Service, Transfer, Vessel
 from .moneyaccess import keep_service_money, service_money_sent, strip_service_data
-from .tests import FAST_HASHER, NEEDED, ApiTestCase, make_user
+from .tests import FAST_HASHER, NEEDED, ApiTestCase, allow, make_user
+from .tests_logistics import stay, trip
 from .validators import UID_RE, clean_service_data
 
 A, B, C, D = "aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc", "dddddddddddd"
@@ -289,3 +290,111 @@ class VesselMoneyApiTests(MoneyUsers):
             stay.refresh_from_db()
             self.assertTrue(stay.cancelled, who)
             self.assertEqual(stay.cost_per_night == 100, kept, who)
+
+
+# ---- Task 3: bookings, Garbage & Sludge, customers, receipt ---------------------------------------------------
+
+BOOKING_BOXES = {"cost", "revenue", "cost_per_night", "revenue_per_night", "cost_currency", "revenue_currency",
+                 "exchange_rate"}
+
+
+@FAST_HASHER
+class FormMoneyApiTests(MoneyUsers):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        allow("hotel", "HILTON")
+        allow("airport", "BORG EL ARAB")
+        cls.hotel = HotelStay.objects.create(vessel=cls.vessel, hotel="HILTON", check_in=cls.vessel.date, nights=2,
+                                             cost_per_night=80, cost_currency="USD", revenue_per_night=100,
+                                             exchange_rate=49)
+        Guest.objects.create(stay=cls.hotel, name="AHMED TEST")
+        cls.car = Transfer.objects.create(vessel=cls.vessel, from_place="airport", to_place="hotel",
+                                          airport="BORG EL ARAB", hotel="HILTON",
+                                          at=timezone.now().replace(second=0, microsecond=0), cost=30,
+                                          revenue=45)
+        Guest.objects.create(transfer=cls.car, name="AHMED TEST")
+        cls.customer = Customer.objects.create(name="Blue Owners")
+        CustomerRate.objects.create(customer=cls.customer, service_type="Fresh Water", amount=50, currency="USD")
+
+    def booking_routes(self, client):
+        found = []
+        for kind, obj, new in (("hotels", self.hotel, stay(vessel=self.vessel.pk)),
+                               ("transfers", self.car, trip(vessel=self.vessel.pk))):
+            url = f"/api/{kind}/{obj.pk}/"
+            found += self.call(client, "get", f"/api/{kind}/")[1]["bookings"]
+            detail = self.call(client, "get", url)[1]
+            found += [detail, self.call(client, "put", url, detail)[1], self.call(client, "post", f"/api/{kind}/", new)[1]]
+        return found
+
+    def test_booking_routes_hide_money_without_edit(self):
+        for row in self.booking_routes(self.login("view_only")):
+            self.assertEqual(set(row) & BOOKING_BOXES, set(), row)
+        for row in self.booking_routes(self.login("edit_only")):
+            self.assertTrue(set(row) & BOOKING_BOXES, row)
+
+    def test_booking_save_without_money_keeps_it(self):
+        client = self.login("view_only")
+        for kind, obj in (("hotels", self.hotel), ("transfers", self.car)):
+            url = f"/api/{kind}/{obj.pk}/"
+            # Only the booking's own records: every booking save rewrites its guests (and their History) anyway.
+            own = ChangeRecord.objects.filter(object_type=type(obj).__name__.lower(), object_id=obj.pk)
+            records, version = own.count(), type(obj).objects.get(pk=obj.pk).version
+            self.assertEqual(self.call(client, "put", url, self.call(client, "get", url)[1])[0], 200)
+            after = type(obj).objects.get(pk=obj.pk)
+            self.assertEqual((after.version, own.count()), (version, records), kind)
+        self.hotel.refresh_from_db()
+        self.assertEqual((self.hotel.cost_per_night, self.hotel.cost_currency, self.hotel.exchange_rate),
+                         (80, "USD", 49))
+
+    def test_new_booking_without_edit_has_no_money(self):
+        status, row = self.call(self.login("view_only"), "post", "/api/hotels/", stay(vessel=self.vessel.pk))
+        self.assertEqual(status, 201, row)
+        made = HotelStay.objects.get(pk=row["id"])
+        self.assertEqual((made.cost_per_night, made.cost_currency, made.revenue_per_night), (None, "EGP", None))
+
+    def test_booking_money_sent_without_edit_is_403(self):
+        client = self.login("view_only")
+        url = f"/api/hotels/{self.hotel.pk}/"
+        detail = self.call(client, "get", url)[1]
+        self.assertEqual(self.call(client, "put", url, {**detail, "cost_per_night": 1})[0], 403)
+        self.assertEqual(self.call(client, "post", "/api/transfers/",
+                                   trip(vessel=self.vessel.pk, exchange_rate=None))[0], 403)
+        self.hotel.refresh_from_db()
+        self.assertEqual(self.hotel.cost_per_night, 80)
+
+    def test_disposal_rows_and_totals(self):
+        figures = {"revenue_egp", "cost_egp", "profit_egp", "revenue_usd", "rate_missing", "price_missing"}
+        edit = self.call(self.login("edit_only"), "get", "/api/disposal/")[1]
+        self.assertNotIn("totals", edit)
+        self.assertTrue(all(figures <= set(r) for r in edit["rows"]))
+        view = self.call(self.login("view_only"), "get", "/api/disposal/")[1]
+        self.assertIn("totals", view)
+        self.assertTrue(all(not figures & set(r) and "garbage" in r for r in view["rows"]))
+        row = self.call(self.login("view_only"), "put", f"/api/disposal/{self.vessel.pk}/", {"garbage": 3})[1]
+        self.assertEqual((row["garbage"], set(row) & figures), (3.0, set()))
+        row = self.call(self.login("edit_only"), "put", f"/api/disposal/{self.vessel.pk}/", {"garbage": 4})[1]
+        self.assertLessEqual(figures, set(row))
+
+    def test_customer_rates_hidden_and_kept(self):
+        client = self.login("view_only")
+        listed = self.call(client, "get", "/api/customers/")[1]["customers"]
+        self.assertTrue(all("rates" not in c for c in listed))
+        url = f"/api/customers/{self.customer.pk}/"
+        body = {"name": "Blue Owners 2", "notes": "", "contacts": []}
+        status, saved = self.call(client, "put", url, body)
+        self.assertEqual(status, 200, saved)
+        self.assertNotIn("rates", saved)
+        self.assertEqual(self.customer.rates.get().amount, 50)
+        rates = {"Fresh Water": {"amount": 50, "currency": "USD"}}
+        self.assertEqual(self.call(client, "put", url, {**body, "rates": rates})[0], 403)
+        self.assertEqual(self.call(client, "post", "/api/customers/", {**body, "name": "New"})[0], 201)
+        self.assertIn("rates", self.call(self.login("edit_only"), "get", "/api/customers/")[1]["customers"][0])
+
+    def test_receipt_prefill_amounts_need_edit(self):
+        Service.objects.filter(pk=self.water.pk).update(data=clean_service_data(
+            "Fresh Water", {"quantity": 7, "revenue": 120, "revenueCurrency": "USD"}))
+        url = f"/api/services/{self.water.pk}/receipt/"
+        self.assertEqual(self.call(self.login("view_only"), "get", url)[1]["receipt"]["services"], "Fresh Water")
+        self.assertEqual(self.call(self.login("edit_only"), "get", url)[1]["receipt"]["services"],
+                         "Fresh Water with cost $120")

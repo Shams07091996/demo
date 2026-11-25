@@ -161,3 +161,57 @@ def drop_columns(head, rows, profile):
         return head, rows
     keep = [i for i in range(len(head)) if i not in gone]
     return [head[i] for i in keep], [[row[i] for i in keep] for row in rows]
+
+
+# ---- bookings (logistics), Garbage & Sludge rows (disposal), customers' agreed rates ------------------------
+
+BOOKING_MONEY = {
+    "hotels": ("cost_per_night", "revenue_per_night", "cost_currency", "revenue_currency", "exchange_rate"),
+    "transfers": ("cost", "revenue", "cost_currency", "revenue_currency", "exchange_rate"),
+}
+
+
+def booking_out(kind, row, profile):
+    return row if edits(profile) else {k: v for k, v in row.items() if k not in BOOKING_MONEY[kind]}
+
+
+def booking_money_sent(kind, data):
+    return isinstance(data, dict) and any(key in data for key in BOOKING_MONEY[kind])
+
+
+def keep_booking_money(kind, cleaned, existing):
+    """A booking save without money: the stored money (a new booking: the model's empty defaults)."""
+    for key in BOOKING_MONEY[kind]:
+        if existing is not None:
+            cleaned[key] = getattr(existing, key)
+        elif key.endswith("_currency"):
+            cleaned[key] = "EGP"
+        else:
+            cleaned[key] = None
+    return cleaned
+
+
+DISPOSAL_ROW_MONEY = ("revenue_egp", "cost_egp", "profit_egp", "revenue_usd", "cost_usd", "profit_usd",
+                      "rate_missing", "price_missing")
+DISPOSAL_LINE_MONEY = ("revenue", "cost", "price_missing")
+
+
+def disposal_row_out(row, profile):
+    """A Garbage & Sludge row: its money (and each line's) only with money.edit; quantities always."""
+    if edits(profile):
+        return row
+    row = {k: v for k, v in row.items() if k not in DISPOSAL_ROW_MONEY}
+    row["lines"] = [{k: v for k, v in line.items() if k not in DISPOSAL_LINE_MONEY} for line in row.get("lines", [])]
+    return row
+
+
+def disposal_out(response, profile):
+    """The Garbage & Sludge page: rows as disposal_row_out, the totals line only with money.view."""
+    out = {"rows": [disposal_row_out(row, profile) for row in response["rows"]]}
+    if views(profile):
+        out["totals"] = response["totals"]
+    return out
+
+
+def customer_out(row, profile):
+    return row if edits(profile) else {k: v for k, v in row.items() if k != "rates"}
