@@ -8,8 +8,9 @@ from django.views.decorators.http import require_http_methods
 from sheet import conflicts
 from sheet.access import require, require_admin, require_page
 from sheet.api import audit, json_api, read_json
+from sheet.errors import Forbidden
 
-from . import live, terminals, visits
+from . import analysis, live, terminals, visits
 from .access import require_reader
 
 
@@ -74,3 +75,13 @@ def live_view(request):
     profile = request.profile
     require_page(profile, "op_live")
     return JsonResponse(live.response(profile, request.GET.get("port") or None, timezone.now()))
+
+
+@json_api
+@require_http_methods(["GET"])
+def analysis_view(request):
+    """Analysis reports and Report charts share this response."""
+    profile = request.profile
+    if not (profile.sees("op_analysis") or profile.sees("op_charts")):
+        raise Forbidden("You don't have access to this page.")
+    return JsonResponse(analysis.response(profile, request.GET))
