@@ -20,6 +20,11 @@ SERVICE_TYPES = [
     "Landing",
     "Certificates",
     "Fresh Water",
+    "Suez Canal Transit",
+    "Surveyors Attendance",
+    "Supply",
+    "SIM Cards",
+    "Tourism Tours",
     "Cash to Master",
     "Others / Remarks",
 ]
@@ -36,6 +41,11 @@ RATE_UNITS = {
     "Medical Treatment": "service",
     "Certificates": "service",
     "Fresh Water": "unit",
+    "Suez Canal Transit": "service",
+    "Surveyors Attendance": "service",
+    "Supply": "service",
+    "SIM Cards": "unit",
+    "Tourism Tours": "service",
     "Delivery Parcels": "line",
     "Delivery Courier": "line",
     "Landing": "line",
@@ -44,11 +54,45 @@ RATE_UNITS = {
 
 # Services made of several priced entries (AWB / weight / cost / revenue).
 MULTI_TYPES = ("Delivery Parcels", "Delivery Courier", "Landing")
-# Single-priced services and the one extra descriptive field each of them has.
-SINGLE_EXTRAS = {
-    "Medical Treatment": "patientName",
-    "Certificates": "certName",
-    "Fresh Water": "quantity",
+
+
+def _f(key, label, kind="text", **extra):
+    return {"key": key, "label": label, "kind": kind, **extra}
+
+
+# A service's own detail fields (not money), by type: what the form shows, validators._clean_details cleans and the
+# card / Summary list. kind: text (max 160 unless given) / number (>= 0) / date / datetime (Cairo, YYYY-MM-DDTHH:MM) /
+# choice (one of `choices`). "label": the field shown after the type in its money line ("Fresh Water · 5 t"), with
+# "suffix". The agreed "unit" rate multiplies the field `quantity`. Sent to the browser as service-fields-data.
+SERVICE_FIELDS = {
+    "Medical Treatment": {"fields": [_f("patientName", "Patient name")], "label": "patientName", "suffix": ""},
+    "Certificates": {"fields": [_f("certName", "Certificate name")], "label": "certName", "suffix": ""},
+    "Fresh Water": {"fields": [_f("quantity", "Quantity (tons)", "number")], "label": "quantity", "suffix": " t"},
+    "Suez Canal Transit": {
+        "fields": [
+            _f("direction", "Direction", "choice", choices=["Northbound", "Southbound"]),
+            _f("originPort", "Origin port"), _f("destinationPort", "Destination port"),
+            _f("expectedTransit", "Expected transit", "date"), _f("etaSuez", "ETA Suez", "datetime"),
+            _f("bookingRef", "Booking reference"), _f("canalAgent", "Canal agent"), _f("convoyNo", "Convoy no."),
+            _f("pilotBoarding", "Pilot boarding", "datetime"), _f("canalEntry", "Canal entry", "datetime"),
+            _f("canalExit", "Canal exit", "datetime"), _f("scaInvoice", "SCA invoice no."),
+        ],
+        "label": "direction", "suffix": "", "cost_label": "SCA charges", "cost_currency": "USD",
+    },
+    "Surveyors Attendance": {
+        "fields": [_f("count", "Number of people", "number"), _f("names", "Names", max=500),
+                   _f("attendanceAt", "Date and time", "datetime")],
+        "label": "count", "suffix": " people",
+    },
+    "Supply": {"fields": [_f("description", "Description", max=500), _f("quantity", "Quantity", "number")],
+               "label": "description", "suffix": ""},
+    "SIM Cards": {"fields": [_f("quantity", "Number of cards", "number")], "label": "quantity", "suffix": " cards"},
+    "Tourism Tours": {
+        "fields": [_f("tour", "Tour"), _f("passengers", "Passengers", "number"), _f("tourDate", "Date", "date")],
+        "label": "tour", "suffix": "",
+    },
+    "Cash to Master": {"fields": [_f("reference", "Reference"), _f("beneficiary", "Beneficiary")], "label": None,
+                       "suffix": ""},
 }
 
 # Optional vendor / invoice notes kept on a vessel for its summary.

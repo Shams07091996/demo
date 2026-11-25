@@ -23,8 +23,8 @@ from .constants import (
     PERMISSION_KEYS,
     PLACE_KEYS,
     RATE_UNITS,
+    SERVICE_FIELDS,
     SERVICE_STATUSES,
-    SINGLE_EXTRAS,
     SUMMARY_FIELDS,
     TIME_KEYS,
     TIME_LABELS,
@@ -309,14 +309,45 @@ def _service_money(raw):
     }
 
 
+_DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_MOMENT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
+
+
+def _detail(spec, value):
+    """One detail field cleaned by its kind (constants.SERVICE_FIELDS); empty -> "" (number: None)."""
+    label, kind = spec["label"], spec["kind"]
+    if kind == "number":
+        return _amount(value, label)
+    text = _short(value, spec.get("max", 160), label)
+    if not text:
+        return ""
+    if kind == "choice" and text not in spec["choices"]:
+        raise BadRequest(f"{label}: choose {' or '.join(spec['choices'])}.")
+    if kind == "date":
+        try:
+            ok = bool(_DAY_RE.match(text)) and 2000 <= date.fromisoformat(text).year <= 2100
+        except ValueError:
+            ok = False
+        if not ok:
+            raise BadRequest(f"{label}: enter a valid date.")
+    if kind == "datetime":
+        try:
+            ok = bool(_MOMENT_RE.match(text)) and 2000 <= datetime.fromisoformat(text).year <= 2100
+        except ValueError:
+            ok = False
+        if not ok:
+            raise BadRequest(f"{label}: enter a valid date and time.")
+    return text
+
+
+def _clean_details(service_type, raw):
+    """The service type's own detail fields (not money); every one present, unknown keys dropped."""
+    specs = SERVICE_FIELDS.get(service_type, {}).get("fields", [])
+    return {spec["key"]: _detail(spec, raw.get(spec["key"])) for spec in specs}
+
+
 def _clean_single(service_type, raw):
-    cleaned = _service_money(raw)
-    extra = SINGLE_EXTRAS.get(service_type)
-    if extra == "quantity":
-        cleaned["quantity"] = _amount(raw.get("quantity"), "Quantity")
-    elif extra:
-        cleaned[extra] = _short(raw.get(extra), 160, "Name")
-    return cleaned
+    return {**_service_money(raw), **_clean_details(service_type, raw)}
 
 
 def clean_service_data(service_type, raw):
@@ -329,7 +360,7 @@ def clean_service_data(service_type, raw):
     if service_type in MULTI_TYPES:
         return _clean_multi(service_type, raw)
     if service_type == "Cash to Master":
-        return _clean_cash_to_master(raw)
+        return {**_clean_cash_to_master(raw), **_clean_details(service_type, raw)}
     return _clean_single(service_type, raw)
 
 
