@@ -5,8 +5,8 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **New services from the manager's HTML, piece 1 of 8 (2026-11-25):** on branch **`feature/new-services`**, **not
-  merged** (waiting for the user's OK). No migration. Five new service types: **Suez Canal Transit** (direction,
+- **New services from the manager's HTML, piece 1 of 8 (2026-11-25):** merged into main (2026-11-25), from branch `feature/new-services`.
+  No migration. Five new service types: **Suez Canal Transit** (direction,
   origin / destination port, expected transit, ETA Suez, booking ref, canal agent, convoy no., pilot boarding, canal
   entry / exit, SCA invoice no.; the cost box is "SCA charges", in USD), **Surveyors Attendance**, **Supply**, **SIM
   Cards** (agreed rate per card) and **Tourism Tours**; **Cash to Master** (the HTML's CTM, same thing — the user's
