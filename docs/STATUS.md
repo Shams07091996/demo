@@ -249,6 +249,13 @@ Ideas raised along the way:
 
 ## Left open — small things the user hasn't decided on yet
 
+- **Permissions and pages (review of 2026-11-25, not fixed):** a crew change's bookings list shows hotel / route /
+  guest names to someone with Cancel a service but no booking page; the CSV export counts the rate limit before the
+  Exports check and its 403 isn't logged; the Dashboard's status counts and the Excel "Service status" sheet give
+  Open / Closed counts without the Calculations page; the vessel dialog's "Set rates" link shows without the
+  Exchange rates page; a comment in `util.js` is in the wrong place; ships / customers / Master-data writes need only
+  the permission while closures / bookings / disposal also need the page. To ask: the Marine template can't create
+  a new ship (no Edit customers and ships); deleting a finished service needs only Edit services.
 - **Ports and people (review of 2026-11-25, not fixed):** a User of several ports whose home port is turned off
   gets the home port's dropdown lists in new vessel / closure forms; two Admins adding a port of the same name at
   once → one gets "Something went wrong"; migration 0024's changes aren't in the History (their remembered computers
