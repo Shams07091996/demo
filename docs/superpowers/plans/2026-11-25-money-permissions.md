@@ -266,19 +266,32 @@ CSV: `Total Cost LE`, `Total Profit LE`. Data export: `Cost per night`, `Revenue
   agent, status, billing, quantities / AWB / weight / crew, no preview; Cash to Master shows no money fields.
 - [ ] **Step 4:** Extend the smoke run `marine` (has `money.edit`, not `money.view`): the vessel dialog has no
   "Total cost" pill, a service dialog shows the Cost box and the preview, `/api/vessels/?sort=total_cost_egp` →
-  403, `/api/dashboard/` is refused (no page). Add a demo user `accounts` (Alexandria, Accounts employee
-  template, in `seed_demo` `DEMO_TEMPLATES`) and a short smoke run: totals pills shown, service card shows no
-  Cost box when opened read-only, Calculations page loads.
+  403, `/api/dashboard/` is refused (no page). (No demo user for "money.view without money.edit": the Accounts
+  employee template is cancelled, Task 6; the backend tests of Tasks 2–4 cover that case.)
 - [ ] **Step 5:** `npm run test:parsing`, `npm run test:dom` pass; smoke runs (CLAUDE.md recipe, scratch database,
-  `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) for alex, admin, viewer, suez, marine, accounts all pass.
+  `DJANGO_RATE_LIMIT_WRITES_PER_USER=300`) for alex, admin, viewer, suez, marine all pass.
 - [ ] **Step 6:** Commit `feat(money): screens follow money.view / money.edit`.
 
-### Task 6: Docs, full check, review
+### Task 6: Accounts employee template cancelled; docs, full check, review
 
-**Files:** `CLAUDE.md` ("Money permissions" paragraph naming `moneyaccess` and the two tables; Permissions
-paragraph: piece 3 built; smoke users list adds `accounts`), `docs/STATUS.md` (piece 3, migration 0026 for the
-user's database, left-open item from Decision 7), `README.md` / `SECURITY.md` (roles, test count),
-`docs/DEPLOYMENT.md` (what the two money ticks do), `docs/NEXT-CHAT.md` (refresh).
+The user cancelled the Accounts employee template (2026-11-25). Accounts already made with it keep their ticks
+(nothing links a person to a template).
+
+**Template files:** `sheet/constants.py` (`TEMPLATES`: remove the `("accounts", "Accounts employee", …)` row),
+`tools/ui_smoke_test.js` (admin's Accounts step, ~line 1632: pick template `manager` instead; expect every tick on,
+Can column `16 of 16`, saved check `exports` and `vessels.delete` ticked; the "unticking See money" check stays),
+`sheet/tests_permissions.py:474` (docstring: say "someone with History but no Hotels / Transport / Port closures
+page"), plus any test asserting the template count / keys.
+
+- [ ] **Step 0:** Add `test_templates_are_marine_operations_manager` (`[key for key, *_ in TEMPLATES] ==
+  ["marine", "operations", "manager"]`) to `tests_permissions`; run → FAIL; remove the row and fix the smoke step;
+  run → PASS; commit `feat(permissions): drop the Accounts employee template`.
+
+**Doc files:** `CLAUDE.md` ("Money permissions" paragraph naming `moneyaccess` and the two tables; Permissions
+paragraph: piece 3 built, three templates), `docs/STATUS.md` (piece 3, migration 0026 for the user's database,
+left-open item from Decision 7, decision "Accounts employee template cancelled"), `README.md:132` / `SECURITY.md`
+(roles, templates, test count), `docs/DEPLOYMENT.md` (what the two money ticks do; remove the Accounts employee
+row ~line 310), `docs/NEXT-CHAT.md` (refresh). Leave the dated spec / piece-2 plan as history.
 
 - [ ] **Step 1:** Update the docs.
 - [ ] **Step 2:** `cd tools && npm run check` → everything green.
