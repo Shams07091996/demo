@@ -1,5 +1,6 @@
 """Transport became opt-in (the crew card's Transport button, `needsTransport`): every crew member that already has a
-transfer linked to it gets the button pressed, so no existing transfer disappears. Nothing else changes."""
+transfer linked to it gets the button pressed, so no existing transfer disappears; so does every member of a cancelled
+crew change (its drafts were deleted, and must come back if it is un-cancelled). Nothing else changes."""
 
 from django.db import migrations
 
@@ -16,12 +17,13 @@ def press_transport(apps, schema_editor):
     for service in Service.objects.filter(service_type="Crew Change"):
         data = service.data if isinstance(service.data, dict) else {}
         uids = linked.get(service.vessel_id, set())
+        cancelled = service.status == "cancelled"  # its drafts were deleted; un-cancelling must bring them back
         changed = False
         for group in _GROUPS:
             for member in data.get(group) or []:
                 if not isinstance(member, dict) or "needsTransport" in member:
                     continue
-                member["needsTransport"] = member.get("uid") in uids
+                member["needsTransport"] = cancelled or member.get("uid") in uids
                 changed = True
         if changed:
             Service.objects.filter(pk=service.pk).update(data=data)  # no signals: a migration writes no history

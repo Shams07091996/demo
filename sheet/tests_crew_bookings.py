@@ -49,6 +49,13 @@ class CleaningTests(SimpleTestCase):
         self.refused("Enter the date and time.", transport={"at": "tomorrow"})
         self.refused("Hotel name is too long", hotel={"name": "x" * 101})
 
+    def test_one_end_of_a_transfer_is_refused(self):
+        self.refused("Choose where from and where to.", transport={"to": "airport", "toName": "CAI"})
+        self.refused("Choose where from and where to.", transport={"from": "port"})
+
+    def test_check_out_needs_a_check_in(self):
+        self.refused("Enter the check-in date.", hotel={"checkOut": "2027-12-01"})
+
 
 class CrewBookingsTests(ApiTestCase):
     def setUp(self):
@@ -110,10 +117,10 @@ class CrewBookingsTests(ApiTestCase):
         stay = self.stays().get()
         self.assertEqual((stay.check_in, stay.nights), (date(2026, 11, 21), 1))
 
-    def test_check_out_only_counts_from_the_automatic_check_in(self):
-        self.post(on=[member("J SMITH", needsHotel=True, hotel={"checkOut": "2026-11-18"})])  # lands 15 NOV
-        stay = self.stays().get()
-        self.assertEqual((stay.check_in, stay.nights), (date(2026, 11, 15), 3))
+    def test_check_out_without_check_in_is_refused(self):
+        status, _ = self.send(on=[member("J SMITH", needsHotel=True, hotel={"checkOut": "2026-11-18"})])
+        self.assertEqual(status, 400)
+        self.assertFalse(self.stays().exists())
 
     def test_editing_refreshes_the_draft(self):
         service = self.post(on=[member("J SMITH", needsHotel=True, needsTransport=True)])
@@ -195,3 +202,13 @@ class MigrationTests(ApiTestCase):
         service.refresh_from_db()
         a, b = service.data["onSigners"]
         self.assertEqual((a["needsTransport"], b["needsTransport"]), (True, False))
+
+    def test_cancelled_crew_change_members_get_transport_pressed(self):
+        # sync had deleted a cancelled crew change's drafts; un-cancelling it must still bring them back.
+        data = clean_service_data("Crew Change", {"onSigners": [{"name": "A"}]})
+        data["onSigners"][0].pop("needsTransport")
+        service = Service.objects.create(vessel=self.alex_vessel, service_type="Crew Change", data=data,
+                                         status="cancelled", cancel_reason="x")
+        importlib.import_module("sheet.migrations.0027_crew_transport").press_transport(apps, None)
+        service.refresh_from_db()
+        self.assertIs(service.data["onSigners"][0]["needsTransport"], True)

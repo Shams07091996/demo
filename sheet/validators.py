@@ -184,6 +184,8 @@ def _crew_hotel(raw):
     hotel = {"name": _short(raw.get("name"), 100, "Hotel name"),
              "checkIn": _crew_date(raw.get("checkIn"), "check-in"),
              "checkOut": _crew_date(raw.get("checkOut"), "check-out")}
+    if hotel["checkOut"] and not hotel["checkIn"]:
+        raise BadRequest("Enter the check-in date.")
     if hotel["checkIn"] and hotel["checkOut"]:
         nights = (date.fromisoformat(hotel["checkOut"]) - date.fromisoformat(hotel["checkIn"])).days
         if nights < 1:
@@ -197,8 +199,8 @@ def _crew_transport(raw):
     """A crew member's transfer typed on the crew card: from / to (place + which one) and when, each optional."""
     raw = _as_dict(raw)
     ends = {key: _text(raw.get(key), 10) for key in ("from", "to")}
-    if any(value and value not in PLACE_KEYS for value in ends.values()):
-        raise BadRequest("Choose where from and where to.")
+    if any(value and value not in PLACE_KEYS for value in ends.values()) or bool(ends["from"]) != bool(ends["to"]):
+        raise BadRequest("Choose where from and where to.")  # both ends, or neither (= the automatic ones)
     if ends["from"] and ends["from"] == ends["to"]:
         raise BadRequest("From and To must be different.")
     at = _text(raw.get("at"), 40)
