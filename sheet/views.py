@@ -87,6 +87,7 @@ from .models import (
 )
 from .serializers import month_rates, option_to_dict, rate_to_dict, vessel_to_dict
 from .validators import (
+    check_crew_lists,
     clean_agent,
     clean_booking_refs,
     clean_disposal_price,
@@ -318,6 +319,8 @@ def _read_service(request, vessel, existing=None):
     if not may_edit_money and moneyaccess.service_money_sent(service_type, payload.get("data")):
         require(request.profile, moneyaccess.EDIT)
     data = clean_service_data(service_type, payload.get("data"))
+    if service_type == "Crew Change":
+        check_crew_lists(data, vessel.port, getattr(existing, "data", None))
     if not may_edit_money and existing is not None:
         data = moneyaccess.keep_service_money(service_type, data, existing.service_type, existing.data)
     agent = clean_agent(payload.get("agent"), vessel.port, getattr(existing, "agent", ""))
@@ -397,6 +400,17 @@ def service_bookings(request, pk):
     return JsonResponse({"bookings": [crewbookings.booking_ref(kind, booking) for kind, booking in bookings]})
 
 
+@json_api
+@require_http_methods(["GET"])
+def service_crew_bookings(request, pk):
+    """Which crew members of a Crew Change have a hotel stay / transfer saved on its own page (the crew card then
+    shows "Saved on the ... page" instead of its fields)."""
+    require(request.profile, "services.edit")
+    allowed = scoped_vessels(request.profile, prefetch=False)
+    service = get_object_or_404(Service.objects.filter(vessel__in=allowed, service_type="Crew Change"), pk=pk)
+    return JsonResponse({"saved": crewbookings.saved_by_member(service)})
+
+
 # ---- LOG letter (see logpdf.py) --------------------------------------------------------------
 
 _LETTERHEAD_FILES = {"logo": "logo.jpg", "stamp": "stamp.jpg", "footer": "footer.jpg"}
@@ -431,6 +445,16 @@ AIRLINE_DATE_TAIL = re.compile(
 )
 
 
+def _airlines(segments):
+    """The LOG's "TO:": every flight leg's airline, in order, each once, joined with " / "."""
+    names = []
+    for segment in segments:
+        name = AIRLINE_DATE_TAIL.sub("", str(segment.get("airline") or "")).strip() if isinstance(segment, dict) else ""
+        if name and name not in names:
+            names.append(name)
+    return " / ".join(names)
+
+
 @json_api
 @require_http_methods(["GET"])
 def service_log(request, pk, uid):
@@ -445,10 +469,9 @@ def service_log(request, pk, uid):
     if person is None:
         raise Http404
     segments = (person.get("flightStructured") or {}).get("segments") or []
-    airline = (segments[0].get("airline") if segments and isinstance(segments[0], dict) else "") or ""
     vessel = service.vessel
     fields = {
-        "to": AIRLINE_DATE_TAIL.sub("", str(airline)).strip(),
+        "to": _airlines(segments),
         "date": timezone.localdate().strftime("%d/%m/%Y"),
         "vessel": vessel.name,
         "flight": person.get("flightData") or "",

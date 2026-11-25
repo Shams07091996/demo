@@ -113,7 +113,7 @@ class MissingTests(ApiTestCase):
     def test_crew_change_draft_booking_is_missing_bookings(self):
         from . import services
         from .models import Transfer
-        crew = {"onSigners": [{"name": "Ahmed Test", "rank": "AB"}], "offSigners": [], "cost": 1, "revenue": 1}
+        crew = {"onSigners": [{"name": "Ahmed Test", "rank": "AB", "needsTransport": True}], "offSigners": [], "cost": 1, "revenue": 1}
         status, vessel = self.call(self.login("alex"), "post", f"/api/vessels/{self.alex_vessel.id}/services/",
                                    {"type": "Crew Change", "agent": "", "data": crew})
         self.assertEqual(status, 201, vessel)

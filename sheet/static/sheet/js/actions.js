@@ -10,12 +10,13 @@ import { openAgentJobs } from './modals/agentJobs.js';
 import { closureNow, openClosureDialog, removeClosure, saveClosure } from './modals/closure.js';
 import { addContactRow, deleteCustomerDialog, saveCustomerDialog } from './modals/customer.js';
 import { deleteShipDialog, saveShipDialog } from './modals/ship.js';
+import { toggleNavGroup } from './navGroups.js';
 import { toggleTheme } from './theme.js';
 import { openOprSummary, openSummary } from './modals/summary.js';
 import { downloadReceipt, openReceipt } from './modals/receipt.js';
 import {
   applyRate, cancelBookingRefs, entryRowEl, newCrewMember, openServiceForm, openTypePicker, readServiceForm, renderCrewEditor,
-  renumberEntries, updatePreview,
+  renumberEntries, toggleCrewBooking, updatePreview,
 } from './modals/service.js';
 import {
   addGuest, changeVessel, deleteBooking, openBookingDialog, pickVessel, removeGuest, saveBooking,
@@ -155,6 +156,12 @@ export function moveOption(select) {
 }
 
 const crewCard = (button) => button.closest('.crew-card');
+// A crew member's Hotel / Transport button: switch it and show / hide its boxes.
+const crewBooking = (button, kind) => {
+  const card = crewCard(button);
+  toggleCrewBooking(state.crew[card.dataset.group][Number(card.dataset.i)], kind, card.dataset.group);
+  renderCrewEditor();
+};
 
 export const actions = {
   close: closeModal,
@@ -166,6 +173,7 @@ export const actions = {
   'opr-summary': (b) => openOprSummary(b.dataset.opr),
   'agent-jobs': (b) => openAgentJobs(b.dataset.agent),
   'toggle-theme': toggleTheme,
+  'toggle-nav-group': toggleNavGroup,
   'toggle-alerts': toggleAlerts,
   'show-alerts-panel': openPanel,
   'show-outside': async (b) => { await widenRangeTo(b.dataset.date); hideRangeNotice(); },
@@ -185,6 +193,8 @@ export const actions = {
 
   'add-crew': (b) => { state.crew[b.dataset.group].push(newCrewMember()); renderCrewEditor(); },
   'rm-crew': (b) => { const c = crewCard(b); state.crew[c.dataset.group].splice(Number(c.dataset.i), 1); renderCrewEditor(); },
+  'crew-hotel': (b) => crewBooking(b, 'hotel'),
+  'crew-transport': (b) => crewBooking(b, 'transport'),
   'toggle-crew': (b) => {
     const card = crewCard(b);
     const member = state.crew[card.dataset.group][Number(card.dataset.i)];

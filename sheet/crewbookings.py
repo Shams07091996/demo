@@ -1,8 +1,10 @@
 """Automatic bookings for crew-change members.
 
-Every crew member (on- and off-signer) gets a draft transfer, and a draft hotel stay while "Needs hotel" is on. A draft
-is linked to its member by `Guest.crew_uid`; it follows the member (name, flight time) while it is still a draft with
-that one guest, and is deleted when the member goes away (or switches Needs hotel off). A booking a person has saved
+A crew member (on- or off-signer) gets a draft hotel stay while its Hotel button is pressed (`needsHotel`) and a draft
+transfer while its Transport button is (`needsTransport`). What was typed on the crew card (`hotel`, `transport`) is
+used, else the automatic values (from the flight, else the vessel date). A draft is linked to its member by
+`Guest.crew_uid`; it follows the member (name, typed values, flight time) while it is still a draft with that one
+guest, and is deleted when the member goes away (or the button is released). A booking a person has saved
 (`draft=False`) is never changed or deleted here. Runs inside the request's transaction, so history records the user.
 """
 
@@ -44,34 +46,76 @@ def _guest_fields(member, group):
 
 
 def _when(member, group, vessel):
-    """(transfer time, hotel check-in) for the member: from the flight, else the vessel date."""
+    """(transfer time, hotel check-in) for the member from the flight, else the vessel date."""
     moment = crew_moment(member, group, vessel.date)
     at = moment or timezone.make_aware(datetime.combine(vessel.date, time()))
     check_in = timezone.localdate(moment) if moment and group == "on" else vessel.date
     return at, check_in
 
 
+_NAME_FIELD = {"airport": "airport", "hotel": "hotel", "port": "port_name"}
+
+
+def _transfer_fields(member, group, vessel):
+    """The draft transfer's fields: what was typed on the crew card, else the automatic values."""
+    typed = member.get("transport") or {}
+    automatic = ("airport", "port") if group == "on" else ("port", "airport")
+    from_place, to_place = typed.get("from") or automatic[0], typed.get("to") or automatic[1]
+    if from_place == to_place:  # only one end typed and it is the other's automatic place
+        to_place = next(p for p in (automatic[1], automatic[0], "hotel") if p != from_place)
+    fields = {"from_place": from_place, "to_place": to_place, "airport": "", "hotel": "", "port_name": ""}
+    for end, place in (("from", from_place), ("to", to_place)):
+        if typed.get(end) == place and typed.get(f"{end}Name"):
+            fields[_NAME_FIELD[place]] = typed[f"{end}Name"]
+    at = _typed_moment(typed.get("at"))
+    fields["at"] = at or _when(member, group, vessel)[0]
+    return fields
+
+
+def _typed_moment(text):
+    if not text:
+        return None
+    try:
+        return timezone.make_aware(datetime.fromisoformat(text))
+    except ValueError:
+        return None
+
+
+def _stay_fields(member, group, vessel):
+    """The draft hotel stay's fields: what was typed on the crew card, else the automatic values (1 night)."""
+    typed = member.get("hotel") or {}
+    check_in = _typed_day(typed.get("checkIn")) or _when(member, group, vessel)[1]
+    check_out = _typed_day(typed.get("checkOut"))
+    nights = (check_out - check_in).days if check_out and check_out > check_in else 1
+    return {"hotel": typed.get("name") or "", "check_in": check_in, "nights": nights}
+
+
+def _typed_day(text):
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date() if text else None
+    except ValueError:
+        return None
+
+
 def _wanted(kind, member):
-    return kind is Transfer or bool(member.get("needsHotel"))
+    return bool(member.get("needsTransport" if kind is Transfer else "needsHotel"))
+
+
+def _fields(kind, member, group, vessel):
+    return (_transfer_fields if kind is Transfer else _stay_fields)(member, group, vessel)
 
 
 def _create(kind, vessel, uid, member, group):
-    at, check_in = _when(member, group, vessel)
-    if kind is Transfer:
-        ends = ("airport", "port") if group == "on" else ("port", "airport")
-        booking = Transfer.objects.create(vessel=vessel, from_place=ends[0], to_place=ends[1], at=at, draft=True)
-        Guest.objects.create(transfer=booking, crew_uid=uid, **_guest_fields(member, group))
-    else:
-        booking = HotelStay.objects.create(vessel=vessel, hotel="", check_in=check_in, nights=1, draft=True)
-        Guest.objects.create(stay=booking, crew_uid=uid, **_guest_fields(member, group))
+    booking = kind.objects.create(vessel=vessel, draft=True, **_fields(kind, member, group, vessel))
+    Guest.objects.create(**{_GUEST_FK[kind]: booking}, crew_uid=uid, **_guest_fields(member, group))
 
 
 def _refresh(kind, booking, guest, member, group, vessel):
     """Keep a one-guest draft in step with its member; save only what changed (no history noise)."""
-    at, check_in = _when(member, group, vessel)
-    field, value = ("at", at) if kind is Transfer else ("check_in", check_in)
-    if getattr(booking, field) != value:
-        setattr(booking, field, value)
+    fields = _fields(kind, member, group, vessel)
+    if any(getattr(booking, key) != value for key, value in fields.items()):
+        for key, value in fields.items():
+            setattr(booking, key, value)
         booking.save()
     fields = _guest_fields(member, group)
     if any(getattr(guest, key) != value for key, value in fields.items()):
@@ -143,6 +187,19 @@ def saved_bookings(service):
                     .distinct().prefetch_related("guests").order_by("id")) if uids else []
         found += [(kind, booking) for booking in bookings]
     return found
+
+
+def saved_by_member(service):
+    """{crew uid: {"hotel": bool, "transport": bool}} for the members of a Crew Change that have a hotel stay /
+    transfer saved by a person (not a draft); members with neither are left out."""
+    found = {}
+    for kind, booking in saved_bookings(service):
+        key = "hotel" if kind == "hotel" else "transport"
+        for guest in booking.guests.all():
+            if guest.crew_uid:
+                found.setdefault(guest.crew_uid, {"hotel": False, "transport": False})[key] = True
+    uids = _crew_uids(service)
+    return {uid: value for uid, value in found.items() if uid in uids}
 
 
 def booking_ref(kind, booking):

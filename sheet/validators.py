@@ -164,6 +164,81 @@ def _uid(item, seen):
     return uid
 
 
+def _crew_date(value, label):
+    """'YYYY-MM-DD' or ''; anything else refused."""
+    text = _text(value, 20)
+    if not text:
+        return ""
+    try:
+        day = date.fromisoformat(text)
+    except ValueError:
+        raise BadRequest(f"Enter a valid {label} date.") from None
+    if not 2000 <= day.year <= 2100 or len(text) != 10:
+        raise BadRequest(f"Enter a valid {label} date.")
+    return text
+
+
+def _crew_hotel(raw):
+    """A crew member's hotel typed on the crew card: name, check-in, check-out, each optional (empty = automatic)."""
+    raw = _as_dict(raw)
+    hotel = {"name": _short(raw.get("name"), 100, "Hotel name"),
+             "checkIn": _crew_date(raw.get("checkIn"), "check-in"),
+             "checkOut": _crew_date(raw.get("checkOut"), "check-out")}
+    if hotel["checkOut"] and not hotel["checkIn"]:
+        raise BadRequest("Enter the check-in date.")
+    if hotel["checkIn"] and hotel["checkOut"]:
+        nights = (date.fromisoformat(hotel["checkOut"]) - date.fromisoformat(hotel["checkIn"])).days
+        if nights < 1:
+            raise BadRequest("Check-out must be after check-in.")
+        if nights > MAX_NIGHTS:
+            raise BadRequest(f"Nights must be a whole number from 1 to {MAX_NIGHTS}.")
+    return hotel
+
+
+def _crew_transport(raw):
+    """A crew member's transfer typed on the crew card: from / to (place + which one) and when, each optional."""
+    raw = _as_dict(raw)
+    ends = {key: _text(raw.get(key), 10) for key in ("from", "to")}
+    if any(value and value not in PLACE_KEYS for value in ends.values()) or bool(ends["from"]) != bool(ends["to"]):
+        raise BadRequest("Choose where from and where to.")  # both ends, or neither (= the automatic ones)
+    if ends["from"] and ends["from"] == ends["to"]:
+        raise BadRequest("From and To must be different.")
+    at = _text(raw.get("at"), 40)
+    if at:
+        try:
+            if not _DATE_TIME.match(at) or _local_datetime(at, "Date and time") is None:
+                raise BadRequest("Enter the date and time.")
+        except BadRequest:
+            raise BadRequest("Enter the date and time.") from None
+        at = at[:16].replace(" ", "T")
+    return {"from": ends["from"], "fromName": _short(raw.get("fromName"), 100, "From"),
+            "to": ends["to"], "toName": _short(raw.get("toName"), 100, "To"), "at": at}
+
+
+# Which Master data list names each end of a crew member's transfer.
+PLACE_LIST = {"airport": "airport", "hotel": "hotel", "port": "port"}
+
+
+def check_crew_lists(data, port, existing_data=None):
+    """The hotel / airport / port names typed on a Crew Change's crew cards must be in Master data for the vessel's
+    port (or All ports); the same member's saved name stays allowed."""
+    saved = {}
+    for group in ("onSigners", "offSigners"):
+        for m in _as_list(_as_dict(existing_data).get(group)):
+            if isinstance(m, dict) and m.get("uid"):
+                saved[m["uid"]] = m
+    for group in ("onSigners", "offSigners"):
+        for m in data.get(group) or []:
+            before = saved.get(m.get("uid"), {})
+            old_hotel, old_transport = _as_dict(before.get("hotel")), _as_dict(before.get("transport"))
+            listed("hotel", m["hotel"]["name"], port, old_hotel.get("name", ""))
+            transport = m["transport"]
+            for end in ("from", "to"):
+                if transport[end] and transport[f"{end}Name"]:
+                    same = old_transport.get(f"{end}Name", "") if old_transport.get(end) == transport[end] else ""
+                    listed(PLACE_LIST[transport[end]], transport[f"{end}Name"], port, same)
+
+
 def _clean_crew_change(raw):
     """On- and off-signers. Each keeps a valid uid it was sent (once per crew change) or gets a new one."""
     seen = set()
@@ -176,6 +251,9 @@ def _clean_crew_change(raw):
             member = _crew_member(item)
             member["uid"] = _uid(item, seen)
             member["needsHotel"] = bool(item.get("needsHotel"))
+            member["hotel"] = _crew_hotel(item.get("hotel"))
+            member["needsTransport"] = bool(item.get("needsTransport"))
+            member["transport"] = _crew_transport(item.get("transport"))
             if group == "onSigners":
                 member["brokenVisa"] = _broken_visa(item.get("brokenVisa"))
             members.append(member)

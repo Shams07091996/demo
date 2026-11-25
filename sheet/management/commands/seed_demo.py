@@ -158,18 +158,18 @@ class Command(BaseCommand):
         early_day = today - timedelta(days=3)  # lands 3 days before the vessel: the "Early arrival" alert
         early = {"segments": [{"flightNo": "MS125", "airline": "EGYPTAIR", "arrivalCity": "Alexandria",
                                "arrivalTime": f"{early_day:%d} {early_day:%b}".upper() + " 09:00"}]}
-        # Cleaned like a browser save (crew uids); Ahmed Test needs a hotel. sync() makes the draft bookings.
+        # Cleaned like a browser save (crew uids); Ahmed Test needs a hotel, both need transport; sync makes drafts.
         Service.objects.create(
             vessel=v1,
             service_type="Crew Change",
             data=clean_service_data("Crew Change", {
                 "onSigners": [
                     {"name": "Ahmed Test", "personalStructured": {"rank": "2/E", "nationality": "Egyptian"},
-                     "flightStructured": flight, "needsHotel": True,
+                     "flightStructured": flight, "needsHotel": True, "needsTransport": True,
                      "flightData": f"MS123 EGYPTAIR ARRIVAL ALEXANDRIA {landing}",
                      "personalData": "Surname: Test\nGiven name: Ahmed\nRank: 2/E\nNationality: Egyptian"},
                     {"name": "Ali Sayed", "personalStructured": {"rank": "OS", "nationality": "Egyptian"},
-                     "flightStructured": early},
+                     "flightStructured": early, "needsTransport": True},
                 ],
                 "offSigners": [],
             }),

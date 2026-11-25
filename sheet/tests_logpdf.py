@@ -205,6 +205,14 @@ class LogViewTests(ApiTestCase):
         self.assertIn(b"(EMIRATES)", pdf)
         self.assertNotIn(b"TUE 17", pdf.split(b"(DATE:)")[0])
 
+    def test_to_lists_every_airline_once(self):
+        data = self.service.data
+        data["onSigners"][0]["flightStructured"]["segments"] = [
+            {"airline": "EGYPTAIR"}, {"airline": "TURKISH AIRLINES"}, {"airline": "EGYPTAIR   TUE 17 NOVEMBER 2026"},
+            {"airline": ""}]
+        Service.objects.filter(pk=self.service.pk).update(data=data)
+        self.assertIn(b"(EGYPTAIR / TURKISH AIRLINES)", self.get("alex").content)
+
     def test_other_port_not_found(self):
         self.assertEqual(self.get("suezuser").status_code, 404)
 

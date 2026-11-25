@@ -45,6 +45,8 @@ urlpatterns = [
     path("api/services/", views.services_list, name="api_services"),
     path("api/services/<int:pk>/", views.service_detail, name="api_service"),
     path("api/services/<int:pk>/bookings/", views.service_bookings, name="api_service_bookings"),
+    path("api/services/<int:pk>/crew-bookings/", views.service_crew_bookings,
+         name="api_service_crew_bookings"),
     path("api/services/<int:pk>/log/<str:uid>/", views.service_log, name="api_service_log"),
     path("api/services/<int:pk>/receipt/", views.service_receipt, name="api_service_receipt"),
     path("api/options/", views.options, name="api_options"),

@@ -17,21 +17,40 @@
       <div class="brand-text">ARKAS<span>EGYPT HUSBANDRY</span></div>
     </div>
     <nav class="nav" id="nav" aria-label="Pages">
-      <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessels</span></a>
-      {% if "services" in me.pages %}<a class="nav-item" data-page="services" href="#services"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span>Services</span></a>{% endif %}
-      {% if "hotels" in me.pages %}<a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>{% endif %}
-      {% if "transport" in me.pages %}<a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>{% endif %}
-      {% if "closures" in me.pages %}<a class="nav-item" data-page="closures" href="#closures"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ban"></use></svg></span><span>Port closures</span></a>{% endif %}
-      {% if "disposal" in me.pages %}<a class="nav-item" data-page="disposal" href="#disposal"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-trash"></use></svg></span><span>Garbage &amp; Sludge</span></a>{% endif %}
-      {% if "calculations" in me.pages %}<a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>{% endif %}
-      {% if "dashboard" in me.pages %}<a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>{% endif %}
-      {% if "ships" in me.pages %}<a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>{% endif %}
-      {% if "customers" in me.pages %}<a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>{% endif %}
-      {% if "master" in me.pages %}<a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>{% endif %}
-      {% if "rates" in me.pages %}<a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>{% endif %}
-      {% if "history" in me.pages %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
-      {% if me.isSuperuser %}<a class="nav-item" data-page="accounts" href="#accounts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Accounts</span></a>{% endif %}
-      {% if me.isAdmin %}<a class="nav-item" data-page="ports" href="#ports"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ports</span></a>{% endif %}
+      <div class="nav-group" data-group="marine">
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Marine</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <div class="nav-group-items">
+          <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessels</span></a>
+          {% if "services" in me.pages %}<a class="nav-item" data-page="services" href="#services"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span>Services</span></a>{% endif %}
+          {% if "closures" in me.pages %}<a class="nav-item" data-page="closures" href="#closures"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ban"></use></svg></span><span>Port closures</span></a>{% endif %}
+          {% if "ships" in me.pages %}<a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>{% endif %}
+        </div>
+      </div>
+      {% if "dashboard" in me.pages or "disposal" in me.pages or "hotels" in me.pages or "transport" in me.pages or "calculations" in me.pages %}
+      <div class="nav-group" data-group="reports">
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Reports</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <div class="nav-group-items">
+          {% if "dashboard" in me.pages %}<a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>{% endif %}
+          {% if "disposal" in me.pages %}<a class="nav-item" data-page="disposal" href="#disposal"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-trash"></use></svg></span><span>Garbage &amp; Sludge</span></a>{% endif %}
+          {% if "hotels" in me.pages %}<a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>{% endif %}
+          {% if "transport" in me.pages %}<a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>{% endif %}
+          {% if "calculations" in me.pages %}<a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% if "master" in me.pages or "customers" in me.pages or "rates" in me.pages or me.isAdmin or me.isSuperuser or "history" in me.pages %}
+      <div class="nav-group" data-group="master">
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Master data</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <div class="nav-group-items">
+          {% if "master" in me.pages %}<a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>{% endif %}
+          {% if "customers" in me.pages %}<a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>{% endif %}
+          {% if "rates" in me.pages %}<a class="nav-item" data-page="rates" href="#rates"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-swap"></use></svg></span><span>Exchange rates</span></a>{% endif %}
+          {% if me.isAdmin %}<a class="nav-item" data-page="ports" href="#ports"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ports</span></a>{% endif %}
+          {% if me.isSuperuser %}<a class="nav-item" data-page="accounts" href="#accounts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Accounts</span></a>{% endif %}
+          {% if "history" in me.pages %}<a class="nav-item" data-page="history" href="#history"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>History</span></a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
     </nav>
     <div class="sidebar-foot">
       <div class="user-line"><strong>{{ request.user.get_username }}</strong><small id="roleLabel"></small></div>
