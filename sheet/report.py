@@ -115,9 +115,11 @@ def _by_month(vessels, money, rows, r):
     return _sheet("By month", [_table(["Month", "Vessels", "Services", *MONEY_HEAD], table_rows, total)])
 
 
-def _by_line(vessels, money):
+def _by_line(vessels, money, profile):
     lines = _grouped(vessels, money, lambda v: v["opr"] or NO_LINE)
-    order = sorted(lines, key=lambda name: (-lines[name].revenue, name.casefold()))
+    # Ranked by revenue only for people who may see it; otherwise by vessels (the order would show the money).
+    rank = (lambda name: -lines[name].revenue) if moneyaccess.views(profile) else (lambda name: -lines[name].vessels)
+    order = sorted(lines, key=lambda name: (rank(name), name.casefold()))
     first = _table(["Line", "Vessels", "Services", *MONEY_HEAD], [lines[name].row(name) for name in order])
     pairs = _grouped(vessels, money, lambda v: (v["opr"] or NO_LINE, v["port"]))
     second = _table(["Line", "Port", "Vessels", "Services", *MONEY_HEAD],
@@ -333,7 +335,7 @@ def data(profile, r, now=None):
     sheets = {
         "summary": _summary(vessels, money, rows, profile),
         "months": _by_month(vessels, money, rows, r),
-        "lines": _by_line(vessels, money),
+        "lines": _by_line(vessels, money, profile),
         "services": _by_service(rows),
         "ports_perf": _ports_perf(objects, r),
         "closures": _closures(profile, r, now or timezone.now()) if profile.sees("closures") else None,

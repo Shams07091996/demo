@@ -14,7 +14,7 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
   Services page's money tags and the money columns of the CSV, the data exports and the management Excel. Without
   them the server never sends those values; saves keep the stored money; sending money anyway is refused. The
   **Accounts employee template is gone** (the user cancelled it; accounts made with it keep their ticks). One place
-  decides: `sheet/moneyaccess.py`. 848 backend tests; `npm run check` green; smoke test passes for alex / admin /
+  decides: `sheet/moneyaccess.py`. After a fresh review (one finding fixed test-first). 849 backend tests; `npm run check` green; smoke test passes for alex / admin /
   viewer / suez / marine. Plan: `plans/2026-11-25-money-permissions.md`.
 
 - **Access rework, piece 2 of 3 — permissions and pages (2026-11-25):** **merged into `main`**

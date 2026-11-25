@@ -458,6 +458,20 @@ class OverviewMoneyTests(MoneyUsers):
         self.assertIn("Profit by service", read(admin))
         self.assertLessEqual({"Profit per port (EGP)", "Jobs per agent"}, chart_titles(admin))
 
+    def test_excel_lines_are_not_ranked_by_revenue_without_view(self):
+        """Review fix: ranking the lines by revenue would show the money's order."""
+        rich = Vessel.objects.create(name="RICH", date=self.vessel.date, port="alexandria", opr="ZED")
+        Service.objects.create(vessel=rich, service_type="Fresh Water",
+                               data=clean_service_data("Fresh Water", {"revenue": 5000}))
+        Vessel.objects.create(name="POOR", date=self.vessel.date, port="alexandria", opr="ABC")
+
+        def lines(who):
+            rows = read(self.login(who).get(f"/api/dashboard/export/?{self.range()}").content)["By line"]
+            return [row[0] for row in rows if row and row[0] in ("ABC", "ZED")]
+
+        self.assertEqual(lines("admin")[:2], ["ZED", "ABC"])
+        self.assertEqual(lines("edit_only"), ["ABC", "ZED", "ABC", "ZED"])
+
     def test_data_export_without_view(self):
         HotelStay.objects.create(vessel=self.vessel, hotel="HILTON", check_in=self.vessel.date, nights=1,
                                  cost_per_night=80)
