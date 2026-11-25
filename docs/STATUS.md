@@ -5,8 +5,8 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Access rework, piece 2 of 3 — permissions and pages (2026-11-25):** built on branch
-  **`feature/permissions-and-pages`**, **not merged** (waiting for the user's OK after a fresh review). Needs
+- **Access rework, piece 2 of 3 — permissions and pages (2026-11-25):** **merged into `main`**
+  (2026-11-25, after a fresh review — five findings fixed test-first — and the user's OK). Needs
   migration **`0025_profile_permissions`** on the user's database: **every existing account gets all 16 permissions
   and every page** (nobody loses anything); an Admin then takes away what each job doesn't need. Each User now has
   16 permission ticks and page ticks on the Accounts page, filled in from four templates (Marine employee,
