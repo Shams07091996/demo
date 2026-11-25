@@ -120,24 +120,28 @@ class CsvFilterTests(ListingData):
         self.assertEqual(self.get("admin", opr="msk")["count"], 0)
         self.assertEqual(names(self.get("admin", opr="ark ")), ["ARK ONE"])
 
-    def test_csv_exports_all_matches_not_one_page(self):
+    def test_excel_exports_all_matches_not_one_page(self):
+        from .tests_dataexport import serial, vessel_rows
+
         client = self.login("admin")
         params = {"from": "2026-11-01", "to": "2026-11-30", "port": "alexandria", "page_size": "1"}
-        body = client.get("/export.csv", params).content.decode("utf-8-sig")
-        lines = body.strip().splitlines()
-        self.assertEqual(len(lines), 1 + 3)  # header + ALEX SHIP, ARK ONE, MSK TWO
-        self.assertTrue(lines[1].startswith("MSK TWO,"))  # newest first, like the table
-        self.assertIn("20.11.2026", lines[1])
+        rows = vessel_rows(client.get("/api/export/vessels/", params))
+        self.assertEqual(len(rows), 1 + 3)  # header + ALEX SHIP, ARK ONE, MSK TWO
+        self.assertEqual(rows[1][0], "MSK TWO")  # newest first, like the table
+        self.assertEqual(rows[1][6], serial(date(2026, 11, 20)))
 
-    def test_csv_search_and_bad_filters(self):
+    def test_excel_search_and_bad_filters(self):
+        from .tests_dataexport import vessel_rows
+
         client = self.login("admin")
-        body = client.get("/export.csv", {"q": "landing"}).content.decode("utf-8-sig")
-        self.assertEqual(len(body.strip().splitlines()), 2)
-        self.assertEqual(client.get("/export.csv", {"from": "x"}).status_code, 400)
+        self.assertEqual(len(vessel_rows(client.get("/api/export/vessels/", {"q": "landing"}))), 2)
+        self.assertEqual(client.get("/api/export/vessels/", {"from": "x"}).status_code, 400)
 
-    def test_csv_port_user_stays_in_own_port(self):
-        body = self.login("suezuser").get("/export.csv", {"port": "alexandria"}).content.decode("utf-8-sig")
-        self.assertEqual([line.split(",")[0] for line in body.strip().splitlines()[1:]], ["SUEZ SHIP"])
+    def test_excel_port_user_stays_in_own_port(self):
+        from .tests_dataexport import vessel_rows
+
+        rows = vessel_rows(self.login("suezuser").get("/api/export/vessels/", {"port": "alexandria"}))
+        self.assertEqual([r[0] for r in rows[1:]], ["SUEZ SHIP"])
 
 
 TODAY = date(2026, 11, 13)

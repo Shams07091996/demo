@@ -225,7 +225,7 @@ class AccessTests(ApiTestCase):
     def test_anonymous_users_are_rejected(self):
         client = Client()
         self.assertEqual(client.get("/api/vessels/").status_code, 401)
-        self.assertEqual(client.get("/export.csv").status_code, 401)
+        self.assertEqual(client.get("/api/export/vessels/").status_code, 401)
         self.assertEqual(client.get("/").status_code, 302)
 
     def test_port_user_only_sees_own_port_and_cannot_widen_it(self):
@@ -413,15 +413,20 @@ class CsvTests(ApiTestCase):
     def test_formula_injection_is_neutralised(self):
         Vessel.objects.create(name='=HYPERLINK("http://evil")', opr="+cmd", date=date(2026, 11, 13), port="alexandria")
         admin = self.login("admin")
-        text = admin.get("/export.csv").content.decode("utf-8-sig")
-        self.assertIn("'=HYPERLINK", text)
-        self.assertIn("'+cmd", text)
-        self.assertEqual(admin.get("/export.csv")["Cache-Control"], "no-store")
+        from .tests_dataexport import vessel_rows
+
+        response = admin.get("/api/export/vessels/")
+        self.assertNotIn(b"<f>", response.content)  # text stays text in the Excel file, whatever it starts with
+        row = next(r for r in vessel_rows(response) if r[0].startswith("="))
+        self.assertEqual(row[:2], ['=HYPERLINK("http://evil")', "+cmd"])
+        self.assertEqual(response["Cache-Control"], "no-store")
 
     def test_port_user_export_is_scoped(self):
-        text = self.login("alex").get("/export.csv").content.decode("utf-8-sig")
-        self.assertIn("ALEX SHIP", text)
-        self.assertNotIn("SUEZ SHIP", text)
+        from .tests_dataexport import vessel_rows
+
+        names = [r[0] for r in vessel_rows(self.login("alex").get("/api/export/vessels/"))[1:]]
+        self.assertIn("ALEX SHIP", names)
+        self.assertNotIn("SUEZ SHIP", names)
 
 
 @FAST_HASHER
@@ -736,16 +741,15 @@ class SessionAndHeaderTests(ApiTestCase):
     def test_login_page_is_not_cached_either(self):
         self.assertIn("no-store", Client().get("/login/")["Cache-Control"])
 
-    def test_csv_has_agent_and_milestones(self):
-        Vessel.objects.create(
-            name="CSV SHIP", date=date(2026, 11, 13), port="alexandria", arrival_agent="NILE", arrival_at="2026-11-13T04:30:00Z"
-        )
-        header, *rows = self.login("admin").get("/export.csv").content.decode("utf-8-sig").splitlines()
-        self.assertIn("Arrival agent", header)
-        self.assertIn("Sailed", header)
-        row = next(r for r in rows if "CSV SHIP" in r)
-        self.assertIn("NILE", row)
-        self.assertIn("13.11.2026 06:30", row)  # stored as UTC, shown in Cairo time
+    def test_vessels_excel_is_the_vessels_table(self):
+        from .tests_dataexport import serial, vessel_rows
+
+        Vessel.objects.create(name="XL SHIP", date=date(2026, 11, 13), port="alexandria", arrival_agent="NILE")
+        header, *rows = vessel_rows(self.login("admin").get("/api/export/vessels/"))
+        self.assertEqual(header, ["Vessel", "OPR", "POC", "Arrival agent", "Sailing agent", "Port", "Date",
+                                  "Services"])
+        row = next(r for r in rows if r[0] == "XL SHIP")
+        self.assertEqual((row[3], row[5], row[6]), ("NILE", "Alexandria", serial(date(2026, 11, 13))))
 
 
 class DatabaseSettingsTests(SimpleTestCase):

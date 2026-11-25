@@ -45,7 +45,7 @@ import { fillQuickSelects } from './render/list.js';
 import { closePanel, openPanel, toggleAlerts } from './render/notifications.js';
 import { hideRangeNotice } from './render/rangeNotice.js';
 import { navigate } from './router.js';
-import { getVessel, rememberVessels, state } from './state.js';
+import { filterParams, getVessel, rememberVessels, state } from './state.js';
 import { $, formValues, nowLocalInput } from './util.js';
 
 const vesselId = () => state.ctx.vesselId;
@@ -222,7 +222,7 @@ export const actions = {
   // The management workbook (.xlsx) of the Dashboard's From - To range and port.
   // A page's rows as a plain-table Excel file (its current filters, every page of them).
   'page-export': async (b) => {
-    const pages = { hotels: bookingsPage('hotels'), transfers: bookingsPage('transfers'), closures: closuresPage,
+    const pages = { vessels: { exportQuery: () => filterParams({ page: '', page_size: '' }) }, hotels: bookingsPage('hotels'), transfers: bookingsPage('transfers'), closures: closuresPage,
       disposal: disposalPage, calculations: calculationsPage, services: servicesPage };
     const page = pages[b.dataset.page];
     if (!page) return;

@@ -225,7 +225,7 @@ class MultiPortTests(ApiTestCase):
         urls = [f"/api/vessels/?{RANGE}", f"/api/services/?{RANGE}&status=in_progress", f"/api/hotels/?{RANGE}",
                 f"/api/transfers/?{RANGE}", f"/api/closures/?{RANGE}", f"/api/disposal/?{RANGE}",
                 f"/api/calculations/?{RANGE}", f"/api/dashboard/?{RANGE}", "/api/vessels/alerts/?",
-                f"/export.csv?{RANGE}", f"/api/export/all/?{RANGE}", f"/api/dashboard/export/?{RANGE}"]
+                f"/api/export/vessels/?{RANGE}", f"/api/export/all/?{RANGE}", f"/api/dashboard/export/?{RANGE}"]
         found = {}
         for url in urls:
             body = self.text(client, url + extra)

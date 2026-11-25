@@ -43,13 +43,6 @@ class TerminalTests(ApiTestCase):
                                   {**NEEDED, "name": "T", "date": "2026-11-13"})
         self.assertEqual((status, saved["terminal"], saved["berth"]), (200, "ACCHCO", "23"))
 
-    def test_csv_has_columns(self):
-        self.create(terminal="ACCHCO", berth="23")
-        text = self.alex.get("/export.csv?from=2026-11-01&to=2026-11-30").content.decode("utf-8-sig")
-        head, row = text.splitlines()[0], next(line for line in text.splitlines() if line.startswith("T,"))
-        self.assertIn("Terminal,Berth", head)
-        self.assertIn("ACCHCO,23", row)
-
     def test_excel_calls_by_terminal(self):
         Vessel.objects.filter(pk=self.alex_vessel.pk).update(terminal="ACCHCO", berth="23", date=date(2026, 11, 13))
         sheet = report.data(_admin(),

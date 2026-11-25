@@ -389,9 +389,9 @@ class PageTests(Limited):
             self.assertEqual(self.status(self.without("exports"), url, RANGE), 403, name)
             self.assertEqual(self.status(self.without(), url, RANGE), 200, name)
 
-    def test_csv_needs_exports(self):
-        self.assertEqual(self.status(self.without("exports"), "/export.csv"), 403)
-        self.assertEqual(self.status(self.without(), "/export.csv"), 200)
+    def test_vessels_excel_needs_exports(self):
+        self.assertEqual(self.status(self.without("exports"), "/api/export/vessels/"), 403)
+        self.assertEqual(self.status(self.without(), "/api/export/vessels/"), 200)
 
     def test_all_data_leaves_out_pages_not_had(self):
         response = self.without(pages=ALL_PAGES_BUT("hotels", "calculations")).get("/api/export/all/", RANGE)

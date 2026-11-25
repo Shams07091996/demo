@@ -128,7 +128,7 @@ class SignInTests(TestCase):
         self.assertRedirects(response, "/login/code/", fetch_redirect_response=False)
 
     def test_export_401_until_code(self):
-        self.assertEqual(self.password_only().get("/export.csv").status_code, 401)
+        self.assertEqual(self.password_only().get("/api/export/vessels/").status_code, 401)
 
     def test_admin_pages_redirect_until_verified(self):
         boss = make_user("boss", "admin")

@@ -9,9 +9,9 @@ from .tests_models import terminal
 from .tests_visits import visit
 
 URL = "/api/operation/visits/export/"
-HEAD = ["ID", "Vessel", "Line", "Terminal", "LOA (m)", "ETA", "ATA", "Planned berth", "ETB", "ETC", "ATB",
-        "Actual berth", "Cranes", "ATD", "Status", "Waiting (hrs)", "Operation (hrs)", "Discharge", "Loading",
-        "Total moves", "Moves/hr", "Port stay (hrs)"]
+HEAD = ["ID", "Vessel", "Line", "Terminal", "LOA", "ETA", "ETB", "ETC", "Planned berth", "ATA", "ATB", "ATD",
+        "Actual berth", "Cranes", "Status", "Waiting", "Operation", "Discharge", "Loading", "Total moves", "Moves/hr",
+        "Port stay"]
 
 
 class ExportTests(ApiTestCase):
@@ -38,6 +38,12 @@ class ExportTests(ApiTestCase):
         self.assertEqual(positions, sorted(positions))
         self.assertIn(">ALPHA<", xml)
         self.assertNotIn(">BRAVO<", xml)
+
+    def test_page_look_title_frozen_header_filter(self):
+        xml = self.sheet_xml("alex")
+        self.assertIn("<t>Vessel Data</t>", xml)
+        self.assertIn('<pane ySplit="4"', xml)
+        self.assertIn('<autoFilter ref="A4:V', xml)
 
     def test_scoped(self):
         self.assertNotIn(">THEIRS<", self.sheet_xml("alex"))

@@ -49,8 +49,8 @@ class RateLimitTests(ApiTestCase):
     def test_fourth_export_is_refused(self):
         alex = self.login("alex")
         for _ in range(3):
-            self.assertEqual(alex.get("/export.csv").status_code, 200)
-        response = alex.get("/export.csv")
+            self.assertEqual(alex.get("/api/export/vessels/").status_code, 200)
+        response = alex.get("/api/export/vessels/")
         self.assertEqual(response.status_code, 429)
         self.assertIn("Too many requests", response.json()["error"])
 
@@ -64,7 +64,7 @@ class RateLimitTests(ApiTestCase):
             self.assertEqual(status, 503)
             self.assertIn("error", data)
             self.assertEqual(alex.get("/api/vessels/").status_code, 200)
-            self.assertEqual(alex.get("/export.csv").status_code, 200)
+            self.assertEqual(alex.get("/api/export/vessels/").status_code, 200)
 
 
 class CounterTidyTests(TestCase):

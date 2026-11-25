@@ -31,7 +31,6 @@ urlpatterns = [
     ),
     path("", views.index, name="index"),
     path("brand/logo.png", views.brand_logo, name="brand_logo"),
-    path("export.csv", views.export_csv, name="export_csv"),
     path("api/vessels/", views.vessels, name="api_vessels"),
     path("api/vessels/alerts/", views.vessel_alerts, name="api_vessel_alerts"),
     path("api/dashboard/", views.dashboard, name="api_dashboard"),

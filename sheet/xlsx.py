@@ -34,6 +34,7 @@ _EPOCH = datetime(1899, 12, 30)  # Excel's day 0 (it counts 1900 as a leap year;
 CHART_COLS, CHART_ROWS = 8, 18
 _BAD_XML = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
 _BAD_NAME = re.compile(r"[\[\]:*?/\\]")
+_CURRENCY = re.compile(r"[A-Z]{2,4}")
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,15 @@ class Status:
 
     text: str
     tone: str
+
+
+@dataclass(frozen=True)
+class Price:
+    """An amount shown with its currency, as the page shows it ("USD 1,234.50"); still a number in Excel. A currency
+    that is not 2-4 capital letters is shown as plain money."""
+
+    value: float
+    currency: str
 
 
 @dataclass(frozen=True)
@@ -167,6 +177,9 @@ def _content(value):
         if value.value is None:
             return None
         return (165 if isinstance(value, Day) else 166, False, None, f"><v>{_number(_serial(value.value))}</v></c>")
+    if isinstance(value, Price):
+        fmt = f'"{value.currency} "#,##0.00' if _CURRENCY.fullmatch(str(value.currency)) else 4
+        return (fmt, False, None, f"><v>{_number(value.value)}</v></c>")
     if isinstance(value, Hours | Money):
         if value.value is None:
             return None
@@ -203,6 +216,7 @@ class _Styles:
         self.fills = ['<fill><patternFill patternType="none"/></fill>',
                       '<fill><patternFill patternType="gray125"/></fill>']
         self.borders = ["<border><left/><right/><top/><bottom/><diagonal/></border>"]
+        self.formats = {}  # format code -> id (164.. are fixed below; currencies from 167)
         self.xfs = [(0, 0, 0, 0), (0, 1, 0, 0), (3, 0, 0, 0), (4, 0, 0, 0), (164, 0, 0, 0), (165, 0, 0, 0),
                     (166, 0, 0, 0)]
 
@@ -228,6 +242,8 @@ class _Styles:
                                        f"<diagonal/></border>")
 
     def xf(self, fmt, font, fill, border):
+        if isinstance(fmt, str):
+            fmt = self.formats.setdefault(fmt, 167 + len(self.formats))
         key = (fmt, font, fill, border)
         if key not in self.xfs:
             self.xfs.append(key)
@@ -256,9 +272,11 @@ class _Styles:
                       + (' applyFill="1"' if fill else "") + (' applyBorder="1"' if border else "") + "/>"
                       for fmt, font, fill, border in self.xfs)
         return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="{MAIN}">'
-                '<numFmts count="3"><numFmt numFmtId="164" formatCode="0.0"/>'
+                f'<numFmts count="{3 + len(self.formats)}"><numFmt numFmtId="164" formatCode="0.0"/>'
                 '<numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>'
-                '<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/></numFmts>'
+                '<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/>'
+                + "".join(f'<numFmt numFmtId="{i}" formatCode="{_attr(code)}"/>' for code, i in self.formats.items())
+                + "</numFmts>"
                 f'<fonts count="{len(self.fonts)}">{"".join(self.fonts)}</fonts>'
                 f'<fills count="{len(self.fills)}">{"".join(self.fills)}</fills>'
                 f'<borders count="{len(self.borders)}">{"".join(self.borders)}</borders>'
@@ -277,7 +295,12 @@ def _cell(ref, value, styles=None, look=None):
     if content is None:
         return ""
     fmt, bold, tone, body = content
-    style = styles.look(look, fmt, bold, tone) if look else _PLAIN.get((fmt, bold), NORMAL)
+    if look:
+        style = styles.look(look, fmt, bold, tone)
+    elif isinstance(fmt, str):
+        style = styles.xf(fmt, 0, 0, 0)
+    else:
+        style = _PLAIN.get((fmt, bold), NORMAL)
     if isinstance(value, Number):
         style = NORMAL
     return f'<c r="{ref}"' + (f' s="{style}"' if style else "") + body
@@ -316,6 +339,8 @@ def _shown(value):
         return 10 if value.value else 0
     if isinstance(value, Moment):
         return 16 if value.value else 0
+    if isinstance(value, Price):
+        return len(value.currency) + 1 + len(f"{value.value:,.2f}")
     if isinstance(value, Number | Hours | Money):
         value = value.value
         if value is None:

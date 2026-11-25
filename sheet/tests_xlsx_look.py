@@ -126,3 +126,19 @@ class TableSheetTests(SimpleTestCase):
         self.assertNotIn("<pane", xml)
         self.assertNotIn("autoFilter", xml)
         self.assertIn(f'<c r="B1" s="{xlsx.WHOLE}"><v>1</v></c>', xml)
+
+
+class PriceCellTests(SimpleTestCase):
+    def test_price_is_a_number_shown_with_its_currency(self):
+        sheet = xlsx.table_sheet("S", "S", "x", ["Cost"], [[xlsx.Price(1234.5, "USD")], [xlsx.Price(10, "LE")]])
+        parts = parts_of(sheet)
+        xml, styles = parts["xl/worksheets/sheet1.xml"], parts["xl/styles.xml"]
+        self.assertRegex(xml, r'<c r="A5" s="\d+"><v>1234.5</v></c>')
+        self.assertIn('formatCode="&quot;USD &quot;#,##0.00"', styles)
+        self.assertIn('formatCode="&quot;LE &quot;#,##0.00"', styles)
+        usd, le = xf(styles, cell_style(xml, "A5")), xf(styles, cell_style(xml, "A6"))
+        self.assertNotEqual(attr(usd, "numFmtId"), attr(le, "numFmtId"))
+
+    def test_odd_currency_falls_back_to_plain_money(self):
+        xml = parts_of(xlsx.Sheet("S", [[xlsx.Price(5, '"; X')]]))["xl/worksheets/sheet1.xml"]
+        self.assertIn(f'<c r="A1" s="{xlsx.MONEY}"><v>5</v></c>', xml)

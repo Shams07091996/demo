@@ -137,30 +137,13 @@ def require_sort(profile, sort):
 
 # ---- export / report columns -----------------------------------------------------------------------------
 
-MONEY_HEADS = frozenset({
-    # vessels CSV
-    "Total Cost LE", "Total Profit LE",
-    # data exports (dataexport)
-    "Cost per night", "Revenue per night", "Cost", "Revenue", "Cost currency", "Revenue currency", "Exchange rate",
-    "Revenue EGP", "Cost EGP", "Profit EGP", "Revenue USD", "Cost USD", "Profit USD", "Rate missing",
-    "Price missing",
-    # management Excel (report)
-    "Revenue (EGP)", "Cost (EGP)", "Profit (EGP)", "Broken visa revenue (EGP)",
-})
+# The management Excel's money columns (report). The page Excel files (dataexport) follow their page's own rule.
+MONEY_HEADS = frozenset({"Revenue (EGP)", "Cost (EGP)", "Profit (EGP)", "Broken visa revenue (EGP)"})
 
 
 def money_columns(head, profile):
     """Indexes of the columns this person may not get (none with money.view)."""
     return set() if views(profile) else {i for i, name in enumerate(head) if str(name) in MONEY_HEADS}
-
-
-def drop_columns(head, rows, profile):
-    """(head, rows) without the money columns this person may not get."""
-    gone = money_columns(head, profile)
-    if not gone:
-        return head, rows
-    keep = [i for i in range(len(head)) if i not in gone]
-    return [head[i] for i in keep], [[row[i] for i in keep] for row in rows]
 
 
 # ---- bookings (logistics), Garbage & Sludge rows (disposal), customers' agreed rates ------------------------

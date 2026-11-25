@@ -1734,7 +1734,7 @@ async function login() {
     ok(got.status === 200 && got.url.includes('/api/export/all/') && got.url.includes(`from=${monthStart}`) && got.url.includes(`to=${today.slice(0, 8)}`), `export: All data downloads for the Dashboard range`); // the Dashboard takes whole months
     type($('#d-from'), rangeFrom); type($('#d-to'), rangeTo);
     await waitFor(() => $('#f-from').value === rangeFrom && $('#f-to').value === rangeTo);
-    for (const [page, key] of [['hotels', 'hotels'], ['transport', 'transfers'], ['closures', 'closures'], ['disposal', 'disposal'], ['calculations', 'calculations']]) {
+    for (const [page, key] of [['vessels', 'vessels'], ['hotels', 'hotels'], ['transport', 'transfers'], ['closures', 'closures'], ['disposal', 'disposal'], ['calculations', 'calculations']]) {
       await go(page);
       if (page === 'hotels') {
         type($('#h-search'), 'ahmed');

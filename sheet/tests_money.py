@@ -15,7 +15,7 @@ from .constants import MULTI_TYPES, PAGE_KEYS, PERMISSION_KEYS
 from .models import ChangeRecord, Customer, CustomerRate, ExchangeRate, Guest, HotelStay, Service, Transfer, Vessel
 from .moneyaccess import MONEY_HEADS, keep_service_money, service_money_sent, strip_service_data
 from .tests import FAST_HASHER, NEEDED, ApiTestCase, allow, make_user
-from .tests_dataexport import read
+from .tests_dataexport import read, table
 from .tests_logistics import stay, trip
 from .validators import UID_RE, clean_service_data
 
@@ -222,17 +222,9 @@ class VesselMoneyApiTests(MoneyUsers):
         self.assertEqual(keys_in(body) & (OVERVIEW_KEYS | BOX_KEYS), set())
 
     def test_sort_by_money_needs_view(self):
-        for path in ("/api/vessels/?sort=total_cost_egp", "/export.csv?sort=total_cost_egp"):
+        for path in ("/api/vessels/?sort=total_cost_egp", "/api/export/vessels/?sort=total_cost_egp"):
             self.assertEqual(self.login("edit_only").get(path).status_code, 403, path)
             self.assertEqual(self.login("admin").get(path).status_code, 200, path)
-
-    def test_csv_drops_money_columns(self):
-        head = self.login("edit_only").get("/export.csv").content.decode("utf-8-sig").splitlines()[0]
-        self.assertNotIn("Total Cost LE", head)
-        self.assertNotIn("Total Profit LE", head)
-        self.assertIn("Services", head)
-        admin = self.login("admin").get("/export.csv").content.decode("utf-8-sig").splitlines()[0]
-        self.assertIn("Total Profit LE", admin)
 
     def put_as_sent(self, who, service, change=None, client=None, **extra):
         """GET the vessel as `who`, then PUT the service back as it was sent (after `change`)."""
@@ -472,17 +464,16 @@ class OverviewMoneyTests(MoneyUsers):
         self.assertEqual(lines("admin")[:2], ["ZED", "ABC"])
         self.assertEqual(lines("edit_only"), ["ABC", "ZED", "ABC", "ZED"])
 
-    def test_data_export_without_view(self):
+    def test_data_export_money_columns_follow_the_page(self):
+        """The page shows booking prices and Garbage & Sludge money with money.edit: so does its Excel file."""
         HotelStay.objects.create(vessel=self.vessel, hotel="HILTON", check_in=self.vessel.date, nights=1,
                                  cost_per_night=80)
-        for page in ("hotels", "disposal"):
-            response = self.login("edit_only").get(f"/api/export/{page}/?{self.range()}")
-            self.assertEqual(response.status_code, 200, page)
-            (rows,) = read(response.content).values()
-            self.assertEqual(set(rows[0]) & MONEY_HEADS, set(), page)
-            self.assertIn("Vessel", rows[0])
-        (rows,) = read(self.login("admin").get(f"/api/export/hotels/?{self.range()}").content).values()
-        self.assertIn("Cost per night", rows[0])
+        for page, money in (("hotels", "Cost/night"), ("disposal", "Revenue LE")):
+            for who, shown in (("neither", False), ("view_only", False), ("edit_only", True), ("admin", True)):
+                response = self.login(who).get(f"/api/export/{page}/?{self.range()}")
+                self.assertEqual(response.status_code, 200, (page, who))
+                (rows,) = read(response.content).values()
+                self.assertEqual(money in table(rows)[0], shown, (page, who))
+                self.assertIn("Vessel", table(rows)[0])
         sheets = read(self.login("edit_only").get(f"/api/export/all/?{self.range()}").content)
-        self.assertNotIn("Calculations", sheets)
-        self.assertEqual({c for rows in sheets.values() for c in rows[0]} & MONEY_HEADS, set())
+        self.assertNotIn("Calculations", sheets)  # its page needs money.view
