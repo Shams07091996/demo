@@ -5,10 +5,11 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from sheet import conflicts
+from sheet import conflicts, ratelimit
 from sheet.access import require, require_admin, require_page
 from sheet.api import audit, json_api, read_json
 from sheet.errors import Forbidden
+from sheet.views import _xlsx_response
 
 from . import analysis, live, terminals, visits
 from .access import require_reader
@@ -85,3 +86,17 @@ def analysis_view(request):
     if not (profile.sees("op_analysis") or profile.sees("op_charts")):
         raise Forbidden("You don't have access to this page.")
     return JsonResponse(analysis.response(profile, request.GET))
+
+
+@json_api
+@require_http_methods(["GET"])
+def visits_export(request):
+    """The Vessel Data page's rows (its own list query, every page of it) as a plain-table .xlsx."""
+    profile = request.profile
+    require_page(profile, "op_vessels")
+    require(profile, "exports")
+    ratelimit.check(request, "export")
+    content = visits.export_file(profile, request.GET)
+    # Which filters were used, not their values (a search can be a name).
+    audit(request, "operation.export", filters=",".join(sorted(request.GET))[:200])
+    return _xlsx_response(content, f"Vessel Data {timezone.localdate().isoformat()}.xlsx")

@@ -1,10 +1,11 @@
 """Vessel Data: the visits list (filters, sort, pages; also the export) and saving one visit."""
 
 import math
+from decimal import Decimal
 
 from django.http import Http404
 
-from sheet import conflicts, ports
+from sheet import conflicts, ports, xlsx
 from sheet.errors import BadRequest
 from sheet.listing import date_param, int_param
 from sheet.serializers import local_iso
@@ -126,3 +127,25 @@ def save_visit(profile, data, existing=None):
         conflicts.bump_if_changed(visit, before)
     visit.save()
     return visit
+
+
+EXPORT_HEAD = ["ID", "Vessel", "Line", "Terminal", "LOA (m)", "ETA", "ATA", "Planned berth", "ETB", "ETC", "ATB",
+               "Actual berth", "Cranes", "ATD", "Status", "Waiting (hrs)", "Operation (hrs)", "Discharge", "Loading",
+               "Total moves", "Moves/hr", "Port stay (hrs)"]
+
+
+def export_file(profile, params):
+    """The filtered visits (every page of them) as a plain-table .xlsx: one header row, numbers as numbers."""
+    def number(value):
+        return xlsx.Number(float(value) if isinstance(value, Decimal) else value)
+
+    rows = [EXPORT_HEAD]
+    for visit, n in filtered(profile, params):
+        rows.append([
+            number(visit.id), visit.vessel_name, visit.shipping_line, visit.terminal.name, number(visit.loa),
+            xlsx.Moment(visit.eta), xlsx.Moment(visit.ata), visit.planned_berth, xlsx.Moment(visit.etb),
+            xlsx.Moment(visit.etc), xlsx.Moment(visit.atb), visit.actual_berth, number(visit.cranes),
+            xlsx.Moment(visit.atd), n["status"], number(n["waiting"]), number(n["operation"]), number(visit.discharge),
+            number(visit.loading), number(n["total_moves"]), number(n["productivity"]), number(n["port_stay"]),
+        ])
+    return xlsx.build([xlsx.Sheet("Vessel Data", rows, widths=[14] * len(EXPORT_HEAD))])
