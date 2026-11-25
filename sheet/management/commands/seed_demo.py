@@ -111,6 +111,10 @@ class Command(BaseCommand):
                              ("closure", ("WEATHER", "FOG", "STRIKE", "OTHER"))):
             for value in values:
                 Option.objects.get_or_create(kind=kind, value=value, port="")
+        for port, values in (("alexandria", ("ACCHCO", "AICT")), ("portsaid", ("TMT",)), ("damietta", ("DIGCT",)),
+                             ("suez", ("SUEZ TERMINAL",))):
+            for value in values:
+                Option.objects.get_or_create(kind="terminal", value=value, port=port)
         if Vessel.objects.exists():
             return
         # Port closures: yesterday's weather closure in Alexandria, and Port Said still closed by fog.

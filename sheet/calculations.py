@@ -8,7 +8,7 @@ maths as the vessel figures (finance.service_lines / logistics.booking_line), so
 from dataclasses import dataclass
 from datetime import date
 
-from . import disposal
+from . import disposal, ports
 from .access import scoped_vessels
 from .constants import BILLING, NO_AGENT, SERVICE_STATUSES
 from .errors import BadRequest
@@ -22,6 +22,7 @@ SORT_KEYS = {
     "date": lambda r: r["vessel"]["date"],
     "vessel": lambda r: r["vessel"]["name"].casefold(),
     "opr": lambda r: r["vessel"]["opr"].casefold(),
+    "port": lambda r: r["vessel"]["port_label"].casefold(),
     "kind": lambda r: r["kind"].casefold(),
     "cost": lambda r: r["cost_egp"],
     "revenue": lambda r: r["revenue_egp"],
@@ -130,7 +131,7 @@ def _row(vessel, kind, item, state):
     usd = _usd(item)
     return {
         "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "opr": vessel.opr,
-                   "port": vessel.port},
+                   "port": vessel.port, "port_label": ports.label(vessel.port)},
         "kind": kind,
         "label": item["label"],
         "note": item["note"],

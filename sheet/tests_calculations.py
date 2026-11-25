@@ -159,6 +159,11 @@ class CalculationsApiTests(ApiTestCase):
         for params in ({"sort": "price"}, {"page": "0"}, {"from": "x"}, {"dir": "up"}):
             self.assertEqual(self.status("admin", **params), 400, params)
 
+    def test_each_row_names_its_port_and_sorts_by_it(self):
+        rows = self.get("admin", sort="port", dir="asc")["rows"]
+        self.assertEqual([r["vessel"]["port_label"] for r in rows][0], "Alexandria")
+        self.assertEqual(self.get("admin", sort="port", dir="desc")["rows"][0]["vessel"]["port_label"], "Suez")
+
 
     def test_the_opr_choices_are_the_oprs_in_range_and_scope(self):
         Vessel.objects.filter(pk=self.alex_vessel.pk).update(opr="ARK")

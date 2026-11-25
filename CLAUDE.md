@@ -239,7 +239,8 @@ USD (a figure needing a missing rate is None, the row flagged). The money is on 
 **Calculations** (`calculations.py`, `GET /api/calculations/`): vessels in a vessel-date range / exact OPR / port →
 `service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
 filtered rows, and the OPRs present in the range for the page's dropdown. Computed on each request, never stored.
-Every role may read it. Each row carries `status` / `cancel_reason` (service rows; None for bookings and garbage),
+Every role may read it. Rows' `vessel` has `port_label` (sort `port`; the page's Port column shows for
+`ME.multiPort`). Each row carries `status` / `cancel_reason` (service rows; None for bookings and garbage),
 `closed` and `ref {kind, id}` (what `/api/accounting/` closes; None for garbage with no `VesselDisposal` yet).
 `status=` / `accounting=` comma lists filter the rows (unknown → 400, empty items ignored; any `status` filter drops
 rows without a status); totals follow the filters and add `open` / `closed`.
@@ -390,6 +391,11 @@ did that service), all plain text from the Agent list, empty until chosen. `list
 "Missing details" alert (key `missing`): vessels dated before today (Cairo) missing any of the five times, a needed
 delay reason, or any agent (every service type needs one).
 
+**Terminal / berth** (migration 0029): `Vessel.terminal` (Master data "Terminal" list of its port, optional) and
+`Vessel.berth` (typed, 20 characters); a save without the key keeps the stored value. Shown in the vessel form and
+Port call block, in the vessel CSV, and as a "Port / Terminal / Berth" table on the management Excel's Port
+performance sheet. `seed_demo` adds terminals for every demo port (Alexandria ACCHCO / AICT, Port Said TMT…).
+
 **Delay reason:** `Vessel.delay_reason` (Master data "Delay reason" list) is required when berthing is more than 2
 hours after arrival (`constants.is_delayed`, exactly 2:00 is not delayed) and refused otherwise
 (`validators.clean_delay_reason`; a PUT without the key keeps the stored reason). The vessel form shows it while the
@@ -400,8 +406,8 @@ closed from, reopened or empty = still closed, reason from the "Closure reason" 
 Scoped by its own port with `access.scoped_closures`; the list shows closures overlapping a date range. Page
 `js/pages/closures.js`, dialog `js/modals/closure.js`.
 
-**Master data** (`Option`: kind, value, `port`): eight lists (OPR, POC, Agent, Hotel, Airport, Port, Delay reason,
-Closure reason). `port` is `""`
+**Master data** (`Option`: kind, value, `port`): nine lists (OPR, POC, Agent, Hotel, Airport, Port, Delay reason,
+Closure reason, Terminal). `port` is `""`
 for All ports or one port key. Users only ever create values for one of their ports (home port when none is named;
 never All ports) and see All-ports + their own; admins choose the port when adding and move values with `PATCH /api/options/<id>/` (admin only). Every dropdown is
 built with `optionChoices(kind, current, port)` → only that port's + All-ports values, always keeping `current`.

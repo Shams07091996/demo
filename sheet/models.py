@@ -190,6 +190,8 @@ class Vessel(models.Model):
     sailing_at = models.DateTimeField(null=True, blank=True)
     # From the Master data "delay" list; required when berthing is more than 2 hours after arrival (validators).
     delay_reason = models.CharField("Delay reason", max_length=100, blank=True)
+    terminal = models.CharField(max_length=100, blank=True)  # from the Master data "terminal" list of its port
+    berth = models.CharField(max_length=20, blank=True)  # typed, e.g. "98/1"
     port = models.CharField(max_length=20, default="alexandria", db_index=True)  # a Port key
     summary = models.JSONField(default=dict, blank=True)  # optional vendor / invoice notes
     ship = models.ForeignKey(Ship, on_delete=models.PROTECT, null=True, blank=True, related_name="vessels")

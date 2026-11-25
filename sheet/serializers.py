@@ -81,6 +81,8 @@ def vessel_to_dict(vessel, rates):
         "summary": vessel.summary or {},
         **{key: local_iso(getattr(vessel, key)) for key in TIME_KEYS},
         "delay_reason": vessel.delay_reason,
+        "terminal": vessel.terminal,
+        "berth": vessel.berth,
         "ship": _ship(vessel.ship),
         "status": vessel_status(vessel),
         "durations": {
