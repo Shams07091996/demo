@@ -43,7 +43,7 @@ function card(t) {
     h('div', { class: 'op-live-grid' },
       h('div', null, h('div', { class: 'dash-title' }, 'Under operation'),
         table(['Vessel', 'Line', 'Berth', 'ATB', 'Cranes', 'Discharge', 'Loading', 'Moves/hr'], working)),
-      h('div', null, h('div', { class: 'dash-title' }, 'Next 7 days (from today)'),
+      h('div', null, h('div', { class: 'dash-title' }, 'Next 7 days'),
         table(['Vessel', 'Line', 'ETA', 'LOA', 'Berth', 'ETB', 'ETC'], upcoming))));
 }
 

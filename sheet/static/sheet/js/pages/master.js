@@ -1,4 +1,5 @@
 // Master data page: the OPR, POC, Agent, Hotel, Airport and Port lists.
+import { deleteBtn } from '../components.js';
 import { ME, OPTION_KINDS, can, openPorts, PORTS, PORT_LABEL } from '../config.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { state } from '../state.js';
@@ -32,10 +33,7 @@ function optionRow(option) {
     h('span', { class: 'opt-ctl' }, scope, ' ',
       h('small', null, `${option.used} ${usageUnit(option.kind, option.used)}`), ' ',
       canRemove
-        ? h('button', {
-          class: 'btn danger small',
-          dataset: { act: 'del-option', id: option.id, used: option.used, kind: option.kind, value: option.value },
-        }, 'Remove')
+        ? deleteBtn('del-option', { id: option.id, used: option.used, kind: option.kind, value: option.value }, 'danger small')
         : null));
 }
 

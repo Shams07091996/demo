@@ -51,6 +51,12 @@ export const portOptionEls = ({ all = false, selected = '', ports = myPorts() } 
 export const formPorts = (open, current) =>
   (current && !open.some((p) => p.key === current) ? [...open, { key: current, label: PORT_LABEL[current] || current }] : open);
 
+/** A Delete button: the bin icon only, its label ("Delete") as the tooltip and accessible name. */
+export const deleteBtn = (act, dataset = {}, cls = 'danger', label = 'Delete') => h('button', {
+  class: `btn ${cls} icon-only`, dataset: { act, ...dataset },
+  attrs: { type: 'button', title: label, 'aria-label': label },
+}, icon('trash'));
+
 /** Dialog header: title, optional meta line (nodes or text), close button. */
 export const headEl = (title, meta = null) =>
   h('div', { class: 'm-head' },

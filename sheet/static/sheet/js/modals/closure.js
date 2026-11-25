@@ -1,7 +1,7 @@
 // The add / edit dialog for a port closure. The server checks everything again (port, times, reason from Master data).
 import { api, mutate } from '../api.js';
 import { showConflict } from '../conflict.js';
-import { formPorts, headEl, optionChoicesEl, portOptionEls } from '../components.js';
+import { deleteBtn, formPorts, headEl, optionChoicesEl, portOptionEls } from '../components.js';
 import { ME, openPorts } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
@@ -36,7 +36,7 @@ export function openClosureDialog(id = null) {
       h('div', { class: 'field' }, h('label', null, 'Notes'),
         h('input', { attrs: { name: 'notes', maxlength: 500 }, value: closure?.notes }))),
     h('div', { class: 'm-foot' },
-      closure ? btn('danger', 'closure-del', 'Delete', { id: closure.id }) : h('span'),
+      closure ? deleteBtn('closure-del', { id: closure.id }) : h('span'),
       h('div', { class: 'right' }, btn('ghost', 'close', 'Cancel'), ' ', btn('primary', 'closure-save', 'Save'))),
   );
 }

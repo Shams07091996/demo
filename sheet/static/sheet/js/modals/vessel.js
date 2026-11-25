@@ -1,8 +1,5 @@
 // Vessel details (port call + services) and the add / edit vessel form.
-import {
-  closedNoteEl, formPorts, headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass,
-  serviceStatusEl, statusChipEl,
-} from '../components.js';
+import { closedNoteEl, deleteBtn, formPorts, headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass, serviceStatusEl, statusChipEl } from '../components.js';
 import { ME, MULTI, can, openPorts, serviceDetails, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
 import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
@@ -50,7 +47,7 @@ function serviceCard(service) {
   const actions = [
     can('documents') ? [btn('ghost small', 'receipt', [icon('file'), ' Receipt'], { id: service.id }), ' '] : null,
     can('services.edit') ? [btn('ghost small', 'edit-service', [icon('pencil'), ' Edit'], { id: service.id }), ' ',
-      btn('danger small', 'del-service', [icon('trash'), ' Delete'], { id: service.id })] : null,
+      deleteBtn('del-service', { id: service.id }, 'danger small')] : null,
   ];
   return h('div', { class: 'svc-card' },
     h('div', { class: 'svc-top' },
@@ -91,7 +88,7 @@ export async function openVessel(id) {
       totals,
       vessel.services.length ? vessel.services.map(serviceCard) : h('div', { class: 'hint' }, 'No services recorded for this vessel yet.')),
     h('div', { class: 'm-foot' },
-      can('vessels.delete') ? btn('danger', 'del-vessel', 'Delete vessel') : h('span'),
+      can('vessels.delete') ? deleteBtn('del-vessel') : h('span'),
       h('div', { class: 'right' },
         can('vessels.edit') ? btn('ghost', 'edit-vessel', 'Edit vessel info') : null, ' ',
         btn('ghost', 'close', 'Close'))),

@@ -1,7 +1,7 @@
 // Adding / editing a service: the type picker, the per-type forms, the live profit preview and the crew editor.
 import { api } from '../api.js';
 import { calcLocal } from '../calc.js';
-import { closedNoteEl, headEl, optionChoicesEl } from '../components.js';
+import { closedNoteEl, deleteBtn, headEl, optionChoicesEl } from '../components.js';
 import { BILLING, MULTI, RATE_UNITS, SERVICE_FIELDS, SERVICE_STATUS, TYPES, can } from '../config.js';
 import { crewBookingDefaults } from '../crewBookings.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
@@ -136,7 +136,7 @@ export function entryRowEl(type, entry = {}) {
   const isParcel = type === 'Delivery Parcels';
   return h('div', { class: 'entry', dataset: entry.uid ? { uid: entry.uid } : {} },
     h('div', { class: 'entry-head' }, h('span', { class: 'entry-no' }),
-      h('button', { class: 'btn danger small', dataset: { act: 'rm-entry' } }, 'Remove')),
+      deleteBtn('rm-entry', {}, 'danger small', 'Remove')),
     h('div', { class: `row ${isParcel ? 'two' : ''}`.trim() },
       field('AWB No.', h('input', { dataset: { f: 'awb' }, attrs: { placeholder: 'e.g. 123-45678901' }, value: entry.awb })),
       isParcel ? field('Weight (kg)', numberInput({ dataset: { f: 'weight' } }, entry.weight)) : null),
@@ -261,7 +261,7 @@ function crewGroupEl(group, label, color) {
       h('div', { class: 'crew-head', dataset: { act: 'toggle-crew' } },
         h('span', { class: 'crew-name' }, m.name || `Crew member ${i + 1}`),
         h('span', { class: 'crew-actions' }, isOff ? null : logLink(m),
-          h('button', { class: 'btn danger small', dataset: { act: 'rm-crew' } }, 'Remove'))),
+          deleteBtn('rm-crew', {}, 'danger small', 'Remove'))),
       h('div', { class: 'crew-body' },
         field('Full name', h('input', { dataset: { crew: 'name' }, value: m.name })),
         field('Flight details', h('textarea', { dataset: { crew: 'flightData' }, value: m.flightData }),
