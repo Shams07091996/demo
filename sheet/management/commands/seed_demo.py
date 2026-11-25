@@ -36,6 +36,29 @@ DEMO_USERS = [
 ]
 # Demo users that start from a template (constants.TEMPLATES); every other User gets every permission and page.
 DEMO_TEMPLATES = {"marine": "marine"}
+# Ticks a demo user does not get (viewer looks at the Operation pages without changing them).
+DEMO_WITHOUT = {"viewer": ("operation.edit", "operation.delete")}
+# The berthing workbook's terminals (all in Alexandria / Dekheila) and one in Port Said for the scoping checks.
+DEMO_TERMINALS = [
+    ("ACCHCO - ALX", "EGALY", "alexandria", 500, 4, ["23", "24", "25"]),
+    ("AICT - ALX", "EGAIT", "alexandria", 350, 2, ["40/1", "40/2"]),
+    ("ACCHCO - DKH", "EGEDK", "alexandria", 1000, 8, ["96/1", "96/2", "96/3", "96/4"]),
+    ("AICT - DKH", "EGACT", "alexandria", 500, 3, ["98/1", "98/2"]),
+    ("TMT - ALX", "TMT", "alexandria", 1200, 4, ["27", "28"]),
+    ("PSD EAST", "PSDE", "portsaid", 600, 3, ["1", "2"]),
+]
+DEMO_LINES = ("ARKAS", "MAERSK", "SOC", "ICR", "CUL", "MCL")
+# The workbook's seven visits: name, line, terminal, LOA, hours from day 0 of ETA / ATA / ATB / ATD, cranes,
+# discharge, loading, planned / actual berth. Day 0 is 14 days ago, so all of them have sailed.
+DEMO_VISITS = [
+    ("ALLEGRI", "ARKAS", "ACCHCO - ALX", 200, 6, 7, 11, 46, 2, 700, 800, "25", "25"),
+    ("EGYCROWN", "MAERSK", "AICT - ALX", 150, 32, 33, 38, 53, 2, 500, 500, "40/1", "40/1"),
+    ("MYD", "MCL", "AICT - DKH", 200, 249, 251, 254, 265, 2, 200, 300, "98/2", "98/2"),
+    ("TB QUANZHOU", "MCL", "AICT - DKH", 150, 278, 289, 290, 317, 2, 250, 400, "98/1", "98/2"),
+    ("ZHONG GU", "CUL", "AICT - ALX", 150, 102, 103, 106, 134, 2, 500, 500, "40/1", "40/2"),
+    ("GLEVIN", "ICR", "AICT - DKH", 100, 54, 55, 59, 122, 2, 200, 500, "98/2", "98/2"),
+    ("ROZA", "ARKAS", "ACCHCO - ALX", 200, 169, 171, 186, 193, 1, 100, 500, "25", "23"),
+]
 
 
 class Command(BaseCommand):
@@ -60,6 +83,7 @@ class Command(BaseCommand):
         if key:
             self._give_devices(key)
         self._create_vessels()
+        self._create_operation()
 
     @staticmethod
     def _hex_key(text):
@@ -92,9 +116,49 @@ class Command(BaseCommand):
             ports = [] if role == "admin" else ([role] if isinstance(role, str) else list(role))
             template = next((t for t in TEMPLATES if t[0] == DEMO_TEMPLATES.get(username)), None)
             permissions, pages = (template[2], template[3]) if template else (PERMISSION_KEYS, PAGE_KEYS)
+            permissions = [key for key in permissions if key not in DEMO_WITHOUT.get(username, ())]
             Profile.objects.update_or_create(user=user, defaults={"home_port": ports[0] if ports else "",
                                                                   "ports": ports, "permissions": list(permissions),
                                                                   "pages": list(pages)})
+
+    @staticmethod
+    def _create_operation():
+        """Berthing demo: the workbook's terminals, shipping lines and visits, plus vessels working now and due
+        in the next days (so Live data always has rows)."""
+        from operation.models import Terminal, Visit
+
+        terminals = {}
+        for position, (name, code, port, quay, cranes, berths) in enumerate(DEMO_TERMINALS):
+            terminals[name], _ = Terminal.objects.get_or_create(name=name, defaults={
+                "code": code, "port": port, "quay_length": quay, "cranes": cranes, "berths": berths,
+                "position": position})
+        for value in DEMO_LINES:
+            Option.objects.get_or_create(kind="line", value=value, port="")
+        if Visit.objects.exists():
+            return
+        day0 = timezone.make_aware(datetime.combine(date.today() - timedelta(days=14), time()))
+        for name, line, term, loa, eta, ata, atb, atd, cranes, disch, load, planned, actual in DEMO_VISITS:
+            Visit.objects.create(
+                terminal=terminals[term], vessel_name=name, shipping_line=line, loa=loa,
+                eta=day0 + timedelta(hours=eta), ata=day0 + timedelta(hours=ata), atb=day0 + timedelta(hours=atb),
+                atd=day0 + timedelta(hours=atd), cranes=cranes, discharge=disch, loading=load,
+                planned_berth=planned, actual_berth=actual)
+        now = timezone.now().replace(minute=0, second=0, microsecond=0)
+        hour = timedelta(hours=1)
+        Visit.objects.create(terminal=terminals["ACCHCO - ALX"], vessel_name="NORDIC STAR", shipping_line="ARKAS",
+                             loa=210, eta=now - 9 * hour, ata=now - 8 * hour, atb=now - 5 * hour, cranes=3,
+                             discharge=180, loading=60, planned_berth="24", actual_berth="24")
+        Visit.objects.create(terminal=terminals["AICT - DKH"], vessel_name="CAPE ORION", shipping_line="MAERSK",
+                             loa=180, eta=now - 4 * hour, ata=now - 3 * hour, atb=now - 2 * hour, cranes=2,
+                             planned_berth="98/1", actual_berth="98/1")
+        for name, line, term, hours_ahead, loa, berth in (
+                ("SEA FALCON", "CUL", "ACCHCO - ALX", 20, 190, "23"),
+                ("BLUE MARLIN", "MCL", "AICT - ALX", 40, 140, "40/1"),
+                ("RED CORAL", "ICR", "TMT - ALX", 70, 230, "27"),
+                ("PORT STAR", "SOC", "PSD EAST", 30, 160, "1")):
+            eta = now + hours_ahead * hour
+            Visit.objects.create(terminal=terminals[term], vessel_name=name, shipping_line=line, loa=loa, eta=eta,
+                                 etb=eta + 3 * hour, etc=eta + 27 * hour, planned_berth=berth)
 
     def _create_vessels(self):
         today = date.today()
