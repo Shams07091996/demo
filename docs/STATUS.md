@@ -5,7 +5,7 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Operation, round 2 (2026-11-26):** on branch `feature/operation-round2`, **not merged** (waiting for the user).
+- **Operation, round 2 (2026-11-26):** merged into main by the user (2026-11-26), from branch `feature/operation-round2` (deleted).
   Needs migrations **`operation 0002_terminal_lines`** and **`0003_listed_vessel`**. Vessel Data shows ETA / ETB /
   ETC then ATA / ATB / ATD; ETB before ETA is refused; Live data has All / one-terminal buttons and each terminal's
   picture (files in `DJANGO_LETTERHEAD_DIR/terminals/<CODE>.png`, no upload in the app; the five cut from the
