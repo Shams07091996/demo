@@ -5,7 +5,7 @@ Last updated: 2026-11-25. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Operation app (2026-11-25):** on branch `feature/operation-app`, **not merged** (waiting for the user). Needs
+- **Operation app (2026-11-25):** merged into main by the user (2026-11-25), from branch `feature/operation-app` (deleted). Needs
   migrations **`operation 0001_initial`** and **`sheet 0030_option_line`** (new tables; a new Master data list
   "Shipping line"). A new folder **Operation** below Marine with Vessel Data, Live data, Analysis reports and Report
   charts (the user's `ARKAS_Port_Berthing` workbook, hidden sheet ignored) and a Terminals page for Admins under
