@@ -7,6 +7,8 @@ export const ME = readJson('me-data');
 export const PORTS = readJson('ports-data');
 export const TYPES = readJson('types-data');
 export const RATE_UNITS = readJson('rate-units-data'); // {service type: service | unit | line | percent}
+// {service type: {fields: [{key, label, kind, max?, choices?}], label, suffix, cost_label?, cost_currency?}}
+export const SERVICE_FIELDS = readJson('service-fields-data'); // constants.SERVICE_FIELDS
 export const SUMMARY_FIELDS = readJson('summary-fields-data');
 export const OPTION_KINDS = readJson('option-kinds-data');   // [{key, label}] OPR / POC / Agent
 export const TIME_FIELDS = readJson('time-fields-data');      // [{key, label}] arrival … sailing
@@ -28,11 +30,22 @@ export const openPorts = () => myPorts().filter((p) => p.active);
 
 // Service kinds (must match sheet/constants.py).
 export const MULTI = ['Delivery Parcels', 'Delivery Courier', 'Landing'];
-export const SINGLE_EXTRA = {
-  'Medical Treatment': { name: 'patientName', label: 'Patient name', type: 'text' },
-  Certificates: { name: 'certName', label: 'Certificate name', type: 'text' },
-  'Fresh Water': { name: 'quantity', label: 'Quantity (tons)', type: 'number' },
-};
+
+const dayText = (iso) => iso.split('-').reverse().join('.');
+
+/** [[label, text]] of a service's filled detail fields (SERVICE_FIELDS), dates as dd.mm.yyyy (HH:MM). */
+export function serviceDetails(type, data) {
+  return (SERVICE_FIELDS[type]?.fields || []).flatMap((f) => {
+    const value = data?.[f.key];
+    if (value === null || value === undefined || value === '') return [];
+    if (f.kind === 'date') return [[f.label, dayText(String(value))]];
+    if (f.kind === 'datetime') {
+      const [day, clock] = String(value).split('T');
+      return [[f.label, `${dayText(day)} ${clock || ''}`.trim()]];
+    }
+    return [[f.label, String(value)]];
+  });
+}
 
 // Operations status of a service (sheet/constants.py SERVICE_STATUSES) and its label colour (app.css).
 export const BILLING = { account: 'On account', cash: 'Cash' }; // constants.BILLING
@@ -52,6 +65,7 @@ export const STATUS_LABEL = {
 export const CHART_COLORS = [
   'var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)',
   'var(--c6)', 'var(--c7)', 'var(--c8)', 'var(--c9)', 'var(--c10)',
+  'var(--c11)', 'var(--c12)', 'var(--c13)', 'var(--c14)',
 ];
 
 export const el = {

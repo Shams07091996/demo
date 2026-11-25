@@ -10,7 +10,7 @@ Hotel stays and transfers use the same `money` / `line` helpers (see logistics.b
 
 import math
 
-from .constants import MULTI_TYPES, SINGLE_EXTRAS
+from .constants import MULTI_TYPES, SERVICE_FIELDS
 
 
 def num(value):
@@ -71,12 +71,14 @@ def _number_text(value):
 
 
 def _single_label(service_type, data):
-    extra = SINGLE_EXTRAS.get(service_type)
-    if extra == "quantity":
-        detail = f"{_number_text(data.get('quantity'))} t" if _number_text(data.get("quantity")) else ""
-    else:
-        detail = str(data.get(extra) or "").strip() if extra else ""
-    return f"{service_type} · {detail}" if detail else service_type
+    """The type, then its label field (constants.SERVICE_FIELDS) when filled: "Fresh Water · 5 t"."""
+    table = SERVICE_FIELDS.get(service_type) or {}
+    key = table.get("label")
+    spec = next((f for f in table.get("fields", []) if f["key"] == key), None)
+    if spec is None:
+        return service_type
+    value = _number_text(data.get(key)) if spec["kind"] == "number" else str(data.get(key) or "").strip()
+    return f"{service_type} · {value}{table['suffix']}" if value else service_type
 
 
 def _entry_label(service_type, entry):

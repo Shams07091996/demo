@@ -1036,6 +1036,20 @@ async function login() {
   click($('[data-act="save-service"]'));
   ok(await waitFor(() => $('[data-act="add-service"]') && modalText().includes('our share fixed USD 100.00')), 'Cash to Master saved');
 
+  /* ======== a service with its own fields: Suez Canal Transit ======== */
+  click($('[data-act="add-service"]'));
+  click($('[data-type="Suez Canal Transit"]')); await waitFor(() => $('#svc-form'));
+  ok($('#svc-form select[name=direction]') && $('#svc-form [name=canalEntry]').type === 'datetime-local'
+    && $('#svc-form [name=expectedTransit]').type === 'date', 'suez: its own fields (direction, canal entry, expected transit)');
+  const scaLabel = $$('#svc-form .field label').find((l) => l.textContent === 'SCA charges');
+  ok(scaLabel && scaLabel.parentElement.querySelector('[name=costCurrency]').value === 'USD', 'suez: the cost is SCA charges in USD');
+  type($('#svc-form [name=direction]'), 'Northbound');
+  type($('#svc-form [name=canalEntry]'), '2020-01-16T05:30');
+  type($('#svc-form [name=cost]'), '1000');
+  click($('[data-act="save-service"]'));
+  ok(await waitFor(() => !$('#svc-form') && modalText().includes('Direction: Northbound') && modalText().includes('Canal entry: 16.01.2020 05:30')),
+    'suez: saved, its fields show on the card');
+
   /* ======== multi-entry ======== */
   click($('[data-act="add-service"]'));
   click($('[data-type="Delivery Parcels"]')); await waitFor(() => $('#svc-form'));
