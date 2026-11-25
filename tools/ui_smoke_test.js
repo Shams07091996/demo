@@ -1813,10 +1813,18 @@ async function login() {
     const page = (key) => $(`#account-form [data-tick-page="${key}"]`);
     ok(perm('history.view').disabled && page('calculations').disabled && page('vessels').checked && page('vessels').disabled,
       'accounts: ticks that need See money are disabled; Vessels is always on');
+    ok($$('#account-form .tick-all').map((l) => l.textContent.trim()).join('|')
+      === 'All|Marine|Operation|Reports|Master data|Marine|Operation|General', 'accounts: Pages and Can come in groups, each with All');
+    const opAll = $('#account-form [data-all^="perm:operation."]');
+    opAll.checked = true;
+    opAll.dispatchEvent(new w.Event('change', { bubbles: true }));
+    ok(perm('operation.edit').checked && perm('operation.master').checked && page('op_vessels').checked && !perm('vessels.edit').checked,
+      "accounts: Operation's All ticks the Operation work and the Vessel Data page it needs, not Marine");
     type($('#account-form [name=template]'), 'manager');
     ok(perm('money.view').checked && perm('accounting.close').checked && perm('vessels.edit').checked
-      && page('calculations').checked && page('history').checked && page('history').disabled,
-      'accounts: the Branch manager template ticks every box');
+      && page('calculations').checked && page('history').checked && page('history').disabled
+      && $$('#account-form [data-all]').every((a) => a.checked),
+      'accounts: the Branch manager template ticks every box (and every All shows ticked)');
     click($('[data-act="account-save"]'));
     ok(await waitFor(() => acRow(username)?.children[2].textContent === 'Suez (home)'), 'accounts: the ports change');
     ok(acRow(username).children[3].textContent === '19 of 19', 'accounts: the Can column counts the permissions');

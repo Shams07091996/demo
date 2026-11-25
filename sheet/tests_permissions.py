@@ -554,3 +554,34 @@ class IndexTests(Limited):
         make_user("odd", "alexandria", permissions=["accounting.close"], pages=["calculations"])
         me = self.me(self.login("odd").get("/"))
         self.assertEqual((me["permissions"], me["pages"]), ([], ["vessels"]))
+
+
+class TickGroupsTwinTests(TestCase):
+    """js/tickGroups.js (the Accounts dialog's groups) names every permission and page once, with the server's needs."""
+
+    def setUp(self):
+        from pathlib import Path
+
+        self.js = (Path(__file__).parent / "static/sheet/js/tickGroups.js").read_text(encoding="utf-8")
+
+    def _block(self, name):
+        import re
+
+        body = re.search(name + r" = Object\.freeze\(([\s\S]*?)\n\]\);", self.js).group(1)
+        return re.findall(r"'([a-z_.]+)'", re.sub(r"\['[A-Z][^']*', ", "[", body))
+
+    def test_every_key_in_exactly_one_group(self):
+        for name, keys in (("CAN_GROUPS", PERMISSION_KEYS), ("PAGE_GROUPS", PAGE_KEYS)):
+            listed = self._block(name)
+            self.assertEqual(sorted(listed), sorted(keys), name)
+
+    def test_needs_equal_the_server(self):
+        import re
+
+        from .constants import PAGE_NEEDS, PERMISSION_NEEDS
+
+        js = dict(re.findall(r"'(\w+:[a-z_.]+)': '(\w+:[a-z_.]+)'", self.js))
+        server = {f"page:{k}": f"perm:{v}" for k, v in PAGE_NEEDS.items()}
+        server |= {f"perm:{k}": f"{'perm' if kind == 'permission' else 'page'}:{v}"
+                   for k, (kind, v) in PERMISSION_NEEDS.items()}
+        self.assertEqual(js, server)
