@@ -267,8 +267,12 @@ async function login() {
     ok(!$('#modal [data-act="del-vessel"]') && !!$('#modal [data-act="edit-vessel"]') && !!$('#modal [data-act="add-service"]'),
       'marine: the vessel dialog edits but cannot delete');
     ok(!$('#modal [data-act="receipt"]'), 'marine: no Receipt button without documents');
+    // Money (piece 3): they type money (money.edit) but get no overview (no money.view).
+    ok(!$('#modal').textContent.includes('Total profit') && !$('#modal').textContent.includes('Total cost'),
+      'marine: the vessel dialog shows no total cost or profit');
     click($('#modal [data-act="edit-service"]'));
     ok(await waitFor(() => $('#svc-form [name=status]')), 'marine: a service opens for editing');
+    ok(!!$('#svc-form [name=cost]') && !!$('#svc-form #preview'), 'marine: the service dialog has its Cost box and the preview');
     const option = (value) => [...$('#svc-form [name=status]').options].find((o) => o.value === value);
     ok(!option('completed').disabled && option('cancelled').disabled, 'marine: Completed can be chosen, Cancelled cannot');
     closeModal();
@@ -278,6 +282,10 @@ async function login() {
     ok(await waitFor(() => $('#pageTitle').textContent === 'Vessels'), 'marine: #calculations lands on Vessels');
     ok((await w.fetch('/api/calculations/')).status === 403, 'marine: the Calculations API refuses them');
     ok((await w.fetch('/api/history/')).status === 403, 'marine: the History API refuses them');
+    ok((await w.fetch('/api/vessels/?sort=total_cost_egp')).status === 403, 'marine: sorting vessels by money is refused');
+    const listed = await (await w.fetch('/api/vessels/')).json();
+    ok(!('profit_egp' in listed.totals) && listed.vessels.every((v) => !('total_profit_egp' in v)),
+      'marine: the vessel list sends no totals or profit');
     return finish();
   }
 

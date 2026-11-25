@@ -17,6 +17,7 @@ function load(entry) {
 const { parsePersonal, parseFlightText } = load('crewParsing.js');
 const { isDelayed, limitRows, statusNeeds, tickSummary } = load('util.js');
 const { fillRevenue, rateFor } = load('rates.js');
+const { stripMoney } = load('moneyKeys.js');
 
 let failed = 0;
 const check = (cond, label) => { console.log(`${cond ? 'PASS' : 'FAIL'} ${label}`); if (!cond) failed += 1; };
@@ -114,6 +115,17 @@ check(same(statusNeeds('cancelled', 'in_progress'), ['services.cancel']), 'statu
 check(same(statusNeeds('in_progress', 'completed'), ['services.complete']), 'status: to Completed needs complete');
 check(same(statusNeeds('completed', 'in_progress'), ['services.complete']), 'status: from Completed needs complete');
 check(same(statusNeeds('cancelled', 'completed'), ['services.cancel', 'services.complete']), 'status: both');
+
+/* ---------- without money.edit the service dialog sends no money (js/moneyKeys.js, twin of moneyaccess.py) ---------- */
+check(same(stripMoney('Fresh Water', { quantity: 5, cost: 10, costCurrency: 'USD', revenue: 20, revenueCurrency: 'EGP', exchangeRate: 50 }),
+  { quantity: 5 }), 'money: a single service keeps only its quantity');
+check(same(stripMoney('Delivery Parcels', { entries: [{ uid: 'a', awb: '123', weight: 4, cost: 1, costCurrency: 'USD', revenue: 2, revenueCurrency: 'USD' }], exchangeRate: 50 }),
+  { entries: [{ uid: 'a', awb: '123', weight: 4 }] }), 'money: lines keep AWB, weight and uid');
+check(same(stripMoney('Crew Change', { onSigners: [{ uid: 'a', name: 'Ali', needsHotel: true, brokenVisa: { cost: 5 } }], offSigners: [{ uid: 'b', name: 'Omar' }], cost: 3, revenue: 4 }),
+  { onSigners: [{ uid: 'a', name: 'Ali', needsHotel: true }], offSigners: [{ uid: 'b', name: 'Omar' }] }), 'money: crew keep everything but the broken visa');
+check(same(stripMoney('Cash to Master', { amount: 100, amountCurrency: 'USD', shareMode: 'percent', percentage: 5, fixedRevenue: null, exchangeRate: null }), {}),
+  'money: Cash to Master sends nothing');
+check(same(stripMoney('Others / Remarks', { note: 'x', cost: 1 }), { note: 'x' }), 'money: a note stays');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

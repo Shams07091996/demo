@@ -6,12 +6,17 @@ import { BILLING, MULTI, RATE_UNITS, SERVICE_STATUS, SINGLE_EXTRA, TYPES, can } 
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
+import { stripMoney } from '../moneyKeys.js';
 import { customerById, customerOptionEls, loadCustomers } from '../parties.js';
 import { fillRevenue, rateFor } from '../rates.js';
 import { getVessel, state } from '../state.js';
 import { $, $$, fmt, formValues, sign, statusNeeds } from '../util.js';
 
 /* ---------- form field builders ---------- */
+
+// The money boxes (and the live preview, the agreed-rate fill, Cancelled -> 0) are there only with money.edit:
+// without it the server sends no money and refuses any (sheet/moneyaccess.py).
+const mayMoney = () => can('money.edit');
 
 const currencySelect = (props, selected) => h('select', props, optionEls([['EGP', 'EGP'], ['USD', 'USD']], selected));
 const numberInput = (props, value, extra = {}) =>
@@ -68,7 +73,7 @@ const UNIT_TEXT = { service: '', unit: ' per unit', line: ' per line', percent: 
 
 /** Fill the revenue from the billing party's agreed rate (js/rates.js decides which boxes may be filled). */
 export function applyRate({ fill = true } = {}) {
-  if (state.ctx.view !== 'service-form') return;
+  if (state.ctx.view !== 'service-form' || !mayMoney()) return;
   const root = $('#svc-form');
   const partyId = Number($('[name=billing_party]', root).value) || null;
   const rate = rateFor(customerById(partyId), state.ctx.type, RATE_UNITS);
@@ -128,13 +133,13 @@ const MONEY_INPUTS = '[name=cost], [name=revenue], [name=amount], [name=fixedRev
 
 export function entryRowEl(type, entry = {}) {
   const isParcel = type === 'Delivery Parcels';
-  return h('div', { class: 'entry' },
+  return h('div', { class: 'entry', dataset: entry.uid ? { uid: entry.uid } : {} },
     h('div', { class: 'entry-head' }, h('span', { class: 'entry-no' }),
       h('button', { class: 'btn danger small', dataset: { act: 'rm-entry' } }, 'Remove')),
     h('div', { class: `row ${isParcel ? 'two' : ''}`.trim() },
       field('AWB No.', h('input', { dataset: { f: 'awb' }, attrs: { placeholder: 'e.g. 123-45678901' }, value: entry.awb })),
       isParcel ? field('Weight (kg)', numberInput({ dataset: { f: 'weight' } }, entry.weight)) : null),
-    h('div', { class: 'row two' },
+    !mayMoney() ? null : h('div', { class: 'row two' },
       field('Revenue', h('div', { class: 'row money' },
         numberInput({ dataset: { f: 'revenue' } }, entry.revenue),
         currencySelect({ dataset: { f: 'revenueCurrency' } }, entry.revenueCurrency || 'USD'))),
@@ -191,7 +196,7 @@ function crewGroupEl(group, label, color) {
           h('div', { class: 'parsed', dataset: { parsed: 'personal' } }, personalNote(m))),
         h('label', { class: 'check' },
           h('input', { attrs: { type: 'checkbox' }, dataset: { crew: 'needsHotel' }, checked: Boolean(m.needsHotel) }), ' Needs hotel'),
-        isOff ? null : h('div', { class: 'row two' },
+        isOff || !mayMoney() ? null : h('div', { class: 'row two' },
           visaField(m, 'cost', 'Broken visa cost', 'USD'), visaField(m, 'revenue', 'Broken visa revenue', 'USD')))));
   return [
     h('div', { class: 'section-title', style: { ...(isOff ? { marginTop: '16px' } : {}), color } },
@@ -242,10 +247,10 @@ function cashToMasterFields(vessel, d) {
 
 function formFields(type, vessel, d) {
   // Every service has a cost and a revenue (Crew Change and Others / Remarks too).
-  const money = () => [
+  const money = () => (!mayMoney() ? [] : [
     moneyField('Revenue', 'revenue', 'revenueCurrency', d, 'USD'), moneyField('Cost', 'cost', 'costCurrency', d, 'EGP'),
     rateField(vessel, d), previewBox(),
-  ];
+  ]);
   if (type === 'Others / Remarks') {
     return [field('Notes', h('textarea', { attrs: { name: 'note', maxlength: 1000 }, value: d.note })), money()];
   }
@@ -254,10 +259,10 @@ function formFields(type, vessel, d) {
     return [
       h('div', { id: 'entries' }, (d.entries || []).map((e) => entryRowEl(type, e))),
       h('button', { class: 'btn ghost wide', dataset: { act: 'add-entry' }, style: { margin: '0 0 12px' } }, '+ Add entry'),
-      rateField(vessel, d), previewBox(),
+      mayMoney() ? [rateField(vessel, d), previewBox()] : null,
     ];
   }
-  if (type === 'Cash to Master') return cashToMasterFields(vessel, d);
+  if (type === 'Cash to Master') return mayMoney() ? cashToMasterFields(vessel, d) : [];
   const extra = SINGLE_EXTRA[type];
   const extraField = extra
     ? field(extra.label, extra.type === 'number'
@@ -297,8 +302,13 @@ export async function openServiceForm(type, service, { from = '' } = {}) {
   applyRate({ fill: state.ctx.isNew }); // a new service gets the agreed rate; opening a saved one only shows it
 }
 
-/** The service data typed into the form, ready to send to the server. */
+/** The service data typed into the form, ready to send to the server (no money keys without money.edit). */
 export function readServiceForm() {
+  const data = typedServiceData();
+  return mayMoney() ? data : stripMoney(state.ctx.type, data);
+}
+
+function typedServiceData() {
   const root = $('#svc-form');
   const { type } = state.ctx;
   // the agent and the status are sent beside the data, not in it
@@ -317,7 +327,7 @@ export function readServiceForm() {
   }
   if (MULTI.includes(type)) {
     const entries = $$('.entry', root).map((row) => {
-      const entry = {};
+      const entry = row.dataset.uid ? { uid: row.dataset.uid } : {}; // keeps its money on the server
       $$('[data-f]', row).forEach((field) => { entry[field.dataset.f] = field.value; });
       return entry;
     });

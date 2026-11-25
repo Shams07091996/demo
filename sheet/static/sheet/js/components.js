@@ -69,6 +69,7 @@ export const pillEl = (label, value, cls = '') =>
   h('div', { class: `pill ${cls}`.trim() }, h('span', null, label), h('b', null, value));
 
 export function moneyPillsEl(type, calc) {
+  if (!calc) return null; // no money.view: the server sends no figures
   if (!calc.cost_egp && !calc.revenue_egp && type !== 'Cash to Master') return null; // no money entered
   const profit = pillEl('Profit', `LE ${sign(calc.profit_egp)}`, profitClass(calc.profit_egp));
   if (type === 'Cash to Master') {

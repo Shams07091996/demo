@@ -46,14 +46,16 @@ function rowEl(row) {
     : h('button', { class: 'btn ghost small', dataset: { act: 'disposal-hide', id: row.vessel.id }, attrs: { title: 'No garbage or sludge' } }, icon('ban'), ' Hide');
   return h('tr', { dataset: { vessel: row.vessel.id } },
     h('td', null, dmy(row.vessel.date)),
-    h('td', null, h('a', { href: '#disposal', dataset: { act: 'summary', id: row.vessel.id } }, row.vessel.name), flags(row)),
+    h('td', null, h('a', { href: '#disposal', dataset: { act: 'summary', id: row.vessel.id } }, row.vessel.name),
+      can('money.edit') ? flags(row) : null),
     h('td', null, row.vessel.opr || '—'),
     ME.multiPort ? h('td', null, row.vessel.port_label) : null,
     quantityCell(row, 'garbage'),
     quantityCell(row, 'sludge'),
-    pair(row.revenue_egp, row.revenue_usd),
-    pair(row.cost_egp, row.cost_usd),
-    pair(row.profit_egp, row.profit_usd, row.profit_egp < 0 ? 'neg' : ''),
+    can('money.edit') ? [  // the money of each row: money.edit; the totals line: money.view (sent by the server)
+      pair(row.revenue_egp, row.revenue_usd),
+      pair(row.cost_egp, row.cost_usd),
+      pair(row.profit_egp, row.profit_usd, row.profit_egp < 0 ? 'neg' : '')] : null,
     h('td', null, action));
 }
 
@@ -69,7 +71,8 @@ function totalsEl(t) {
 }
 
 function render() {
-  const heads = ['Date', 'Vessel', 'OPR', ...(ME.multiPort ? ['Port'] : []), 'Garbage m³', 'Sludge t', 'Revenue', 'Cost', 'Profit', ''];
+  const heads = ['Date', 'Vessel', 'OPR', ...(ME.multiPort ? ['Port'] : []), 'Garbage m³', 'Sludge t',
+    ...(can('money.edit') ? ['Revenue', 'Cost', 'Profit'] : []), ''];
   setChildren($('#g-head'), h('tr', null, heads.map((title) => h('th', null, title))));
   setChildren($('#g-tbody'), data.rows.map(rowEl));
   $('#g-empty').hidden = data.rows.length > 0;

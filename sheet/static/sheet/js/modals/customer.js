@@ -13,7 +13,8 @@ const UNIT_LABEL = { service: 'per service', unit: 'per unit', line: 'per line',
 const CURRENCIES = [['USD', 'USD'], ['EGP', 'EGP']];
 const MAX_CONTACTS = 20;
 
-// customers.edit: names, notes, contacts; the agreed rates are money and also need money.edit.
+// customers.edit: names, notes, contacts; the agreed rates are money: shown and sent only with money.edit (the
+// server sends none without it, keeps the stored ones and refuses any sent).
 const mayEdit = () => can('customers.edit');
 const mayRate = () => mayEdit() && can('money.edit');
 const input = (name, value, attrs = {}, editable = mayEdit()) =>
@@ -53,8 +54,8 @@ export function openCustomerDialog(customer, onDone) {
         mayEdit() ? h('button', { class: 'btn ghost small', attrs: { type: 'button' }, dataset: { act: 'contact-add' } }, '+ Contact') : null),
       h('div', { class: 'contact-row row four contact-head' }, ['Name', 'Role', 'Email', 'Phone'].map((t) => h('span', { class: 'none' }, t))),
       h('div', { id: 'cu-contacts' }, (customer?.contacts || []).map(contactRowEl)),
-      h('div', { class: 'section-title' }, h('span', null, 'Agreed rates')),
-      Object.keys(RATE_UNITS).map((type) => rateRowEl(type, customer?.rates?.[type])),
+      can('money.edit') ? [h('div', { class: 'section-title' }, h('span', null, 'Agreed rates')),
+        Object.keys(RATE_UNITS).map((type) => rateRowEl(type, customer?.rates?.[type]))] : null,
       customer ? h('div', { class: 'section-title' }, h('span', null, 'Ships')) : null,
       customer
         ? h('div', { class: 'linked-ships' }, customer.ships.length
@@ -91,7 +92,7 @@ function readCustomer() {
     contacts: $$('#cu-contacts .contact-row', root).map((row) => ({
       name: value('c_name', row), role: value('c_role', row), email: value('c_email', row), phone: value('c_phone', row),
     })),
-    rates,
+    ...(can('money.edit') ? { rates } : {}),
   };
 }
 
