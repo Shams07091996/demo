@@ -3,7 +3,7 @@ import {
   closedNoteEl, formPorts, headEl, metaBadgesEl, moneyPillsEl, optionChoicesEl, pillEl, portCallBlockEl, portOptionEls, profitClass,
   serviceStatusEl, statusChipEl,
 } from '../components.js';
-import { ME, MULTI, can, openPorts, SINGLE_EXTRA, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
+import { ME, MULTI, can, openPorts, serviceDetails, SUMMARY_FIELDS, TIME_FIELDS } from '../config.js';
 import { h, icon, setChildren } from '../dom.js';
 import { openModal } from '../modal.js';
 import { attachShipPicker } from '../shipPicker.js';
@@ -30,7 +30,8 @@ function serviceSummary(service) {
     }
     case 'Cash to Master': {
       const share = d.shareMode === 'fixed' ? `fixed ${txt(d.amountCurrency)} ${fmt(d.fixedRevenue)}` : `${txt(d.percentage ?? 0)}%`;
-      return `${txt(d.amountCurrency)} ${fmt(d.amount)} · our share ${share}`;
+      const details = serviceDetails(service.type, d).map(([label, value]) => `${label}: ${value}`);
+      return lines([...(d.amount !== undefined ? [`${txt(d.amountCurrency)} ${fmt(d.amount)} · our share ${share}`] : []), ...details]);
     }
     default: {
       if (MULTI.includes(service.type)) {
@@ -39,8 +40,7 @@ function serviceSummary(service) {
           ? lines(entries.map((e, i) => `#${i + 1} ${e.awb || 'no AWB'}${e.weight ? ` · ${txt(e.weight)} kg` : ''}`))
           : 'No entries yet';
       }
-      const extra = SINGLE_EXTRA[service.type];
-      return extra && d[extra.name] ? `${extra.label}: ${d[extra.name]}` : '';
+      return lines(serviceDetails(service.type, d).map(([label, value]) => `${label}: ${value}`));
     }
   }
 }

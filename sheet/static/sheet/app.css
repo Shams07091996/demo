@@ -307,6 +307,7 @@ details.fold{margin-top:6px}details.fold summary{cursor:pointer;font-size:12px;c
 /* ----- summary report ----- */
 .sum-block{background:color-mix(in srgb,var(--success) 5%,transparent);border:1px solid color-mix(in srgb,var(--success) 15%,transparent);border-radius:6px;padding:14px 16px;margin-bottom:12px}
 .sum-block h4{font-weight:600;font-size:14px;color:var(--text);margin-bottom:10px}
+.sum-detail{margin-bottom:6px}.sum-detail-value{color:var(--text)}
 .entry-line{border-bottom:1px solid var(--line);padding:8px 0}.entry-line:last-child{border:none}
 .entry-line .t{font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600}
 .crew-box{background:color-mix(in srgb,var(--accent) 4%,transparent);border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin-bottom:12px}

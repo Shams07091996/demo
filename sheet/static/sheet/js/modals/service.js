@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { calcLocal } from '../calc.js';
 import { closedNoteEl, headEl, optionChoicesEl } from '../components.js';
-import { BILLING, MULTI, RATE_UNITS, SERVICE_STATUS, SINGLE_EXTRA, TYPES, can } from '../config.js';
+import { BILLING, MULTI, RATE_UNITS, SERVICE_FIELDS, SERVICE_STATUS, TYPES, can } from '../config.js';
 import { crewBookingDefaults } from '../crewBookings.js';
 import { parseFlightText, parsePersonal } from '../crewParsing.js';
 import { h, optionEls, setChildren } from '../dom.js';
@@ -318,10 +318,33 @@ function cashToMasterFields(vessel, d) {
   ];
 }
 
+// A service type's own detail fields (SERVICE_FIELDS), two per row; not money, so shown to everyone who edits.
+function detailField(f, value) {
+  const v = value ?? '';
+  if (f.kind === 'number') return field(f.label, numberInput({ attrs: { name: f.key } }, v));
+  if (f.kind === 'choice') {
+    return field(f.label, h('select', { attrs: { name: f.key } }, optionEls([['', '—'], ...f.choices.map((c) => [c, c])], v)));
+  }
+  const type = { date: 'date', datetime: 'datetime-local' }[f.kind] || 'text';
+  return field(f.label, h('input', { attrs: { type, name: f.key, ...(type === 'text' ? { maxlength: f.max || 160 } : {}) }, value: v }));
+}
+
+function detailFields(type, d) {
+  const fields = SERVICE_FIELDS[type]?.fields || [];
+  const rows = [];
+  for (let i = 0; i < fields.length; i += 2) {
+    rows.push(h('div', { class: fields[i + 1] ? 'row two' : 'row' },
+      fields.slice(i, i + 2).map((f) => detailField(f, d[f.key]))));
+  }
+  return rows;
+}
+
 function formFields(type, vessel, d) {
-  // Every service has a cost and a revenue (Crew Change and Others / Remarks too).
+  // Every service has a cost and a revenue (Crew Change and Others / Remarks too); Suez Canal's cost is SCA charges.
+  const table = SERVICE_FIELDS[type] || {};
   const money = () => (!mayMoney() ? [] : [
-    moneyField('Revenue', 'revenue', 'revenueCurrency', d, 'USD'), moneyField('Cost', 'cost', 'costCurrency', d, 'EGP'),
+    moneyField('Revenue', 'revenue', 'revenueCurrency', d, 'USD'),
+    moneyField(table.cost_label || 'Cost', 'cost', 'costCurrency', d, table.cost_currency || 'EGP'),
     rateField(vessel, d), previewBox(),
   ]);
   if (type === 'Others / Remarks') {
@@ -335,14 +358,8 @@ function formFields(type, vessel, d) {
       mayMoney() ? [rateField(vessel, d), previewBox()] : null,
     ];
   }
-  if (type === 'Cash to Master') return mayMoney() ? cashToMasterFields(vessel, d) : [];
-  const extra = SINGLE_EXTRA[type];
-  const extraField = extra
-    ? field(extra.label, extra.type === 'number'
-      ? numberInput({ attrs: { name: extra.name } }, d[extra.name])
-      : h('input', { attrs: { type: extra.type, name: extra.name }, value: d[extra.name] }))
-    : null;
-  return [extraField, money()];
+  if (type === 'Cash to Master') return [detailFields(type, d), mayMoney() ? cashToMasterFields(vessel, d) : []];
+  return [detailFields(type, d), money()];
 }
 
 export async function openServiceForm(type, service, { from = '' } = {}) {

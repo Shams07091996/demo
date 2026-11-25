@@ -3,7 +3,7 @@ import {
   headEl, inProgressTagEl, metaBadgesEl, pillEl, portCallBlockEl, profitClass, serviceCountsEl, serviceStatusEl,
   statusChipEl, tagLabel,
 } from '../components.js';
-import { MULTI, NO_AGENT, SINGLE_EXTRA, can } from '../config.js';
+import { MULTI, NO_AGENT, can, serviceDetails } from '../config.js';
 import { h, icon } from '../dom.js';
 import { openModal } from '../modal.js';
 import { api } from '../api.js';
@@ -58,24 +58,28 @@ function multiEntryBlock(service) {
     seeMoney() ? pillEl('Total profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp)) : null)];
 }
 
+// The service's own detail fields (SERVICE_FIELDS), one "Label: value" line each.
+function detailLinesEl(service) {
+  const details = serviceDetails(service.type, service.data);
+  return details.length ? details.map(([label, value]) =>
+    h('div', { class: 'none sum-detail' }, `${label}: `, h('b', { class: 'sum-detail-value' }, value))) : null;
+}
+
 function cashToMasterBlock(service) {
   const d = service.data;
-  if (!editMoney() && !seeMoney()) return null;
+  if (!editMoney() && !seeMoney()) return detailLinesEl(service);
   const share = d.shareMode === 'fixed' ? `${txt(d.amountCurrency)} ${fmt(d.fixedRevenue)}` : `${txt(d.percentage ?? 0)}%`;
-  return pillsTight(
+  return [detailLinesEl(service), pillsTight(
     editMoney() ? [pillEl('Amount', `${txt(d.amountCurrency)} ${fmt(d.amount)}`), pillEl('Our share', share)] : null,
     seeMoney() ? [pillEl('Our revenue (EGP)', fmt(service.calc.revenue_egp), 'good'),
       pillEl('Paid to master (EGP)', fmt(service.calc.to_master_egp)),
       pillEl('Profit (EGP)', sign(service.calc.profit_egp), profitClass(service.calc.profit_egp))] : null,
-    d.exchangeRate ? pillEl('Rate used', txt(d.exchangeRate)) : null);
+    d.exchangeRate ? pillEl('Rate used', txt(d.exchangeRate)) : null)];
 }
 
 function singleBlock(service) {
   const d = service.data;
-  const extra = SINGLE_EXTRA[service.type];
-  const extraLine = extra && d[extra.name]
-    ? h('div', { class: 'none', style: { marginBottom: '6px' } }, `${extra.label}: `, h('b', { style: { color: 'var(--text)' } }, d[extra.name]))
-    : null;
+  const extraLine = detailLinesEl(service);
   if (!editMoney() && !seeMoney()) return extraLine;
   return [extraLine, pillsTight(
     editMoney() ? [pillEl('Cost', `${txt(d.costCurrency)} ${fmt(d.cost)}`), pillEl('Revenue', `${txt(d.revenueCurrency)} ${fmt(d.revenue)}`, 'good')] : null,
