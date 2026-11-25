@@ -2,13 +2,14 @@
 write, JSON errors) and reads through operation.access (a User only their ports)."""
 
 from django.http import JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from sheet import conflicts
 from sheet.access import require, require_admin, require_page
 from sheet.api import audit, json_api, read_json
 
-from . import terminals, visits
+from . import live, terminals, visits
 from .access import require_reader
 
 
@@ -65,3 +66,11 @@ def visit_detail(request, pk):
     visit = visits.save_visit(profile, payload, existing=conflicts.locked(visit, payload, request.user))
     audit(request, "visit.update", id=visit.id)
     return JsonResponse(visits.visit_to_dict(visit, profile))
+
+
+@json_api
+@require_http_methods(["GET"])
+def live_view(request):
+    profile = request.profile
+    require_page(profile, "op_live")
+    return JsonResponse(live.response(profile, request.GET.get("port") or None, timezone.now()))
