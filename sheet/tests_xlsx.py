@@ -12,7 +12,8 @@ from . import xlsx
 
 def open_parts(data):
     archive = zipfile.ZipFile(io.BytesIO(data))
-    return {name: archive.read(name).decode("utf-8") for name in archive.namelist()}
+    return {name: archive.read(name) if name.startswith("xl/media/") else archive.read(name).decode("utf-8")
+            for name in archive.namelist()}
 
 
 def two_sheets():
@@ -134,3 +135,62 @@ class NumberCellTests(SimpleTestCase):
         self.assertIn('<c r="A1"><v>1234</v></c>', sheet)  # no thousands separator, no 2-decimal rounding on show
         self.assertIn('<c r="B1"><v>48.6512</v></c>', sheet)
         self.assertNotIn('r="C1"', sheet)
+
+
+def tiny_png(width=2, height=3):
+    """A valid PNG header (signature + IHDR) of the given size; the rest is not needed to read the size."""
+    import struct
+    import zlib
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    chunk = struct.pack(">I", len(ihdr)) + b"IHDR" + ihdr + struct.pack(">I", zlib.crc32(b"IHDR" + ihdr))
+    return b"\x89PNG\r\n\x1a\n" + chunk
+
+
+def tiny_jpeg(width=640, height=480):
+    """SOI, an APP0 segment, then a SOF0 segment with the size."""
+    import struct
+    app0 = b"\xff\xe0" + struct.pack(">H", 16) + b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    sof = b"\xff\xc0" + struct.pack(">HBHHB", 11, 8, height, width, 1) + b"\x01\x11\x00"
+    return b"\xff\xd8" + app0 + sof + b"\xff\xd9"
+
+
+class PictureTests(SimpleTestCase):
+    def test_png_size(self):
+        self.assertEqual(xlsx.picture_size(tiny_png(2, 3)), (2, 3))
+
+    def test_jpeg_size(self):
+        self.assertEqual(xlsx.picture_size(tiny_jpeg(640, 480)), (640, 480))
+
+    def test_unreadable_size_is_skipped(self):
+        self.assertIsNone(xlsx.picture_size(b"\x89PNG\r\n\x1a\n"))
+        self.assertIsNone(xlsx.picture_size(b"\xff\xd8\xff\xe0\x00"))
+        self.assertIsNone(xlsx.picture_size(b"GIF89a"))
+        self.assertIsNone(xlsx.picture_size(b""))
+
+    def test_picture_in_workbook(self):
+        picture = xlsx.Picture(data=tiny_png(), kind="png", width=200, height=100, anchor=(0, 2))
+        sheet = xlsx.Sheet(name="ACCHCO", rows=[["Title"]], pictures=[picture])
+        parts = open_parts(xlsx.build([sheet]))
+        self.assertEqual(parts["xl/media/image1.png"], tiny_png())
+        self.assertIn("<xdr:pic>", parts["xl/drawings/drawing1.xml"])
+        self.assertIn('cx="1905000" cy="952500"', parts["xl/drawings/drawing1.xml"])
+        self.assertIn('Extension="png"', parts["[Content_Types].xml"])
+        self.assertIn('<drawing r:id="rId1"/>', parts["xl/worksheets/sheet1.xml"])
+        self.assertIn("../media/image1.png", parts["xl/drawings/_rels/drawing1.xml.rels"])
+        for name, text in parts.items():
+            if name.endswith((".xml", ".rels")):
+                ElementTree.fromstring(text)  # noqa: S314 -- our own output
+
+    def test_chart_and_picture_share_drawing(self):
+        chart = xlsx.Chart(kind="bar", title="T", categories=(1, 2, 0), series=[("V", 1, 2, 1)], anchor=(4, 1))
+        pictures = [xlsx.Picture(data=tiny_jpeg(), kind="jpeg", width=64, height=48, anchor=(0, 5))]
+        sheet = xlsx.Sheet(name="S", rows=[["a", 1], ["b", 2]], charts=[chart], pictures=pictures)
+        parts = open_parts(xlsx.build([sheet]))
+        rels = parts["xl/drawings/_rels/drawing1.xml.rels"]
+        self.assertIn('Id="rId1"', rels)
+        self.assertIn("../charts/chart1.xml", rels)
+        self.assertIn('Id="rId2"', rels)
+        self.assertIn("../media/image1.jpeg", rels)
+        self.assertIn('r:embed="rId2"', parts["xl/drawings/drawing1.xml"])
+        self.assertIn('Extension="jpeg"', parts["[Content_Types].xml"])
+        self.assertNotIn("xl/drawings/drawing2.xml", parts)

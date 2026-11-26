@@ -1,7 +1,8 @@
 """A small .xlsx writer (Office Open XML) with the standard library only: sheets of typed cells and native charts.
 
-An .xlsx file is a zip of XML parts: the workbook, one part per sheet, a style sheet, and per sheet with charts a
-drawing that places DrawingML chart parts. Excel draws the charts from the sheet's own cells (no cached values).
+An .xlsx file is a zip of XML parts: the workbook, one part per sheet, a style sheet, and per sheet with charts or
+pictures a drawing that places DrawingML chart parts and PNG / JPEG pictures (their size read from the file's own
+header). Excel draws the charts from the sheet's own cells (no cached values).
 
 The page look (`table_sheet`): a title line, the filters line, then the table with a bold header on the page's
 header colour, thin row lines, columns sized to fit, the header frozen with filter arrows, status cells coloured like
@@ -13,6 +14,7 @@ Safety: every text is an inline string, escaped, with characters XML cannot hold
 
 import io
 import re
+import struct
 import zipfile
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -108,6 +110,49 @@ class Chart:
 
 
 @dataclass
+class Picture:
+    data: bytes
+    kind: str  # "png" or "jpeg"
+    width: int  # pixels, as shown
+    height: int
+    anchor: tuple  # (col, row), 0-based: its top left corner
+
+
+EMU_PER_PIXEL = 9525
+_PNG = b"\x89PNG\r\n\x1a\n"
+_JPEG_SOF = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+
+
+def picture_size(data):
+    """(width, height) in pixels from a PNG's IHDR or a JPEG's frame header; None when it can't be read."""
+    if data.startswith(_PNG):
+        if len(data) < 24 or data[12:16] != b"IHDR":
+            return None
+        width, height = struct.unpack(">II", data[16:24])
+        return (width, height) if width and height else None
+    if not data.startswith(b"\xff\xd8"):
+        return None
+    at = 2
+    while at + 4 <= len(data):
+        if data[at] != 0xFF:
+            return None
+        marker = data[at + 1]
+        if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
+            at += 2
+            continue
+        length = struct.unpack(">H", data[at + 2:at + 4])[0]
+        if marker in _JPEG_SOF:
+            if at + 9 > len(data):
+                return None
+            height, width = struct.unpack(">HH", data[at + 5:at + 9])
+            return (width, height) if width and height else None
+        if marker in (0xD9, 0xDA) or length < 2:
+            return None
+        at += 2 + length
+    return None
+
+
+@dataclass
 class Sheet:
     name: str
     rows: list
@@ -116,6 +161,7 @@ class Sheet:
     looks: dict = field(default_factory=dict)  # row index (0-based) -> "header" | "body" | "total" | "muted"
     freeze: int = 0  # rows kept on screen when scrolling (the title lines and the header)
     filter: tuple | None = None  # (header row, last row, columns), 0-based: the filter arrows
+    pictures: list = field(default_factory=list)  # Picture, placed after the charts in the same drawing
 
 
 # The light theme (app.css): header row on --surface2 with --muted text, lines in --line; pills are the status
@@ -421,7 +467,18 @@ def _chart_xml(sheet_name, chart):
             f'<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>')
 
 
-def _drawing_xml(charts):
+def _picture_anchor(number, rel_id, picture):
+    col, row = picture.anchor
+    cx, cy = picture.width * EMU_PER_PIXEL, picture.height * EMU_PER_PIXEL
+    return (f"<xdr:oneCellAnchor><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row>"
+            f'<xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="{cx}" cy="{cy}"/><xdr:pic><xdr:nvPicPr>'
+            f'<xdr:cNvPr id="{number + 1}" name="Picture {number}"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill>'
+            f'<a:blip r:embed="rId{rel_id}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr>'
+            f'<a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/>'
+            f"</a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>")
+
+
+def _drawing_xml(charts, pictures=()):
     anchors = []
     for i, chart in enumerate(charts, 1):
         col, row = chart.anchor
@@ -434,6 +491,8 @@ def _drawing_xml(charts):
             f'</xdr:xfrm><a:graphic><a:graphicData uri="{C_NS}"><c:chart xmlns:c="{C_NS}" r:id="rId{i}"/>'
             f"</a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>"
         )
+    for i, picture in enumerate(pictures, 1):
+        anchors.append(_picture_anchor(len(charts) + i, len(charts) + i, picture))
     return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             f'<xdr:wsDr xmlns:xdr="{DRAWING_NS}" xmlns:a="{A_NS}" xmlns:r="{REL}">{"".join(anchors)}</xdr:wsDr>')
 
@@ -461,16 +520,17 @@ def build(sheets):
     parts = {}
     overrides = [("/xl/workbook.xml", f"{CT}.spreadsheetml.sheet.main+xml"),
                  ("/xl/styles.xml", f"{CT}.spreadsheetml.styles+xml")]
-    drawing_no = chart_no = 0
+    drawing_no = chart_no = image_no = 0
+    media_kinds = set()
     styles = _Styles()
     for i, (sheet, name) in enumerate(zip(sheets, names, strict=True), 1):
-        parts[f"xl/worksheets/sheet{i}.xml"] = _sheet_xml(sheet, bool(sheet.charts), styles)
+        parts[f"xl/worksheets/sheet{i}.xml"] = _sheet_xml(sheet, bool(sheet.charts or sheet.pictures), styles)
         overrides.append((f"/xl/worksheets/sheet{i}.xml", f"{CT}.spreadsheetml.worksheet+xml"))
-        if not sheet.charts:
+        if not (sheet.charts or sheet.pictures):
             continue
         drawing_no += 1
         parts[f"xl/worksheets/_rels/sheet{i}.xml.rels"] = _rels([("drawing", f"../drawings/drawing{drawing_no}.xml")])
-        parts[f"xl/drawings/drawing{drawing_no}.xml"] = _drawing_xml(sheet.charts)
+        parts[f"xl/drawings/drawing{drawing_no}.xml"] = _drawing_xml(sheet.charts, sheet.pictures)
         overrides.append((f"/xl/drawings/drawing{drawing_no}.xml", f"{CT}.drawing+xml"))
         chart_targets = []
         for chart in sheet.charts:
@@ -478,6 +538,11 @@ def build(sheets):
             parts[f"xl/charts/chart{chart_no}.xml"] = _chart_xml(name, chart)
             overrides.append((f"/xl/charts/chart{chart_no}.xml", f"{CT}.drawingml.chart+xml"))
             chart_targets.append(("chart", f"../charts/chart{chart_no}.xml"))
+        for picture in sheet.pictures:
+            image_no += 1
+            parts[f"xl/media/image{image_no}.{picture.kind}"] = picture.data
+            media_kinds.add(picture.kind)
+            chart_targets.append(("image", f"../media/image{image_no}.{picture.kind}"))
         parts[f"xl/drawings/_rels/drawing{drawing_no}.xml.rels"] = _rels(chart_targets)
 
     sheet_list = "".join(f'<sheet name="{_attr(name)}" sheetId="{i}" r:id="rId{i}"/>'
@@ -498,7 +563,9 @@ def build(sheets):
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
         f'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-        f'<Default Extension="xml" ContentType="application/xml"/>{types}</Types>')
+        f'<Default Extension="xml" ContentType="application/xml"/>'
+        + "".join(f'<Default Extension="{kind}" ContentType="image/{kind}"/>' for kind in sorted(media_kinds))
+        + f"{types}</Types>")
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
