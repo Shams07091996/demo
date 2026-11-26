@@ -173,6 +173,7 @@ TONES = {
     "cancel": ("FFEDEDED", "FF646A73"),  # Cancelled (struck through)
     "info": ("FFDEE8FC", "FF2563EB"),  # Planned / Open
     "muted": ("FFEDEDED", "FF646A73"),
+    "danger": ("FFF8DEDC", "FFC62828"),  # Overdue (Live data)
 }
 MIN_WIDTH, MAX_WIDTH = 8, 60
 
