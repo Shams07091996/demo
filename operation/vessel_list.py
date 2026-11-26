@@ -10,7 +10,7 @@ MAX_LISTED = 1000
 
 
 def listed_to_dict(vessel):
-    return {"id": vessel.id, "name": vessel.name, "loa": float(vessel.loa)}
+    return {"id": vessel.id, "name": vessel.name, "loa": float(vessel.loa), "line": vessel.line}
 
 
 def list_response(params):

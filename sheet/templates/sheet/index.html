@@ -18,7 +18,7 @@
     </div>
     <nav class="nav" id="nav" aria-label="Pages">
       <div class="nav-group" data-group="marine">
-        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Marine</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg>Marine</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessels</span></a>
           {% if "services" in me.pages %}<a class="nav-item" data-page="services" href="#services"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span>Services</span></a>{% endif %}
@@ -28,7 +28,7 @@
       </div>
       {% if "op_vessels" in me.pages or "op_live" in me.pages or "op_analysis" in me.pages or "op_charts" in me.pages %}
       <div class="nav-group" data-group="operation">
-        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Operation</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg>Operation</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_vessels" href="#op_vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessel Data</span></a>{% endif %}
           {% if "op_live" in me.pages %}<a class="nav-item" data-page="op_live" href="#op_live"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Live data</span></a>{% endif %}
@@ -36,12 +36,13 @@
           {% if "op_charts" in me.pages %}<a class="nav-item" data-page="op_charts" href="#op_charts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Report charts</span></a>{% endif %}
           {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_list" href="#op_list"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg></span><span>Vessel list</span></a>{% endif %}
           {% if me.isAdmin or "operation.master" in me.permissions %}<a class="nav-item" data-page="terminals" href="#terminals"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Terminals</span></a>{% endif %}
+          {% if me.isAdmin or "operation.master" in me.permissions %}<a class="nav-item" data-page="op_windows" href="#op_windows"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Berthing windows</span></a>{% endif %}
         </div>
       </div>
       {% endif %}
       {% if "dashboard" in me.pages or "disposal" in me.pages or "hotels" in me.pages or "transport" in me.pages or "calculations" in me.pages %}
       <div class="nav-group" data-group="reports">
-        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Reports</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg>Reports</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           {% if "dashboard" in me.pages %}<a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>{% endif %}
           {% if "disposal" in me.pages %}<a class="nav-item" data-page="disposal" href="#disposal"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-trash"></use></svg></span><span>Garbage &amp; Sludge</span></a>{% endif %}
@@ -53,7 +54,7 @@
       {% endif %}
       {% if "master" in me.pages or "customers" in me.pages or "rates" in me.pages or me.isAdmin or me.isSuperuser or "history" in me.pages %}
       <div class="nav-group" data-group="master">
-        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Master data</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg>Master data</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           {% if "master" in me.pages %}<a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>{% endif %}
           {% if "customers" in me.pages %}<a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>{% endif %}
@@ -329,6 +330,18 @@
       <div class="table-wrap">
         <table><thead id="tm-head"></thead><tbody id="tm-tbody"></tbody></table>
         <div class="empty" id="tm-empty" hidden>No terminals.</div>
+      </div>
+    </main>
+
+    <!-- ===== Berthing windows: the same people as Terminals (drawn by js/pages/windows.js) ===== -->
+    <main class="page" id="page-op_windows" hidden>
+      <div class="toolbar">
+        <div class="filters"><select class="select" id="wn-terminal" aria-label="Terminal"></select></div>
+        <div class="tools"><button class="btn primary" data-act="window-new">+ Add window</button></div>
+      </div>
+      <div class="table-wrap">
+        <table><thead id="wn-head"></thead><tbody id="wn-tbody"></tbody></table>
+        <div class="empty" id="wn-empty" hidden>No berthing windows.</div>
       </div>
     </main>
     {% endif %}

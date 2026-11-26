@@ -299,8 +299,8 @@ async function login() {
     const labels = (el) => [...el.options].map((o) => o.textContent).join();
     ok(!!$('#nav [data-page="history"]') && !$('#nav [data-page="accounts"]') && !$('#nav [data-page="ports"]'),
       'three-port user: History (they have it), no Accounts or Ports in the sidebar');
-    ok(!!$('#nav [data-page="op_list"]') && !$('#nav [data-page="terminals"]') && !$('[data-act="vl-new"]'),
-      'three-port user: the vessel list to read, no Terminals (no edit-terminals tick)');
+    ok(!!$('#nav [data-page="op_list"]') && !$('#nav [data-page="terminals"]') && !$('#nav [data-page="op_windows"]')
+      && !$('[data-act="vl-new"]'), 'three-port user: the vessel list to read, no Terminals or Berthing windows');
     ok($('#roleLabel').textContent === 'Alexandria, Port Said, Damietta', 'three-port user: the sidebar names their ports');
     ok(shown($('#portSelect')) && labels($('#portSelect')) === 'All my ports,Alexandria,Port Said,Damietta',
       'three-port user: the port filter offers exactly their three ports');
@@ -349,8 +349,8 @@ async function login() {
 
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
-  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 21 : 19), 'sidebar lists the pages (Admins also have Accounts and Ports; no Bulk add)');
-  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_analysis,op_charts,op_list,terminals,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
+  ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 22 : 20), 'sidebar lists the pages (Admins also have Accounts and Ports; no Bulk add)');
+  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_analysis,op_charts,op_list,terminals,op_windows,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
     + (ROLE === 'admin' ? ',ports,accounts' : '') + ',history';
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'sidebar: Marine, Operation, Reports, Master data folders in order; History last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
@@ -390,11 +390,19 @@ async function login() {
     click($('[data-act="opv-new"]'));
     ok(await waitFor(() => $('#visit-form [name=terminal]')), 'operation: + Add visit opens the dialog');
     const vf = (name) => $(`#visit-form [name="${name}"]`);
+    type(vf('shipping_line'), 'MAERSK');
     type(vf('vessel_name'), 'nordic star');
-    ok(await waitFor(() => vf('loa').value === '210'), 'operation: a name from the vessel list fills its LOA');
+    ok(await waitFor(() => vf('loa').value === '210' && vf('shipping_line').value === 'ARKAS'),
+      'operation: a name from the vessel list fills its LOA and its operator');
     type(vf('loa'), '');
     type(vf('vessel_name'), 'smoke visit');
+    type(vf('terminal'), [...vf('terminal').options].find((o) => o.textContent === 'ACCHCO - ALX').value);
+    type(vf('eta'), '2026-11-26T08:00'); // a Thursday: MAERSK's next window there is Fri 22:00
+    type(vf('shipping_line'), 'MAERSK');
+    ok(await waitFor(() => !$('#visit-window').hidden && $('#visit-window').textContent
+      === 'Window: Fri 27.11 22:00 → Sat 28.11 20:00 · ETA 38 h before'), 'operation: the visit shows its line\'s nearest berthing window');
     type(vf('shipping_line'), 'ARKAS');
+    ok(await waitFor(() => $('#visit-window').hidden), 'operation: a line without windows shows none');
     type(vf('eta'), '2026-11-20T08:00');
     type(vf('cranes'), '2');
     click($('[data-act="opv-save"]'));
@@ -439,22 +447,48 @@ async function login() {
     ok(await waitFor(() => tmRow(tname)?.children[6].textContent === 'ARKAS'), 'terminals: a terminal keeps its shipping lines');
     await go('op_list');
     const vlRow = (name) => $$('#vl-tbody tr').find((r) => r.children[0].textContent === name);
-    ok(await waitFor(() => vlRow('NORDIC STAR')?.children[1].textContent === '210'), 'vessel list: the demo vessels and their LOA');
+    ok(await waitFor(() => vlRow('NORDIC STAR')?.children[1].textContent === 'ARKAS' && vlRow('NORDIC STAR').children[2].textContent === '210'),
+      'vessel list: the demo vessels, their operator and LOA');
     click($('[data-act="vl-new"]'));
     await waitFor(() => $('#listed-form'));
     type($('#listed-form [name=name]'), 'smoke listed');
     type($('#listed-form [name=loa]'), '123.4');
+    type($('#listed-form [name=line]'), 'SOC');
     click($('[data-act="vl-save"]'));
-    ok(await waitFor(() => vlRow('SMOKE LISTED')?.children[1].textContent === '123.4'), 'vessel list: + Add vessel adds one');
+    ok(await waitFor(() => vlRow('SMOKE LISTED')?.children[2].textContent === '123.4' && vlRow('SMOKE LISTED').children[1].textContent === 'SOC'),
+      'vessel list: + Add vessel adds one with its operator');
     click(vlRow('SMOKE LISTED'));
     await waitFor(() => $('#modal [data-act="vl-del"]'));
     click($('#modal [data-act="vl-del"]'));
     ok(await waitFor(() => !vlRow('SMOKE LISTED')), 'vessel list: an Admin deletes an entry');
+    await go('op_windows');
+    const wnRows = () => $$('#wn-tbody tr').map((r) => [...r.children].map((c) => c.textContent).join('|'));
+    ok(await waitFor(() => wnRows().includes('ACCHCO - ALX · Alexandria|MAERSK|Tue 06:00 → Wed 18:00|36 h')
+      && wnRows().some((r) => r.startsWith('PSD EAST'))), 'berthing windows: the page lists every port\'s windows');
+    click($('[data-act="window-new"]'));
+    await waitFor(() => $('#window-form'));
+    const wf = (name) => $(`#window-form [name="${name}"]`);
+    type(wf('terminal'), [...wf('terminal').options].find((o) => o.textContent === 'AICT - ALX').value);
+    type(wf('line'), 'SOC');
+    type(wf('start_day'), '6');
+    type(wf('start_time'), '20:00');
+    type(wf('end_day'), '0');
+    type(wf('end_time'), '06:00');
+    click($('[data-act="window-save"]'));
+    const smokeRow = () => $$('#wn-tbody tr').find((r) => r.textContent.includes('Sun 20:00 → Mon 06:00'));
+    ok(await waitFor(() => smokeRow()?.children[3].textContent === '10 h'), 'berthing windows: + Add window adds one over the week end');
+    click(smokeRow());
+    await waitFor(() => $('#modal [data-act="window-delete"]'));
+    click($('#modal [data-act="window-delete"]'));
+    ok(await waitFor(() => !smokeRow()), 'berthing windows: a window is deleted');
   }
   if (ROLE === 'alex') {
     await go('terminals');
     ok(await waitFor(() => $$('#tm-tbody tr').length >= 5) && !$$('#tm-tbody tr').some((r) => r.textContent.includes('PSD EAST')),
       'terminals: the edit-terminals tick shows only their own ports\' terminals');
+    await go('op_windows');
+    ok(await waitFor(() => $$('#wn-tbody tr').length === 2) && !$('#wn-tbody').textContent.includes('PSD EAST'),
+      'berthing windows: the edit-terminals tick shows only their own ports\' windows');
     await go('op_list');
     await waitFor(() => $$('#vl-tbody tr').length > 0);
     click($$('#vl-tbody tr').find((r) => r.children[0].textContent === 'NORDIC STAR'));

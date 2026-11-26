@@ -2,8 +2,8 @@
 vessel list"; delete for Admins only. Deleting never changes a visit."""
 
 from sheet.constants import PERMISSION_KEYS
-from sheet.models import ChangeRecord
-from sheet.tests import ApiTestCase, make_user
+from sheet.models import ChangeRecord, Option
+from sheet.tests import ApiTestCase, allow, make_user
 
 from .models import ListedVessel, Visit
 from .tests_models import cairo, terminal
@@ -17,6 +17,8 @@ class VesselListTests(ApiTestCase):
         super().setUpTestData()
         make_user("nomaster", "alexandria", permissions=[k for k in PERMISSION_KEYS if k != "operation.master"])
         make_user("liveonly", "alexandria", permissions=[], pages=["op_live"])
+        allow("line", "MSK", port="alexandria")
+        allow("line", "CMA", port="portsaid")
         cls.roza = ListedVessel.objects.create(name="ROZA", loa="199.9")
         ListedVessel.objects.create(name="ALLEGRI", loa="300")
 
@@ -32,11 +34,39 @@ class VesselListTests(ApiTestCase):
 
     def test_tick_adds_and_edits(self):
         alex = self.login("alex")
-        status, body = self.call(alex, "post", URL, {"name": " cape orion ", "loa": "294.1"})
+        status, body = self.call(alex, "post", URL, {"name": " cape orion ", "loa": "294.1", "line": "MSK"})
         self.assertEqual((status, body["name"], body["loa"]), (201, "CAPE ORION", 294.1))
         status, body = self.call(alex, "put", f"{URL}{self.roza.id}/", {"name": "ROZA", "loa": 210})
         self.assertEqual((status, body["loa"]), (200, 210.0))
         self.assertTrue(ChangeRecord.objects.filter(object_type="listedvessel", object_id=self.roza.id).exists())
+
+    def test_new_entry_needs_operator(self):
+        status, body = self.call(self.login("alex"), "post", URL, {"name": "NEW", "loa": 100})
+        self.assertEqual((status, body["error"]), (400, "Choose the operator."))
+
+    def test_operator_from_any_port_list(self):
+        alex = self.login("alex")
+        status, body = self.call(alex, "post", URL, {"name": "NEW", "loa": 100, "line": "CMA"})
+        self.assertEqual((status, body["line"]), (201, "CMA"))  # a Port Said line, for an Alexandria user
+        status, body = self.call(alex, "post", URL, {"name": "OTHER", "loa": 100, "line": "NOPE"})
+        self.assertEqual((status, body["error"]),
+                         (400, "Operator: choose a value from the Master data Shipping line list."))
+
+    def test_saved_operator_stays_allowed(self):
+        alex = self.login("alex")
+        _, body = self.call(alex, "post", URL, {"name": "NEW", "loa": 100, "line": "MSK"})
+        Option.objects.filter(kind="line", value="MSK").delete()
+        status, body = self.call(alex, "put", f"{URL}{body['id']}/", {"name": "NEW", "loa": 120, "line": "MSK"})
+        self.assertEqual((status, body["line"]), (200, "MSK"))
+
+    def test_existing_entry_may_keep_empty(self):
+        status, body = self.call(self.login("alex"), "put", f"{URL}{self.roza.id}/", {"name": "ROZA", "loa": 200})
+        self.assertEqual((status, body["line"]), (200, ""))
+
+    def test_list_returns_line(self):
+        ListedVessel.objects.filter(pk=self.roza.pk).update(line="MSK")
+        _, body = self.call(self.login("nomaster"), "get", URL + "?q=roza")
+        self.assertEqual(body["vessels"][0]["line"], "MSK")
 
     def test_without_tick_cannot_write(self):
         user = self.login("nomaster")

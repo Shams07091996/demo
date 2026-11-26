@@ -11,7 +11,7 @@ from sheet.api import audit, json_api, read_json
 from sheet.errors import Forbidden
 from sheet.views import _xlsx_response
 
-from . import analysis, live, pictures, terminals, vessel_list, visits
+from . import analysis, live, pictures, terminals, vessel_list, visits, windows
 from .access import require_master, require_reader
 
 
@@ -144,3 +144,41 @@ def visits_export(request):
     # Which filters were used, not their values (a search can be a name).
     audit(request, "operation.export", filters=",".join(sorted(request.GET))[:200])
     return _xlsx_response(content, f"Vessel Data {timezone.localdate().isoformat()}.xlsx")
+
+
+@json_api
+@require_http_methods(["GET", "POST"])
+def windows_list(request):
+    """Berthing windows: read with Vessel Data, kept by the people who keep terminals (their own ports)."""
+    profile = request.profile
+    require_page(profile, "op_vessels")
+    if request.method == "GET":
+        return JsonResponse(windows.list_response(profile, request.GET))
+    require_master(profile)
+    window = windows.save_window(profile, read_json(request))
+    audit(request, "window.create", id=window.id, port=window.terminal.port)
+    return JsonResponse(windows.window_to_dict(window), status=201)
+
+
+@json_api
+@require_http_methods(["PUT", "DELETE"])
+def window_detail(request, pk):
+    profile = request.profile
+    require_master(profile)
+    window = windows.get_window(profile, pk)
+    if request.method == "DELETE":
+        port = window.terminal.port
+        window.delete()
+        audit(request, "window.delete", id=pk, port=port)
+        return JsonResponse({"ok": True})
+    window = windows.save_window(profile, read_json(request), existing=window)
+    audit(request, "window.update", id=window.id, port=window.terminal.port)
+    return JsonResponse(windows.window_to_dict(window))
+
+
+@json_api
+@require_http_methods(["GET"])
+def windows_nearest(request):
+    profile = request.profile
+    require_page(profile, "op_vessels")
+    return JsonResponse(windows.nearest_response(profile, request.GET))

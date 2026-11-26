@@ -444,19 +444,28 @@ Live data's moves/hr = moves ÷ hours since ATB. Pages (`constants.PAGES` `op_ve
 with them off, the Branch manager template has them. **Vessel Data** (`visits.py`, `GET/POST /api/operation/visits/`,
 `PUT/DELETE …/<id>/` with `conflicts`, filters status / terminal / line / q / from–to on the report date (ATA's Cairo
 date, else ETA's) / port, sorts, paging; Excel `…/visits/export/` with `exports`), **Live data** (`live.py`, one card
-per turned-on terminal: calls in 7 days, Working vessels, Next 7 days = not berthed and ETA from today 00:00 Cairo through the 6th day
-after, plus every arrived-not-berthed vessel marked Arrived; All / one-terminal buttons in the
+per turned-on terminal: calls in 7 days, Working vessels, Next 7 days = not berthed and (ATA set, or ETA before the end
+of the 6th day after today, past ETAs included): marked **Arrived** with an ATA, **Overdue** (`overdue`) without one
+and ETA passed; All / one-terminal buttons in the
 page; the terminal's picture on top when the server has one: `pictures.py`, `<letterhead folder>/terminals/<CODE>.png|.jpg`,
 PNG / JPEG by first bytes, 1 MB, codes of letters / digits / _ / - only, `GET …/terminals/<id>/picture/` scoped; no upload
 in the app, never in git — the cut demo pictures live in git-ignored `terminal-pictures/`), **Vessel list** (`vessel_list.py`,
-`ListedVessel` name + fixed LOA, all ports, `GET/POST /api/operation/vessels/`, `PUT/DELETE …/<id>/`: read with `op_vessels`,
-write with `operation.master`, delete Admins; the visit dialog's name box suggests them and fills the LOA; visits keep
-their own text copy), **Analysis reports** and **Report
+`ListedVessel` name + fixed LOA + `line` (shown **Operator**, from any port's Shipping line list, required on a
+new entry; migration `operation 0004`), all ports, `GET/POST /api/operation/vessels/`, `PUT/DELETE …/<id>/`: read with `op_vessels`,
+write with `operation.master`, delete Admins; the visit dialog's name box suggests them and fills the LOA and, when the terminal
+offers it, the line; visits keep their own text copy), **Berthing windows** (`windows.py`, `BerthingWindow`, migration
+`operation 0005`: a line's weekly slot at a terminal, start day + time → end day + time, Mon = 0, Cairo, an end at or
+before the start is in the next week; a line may have none or several; same line at the same terminal may not
+overlap, `validators.clean_window` / `week_span`; `GET/POST /api/operation/windows/`, `PUT/DELETE …/<id>/`: read with
+`op_vessels`, write with `operation.master` in own ports; page `js/pages/windows.js` + dialog `js/modals/window.js`,
+nav item beside Terminals for the same people; `GET …/windows/nearest/?terminal=&line=&eta=` → the occurrence holding
+the ETA, else the one whose start is nearest it, a tie to the later, worked out on read: the visit dialog's
+`#visit-window` hint, nothing when the line has no window), **Analysis reports** and **Report
 charts** (one response, `analysis.py`: headline averages, Calls per week / month / year when From and To are both set,
 a row per terminal in scope and per shipping line; filters port / terminal / berth / line / from–to). History tracks
-both models (`history.track`, `history_port()`; type `visit` is in `PORT_TYPES`). Front end: `js/operation/shared.js`,
-`js/pages/opVessels.js`, `opLive.js`, `opAnalysis.js`, `terminals.js`, `vesselList.js`, dialogs `js/modals/visit.js`,
-`terminal.js`, `listedVessel.js`. `dom.js` allows `src` / `alt` with the same safe-URL check as `href`.
+the models (`history.track`, `history_port()`; types `visit` / `berthingwindow` are in `PORT_TYPES`). Front end: `js/operation/shared.js`,
+`js/pages/opVessels.js`, `opLive.js`, `opAnalysis.js`, `terminals.js`, `vesselList.js`, `windows.js`, dialogs
+`js/modals/visit.js`, `terminal.js`, `listedVessel.js`, `window.js`. `dom.js` allows `src` / `alt` with the same safe-URL check as `href`.
 `seed_demo` adds five Alexandria terminals and PSD EAST (Port Said), six lines and the workbook's seven visits plus
 two Working and four upcoming ones, and a vessel-list entry for each; `viewer` has the pages without the three
 Operation ticks.
@@ -484,9 +493,10 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
 
 **Front end** (`static/sheet/js/`, entry `main.js`):
 - **Sidebar folders:** `index.html` groups the nav into **Marine** (Vessels, Services, Port closures, Ships),
-  **Operation** (Vessel Data, Live data, Analysis reports, Report charts), **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations) and **Master data** (Master data,
-  Customers, Exchange rates, Ports, Terminals, Accounts, History); each item keeps its own `{% if %}`, a folder with none is not
-  rendered. `js/navGroups.js`: `data-act="toggle-nav-group"` opens / closes (localStorage `sheet.navGroups`), the
+  **Operation** (Vessel Data, Live data, Analysis reports, Report charts, Vessel list, Terminals, Berthing windows), **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations) and **Master data** (Master data,
+  Customers, Exchange rates, Ports, Accounts, History); each item keeps its own `{% if %}`, a folder with none is not
+  rendered. A folder head is a shaded band with its icon (`nav-group-label`), no capitals, items indented under a
+  thin line. `js/navGroups.js`: `data-act="toggle-nav-group"` opens / closes (localStorage `sheet.navGroups`), the
   router opens the folder of the page on screen.
 - **The person's ports:** `me` (`json_script`) has `ports` (every key for Admins), `homePort` ("" for Admins),
   `multiPort` (Admin or 2+ ports), `isAdmin`, `isSuperuser`, `permissions`, `pages`. `config.myPorts()` (filters) and

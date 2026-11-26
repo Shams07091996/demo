@@ -13,6 +13,7 @@ import { opAnalysisPage, opChartsPage } from './pages/opAnalysis.js';
 import { opLivePage } from './pages/opLive.js';
 import { opVesselsPage } from './pages/opVessels.js';
 import { terminalsPage } from './pages/terminals.js';
+import { windowsPage } from './pages/windows.js';
 import { vesselListPage } from './pages/vesselList.js';
 import { openGroupOf } from './navGroups.js';
 import { renderMasterPage } from './pages/master.js';
@@ -39,6 +40,7 @@ const TITLES = {
   accounts: 'Accounts',
   ports: 'Ports',
   terminals: 'Terminals',
+  op_windows: 'Berthing windows',
   op_vessels: 'Vessel Data',
   op_live: 'Live data',
   op_analysis: 'Analysis reports',
@@ -55,9 +57,9 @@ export async function showPage(requested) {
   let name = requested;
   if (name === 'accounts' && !ME.isSuperuser) name = 'vessels'; // accounts: superusers only
   else if (name === 'ports' && !ME.isAdmin) name = 'vessels'; // Admins only
-  else if (name === 'terminals' && !(ME.isAdmin || can('operation.master'))) name = 'vessels';
+  else if (['terminals', 'op_windows'].includes(name) && !(ME.isAdmin || can('operation.master'))) name = 'vessels';
   else if (name === 'op_list' && !sees('op_vessels')) name = 'vessels'; // the vessel list comes with Vessel Data
-  else if (!['accounts', 'ports', 'terminals', 'op_list'].includes(name) && !sees(name)) name = 'vessels'; // a page not given
+  else if (!['accounts', 'ports', 'terminals', 'op_windows', 'op_list'].includes(name) && !sees(name)) name = 'vessels'; // a page not given
   state.page = name;
   $$('.page').forEach((page) => { page.hidden = page.id !== `page-${name}`; });
   $$('#nav .nav-item').forEach((link) => link.classList.toggle('active', link.dataset.page === name));
@@ -75,6 +77,7 @@ export async function showPage(requested) {
   if (name === 'accounts') await accountsPage.load();
   if (name === 'ports') await portsPage.load();
   if (name === 'terminals') await terminalsPage.load();
+  if (name === 'op_windows') await windowsPage.load();
   if (name === 'op_list') await vesselListPage.load();
   if (name === 'op_vessels') await opVesselsPage.load();
   if (name === 'op_live') await opLivePage.load();

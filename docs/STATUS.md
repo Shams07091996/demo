@@ -5,6 +5,26 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Overdue vessels, vessel-list operator, sidebar folders, berthing windows (2026-11-26):** on branch
+  `feature/operation-windows`, **not merged** (waiting for the user). Needs migrations **`operation 0004_listed_vessel_line`**
+  and **`0005_berthing_window`**. Design `specs/2026-11-26-operation-windows-design.md`, plan
+  `plans/2026-11-26-operation-windows.md`.
+  - Live data's **Next 7 days** keeps a vessel whose ETA has passed without berthing: **Overdue** (red chip) without
+    an ATA, **Arrived** with one; it leaves only on ATB.
+  - **Vessel list** entries have an **Operator** (the user's word, not OPR) from the Shipping line list; picking the
+    vessel in a new visit fills its LOA and its line (when the terminal offers that line).
+  - Sidebar folders are shaded bands with an icon (Marine anchor, Operation ship, Reports chart, Master data
+    database), items indented under them; no underline, no capitals.
+  - New page **Berthing windows** (Operation folder; Admins and the "Edit terminals and vessel list" tick): weekly
+    windows per terminal + line (a line may have none or several; the same line's windows at a terminal may not
+    overlap; a window may run over the week end). The visit dialog shows the line's window nearest the ETA
+    ("Window: Fri 27.11 22:00 → Sat 28.11 20:00 · ETA 38 h before"), nothing for a line without windows.
+  - Rulings (mine): Overdue = no ATA and ETA already passed (not "before today"); a tie between two windows goes to
+    the later one; the page has one Terminal filter (terminal names show the port); window changes are in the History
+    for Users with Vessel Data in that port; separate Marine / Operation notifications were put aside by the user.
+  - 1034 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass; looked at in the browser
+    (light, dark).
+
 - **Sidebar scroll, Services by vessel, Dashboard views (2026-11-26):** merged into main by the user (2026-11-26), from
   branch `feature/services-dashboard-views` (deleted). No migration. Design `specs/2026-11-26-sidebar-services-dashboard-design.md`, plan
   `plans/2026-11-26-sidebar-services-dashboard.md`.

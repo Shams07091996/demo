@@ -7,6 +7,8 @@ import { closeModal } from './modal.js';
 import { saveAccountDialog, toggleAccount } from './modals/account.js';
 import { savePortDialog, togglePort } from './modals/port.js';
 import { addBerth, removeBerth, saveTerminalDialog } from './modals/terminal.js';
+import { deleteWindowDialog, saveWindowDialog } from './modals/window.js';
+import { windowsPage } from './pages/windows.js';
 import { deleteVisit, openVisitDialog, saveVisit } from './modals/visit.js';
 import { deleteListedDialog, saveListedDialog } from './modals/listedVessel.js';
 import { opLivePage } from './pages/opLive.js';
@@ -316,6 +318,10 @@ export const actions = {
   'terminal-save': () => saveTerminalDialog(),
   'terminal-berth-add': () => addBerth(),
   'terminal-berth-del': removeBerth,
+  'window-new': () => windowsPage.open(null),
+  'window-open': (b) => windowsPage.open(Number(b.dataset.id)),
+  'window-save': () => saveWindowDialog(),
+  'window-delete': () => deleteWindowDialog(),
   'vl-new': () => vesselListPage.open(null),
   'vl-open': (b) => vesselListPage.open(Number(b.dataset.id)),
   'vl-save': () => saveListedDialog(),

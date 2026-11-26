@@ -31,6 +31,7 @@ class ListedVessel(models.Model):
 
     name = models.CharField(max_length=100)  # upper-case, unique ignoring case (validators.clean_listed_vessel)
     loa = models.DecimalField(max_digits=5, decimal_places=1)  # metres
+    line = models.CharField(max_length=100, blank=True)  # the operator, from any port's Shipping line list
 
     class Meta:
         ordering = ["name", "id"]
@@ -65,6 +66,27 @@ class Visit(models.Model):
 
     def __str__(self):
         return f"{self.vessel_name} ({self.terminal_id})"
+
+    def history_port(self):
+        return Terminal._base_manager.filter(pk=self.terminal_id).values_list("port", flat=True).first() or ""
+
+
+class BerthingWindow(models.Model):
+    """A line's weekly berthing window at a terminal: start day + time to end day + time (Cairo, Mon = 0); the end
+    may be in the next week (Sat 20:00 to Mon 06:00). A line may have several at a terminal, or none."""
+
+    terminal = models.ForeignKey(Terminal, on_delete=models.PROTECT, related_name="windows")
+    line = models.CharField(max_length=100)  # from the terminal's shipping lines
+    start_day = models.PositiveSmallIntegerField()  # 0 = Monday … 6 = Sunday
+    start_time = models.TimeField()
+    end_day = models.PositiveSmallIntegerField()
+    end_time = models.TimeField()
+
+    class Meta:
+        ordering = ["terminal__position", "line", "start_day", "start_time", "id"]
+
+    def __str__(self):
+        return f"{self.line} ({self.terminal_id})"
 
     def history_port(self):
         return Terminal._base_manager.filter(pk=self.terminal_id).values_list("port", flat=True).first() or ""

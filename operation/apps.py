@@ -10,6 +10,6 @@ class OperationConfig(AppConfig):
     def ready(self):
         from sheet import history
 
-        from .models import ListedVessel, Terminal, Visit
+        from .models import BerthingWindow, ListedVessel, Terminal, Visit
 
-        history.track(Terminal, Visit, ListedVessel)
+        history.track(Terminal, Visit, ListedVessel, BerthingWindow)

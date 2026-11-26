@@ -23,6 +23,10 @@ export async function loadListed(fresh = false) {
 /** A shipping line's <option>s for a visit at `terminal`: its own lines when it has any, else its port's list. */
 export const terminalLines = (terminal, values) => (terminal?.lines?.length ? terminal.lines : values);
 
+/** Berthing windows: Mon = 0 … Sun = 6, shown "Tue 06:00 → Wed 18:00". */
+export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+export const windowText = (w) => `${DAYS[w.start_day]} ${w.start_time} → ${DAYS[w.end_day]} ${w.end_time}`;
+
 export const terminalById = (id) => (terminals || []).find((t) => t.id === Number(id)) || null;
 
 /** Analysis reports and Report charts share one filter (and one server response). */
