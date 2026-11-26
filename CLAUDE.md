@@ -245,7 +245,10 @@ under), body rows with thin lines, the totals row bold with a line over; `fit_wi
 frozen (`Sheet.freeze`) with filter arrows (`Sheet.filter` + the `_xlnm._FilterDatabase` name); a text of several lines
 wraps. `Sheet.looks` maps row index → `title` / `muted` / `header` / `body` / `total`; a sheet without looks writes
 exactly as before (fixed styles 0–6). Styles are collected per workbook (`xlsx._Styles`); currencies get number formats
-from 167. Colours are the light theme tokens (`HEADER_FILL`, `TONES`).
+from 167. Colours are the light theme tokens (`HEADER_FILL`, `TONES`; `danger` = Live data's Overdue).
+**Pictures:** `xlsx.Picture(data, kind png|jpeg, width, height, anchor)` on `Sheet.pictures`, placed after the
+charts in the sheet's one drawing (one-cell anchor, `xl/media/imageN.*`); `xlsx.picture_size` reads the size from
+the PNG IHDR / JPEG frame header (None → leave the picture out). No library.
 
 **Edit conflicts** (`conflicts.py`, migration 0018, `js/conflict.js`): Vessel, Service, HotelStay, Transfer and PortClosure have `version`. Every update of those (vessel / service PUT-PATCH, booking / closure PUT) must send it (missing → 400 "This page is out of date…"); `conflicts.locked` re-reads the row with `select_for_update`, a different version → **409** `{"error": "conflict", "conflict": {who, same_person, at, fields, version}}` and nothing saved (who / fields from the History records whose version rose). `bump_if_changed` raises it **before** the save, only when the values (compared with `==`; booking guests in any order) really differ; automatic writes (`crewbookings.sync`, sailing-day rule) never touch it. Admin-page saves raise it (`admin.VersionedAdmin`; read-only there). The History page hides `version`. Front end: `api()` errors carry `.status` / `.data`; `mutate(action, onConflict)` sends a 409 to `showConflict` (panel `#conflict-panel`, `data-act` `conflict-reload` / `conflict-force`); each dialog keeps the version it opened with. Tests: `ApiTestCase.call` adds the current version to such updates itself; the real check is in `tests_conflicts_api` (raw requests).
 
@@ -449,7 +452,12 @@ of the 6th day after today, past ETAs included): marked **Arrived** with an ATA,
 and ETA passed; All / one-terminal buttons in the
 page; the terminal's picture on top when the server has one: `pictures.py`, `<letterhead folder>/terminals/<CODE>.png|.jpg`,
 PNG / JPEG by first bytes, 1 MB, codes of letters / digits / _ / - only, `GET …/terminals/<id>/picture/` scoped; no upload
-in the app, never in git — the cut demo pictures live in git-ignored `terminal-pictures/`), **Vessel list** (`vessel_list.py`,
+in the app, never in git — the cut demo pictures live in git-ignored `terminal-pictures/`; **Excel** button
+`data-act="live-export"`, `GET …/live/export/?port=&terminal=` (`op_live` + `exports`, rate limited, audit
+`live.export`): `live.export_file`, one sheet per card named by its code, like a terminal block of the workbook's
+Dashboard: `title_line`, the picture (≤ 1000 px wide, rows reserved under it), Under operation (`WORKING_HEAD`) and
+Next 7 days (`UPCOMING_HEAD`, Status Arrived / Overdue), "No vessels" when empty; page and file share
+`live._cards`), **Vessel list** (`vessel_list.py`,
 `ListedVessel` name + fixed LOA + `line` (shown **Operator**, from any port's Shipping line list, required on a
 new entry; migration `operation 0004`), all ports, `GET/POST /api/operation/vessels/`, `PUT/DELETE …/<id>/`: read with `op_vessels`,
 write with `operation.master`, delete Admins; the visit dialog's name box suggests them and fills the LOA and, when the terminal
@@ -493,7 +501,7 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
 
 **Front end** (`static/sheet/js/`, entry `main.js`):
 - **Sidebar folders:** `index.html` groups the nav into **Marine** (Vessels, Services, Port closures, Ships),
-  **Operation** (Vessel Data, Live data, Analysis reports, Report charts, Vessel list, Terminals, Berthing windows), **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations) and **Master data** (Master data,
+  **Operation** (Vessel Data, Live data, Vessel list, Terminals, Berthing windows), **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations, Analysis reports, Report charts; the two Operation reports moved here 2026-11-26, Accounts ticks too) and **Master data** (Master data,
   Customers, Exchange rates, Ports, Accounts, History); each item keeps its own `{% if %}`, a folder with none is not
   rendered. A folder head is a shaded band with its icon (`nav-group-label`), no capitals, items indented under a
   thin line. `js/navGroups.js`: `data-act="toggle-nav-group"` opens / closes (localStorage `sheet.navGroups`), the

@@ -329,6 +329,7 @@ export const actions = {
   'opv-new': () => openVisitDialog(),
   'opv-open': (b) => openVisitDialog(Number(b.dataset.id)),
   'opv-save': () => saveVisit(),
+  'opv-save-another': () => saveVisit(undefined, true),
   'opv-del': () => deleteVisit(),
   'opv-sort': (b) => opVesselsPage.sort(b.dataset.key),
   'opv-prev': () => opVesselsPage.prev(),
@@ -338,6 +339,10 @@ export const actions = {
     if (error) setStatus('error', error);
   },
   'op-live-refresh': () => opLivePage.load(),
+  'live-export': async () => {
+    const error = await download(`/api/operation/live/export/?${opLivePage.exportQuery()}`, 'Could not make the Excel file.');
+    if (error) setStatus('error', error);
+  },
 
   'conflict-reload': () => conflictAction('reload'),
   'conflict-force': () => conflictAction('force'),

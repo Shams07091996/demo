@@ -5,6 +5,18 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Operation extras (2026-11-26):** on branch `feature/operation-extras`, **not merged** (waiting for the user's OK).
+  No migration. Points 1, 2, 3, 6 of the user's eight (design `specs/2026-11-26-reports-money-cards-design.md`, plan
+  `plans/2026-11-26-reports-money-cards.md`; the Dashboard money and Calculations cards pieces come next).
+  - The Add visit dialog has **Save and add another**: saves, then opens a new Add visit with only the terminal kept.
+  - **Analysis reports** and **Report charts** moved to the **Reports** folder (also in the Accounts Pages ticks). The
+    user agreed Report charts stays apart from the Dashboard (it counts every vessel at every terminal).
+  - Live data has an **Excel** button: one sheet per terminal (the page's port and All / one-terminal choice), like
+    a terminal block of the user's workbook: terminal line (berths, quay, cranes), the terminal's picture, Under
+    operation and Next 7 days (Arrived / Overdue coloured). The app's Excel writer can now place pictures (no library).
+  - 1050 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass. The file was not opened in
+    Excel by me (checked as parsed XML only).
+
 - **Next berthing window, not the nearest (2026-11-26):** merged into main by the user (2026-11-26), from
   branch `fix/next-window` (deleted). No migration. The visit dialog's window is now the one the ETA falls inside, else the **next one to
   start after the ETA**; before, it was the one whose start was nearest, so a Monday arrival got Sunday's window

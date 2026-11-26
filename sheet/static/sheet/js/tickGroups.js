@@ -11,8 +11,8 @@ export const CAN_GROUPS = Object.freeze([
 
 export const PAGE_GROUPS = Object.freeze([
   ['Marine', ['vessels', 'services', 'closures', 'ships']],
-  ['Operation', ['op_vessels', 'op_live', 'op_analysis', 'op_charts']],
-  ['Reports', ['dashboard', 'disposal', 'hotels', 'transport', 'calculations']],
+  ['Operation', ['op_vessels', 'op_live']],
+  ['Reports', ['dashboard', 'disposal', 'hotels', 'transport', 'calculations', 'op_analysis', 'op_charts']],
   ['Master data', ['master', 'customers', 'rates', 'history']],
 ]);
 

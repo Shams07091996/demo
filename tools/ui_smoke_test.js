@@ -350,7 +350,7 @@ async function login() {
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
   ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 22 : 20), 'sidebar lists the pages (Admins also have Accounts and Ports; no Bulk add)');
-  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_analysis,op_charts,op_list,terminals,op_windows,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
+  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_list,terminals,op_windows,dashboard,disposal,hotels,transport,calculations,op_analysis,op_charts,master,customers,rates'
     + (ROLE === 'admin' ? ',ports,accounts' : '') + ',history';
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'sidebar: Marine, Operation, Reports, Master data folders in order; History last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
@@ -362,9 +362,10 @@ async function login() {
 
   /* ---- Operation folder: Vessel Data, Live data, Analysis reports, Report charts (seed_demo: the workbook's visits,
      NORDIC STAR working at ACCHCO - ALX) ---- */
-  for (const [page, title] of [['op_vessels', 'Vessel Data'], ['op_live', 'Live data'], ['op_analysis', 'Analysis reports'], ['op_charts', 'Report charts']]) {
+  for (const [page, title, folder] of [['op_vessels', 'Vessel Data', 'operation'], ['op_live', 'Live data', 'operation'],
+    ['op_analysis', 'Analysis reports', 'reports'], ['op_charts', 'Report charts', 'reports']]) {
     await go(page);
-    ok($('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).closest('[data-group="operation"]'), `operation: "${title}" opens from the Operation folder`);
+    ok($('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).closest(`[data-group="${folder}"]`), `operation: "${title}" opens from the ${folder} folder`);
   }
   await go('op_live');
   ok(await waitFor(() => $('#ol-cards').textContent.includes('NORDIC STAR')), 'operation: Live data shows the vessel under operation');
@@ -376,6 +377,9 @@ async function login() {
   // The smoke server's letterhead folder has terminals/EGALY.png (ACCHCO - ALX) only.
   const pic = $('#ol-cards img.op-pic');
   ok(!!pic && (await w.fetch(pic.getAttribute('src'))).headers.get('content-type') === 'image/png', 'operation: the terminal picture shows');
+  const liveXlsx = await w.fetch('/api/operation/live/export/');
+  ok(!!$('[data-act="live-export"]') && liveXlsx.status === 200
+    && liveXlsx.headers.get('content-type').includes('spreadsheetml'), 'operation: Live data has an Excel file');
   click(liveChip('All'));
   ok(await waitFor(() => $$('#ol-cards .op-card').length >= 5), 'operation: All shows every terminal again');
   await go('op_analysis');
@@ -405,8 +409,13 @@ async function login() {
     ok(await waitFor(() => $('#visit-window').hidden), 'operation: a line without windows shows none');
     type(vf('eta'), '2026-11-20T08:00');
     type(vf('cranes'), '2');
-    click($('[data-act="opv-save"]'));
+    const keptTerminal = vf('terminal').value;
+    click($('[data-act="opv-save-another"]'));
     ok(await waitFor(() => ovRow('SMOKE VISIT')?.textContent.includes('Planned')), 'operation: a new visit is saved upper-case and Planned');
+    ok(await waitFor(() => $('#modal h2')?.textContent.includes('Add visit') && vf('terminal').value === keptTerminal
+      && vf('vessel_name').value === '' && vf('shipping_line').value === '' && vf('eta').value === ''),
+    'operation: Save and add another opens a new visit on the same terminal, everything else empty');
+    click($('#modal [data-act="close"]'));
     click(ovRow('SMOKE VISIT').querySelector('td'));
     ok(await waitFor(() => $('#modal h2')?.textContent.includes('SMOKE VISIT')), 'operation: a visit opens');
     type(vf('ata'), '2026-11-20T09:00');

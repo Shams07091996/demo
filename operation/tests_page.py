@@ -32,6 +32,25 @@ class PageTests(ApiTestCase):
         self.assertNotIn('id="page-op_vessels"', html)
         self.assertNotIn('data-page="terminals"', html)
 
+    def test_reports_in_the_reports_folder(self):
+        import re
+        html = self.page("alex")
+        reports = html[html.index('data-group="reports"'):html.index('data-group="master"')]
+        self.assertEqual(re.findall(r'data-page="(op_\w+)"', reports), ["op_analysis", "op_charts"])
+        operation = html[html.index('data-group="operation"'):html.index('data-group="reports"')]
+        self.assertNotIn('data-page="op_analysis"', operation)
+
+    def test_reports_folder_for_a_report_page_alone(self):
+        from sheet.tests import make_user
+        make_user("chartsonly", "alexandria", permissions=[], pages=["op_charts"])
+        html = self.page("chartsonly")
+        self.assertIn('data-group="reports"', html)
+        self.assertNotIn('data-group="operation"', html)
+
+    def test_live_excel_button_with_exports(self):
+        self.assertIn('data-act="live-export"', self.page("alex"))
+        self.assertNotIn('data-act="live-export"', self.page("liveuser"))
+
     def test_folder_right_below_marine(self):
         html = self.page("alex")
         self.assertLess(html.index('data-group="marine"'), html.index('data-group="operation"'))

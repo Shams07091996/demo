@@ -41,14 +41,16 @@ const figuresEl = (v) => h('div', { class: 'op-figures' },
     ['Total moves', v.total_moves, ''], ['Moves/hr', v.productivity, '']]
     .map(([label, value, unit]) => h('span', null, `${label}: `, h('strong', null, figure(value)), value !== null && unit ? ` ${unit}` : '')));
 
-export async function openVisitDialog(id = null) {
+/** `keep.terminal`: the terminal a new visit starts on (Save and add another keeps the last one). */
+export async function openVisitDialog(id = null, keep = {}) {
   const visit = id ? visitById(id) : null;
   if (id && !visit) return;
   const terminals = (await loadTerminals()).filter((t) => t.active || t.id === visit?.terminal);
   listed = await loadListed().catch(() => []); // suggestions only: the dialog works without them
   const editable = can('operation.edit');
   state.ctx = { view: 'visit', visitId: id, version: visit?.version };
-  const terminal = terminalById(visit?.terminal) || terminals[0] || null;
+  const kept = terminals.find((t) => String(t.id) === String(keep.terminal ?? ''));
+  const terminal = terminalById(visit?.terminal) || kept || terminals[0] || null;
   const input = (name, extra = {}) => h('input', { attrs: { name, ...extra }, value: visit?.[name] ?? '', disabled: !editable });
   const btn = (cls, act, label) => h('button', { class: `btn ${cls}`, dataset: { act } }, label);
   openModal(
@@ -76,6 +78,7 @@ export async function openVisitDialog(id = null) {
     h('div', { class: 'm-foot' },
       visit && can('operation.delete') ? deleteBtn('opv-del') : h('span'),
       h('div', { class: 'right' }, btn('ghost', 'close', editable ? 'Cancel' : 'Close'),
+        editable && !visit ? [' ', btn('ghost', 'opv-save-another', 'Save and add another')] : null,
         editable ? [' ', btn('primary', 'opv-save', 'Save')] : null)),
   );
   showWindow();
@@ -143,8 +146,9 @@ function payload() {
 
 let saving = false;
 
-/** Save the dialog; an edit sends the version it opened with (`version`: the one from a conflict). */
-export async function saveVisit(version) {
+/** Save the dialog; an edit sends the version it opened with (`version`: the one from a conflict). `again`: open a
+ * new Add visit on the same terminal afterwards. */
+export async function saveVisit(version, again = false) {
   if (saving || state.ctx.view !== 'visit') return;
   const { visitId } = state.ctx;
   const body = payload();
@@ -164,6 +168,7 @@ export async function saveVisit(version) {
   }
   closeModal();
   await opVesselsPage.load();
+  if (again && !visitId) await openVisitDialog(null, { terminal: body.terminal });
 }
 
 export async function deleteVisit() {

@@ -538,9 +538,9 @@ class IndexTests(Limited):
         self.assertEqual(heads, ["Marine", "Operation", "Reports", "Master data"])
         pages = re.findall(r'class="nav-item" data-page="(\w+)"', nav)
         self.assertEqual(pages, ["vessels", "services", "closures", "ships",
-                                 "op_vessels", "op_live", "op_analysis", "op_charts", "op_list", "terminals",
-                                 "op_windows",
-                                 "dashboard", "disposal", "hotels", "transport", "calculations",
+                                 "op_vessels", "op_live", "op_list", "terminals", "op_windows",
+                                 "dashboard", "disposal", "hotels", "transport", "calculations", "op_analysis",
+                                 "op_charts",
                                  "master", "customers", "rates", "ports", "accounts", "history"])
         make_user("vonly", "alexandria", permissions=[], pages=["vessels"])
         html = self.login("vonly").get("/").content.decode()

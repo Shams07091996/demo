@@ -41,7 +41,8 @@ class LiveExportTests(ApiTestCase):
         self.assertEqual(response["Content-Type"],
                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         archive = zipfile.ZipFile(io.BytesIO(response.content))
-        return {n: archive.read(n) if n.startswith("xl/media/") else archive.read(n).decode() for n in archive.namelist()}
+        return {n: archive.read(n) if n.startswith("xl/media/") else archive.read(n).decode()
+                for n in archive.namelist()}
 
     def test_one_sheet_per_terminal(self, _now):
         workbook = self.parts("alex")["xl/workbook.xml"]

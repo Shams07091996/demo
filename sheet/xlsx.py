@@ -563,8 +563,8 @@ def build(sheets):
     parts["[Content_Types].xml"] = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-        f'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-        f'<Default Extension="xml" ContentType="application/xml"/>'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
         + "".join(f'<Default Extension="{kind}" ContentType="image/{kind}"/>' for kind in sorted(media_kinds))
         + f"{types}</Types>")
 

@@ -26,21 +26,19 @@
           {% if "ships" in me.pages %}<a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>{% endif %}
         </div>
       </div>
-      {% if "op_vessels" in me.pages or "op_live" in me.pages or "op_analysis" in me.pages or "op_charts" in me.pages %}
+      {% if "op_vessels" in me.pages or "op_live" in me.pages %}
       <div class="nav-group" data-group="operation">
         <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg>Operation</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_vessels" href="#op_vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessel Data</span></a>{% endif %}
           {% if "op_live" in me.pages %}<a class="nav-item" data-page="op_live" href="#op_live"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Live data</span></a>{% endif %}
-          {% if "op_analysis" in me.pages %}<a class="nav-item" data-page="op_analysis" href="#op_analysis"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Analysis reports</span></a>{% endif %}
-          {% if "op_charts" in me.pages %}<a class="nav-item" data-page="op_charts" href="#op_charts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Report charts</span></a>{% endif %}
           {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_list" href="#op_list"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg></span><span>Vessel list</span></a>{% endif %}
           {% if me.isAdmin or "operation.master" in me.permissions %}<a class="nav-item" data-page="terminals" href="#terminals"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Terminals</span></a>{% endif %}
           {% if me.isAdmin or "operation.master" in me.permissions %}<a class="nav-item" data-page="op_windows" href="#op_windows"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Berthing windows</span></a>{% endif %}
         </div>
       </div>
       {% endif %}
-      {% if "dashboard" in me.pages or "disposal" in me.pages or "hotels" in me.pages or "transport" in me.pages or "calculations" in me.pages %}
+      {% if "dashboard" in me.pages or "disposal" in me.pages or "hotels" in me.pages or "transport" in me.pages or "calculations" in me.pages or "op_analysis" in me.pages or "op_charts" in me.pages %}
       <div class="nav-group" data-group="reports">
         <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg>Reports</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
@@ -49,6 +47,8 @@
           {% if "hotels" in me.pages %}<a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>{% endif %}
           {% if "transport" in me.pages %}<a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>{% endif %}
           {% if "calculations" in me.pages %}<a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>{% endif %}
+          {% if "op_analysis" in me.pages %}<a class="nav-item" data-page="op_analysis" href="#op_analysis"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Analysis reports</span></a>{% endif %}
+          {% if "op_charts" in me.pages %}<a class="nav-item" data-page="op_charts" href="#op_charts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Report charts</span></a>{% endif %}
         </div>
       </div>
       {% endif %}
@@ -392,7 +392,7 @@
     <main class="page" id="page-op_live" hidden>
       <div class="toolbar">
         <div class="filters"><select class="select" id="ol-port" aria-label="Port" hidden></select><span class="filters" id="ol-terminals"></span></div>
-        <div class="tools"><button class="btn ghost small" data-act="op-live-refresh">Refresh</button></div>
+        <div class="tools">{% if "exports" in me.permissions %}<button class="btn ghost small" data-act="live-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button> {% endif %}<button class="btn ghost small" data-act="op-live-refresh">Refresh</button></div>
       </div>
       <div id="ol-cards" class="op-cards"></div>
       <div class="empty" id="ol-empty" hidden>No terminals.</div>
