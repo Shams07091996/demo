@@ -5,6 +5,24 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Sidebar scroll, Services by vessel, Dashboard views (2026-11-26):** on branch `feature/services-dashboard-views`,
+  **not merged**. No migration. Design `specs/2026-11-26-sidebar-services-dashboard-design.md`, plan
+  `plans/2026-11-26-sidebar-services-dashboard.md`.
+  - Sidebar: a thin scrollbar in the navy colours when every folder is open.
+  - **Services** shows one card per vessel (name, date, OPR, port / terminal / berth, "N services", a Missing tag);
+    a click opens it to its service cards (type, status, Sailed, agent, completed date, missing tags), which open the
+    service as before. Filters unchanged; a vessel shows only its matching services; paging counts vessels. The
+    Excel stays one row a service.
+  - **Dashboard** has four views, one on screen at a time (remembered in the browser): **Agent jobs** (as before),
+    **OPR** (donut of vessels, OPR table, the OPR bars and cards), **Customers** (new: jobs per customer, and a
+    shaded table customer + POC × port) and **Overview** (services per month, money, service status). Each starts
+    with a one-line headline. A filter a view doesn't use (OPR on OPR, agent on Customers) is hidden there while empty.
+  - Rulings (mine): a job counts for the service's **billing party**, else the ship's customer (arrivals / sailings:
+    the ship's customer), else "No customer", listed last; the heat table's rows are customer + POC (POC alone hid
+    whose jobs they were). No change to the Excel files.
+  - 1007 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass; looked at in the browser
+    (light, dark, phone).
+
 - **Page-like Excel, icon delete buttons, Live data today, grouped ticks (2026-11-26):** merged into main by the user
   (2026-11-26), from branch `feature/page-excel-and-ticks` (deleted). No migration. Design
   `specs/2026-11-26-page-excel-and-ticks-design.md`.
@@ -246,6 +264,9 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Decisions the user made (respect these)
 
+- **Services and Dashboard (2026-11-26):** Services shows vessels as cards that open to their services (like the
+  manager's HTML); the Dashboard shows one topic at a time (Agent jobs, OPR, Customers, the rest in Overview), not
+  everything as bars.
 - **Operation (2026-11-25):** its own Django app in the same page (option A); a separate sidebar folder right below
   Marine; it lists **all vessels at all terminals** (Vessels stays the company's own); terminals belong to a port;
   the new ticks start off, an Admin ticks them; all data was demo, no old data moved. The Shipping line table has one

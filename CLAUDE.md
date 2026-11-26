@@ -163,6 +163,12 @@ Crew Change is 1 job), services and money (`calc` of each service, services only
 with zero-filled gaps, and the OPR charts / cards. `agent=__none__` (`constants.NO_AGENT`) means an empty agent; a
 service filter drops arrivals / sailings; agent or service filters narrow the OPR figures to the counted services.
 Its OPR / agent / service filters are `state.dashboardFilter` (not the vessel list's); From–To and port are shared.
+`customers` (`_customers`, counts only): jobs per customer (a service's `billing_party`, else the ship's customer;
+arrivals / sailings the ship's; none → id None "No customer", last) with `places` per POC + port. The page shows
+one view at a time (`data-dash-view` agents / opr / customers / overview, tabs `data-act="dash-view"`,
+`showDashboardView`, remembered in `localStorage` `sheet.dashboard.view`); every view is drawn from the same
+response; a filter the view doesn't use is hidden while empty. The OPR donut is `js/render/svgChart.js` (SVG by
+`createElementNS`, colours through CSSOM).
 
 **Hotels and Transport** (`logistics.py`): `HotelStay` (one room; cost and revenue per room per night) and
 `Transfer` (one car trip between an airport, a hotel and a port, naming which one of each from Master data) each have
@@ -324,9 +330,12 @@ Cancelled. `sailed` = the booking alerts' rule. `filtered(profile, params)` (als
 (default `in_progress`), `missing=1`, `from` / `to` on the vessel date — **on the completed date when only Completed
 is ticked** (`completed_day`: `completed_at` Cairo date, else the vessel date, `completed_guess`) — `type`,
 `agent` (`__none__`), `q`, `port`; database narrows by port / status / type / vessel date, the rest in Python;
-oldest first (only Completed: newest first); a fixed number of queries. Export page `services` in `dataexport`
-(not in All data: `ALL_PAGES`). The tick filter is shared (`components.tickFilterEl`, `util.tickSummary`; each
-page reads its own `data-tick` group inside its own box). A row opens `openServiceForm(type, service, {from:
+oldest first (only Completed: newest first); a fixed number of queries. The page gets them grouped
+(`grouped(rows)`: `vessels: [{vessel {id, name, date, port, opr, terminal, berth}, services}]` in row order, paged by
+vessel, `count` = vessels, `services_count`) and shows vessel cards that open to service cards (`sv-toggle`). Export
+page `services` in `dataexport` (still one row a service; its headings are services.js's exported `heads`;
+not in All data: `ALL_PAGES`). The tick filter is shared (`components.tickFilterEl`, `util.tickSummary`; each
+page reads its own `data-tick` group inside its own box). A service card opens `openServiceForm(type, service, {from:
 'services'})` (edit roles; `afterServiceChange` closes the dialog and reloads the page) or the vessel (read-only);
 filters are kept in `localStorage` (`sheet.services.filter`).
 
