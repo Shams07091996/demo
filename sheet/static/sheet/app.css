@@ -451,6 +451,11 @@ th[data-csort],th[data-bsort]{cursor:pointer}
 .sv-svc:hover{border-color:var(--accent)}
 .sv-svc-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .sv-svc-meta{display:flex;flex-direction:column;color:var(--muted);font-size:12px}
+.calc-line{display:flex;flex-direction:column;gap:5px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.calc-money{font-size:13px;font-variant-numeric:tabular-nums}
+.calc-sums{font-size:13px;font-variant-numeric:tabular-nums}
+.calc-sums .neg,.calc-line .neg{color:var(--danger)}
+.calc-summary{grid-column:1/-1;font-size:13px}
 @media(max-width:600px){.sv-vessel-head{flex-wrap:wrap;gap:4px 10px}.sv-vessel-name{min-width:0;flex:1}.sv-vessel-meta{flex-basis:100%;order:3}}
 
 /* Operation pages (js/pages/op*.js, terminals.js) */

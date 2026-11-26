@@ -96,4 +96,9 @@ async function load() {
   }
 }
 
-export const opLivePage = { load };
+/** The Excel's query: the page's port and its All / one-terminal choice. */
+function exportQuery() {
+  return new URLSearchParams({ ...(port ? { port } : {}), ...(terminal ? { terminal } : {}) }).toString();
+}
+
+export const opLivePage = { load, exportQuery };

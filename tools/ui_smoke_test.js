@@ -95,6 +95,11 @@ async function login() {
 
   const $ = (s) => w.document.querySelector(s);
   const $$ = (s) => [...w.document.querySelectorAll(s)];
+  // Calculations: one card per vessel holding its line cards. A line's text here includes its vessel card's head.
+  const calcLines = () => $$('#c-cards .calc-line');
+  const lineText = (line) => `${line.closest('.sv-vessel').querySelector('.sv-vessel-head').textContent} ${line.textContent}`;
+  const calcLine = (...words) => calcLines().find((l) => words.every((word) => lineText(l).includes(word)));
+  const calcSummary = (line) => line.closest('.sv-vessel').querySelector('[data-act="summary"]');
   const click = (el) => el.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   const type = (el, value) => { el.value = value; el.dispatchEvent(new w.Event('input', { bubbles: true })); el.dispatchEvent(new w.Event('change', { bubbles: true })); };
   const waitFor = async (cond, ms = 4000) => { const end = Date.now() + ms; while (Date.now() < end) { if (cond()) return true; await sleep(40); } return false; };
@@ -212,12 +217,9 @@ async function login() {
     closeModal();
 
     await go('calculations');
-    const calcRows = () => $$('#c-tbody tr').filter((t) => t.textContent.includes(HOSTILE));
+    const calcRows = () => calcLines().filter((l) => lineText(l).includes(HOSTILE));
     ok(await waitFor(() => calcRows().length > 0), 'calculations: lines of the markup-like vessel are listed');
-    const portCol = $$('#c-head th').findIndex((th) => th.textContent.trim().startsWith('Port'));
-    ok($$('#c-head th').length === calcRows()[0].children.length
-      && (portCol < 0 || calcRows()[0].children[portCol].textContent.length > 0), 'calculations: the Port column lines up with its rows');
-    ok(calcRows()[0].textContent.includes('<i>O</i>') && noMarkup($('#c-tbody')), 'calculations: vessel name and OPR show literally');
+    ok(lineText(calcRows()[0]).includes('<i>O</i>') && noMarkup($('#c-cards')), 'calculations: vessel name and OPR show literally');
     ok([...$('#c-opr').options].some((o) => o.textContent === '<i>O</i>'), 'calculations: OPR filter lists the markup-like OPR as text');
 
     await go('master');
@@ -340,7 +342,7 @@ async function login() {
     closeModal();
     // Calculations: with Close / reopen lines (seed_demo gives full Users everything) the switch is there.
     await go('calculations');
-    ok(await waitFor(() => $$('#c-tbody tr').length > 0) && !!$('#c-tbody [data-act="acct-toggle"]'),
+    ok(await waitFor(() => calcLines().length > 0) && !!$('#c-cards [data-act="acct-toggle"]'),
       'three-port user: Calculations has the Open / Closed switch');
     ok((await w.fetch(`/api/vessels/${made.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } })).ok, 'three-port user: the Damietta vessel is deleted');
     await checkHistory();
@@ -350,7 +352,7 @@ async function login() {
   /* ======== layout: sidebar and pages ======== */
   const navItems = $$('#nav .nav-item').filter((a) => a.style.display !== 'none');
   ok($('#sidebar') && navItems.length === (ROLE === 'admin' ? 22 : 20), 'sidebar lists the pages (Admins also have Accounts and Ports; no Bulk add)');
-  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_analysis,op_charts,op_list,terminals,op_windows,dashboard,disposal,hotels,transport,calculations,master,customers,rates'
+  const pageOrder = 'vessels,services,closures,ships,op_vessels,op_live,op_list,terminals,op_windows,dashboard,disposal,hotels,transport,calculations,op_analysis,op_charts,master,customers,rates'
     + (ROLE === 'admin' ? ',ports,accounts' : '') + ',history';
   ok($$('#nav .nav-item').map((a) => a.dataset.page).join() === pageOrder, 'sidebar: Marine, Operation, Reports, Master data folders in order; History last');
   ok(!$('.tabs') && $('.sidebar'), 'navigation is a sidebar, not a tab bar');
@@ -362,9 +364,10 @@ async function login() {
 
   /* ---- Operation folder: Vessel Data, Live data, Analysis reports, Report charts (seed_demo: the workbook's visits,
      NORDIC STAR working at ACCHCO - ALX) ---- */
-  for (const [page, title] of [['op_vessels', 'Vessel Data'], ['op_live', 'Live data'], ['op_analysis', 'Analysis reports'], ['op_charts', 'Report charts']]) {
+  for (const [page, title, folder] of [['op_vessels', 'Vessel Data', 'operation'], ['op_live', 'Live data', 'operation'],
+    ['op_analysis', 'Analysis reports', 'reports'], ['op_charts', 'Report charts', 'reports']]) {
     await go(page);
-    ok($('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).closest('[data-group="operation"]'), `operation: "${title}" opens from the Operation folder`);
+    ok($('#pageTitle').textContent === title && $(`#nav [data-page="${page}"]`).closest(`[data-group="${folder}"]`), `operation: "${title}" opens from the ${folder} folder`);
   }
   await go('op_live');
   ok(await waitFor(() => $('#ol-cards').textContent.includes('NORDIC STAR')), 'operation: Live data shows the vessel under operation');
@@ -376,6 +379,9 @@ async function login() {
   // The smoke server's letterhead folder has terminals/EGALY.png (ACCHCO - ALX) only.
   const pic = $('#ol-cards img.op-pic');
   ok(!!pic && (await w.fetch(pic.getAttribute('src'))).headers.get('content-type') === 'image/png', 'operation: the terminal picture shows');
+  const liveXlsx = await w.fetch('/api/operation/live/export/');
+  ok(!!$('[data-act="live-export"]') && liveXlsx.status === 200
+    && liveXlsx.headers.get('content-type').includes('spreadsheetml'), 'operation: Live data has an Excel file');
   click(liveChip('All'));
   ok(await waitFor(() => $$('#ol-cards .op-card').length >= 5), 'operation: All shows every terminal again');
   await go('op_analysis');
@@ -405,8 +411,13 @@ async function login() {
     ok(await waitFor(() => $('#visit-window').hidden), 'operation: a line without windows shows none');
     type(vf('eta'), '2026-11-20T08:00');
     type(vf('cranes'), '2');
-    click($('[data-act="opv-save"]'));
+    const keptTerminal = vf('terminal').value;
+    click($('[data-act="opv-save-another"]'));
     ok(await waitFor(() => ovRow('SMOKE VISIT')?.textContent.includes('Planned')), 'operation: a new visit is saved upper-case and Planned');
+    ok(await waitFor(() => $('#modal h2')?.textContent.includes('Add visit') && vf('terminal').value === keptTerminal
+      && vf('vessel_name').value === '' && vf('shipping_line').value === '' && vf('eta').value === ''),
+    'operation: Save and add another opens a new visit on the same terminal, everything else empty');
+    click($('#modal [data-act="close"]'));
     click(ovRow('SMOKE VISIT').querySelector('td'));
     ok(await waitFor(() => $('#modal h2')?.textContent.includes('SMOKE VISIT')), 'operation: a visit opens');
     type(vf('ata'), '2026-11-20T09:00');
@@ -545,18 +556,32 @@ async function login() {
   /* ---- calculations page (every role sees it, money included) ---- */
   await go('calculations');
   ok(await waitFor(() => /Revenue LE .+ · Cost LE .+ · Profit LE .+ · \d+ lines?/.test($('#c-totals').textContent)), 'calculations: one totals line');
-  const waterRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('MSC AURORA') && t.textContent.includes('Fresh Water'));
+  const waterRow = () => calcLine('MSC AURORA', 'Fresh Water');
+  ok(await waitFor(() => $$('#c-cards .sv-vessel').length > 0) && $$('#c-cards .sv-vessel-body').every((b) => b.hidden),
+    'calculations: one closed card per vessel');
+  const auroraCard = () => $$('#c-cards .sv-vessel').find((c) => c.querySelector('.sv-vessel-head').textContent.includes('MSC AURORA'));
+  ok(/Revenue .+ · Cost .+ · Profit .+/.test(auroraCard().querySelector('.calc-sums').textContent)
+    && /\d+ lines?/.test(auroraCard().querySelector('.sv-count').textContent), 'calculations: a vessel card shows its revenue, cost, profit and lines');
+  click(auroraCard().querySelector('[data-act="calc-toggle"]'));
+  ok(await waitFor(() => !auroraCard().querySelector('.sv-vessel-body').hidden && auroraCard().querySelectorAll('.calc-line').length > 0),
+    'calculations: a click opens the card to its line cards');
   ok(await waitFor(() => waterRow()) && waterRow().textContent.includes('USD 900.00 × 50.00 = 45,000.00'), 'calculations: a USD line shows its working');
   ok(waterRow().textContent.includes('EGP 30,000.00') && waterRow().textContent.includes('15,000.00'), 'calculations: cost and profit in EGP');
-  ok([...$('#c-pager #c-page-size').options].map((o) => o.value).join() === '10,25,50,100', 'calculations: rows per page 10/25/50/100');
+  ok([...$('#c-pager #c-page-size').options].map((o) => o.value).join() === '10,25,50,100', 'calculations: vessels per page 10/25/50/100');
+  type($('#c-sort'), 'profit');
+  ok(await waitFor(() => { const sums = $$('#c-cards .calc-sums').map((s) => Number(s.textContent.split('Profit ')[1].replaceAll(',', '')));
+    return sums.length > 1 && sums.every((n, i) => i === 0 || sums[i - 1] >= n); }), 'calculations: sorting by profit orders the vessel cards');
+  type($('#c-sort'), 'date');
+  await waitFor(() => waterRow());
+  ok(!auroraCard().querySelector('.sv-vessel-body').hidden, 'calculations: an open card stays open when the page reloads');
   ok([...$('#c-opr').options].map((o) => o.textContent).includes('MSK'), 'calculations: the OPR choices come from the range');
   type($('#c-opr'), 'MSK');
-  ok(await waitFor(() => $$('#c-tbody tr').length > 0 && $$('#c-tbody tr').every((t) => t.textContent.includes('MSK'))), 'calculations: the OPR filter narrows the lines');
+  ok(await waitFor(() => calcLines().length > 0 && calcLines().every((l) => lineText(l).includes('MSK'))), 'calculations: the OPR filter narrows the lines');
   type($('#c-opr'), '');
   await waitFor(() => $('#c-totals').textContent.includes('lines'));
   if (ROLE !== 'viewer') {
     // An edit made from the page (vessel name → summary → details → add a service) shows up on the page at once.
-    click(waterRow().querySelector('[data-act="summary"]'));
+    click(calcSummary(waterRow()));
     await waitFor(() => $('#modal [data-act="open-vessel"]'));
     click($('#modal [data-act="open-vessel"]'));
     await waitFor(() => $('[data-act="add-service"]'));
@@ -566,9 +591,9 @@ async function login() {
     click($('[data-act="save-service"]'));
     await waitFor(() => modalText().includes('calc smoke'));
     closeModal();
-    const othersRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('MSC AURORA') && t.textContent.includes('Others / Remarks'));
+    const othersRow = () => calcLine('MSC AURORA', 'Others / Remarks');
     ok(await waitFor(() => othersRow() && othersRow().textContent.includes('EGP 7.00')), 'calculations: an edit made from the page shows up without reloading');
-    click(othersRow().querySelector('[data-act="summary"]')); // remove the test service again
+    click(calcSummary(othersRow())); // remove the test service again
     await waitFor(() => $('#modal [data-act="open-vessel"]'));
     click($('#modal [data-act="open-vessel"]'));
     await waitFor(() => $$('.svc-card').some((c) => c.textContent.includes('Others / Remarks')));
@@ -579,9 +604,8 @@ async function login() {
   }
 
   /* ---- service status and accounting: Calculations columns, tick-box filters, the Open / Closed switch ---- */
-  const calcHeads = () => $$('#c-head th').map((th) => th.textContent.trim());
-  ok(calcHeads().includes('Status') && calcHeads().includes('Accounting'), 'calculations: Status and Accounting columns');
-  ok(calcHeads().includes('Billing party') && calcHeads().includes('Billing'), 'calculations: Billing party and Billing columns');
+  ok(await waitFor(() => waterRow()?.querySelector('.svc-status') && waterRow().querySelector('.acct-switch, .acct-label')),
+    'calculations: a line card shows its status and its accounting state');
   ok(await waitFor(() => waterRow()?.textContent.includes('On account')), 'calculations: a service line shows On account');
   ok([...$('#c-party').options].map((o) => o.textContent).slice(0, 2).join() === 'All billing parties,No billing party', 'calculations: billing party filter');
   ok(await waitFor(() => waterRow()?.querySelector('.svc-status')?.textContent === 'In progress'), 'calculations: a service line shows its status label');
@@ -620,7 +644,7 @@ async function login() {
     setTick('accounting', 'closed', true);
     ok(await waitFor(() => waterRow()), 'accounting: ticking Closed again shows it');
     if (ROLE === 'admin') {
-      click(waterRow().querySelector('[data-act="summary"]'));
+      click(calcSummary(waterRow()));
       await waitFor(() => $('#modal [data-act="open-vessel"]'));
       click($('#modal [data-act="open-vessel"]'));
       const waterCard = () => $$('.svc-card').find((c) => c.textContent.includes('Fresh Water'));
@@ -639,7 +663,7 @@ async function login() {
       await setMonthRate('50');
       ok(await waitFor(() => waterRow()?.textContent.includes('× 48.2525 = 43,427.25')), 'accounting: the rate kept on closing stays after reopening and a new month rate');
       // A person clears the kept rate: the line follows the month rate again (and the next role sees the seeded figures).
-      click(waterRow().querySelector('[data-act="summary"]'));
+      click(calcSummary(waterRow()));
       await waitFor(() => $('#modal [data-act="open-vessel"]'));
       click($('#modal [data-act="open-vessel"]'));
       const waterCard = () => $$('.svc-card').find((c) => c.textContent.includes('Fresh Water'));
@@ -1154,7 +1178,7 @@ async function login() {
     ok(await waitFor(() => gRow()?.textContent.includes('USD 370.00') && gRow().textContent.includes('No exchange rate')), 'garbage & sludge: the price applies, in USD and EGP');
     await go('calculations');
     type($('#c-from'), '2020-01-01'); type($('#c-to'), '2020-01-31');
-    const gLine = () => $$('#c-tbody tr').find((t) => t.textContent.includes('Garbage · 5 m³'));
+    const gLine = () => calcLine('Garbage · 5 m³');
     ok(await waitFor(() => gLine()?.textContent.includes('USD 370.00 × 1 (no rate) = 370.00')), 'calculations: the garbage line shows its working');
     await go('disposal');
   }
@@ -1669,13 +1693,23 @@ async function login() {
     ok(await waitFor(() => $$('#opr-cards .opr-card').length > 0) && $('#chart-vessels svg .donut-slice'), 'dashboard: the OPR donut and OPR cards render');
     const dashTab = (view) => $(`[data-act="dash-view"][data-view="${view}"]`);
     const dashShown = () => $$('[data-dash-view]').filter((el) => !el.hidden).map((el) => el.dataset.dashView).join();
-    ok(['agents', 'opr', 'customers', 'overview'].every((v) => dashTab(v)), 'dashboard: four views (Agent jobs, OPR, Customers, Overview)');
+    ok(['agents', 'opr', 'customers', 'overview', 'money'].every((v) => dashTab(v)), 'dashboard: five views (Agent jobs, OPR, Customers, Overview, Money)');
     click(dashTab('customers'));
     ok(dashShown() === 'customers' && dashTab('customers').getAttribute('aria-pressed') === 'true' && $('#d-agent').hidden, 'dashboard: Customers shows only its view, without the agent filter');
     ok(await waitFor(() => $('#tbl-customers').textContent.includes('Blue Owners')) && $('#heat-customers td.heat'), 'dashboard: jobs per customer and the POC / port table');
+    ok(await waitFor(() => $('#tbl-customer-services').textContent.includes('Blue Owners'))
+      && $$('#tbl-customer-services thead th').map((t) => t.textContent).includes('Crew Change'), 'dashboard: services per customer, a column per service');
+    const blue = [...$('#d-customer').options].find((o) => o.textContent === 'Blue Owners');
+    ok(!!blue && [...$('#d-customer').options].some((o) => o.textContent === '(no customer)'), 'dashboard: a Customer filter with the customers');
+    type($('#d-customer'), blue.value);
+    ok(await waitFor(() => $$('#tbl-customers tbody tr:not(.total)').length === 1 && $('#tbl-customers').textContent.includes('Blue Owners')),
+      'dashboard: the Customer filter narrows the jobs to that customer');
+    type($('#d-customer'), '');
+    ok(await waitFor(() => $$('#tbl-customers tbody tr:not(.total)').length > 1), 'dashboard: clearing the Customer filter shows every customer');
     ok(w.localStorage.getItem('sheet.dashboard.view') === 'customers', 'dashboard: the view is remembered');
     click(dashTab('opr'));
     ok(dashShown() === 'opr' && $('#d-opr').hidden && !$('#d-agent').hidden, 'dashboard: OPR shows its view, without the OPR filter');
+    ok(!$('#chart-cost') && !$('#chart-profit') && !$('#opr-cards').textContent.includes('LE cost'), 'dashboard: OPR has figures only, no cost or profit');
     click(dashTab('agents'));
     ok(dashShown() === 'agents' && $('#hl-agents').textContent.includes('jobs'), 'dashboard: Agent jobs has its headline');
     click($('#opr-cards .opr-card'));
@@ -1686,7 +1720,7 @@ async function login() {
     type($('#d-from'), '2001-01-01'); type($('#d-to'), '2001-01-31');
     ok(await waitFor(() => $('#dash-count').textContent === '0' && $('#opr-cards').textContent.includes('No data')), 'dashboard: changing the range reloads its figures');
     ok($('#f-from').value === '2001-01-01', 'dashboard and vessels share one range');
-    ok(['#chart-agents', '#chart-months', '#tbl-agents', '#tbl-months', '#tbl-money'].every((s) => $(s).textContent.includes('No data.')), 'dashboard: an empty range shows "No data." in every new panel');
+    ok(['#chart-agents', '#chart-months', '#tbl-agents', '#tbl-months'].every((s) => $(s).textContent.includes('No data.')), 'dashboard: an empty range shows "No data." in every new panel');
     click($('#d-clear'));
     ok(await waitFor(() => $('#d-from').value === '' && $('#dash-count').textContent !== '0'), '"All dates" clears the range');
     type($('#d-from'), keepFrom); type($('#d-to'), keepTo);
@@ -1700,7 +1734,21 @@ async function login() {
     ok(agentHeads().includes('Arrivals') && agentHeads().includes('Sailings') && agentHeads().at(-1) === 'Total', 'dashboard: agents table has Arrivals, Sailings and Total');
     ok($$('#chart-agents .hbar').length === agentRows().length && $$('#chart-months .stack-col').length > 0, 'dashboard: agent bars and month columns are drawn');
     ok($$('#tbl-months tbody tr').at(-1).classList.contains('total') && /[A-Z][a-z]{2} \d{4}/.test($('#tbl-months thead').textContent), 'dashboard: services per month has month columns and a Total row');
-    ok($$('#tbl-money tbody tr').map((r) => r.firstElementChild.textContent).join() === 'Cost,Revenue,Profit', 'dashboard: money per month has Cost, Revenue and Profit rows');
+    ok(!$('[data-dash-view="overview"] #tbl-money'), 'dashboard: money per month is no longer on Overview');
+    click(dashTab('money'));
+    ok(await waitFor(() => $$('#tbl-money tbody tr').map((r) => r.firstElementChild.textContent).join() === 'Revenue,Cost,Profit'),
+      'dashboard: Money has revenue, cost and profit per month');
+    ok($('#hl-money').textContent.startsWith('Revenue ') && $('#tbl-money-services').textContent.includes('Fresh Water')
+      && $('#tbl-money-customers').textContent.includes('Blue Owners') && $$('#chart-money-services .bar').length > 0,
+    'dashboard: Money by service (bars and table) and by customer');
+    ok([...$('#d-service').options].some((o) => o.value === 'Hotel stay'), 'dashboard: on Money the service filter also offers hotels, transport, garbage');
+    type($('#d-service'), 'Fresh Water');
+    ok(await waitFor(() => $$('#tbl-money-services tbody tr:not(.total)').length === 1), 'dashboard: the service filter narrows the money');
+    type($('#d-service'), 'Hotel stay');
+    await waitFor(() => !$('#tbl-money-services').textContent.includes('Fresh Water'));
+    click(dashTab('agents'));
+    ok(await waitFor(() => $('#d-service').value === '' && ![...$('#d-service').options].some((o) => o.value === 'Hotel stay')),
+      'dashboard: leaving Money drops a hotels / transport / garbage choice');
     ok($$('#tbl-status tbody tr').map((r) => r.firstElementChild.textContent).join() === 'In progress,Completed,Cancelled,Open lines,Closed lines', 'dashboard: service status table per month');
     ok(shown($('#d-port')) === (ROLE !== 'alex'), 'dashboard: own port selector only for users who see every port');
     type($('#d-service'), 'Fresh Water');

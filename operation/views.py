@@ -124,6 +124,20 @@ def live_view(request):
 
 @json_api
 @require_http_methods(["GET"])
+def live_export(request):
+    """Live data as a workbook, one sheet per terminal card (the page's port and All / one-terminal choice)."""
+    profile = request.profile
+    require_page(profile, "op_live")
+    require(profile, "exports")
+    ratelimit.check(request, "export")
+    content = live.export_file(profile, request.GET.get("port") or None, request.GET.get("terminal") or None,
+                               timezone.now())
+    audit(request, "live.export", filters=",".join(sorted(request.GET))[:200])
+    return _xlsx_response(content, f"Live data {timezone.localdate().isoformat()}.xlsx")
+
+
+@json_api
+@require_http_methods(["GET"])
 def analysis_view(request):
     """Analysis reports and Report charts share this response."""
     profile = request.profile

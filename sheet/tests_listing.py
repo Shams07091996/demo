@@ -184,8 +184,7 @@ class DashboardTests(ListingData):
             mine = [v for v in rows if v["opr"] == entry["opr"]]
             self.assertEqual(entry["vessels"], len(mine))
             self.assertEqual(entry["services"], sum(len(v["services"]) for v in mine))
-            self.assertAlmostEqual(entry["cost_egp"], sum(v["total_cost_egp"] for v in mine), places=2)
-            self.assertAlmostEqual(entry["profit_egp"], sum(v["total_profit_egp"] for v in mine), places=2)
+            self.assertNotIn("cost_egp", entry)  # the OPR view shows figures only (2026-11-26)
 
     def test_crew_change_counts_signers(self):
         ark = self.dash("admin", "?from=2026-11-01&to=2026-11-30")[1]["oprs"][1]

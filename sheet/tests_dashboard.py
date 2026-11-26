@@ -77,15 +77,13 @@ class DashboardFigureTests(ApiTestCase):
         self.assertEqual(data["service_types"], ["Fresh Water"])
         self.assertTrue(all(a["arrivals"] == 0 and a["sailings"] == 0 for a in data["agents"]))
         self.assertEqual([(a["agent"], a["total"]) for a in data["agents"]], [("", 1)])
-        self.assertEqual([(o["opr"], o["vessels"], o["services"], o["cost_egp"]) for o in data["oprs"]],
-                         [("MSK", 1, 1, 100.0)])
+        self.assertEqual([(o["opr"], o["vessels"], o["services"]) for o in data["oprs"]], [("MSK", 1, 1)])
         self.assertEqual(data["count"], 1)
 
     def test_agent_filter(self):
         data = self.dash(NOV + "&agent=NILE")
         self.assertEqual([(a["agent"], a["sailings"], a["total"]) for a in data["agents"]], [("NILE", 1, 1)])
-        self.assertEqual([(o["opr"], o["vessels"], o["services"], o["cost_egp"]) for o in data["oprs"]],
-                         [("MSK", 1, 0, 0)])
+        self.assertEqual([(o["opr"], o["vessels"], o["services"]) for o in data["oprs"]], [("MSK", 1, 0)])
         self.assertEqual(data["months"], [])  # no services, no money
         none = self.dash(NOV + "&agent=__none__")
         self.assertEqual([(a["agent"], a["total"]) for a in none["agents"]], [("", 2)])
@@ -166,6 +164,37 @@ class DashboardCustomerTests(ApiTestCase):
     def test_service_filter_narrows_customers(self):
         found = self.customers(NOV + "&service=Fresh Water")
         self.assertEqual([(c["name"], c["jobs"]) for c in found], [("B MANAGERS", 1)])
+
+    def test_opr_rows_have_no_money(self):
+        for opr in self.dash()["oprs"]:
+            self.assertEqual(set(opr) & {"cost_egp", "profit_egp", "revenue_egp"}, set())
+
+    def test_customers_by_type(self):
+        found = {c["name"]: c for c in self.customers()}
+        a, b = found["A OWNERS"], found["B MANAGERS"]
+        self.assertEqual((a["arrivals"], a["sailings"], a["by_type"]), (1, 1, {"Crew Change": 1}))
+        self.assertEqual((b["arrivals"], b["sailings"], b["by_type"]), (0, 0, {"Fresh Water": 1}))
+        self.assertEqual((found["No customer"]["arrivals"], found["No customer"]["sailings"]), (1, 1))
+
+    def test_customer_filter_narrows_jobs(self):
+        data = self.dash(NOV + f"&customer={self.b.id}")
+        self.assertEqual([(c["name"], c["jobs"]) for c in data["customers"]], [("B MANAGERS", 1)])
+        self.assertEqual([(a["agent"], a["total"]) for a in data["agents"]], [("", 1)])
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["totals"]["services"], 1)
+
+    def test_customer_none_filter(self):
+        data = self.dash(NOV + "&customer=__none__")
+        self.assertEqual([(c["id"], c["jobs"]) for c in data["customers"]], [(None, 2)])  # V2's arrival + sailing
+
+    def test_unknown_customer_400(self):
+        for value in ("abc", "999999"):
+            status, body = self.call(self.login("admin"), "get", f"/api/dashboard/{NOV}&customer={value}")
+            self.assertEqual((status, body.get("error")), (400, "Unknown customer."), value)
+
+    def test_customer_choices(self):
+        data = self.dash(NOV + f"&customer={self.b.id}")  # the choices are not narrowed by the customer filter
+        self.assertEqual(data["filters"]["customers"], [[self.a.id, "A OWNERS"], [self.b.id, "B MANAGERS"]])
 
     def test_port_user_sees_own_port_only(self):
         from .models import Customer, Ship

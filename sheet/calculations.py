@@ -30,6 +30,18 @@ SORT_KEYS = {
 }
 
 
+# The page shows one card per vessel: its sorts are on the vessels (money: the vessel's sums), ties newest first.
+VESSEL_SORTS = {
+    "date": lambda g: g["vessel"]["date"],
+    "vessel": lambda g: g["vessel"]["name"].casefold(),
+    "opr": lambda g: g["vessel"]["opr"].casefold(),
+    "port": lambda g: g["vessel"]["port_label"].casefold(),
+    "cost": lambda g: g["cost_egp"],
+    "revenue": lambda g: g["revenue_egp"],
+    "profit": lambda g: g["profit_egp"],
+}
+
+
 @dataclass
 class Params:
     date_from: date | None
@@ -116,10 +128,10 @@ def _usd(item):
 def _state(obj, kind, status=None, reason=""):
     """What a row says about its thing: operations status and billing (services only), accounting state and what
     closes it."""
-    billing = {"billing": None, "billing_party": None}
+    billing = {"billing": None, "billing_party": None, "agent": None}
     if kind == "service":
         party = obj.billing_party
-        billing = {"billing": obj.billing,
+        billing = {"billing": obj.billing, "agent": obj.agent,
                    "billing_party": {"id": party.id, "name": party.name} if party is not None else None}
     if obj is None:  # garbage & sludge with nothing entered yet: nothing to close
         return {"status": None, "cancel_reason": "", "closed": False, "ref": None, **billing}
@@ -131,7 +143,8 @@ def _row(vessel, kind, item, state):
     usd = _usd(item)
     return {
         "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "opr": vessel.opr,
-                   "port": vessel.port, "port_label": ports.label(vessel.port)},
+                   "port": vessel.port, "port_label": ports.label(vessel.port),
+                   "ship_customer_id": vessel.ship.customer_id if vessel.ship_id else None},
         "kind": kind,
         "label": item["label"],
         "note": item["note"],
@@ -176,7 +189,8 @@ def _vessel_rows(vessel, rate, price):
 def rows_for(vessels):
     """Every money line of these vessels (a Vessel queryset), newest vessel first, lines in order. Also feeds the
     management workbook, so its money always equals this page's."""
-    vessels = vessels.prefetch_related("services__billing_party", "hotel_stays", "transfers").select_related("disposal")
+    vessels = vessels.prefetch_related("services__billing_party", "hotel_stays", "transfers").select_related(
+        "disposal", "ship")
     rates, prices = month_rates(), disposal.prices_map()
     rows = []
     for vessel in vessels.order_by("-date", "-id"):
@@ -186,7 +200,14 @@ def rows_for(vessels):
 
 
 def filtered(profile, params):
-    """(params, rows, oprs): every row the page's filters show, sorted, not paged (also the export)."""
+    """(params, rows, oprs, parties): every row the page's filters show, sorted, not paged (the export)."""
+    p, rows, oprs, parties = _unsorted(profile, params)
+    rows.sort(key=SORT_KEYS[p.sort], reverse=p.desc)  # stable: ties keep newest vessel first, lines in order
+    return p, rows, oprs, parties
+
+
+def _unsorted(profile, params):
+    """filtered() before its sort: the rows newest vessel first, each vessel's lines in their order."""
     p = parse_params(params)
     vessels = scoped_vessels(profile, p.port, prefetch=False).prefetch_related("services", "hotel_stays", "transfers")
     vessels = vessels.select_related("disposal")
@@ -212,12 +233,30 @@ def filtered(profile, params):
         rows = [r for r in rows if r["status"] in p.statuses]
     if p.accounting is not None:
         rows = [r for r in rows if ("closed" if r["closed"] else "open") in p.accounting]
-    rows.sort(key=SORT_KEYS[p.sort], reverse=p.desc)  # stable: ties keep newest vessel first, lines in order
     return p, rows, oprs, parties
 
 
+def _groups(rows):
+    """One card per vessel with its lines (in order) and its sums, in the rows' order (newest vessel first)."""
+    groups = {}
+    for row in rows:
+        group = groups.setdefault(row["vessel"]["id"], {"vessel": row["vessel"], "rows": [], "cost_egp": 0.0,
+                                                        "revenue_egp": 0.0, "profit_egp": 0.0})
+        group["rows"].append(row)
+        for key in ("cost_egp", "revenue_egp", "profit_egp"):
+            group[key] += row[key]
+    for group in groups.values():
+        for key in ("cost_egp", "revenue_egp", "profit_egp"):
+            group[key] = round(group[key], 2)
+    return list(groups.values())
+
+
 def response(profile, params):
-    p, rows, oprs, parties = filtered(profile, params)
+    """The page: one card per vessel (`vessels`, paged), `rows` = the lines of the cards on this page in card order,
+    totals over every filtered line."""
+    p, rows, oprs, parties = _unsorted(profile, params)
+    if p.sort not in VESSEL_SORTS:
+        raise BadRequest("Unknown sort.")
     totals = {
         "revenue_egp": round(sum(r["revenue_egp"] for r in rows), 2),
         "cost_egp": round(sum(r["cost_egp"] for r in rows), 2),
@@ -231,17 +270,24 @@ def response(profile, params):
         **{f"{key}_usd": round(sum(r[f"{key}_usd"] for r in rows if r[f"{key}_usd"] is not None), 2)
            for key in ("cost", "revenue", "profit")},
     }
+    groups = _groups(rows)
+    groups.sort(key=VESSEL_SORTS[p.sort], reverse=p.desc)  # stable: ties keep newest vessel first
     start = (p.page - 1) * p.page_size
+    shown = groups[start : start + p.page_size]
     page_rows = [
         {**r, **{key: round(r[key], 2) for key in ("cost_egp", "revenue_egp", "profit_egp")}}
-        for r in rows[start : start + p.page_size]
+        for group in shown for r in group["rows"]
     ]
     return {
         "rows": page_rows,
+        "vessels": [{"vessel": g["vessel"], "lines": len(g["rows"]), "cost_egp": g["cost_egp"],
+                     "revenue_egp": g["revenue_egp"], "profit_egp": g["profit_egp"],
+                     "rate_missing": any(r["rate_missing"] for r in g["rows"]),
+                     "price_missing": any(r["price_missing"] for r in g["rows"])} for g in shown],
         "page": p.page,
         "page_size": p.page_size,
-        "count": len(rows),
-        "pages": max(1, -(-len(rows) // p.page_size)),
+        "count": len(groups),
+        "pages": max(1, -(-len(groups) // p.page_size)),
         "totals": totals,
         "oprs": oprs,
         "parties": parties,

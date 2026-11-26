@@ -3,7 +3,7 @@
 import { api } from './api.js';
 import { setStatus } from './feedback.js';
 import { calculationsPage } from './pages/calculations.js';
-import { renderDashboard } from './render/dashboard.js';
+import { MONEY_KINDS, currentDashboardView, renderDashboard, renderDashboardMoney } from './render/dashboard.js';
 import { renderAll } from './render/index.js';
 import { fillQuickSelects, renderFilterInputs } from './render/list.js';
 import { hideRangeNotice, noticeIfOutsideRange } from './render/rangeNotice.js';
@@ -55,7 +55,9 @@ let latestDashboard = 0;
 export async function loadDashboard() {
   const ticket = ++latestDashboard;
   try {
-    const data = await api(`/api/dashboard/?${dashboardParams()}`);
+    const params = dashboardParams();
+    if (MONEY_KINDS.includes(params.get('service'))) params.delete('service'); // hotels etc. are the Money view's only
+    const data = await api(`/api/dashboard/?${params}`);
     if (ticket !== latestDashboard) return;
     state.dashboard = data;
   } catch (error) {
@@ -64,6 +66,24 @@ export async function loadDashboard() {
     setStatus('error', error.message);
   }
   renderDashboard();
+  if (currentDashboardView() === 'money') await loadDashboardMoney();
+}
+
+let latestMoney = 0;
+
+/** The Money view's figures for the Dashboard's filters (only while that view is shown). */
+export async function loadDashboardMoney() {
+  const ticket = ++latestMoney;
+  try {
+    const data = await api(`/api/dashboard/money/?${dashboardParams()}`);
+    if (ticket !== latestMoney) return;
+    state.dashboardMoney = data;
+  } catch (error) {
+    if (ticket !== latestMoney) return;
+    state.dashboardMoney = null;
+    setStatus('error', error.message);
+  }
+  renderDashboardMoney();
 }
 
 /** Change one of the Dashboard's own filters (OPR / agent / service type) and reload it. */

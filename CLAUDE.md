@@ -160,14 +160,25 @@ the alerts (today / tomorrow in Cairo time, and past vessels missing details) an
 **Dashboard** (`dashboard.py`, `GET /api/dashboard/` and `/api/dashboard/jobs/`): vessels in date range + port (+ exact
 OPR) → jobs (arrival = 1 for the arrival agent, sailing = 1 for the sailing agent, each service = 1 for its agent; a
 Crew Change is 1 job), services and money (`calc` of each service, services only, no bookings) per vessel-date month
-with zero-filled gaps, and the OPR charts / cards. `agent=__none__` (`constants.NO_AGENT`) means an empty agent; a
+with zero-filled gaps, and the OPR charts / cards (counts only since 2026-11-26: `oprs` carry no money). `agent=__none__` (`constants.NO_AGENT`) means an empty agent; a
 service filter drops arrivals / sailings; agent or service filters narrow the OPR figures to the counted services.
-Its OPR / agent / service filters are `state.dashboardFilter` (not the vessel list's); From–To and port are shared.
+`customer=` (`dashboard.customer_param`: a Customer id, `__none__`, unknown → 400 "Unknown customer.") keeps the
+jobs counted for that customer (`_job_customer`) in every view; `filters.customers` = `[[id, name]]` with any job in
+range + port + OPR (not narrowed by the job filters).
+Its OPR / agent / service / customer filters are `state.dashboardFilter` (not the vessel list's); From–To and port are shared.
 `customers` (`_customers`, counts only): jobs per customer (a service's `billing_party`, else the ship's customer;
-arrivals / sailings the ship's; none → id None "No customer", last) with `places` per POC + port. The page shows
-one view at a time (`data-dash-view` agents / opr / customers / overview, tabs `data-act="dash-view"`,
+arrivals / sailings the ship's; none → id None "No customer", last) with `arrivals`, `sailings`, `by_type` (the
+Customers view's "Services per customer" table) and `places` per POC + port. The page shows
+one view at a time (`data-dash-view` agents / opr / customers / overview / money, tabs `data-act="dash-view"`,
 `showDashboardView`, remembered in `localStorage` `sheet.dashboard.view`); every view is drawn from the same
-response; a filter the view doesn't use is hidden while empty. The OPR donut is `js/render/svgChart.js` (SVG by
+response, except **Money** (`money.view` only; `dashmoney.py`, `GET /api/dashboard/money/`, same filters, loaded
+by `data.loadDashboardMoney` while that view is shown): `calculations.rows_for` of the vessels (so it equals the
+Calculations page: services, Hotel stay, Transfer, Garbage & Sludge), `totals`, `by_service` (service types in order,
+then `EXTRA_KINDS`), `by_customer` (a service line's billing party, else the vessel's ship's customer; revenue first,
+"No customer" last), zero-filled `months`; `service=` also takes the extra kinds (offered in the dropdown only on Money,
+`MONEY_KINDS`; leaving the view drops that choice), `agent=` keeps service lines of that agent. Calculations rows carry
+`agent` and `vessel.ship_customer_id` for it. "Money per month" moved from Overview to Money.
+A filter the view doesn't use is hidden while empty. The OPR donut is `js/render/svgChart.js` (SVG by
 `createElementNS`, colours through CSSOM).
 
 **Hotels and Transport** (`logistics.py`): `HotelStay` (one room; cost and revenue per room per night) and
@@ -245,7 +256,10 @@ under), body rows with thin lines, the totals row bold with a line over; `fit_wi
 frozen (`Sheet.freeze`) with filter arrows (`Sheet.filter` + the `_xlnm._FilterDatabase` name); a text of several lines
 wraps. `Sheet.looks` maps row index → `title` / `muted` / `header` / `body` / `total`; a sheet without looks writes
 exactly as before (fixed styles 0–6). Styles are collected per workbook (`xlsx._Styles`); currencies get number formats
-from 167. Colours are the light theme tokens (`HEADER_FILL`, `TONES`).
+from 167. Colours are the light theme tokens (`HEADER_FILL`, `TONES`; `danger` = Live data's Overdue).
+**Pictures:** `xlsx.Picture(data, kind png|jpeg, width, height, anchor)` on `Sheet.pictures`, placed after the
+charts in the sheet's one drawing (one-cell anchor, `xl/media/imageN.*`); `xlsx.picture_size` reads the size from
+the PNG IHDR / JPEG frame header (None → leave the picture out). No library.
 
 **Edit conflicts** (`conflicts.py`, migration 0018, `js/conflict.js`): Vessel, Service, HotelStay, Transfer and PortClosure have `version`. Every update of those (vessel / service PUT-PATCH, booking / closure PUT) must send it (missing → 400 "This page is out of date…"); `conflicts.locked` re-reads the row with `select_for_update`, a different version → **409** `{"error": "conflict", "conflict": {who, same_person, at, fields, version}}` and nothing saved (who / fields from the History records whose version rose). `bump_if_changed` raises it **before** the save, only when the values (compared with `==`; booking guests in any order) really differ; automatic writes (`crewbookings.sync`, sailing-day rule) never touch it. Admin-page saves raise it (`admin.VersionedAdmin`; read-only there). The History page hides `version`. Front end: `api()` errors carry `.status` / `.data`; `mutate(action, onConflict)` sends a 409 to `showConflict` (panel `#conflict-panel`, `data-act` `conflict-reload` / `conflict-force`); each dialog keeps the version it opened with. Tests: `ApiTestCase.call` adds the current version to such updates itself; the real check is in `tests_conflicts_api` (raw requests).
 
@@ -264,8 +278,14 @@ USD (a figure needing a missing rate is None, the row flagged). The money is on 
 **Calculations** (`calculations.py`, `GET /api/calculations/`): vessels in a vessel-date range / exact OPR / port →
 `service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
 filtered rows, and the OPRs present in the range for the page's dropdown. Computed on each request, never stored.
-Every role may read it. Rows' `vessel` has `port_label` (sort `port`; the page's Port column shows for
-`ME.multiPort`). Each row carries `status` / `cancel_reason` (service rows; None for bookings and garbage),
+Every role may read it. **The page is vessel cards** (since 2026-11-26, like Services): `response` groups the
+filtered rows per vessel (`_groups`), sorts the cards by `VESSEL_SORTS` (date / vessel / opr / port / cost / revenue /
+profit, the money ones by the vessel's sums, ties newest first; `kind` and other line sorts → 400) and pages them:
+`vessels` = `[{vessel, lines, cost_egp, revenue_egp, profit_egp, rate_missing, price_missing}]`, `count` / `pages` count
+vessels, `rows` = the lines of this page's cards in card order. `filtered` (the Excel) still sorts lines by
+`SORT_KEYS`. Front end `js/pages/calculations.js`: `#c-sort` / `#c-dir`, `#c-cards` (`sv-vessel` cards, `calc-toggle`
+opens one, kept open across reloads), line cards `calc-line`, a "Vessel summary" link; `COLUMNS` = the Excel's headings.
+Rows' `vessel` has `port_label` (sort `port`; shown for `ME.multiPort`). Each row carries `status` / `cancel_reason` (service rows; None for bookings and garbage),
 `closed` and `ref {kind, id}` (what `/api/accounting/` closes; None for garbage with no `VesselDisposal` yet).
 `status=` / `accounting=` comma lists filter the rows (unknown → 400, empty items ignored; any `status` filter drops
 rows without a status); totals follow the filters and add `open` / `closed`.
@@ -449,7 +469,12 @@ of the 6th day after today, past ETAs included): marked **Arrived** with an ATA,
 and ETA passed; All / one-terminal buttons in the
 page; the terminal's picture on top when the server has one: `pictures.py`, `<letterhead folder>/terminals/<CODE>.png|.jpg`,
 PNG / JPEG by first bytes, 1 MB, codes of letters / digits / _ / - only, `GET …/terminals/<id>/picture/` scoped; no upload
-in the app, never in git — the cut demo pictures live in git-ignored `terminal-pictures/`), **Vessel list** (`vessel_list.py`,
+in the app, never in git — the cut demo pictures live in git-ignored `terminal-pictures/`; **Excel** button
+`data-act="live-export"`, `GET …/live/export/?port=&terminal=` (`op_live` + `exports`, rate limited, audit
+`live.export`): `live.export_file`, one sheet per card named by its code, like a terminal block of the workbook's
+Dashboard: `title_line`, the picture (≤ 1000 px wide, rows reserved under it), Under operation (`WORKING_HEAD`) and
+Next 7 days (`UPCOMING_HEAD`, Status Arrived / Overdue), "No vessels" when empty; page and file share
+`live._cards`), **Vessel list** (`vessel_list.py`,
 `ListedVessel` name + fixed LOA + `line` (shown **Operator**, from any port's Shipping line list, required on a
 new entry; migration `operation 0004`), all ports, `GET/POST /api/operation/vessels/`, `PUT/DELETE …/<id>/`: read with `op_vessels`,
 write with `operation.master`, delete Admins; the visit dialog's name box suggests them and fills the LOA and, when the terminal
@@ -493,7 +518,7 @@ built with `optionChoices(kind, current, port)` → only that port's + All-ports
 
 **Front end** (`static/sheet/js/`, entry `main.js`):
 - **Sidebar folders:** `index.html` groups the nav into **Marine** (Vessels, Services, Port closures, Ships),
-  **Operation** (Vessel Data, Live data, Analysis reports, Report charts, Vessel list, Terminals, Berthing windows), **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations) and **Master data** (Master data,
+  **Operation** (Vessel Data, Live data, Vessel list, Terminals, Berthing windows), **Reports** (Dashboard, Garbage & Sludge, Hotels, Transport, Calculations, Analysis reports, Report charts; the two Operation reports moved here 2026-11-26, Accounts ticks too) and **Master data** (Master data,
   Customers, Exchange rates, Ports, Accounts, History); each item keeps its own `{% if %}`, a folder with none is not
   rendered. A folder head is a shaded band with its icon (`nav-group-label`), no capitals, items indented under a
   thin line. `js/navGroups.js`: `data-act="toggle-nav-group"` opens / closes (localStorage `sheet.navGroups`), the

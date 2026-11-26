@@ -5,6 +5,37 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Calculations as vessel cards (2026-11-26):** on branch `feature/calculations-cards` (made from
+  `feature/dashboard-money`, so merging it brings all three pieces), **not merged**. No migration. Point 4.
+  - The Calculations page shows one card per vessel (date, OPR, port, Revenue · Cost · Profit, number of lines);
+    a click opens it to its line cards (item, status, cost, revenue, profit, billing, accounting switch) and a
+    "Vessel summary" link. Sort by date / vessel / OPR / port / cost / revenue / profit, paged by vessel.
+  - The Excel file is unchanged (one row a line).
+  - 1072 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass.
+
+- **Dashboard: Customers, OPR, Money (2026-11-26):** on branch `feature/dashboard-money` (made from
+  `feature/operation-extras`, so merging it brings both), **not merged**. No migration. Points 5, 7, 8.
+  - A **Customer** filter on the Dashboard (every view: the jobs counted for that customer).
+  - **Customers** view: a new "Services per customer" table (arrivals, sailings, each service type, total).
+  - **OPR** view: figures only (the cost / profit charts and the cards' cost line are gone).
+  - New **Money** view (with See money): a one-line Revenue · Cost · Profit headline, revenue bars and a table by
+    service, a table by customer, and per month (moved here from Overview). Money is the Calculations page's lines,
+    so it includes hotels, transport and garbage & sludge (they count for the ship's customer; services for their
+    billing party). On Money the Service filter also offers Hotel stay / Transfer / Garbage & Sludge.
+  - 1068 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass.
+
+- **Operation extras (2026-11-26):** on branch `feature/operation-extras`, **not merged** (waiting for the user's OK).
+  No migration. Points 1, 2, 3, 6 of the user's eight (design `specs/2026-11-26-reports-money-cards-design.md`, plan
+  `plans/2026-11-26-reports-money-cards.md`; the Dashboard money and Calculations cards pieces come next).
+  - The Add visit dialog has **Save and add another**: saves, then opens a new Add visit with only the terminal kept.
+  - **Analysis reports** and **Report charts** moved to the **Reports** folder (also in the Accounts Pages ticks). The
+    user agreed Report charts stays apart from the Dashboard (it counts every vessel at every terminal).
+  - Live data has an **Excel** button: one sheet per terminal (the page's port and All / one-terminal choice), like
+    a terminal block of the user's workbook: terminal line (berths, quay, cranes), the terminal's picture, Under
+    operation and Next 7 days (Arrived / Overdue coloured). The app's Excel writer can now place pictures (no library).
+  - 1050 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass. The file was not opened in
+    Excel by me (checked as parsed XML only).
+
 - **Next berthing window, not the nearest (2026-11-26):** merged into main by the user (2026-11-26), from
   branch `fix/next-window` (deleted). No migration. The visit dialog's window is now the one the ETA falls inside, else the **next one to
   start after the ETA**; before, it was the one whose start was nearest, so a Monday arrival got Sunday's window

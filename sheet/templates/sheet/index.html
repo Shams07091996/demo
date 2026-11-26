@@ -26,21 +26,19 @@
           {% if "ships" in me.pages %}<a class="nav-item" data-page="ships" href="#ships"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Ships</span></a>{% endif %}
         </div>
       </div>
-      {% if "op_vessels" in me.pages or "op_live" in me.pages or "op_analysis" in me.pages or "op_charts" in me.pages %}
+      {% if "op_vessels" in me.pages or "op_live" in me.pages %}
       <div class="nav-group" data-group="operation">
         <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg>Operation</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_vessels" href="#op_vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessel Data</span></a>{% endif %}
           {% if "op_live" in me.pages %}<a class="nav-item" data-page="op_live" href="#op_live"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Live data</span></a>{% endif %}
-          {% if "op_analysis" in me.pages %}<a class="nav-item" data-page="op_analysis" href="#op_analysis"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Analysis reports</span></a>{% endif %}
-          {% if "op_charts" in me.pages %}<a class="nav-item" data-page="op_charts" href="#op_charts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Report charts</span></a>{% endif %}
           {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_list" href="#op_list"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg></span><span>Vessel list</span></a>{% endif %}
           {% if me.isAdmin or "operation.master" in me.permissions %}<a class="nav-item" data-page="terminals" href="#terminals"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Terminals</span></a>{% endif %}
           {% if me.isAdmin or "operation.master" in me.permissions %}<a class="nav-item" data-page="op_windows" href="#op_windows"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Berthing windows</span></a>{% endif %}
         </div>
       </div>
       {% endif %}
-      {% if "dashboard" in me.pages or "disposal" in me.pages or "hotels" in me.pages or "transport" in me.pages or "calculations" in me.pages %}
+      {% if "dashboard" in me.pages or "disposal" in me.pages or "hotels" in me.pages or "transport" in me.pages or "calculations" in me.pages or "op_analysis" in me.pages or "op_charts" in me.pages %}
       <div class="nav-group" data-group="reports">
         <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg>Reports</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
@@ -49,6 +47,8 @@
           {% if "hotels" in me.pages %}<a class="nav-item" data-page="hotels" href="#hotels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-bed"></use></svg></span><span>Hotels</span></a>{% endif %}
           {% if "transport" in me.pages %}<a class="nav-item" data-page="transport" href="#transport"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-car"></use></svg></span><span>Transport</span></a>{% endif %}
           {% if "calculations" in me.pages %}<a class="nav-item" data-page="calculations" href="#calculations"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-calculator"></use></svg></span><span>Calculations</span></a>{% endif %}
+          {% if "op_analysis" in me.pages %}<a class="nav-item" data-page="op_analysis" href="#op_analysis"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Analysis reports</span></a>{% endif %}
+          {% if "op_charts" in me.pages %}<a class="nav-item" data-page="op_charts" href="#op_charts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Report charts</span></a>{% endif %}
         </div>
       </div>
       {% endif %}
@@ -262,13 +262,13 @@
         <select id="c-party" class="select" aria-label="Billing party"></select>
         <select id="c-port" class="select" hidden aria-label="Port"></select>
         <span id="c-ticks"></span>
+        <select id="c-sort" class="select" aria-label="Sort by"></select>
+        <button class="btn ghost small" type="button" id="c-dir"></button>
         {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="calculations"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
       </div>
       <div class="calc-totals" id="c-totals" role="status"></div>
-      <div class="table-wrap">
-        <table><thead id="c-head"></thead><tbody id="c-tbody"></tbody></table>
-        <div class="empty" id="c-empty" hidden>No money lines in this range.</div>
-      </div>
+      <div class="sv-cards" id="c-cards"></div>
+      <div class="empty" id="c-empty" hidden>No money lines in this range.</div>
       <div class="pager" id="c-pager"></div>
     </main>
 
@@ -392,7 +392,7 @@
     <main class="page" id="page-op_live" hidden>
       <div class="toolbar">
         <div class="filters"><select class="select" id="ol-port" aria-label="Port" hidden></select><span class="filters" id="ol-terminals"></span></div>
-        <div class="tools"><button class="btn ghost small" data-act="op-live-refresh">Refresh</button></div>
+        <div class="tools">{% if "exports" in me.permissions %}<button class="btn ghost small" data-act="live-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button> {% endif %}<button class="btn ghost small" data-act="op-live-refresh">Refresh</button></div>
       </div>
       <div id="ol-cards" class="op-cards"></div>
       <div class="empty" id="ol-empty" hidden>No terminals.</div>
@@ -457,6 +457,7 @@
           <select class="select" id="d-opr" aria-label="OPR"></select>
           <select class="select" id="d-agent" aria-label="Agent"></select>
           <select class="select" id="d-service" aria-label="Service type"></select>
+          <select class="select" id="d-customer" aria-label="Customer"></select>
           {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="dashboard-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
           {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="dashboard-data-export"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> All data</button>{% endif %}
         </div>
@@ -467,6 +468,7 @@
         <button class="view-tab" type="button" data-act="dash-view" data-view="opr" aria-pressed="false">OPR</button>
         <button class="view-tab" type="button" data-act="dash-view" data-view="customers" aria-pressed="false">Customers</button>
         <button class="view-tab" type="button" data-act="dash-view" data-view="overview" aria-pressed="false">Overview</button>
+        {% if "money.view" in me.permissions %}<button class="view-tab" type="button" data-act="dash-view" data-view="money" aria-pressed="false">Money</button>{% endif %}
       </div>
       <div data-dash-view="agents">
         <div class="dash-headline" id="hl-agents"></div>
@@ -478,16 +480,13 @@
           <section class="panel"><h3>Vessels per OPR</h3><div id="chart-vessels"></div></section>
           <section class="panel"><h3>OPR figures</h3><div id="tbl-opr"></div></section>
           <section class="panel"><h3>Services per OPR</h3><div id="chart-services"></div></section>
-          {% if "money.view" in me.permissions %}
-          <section class="panel"><h3>Total cost (LE) per OPR</h3><div id="chart-cost"></div></section>
-          <section class="panel"><h3>Profit (LE) per OPR</h3><div id="chart-profit"></div></section>
-          {% endif %}
         </div>
         <h3 class="dash-title">OPR summary</h3>
         <div class="opr-cards" id="opr-cards"></div>
       </div>
       <div data-dash-view="customers" hidden>
         <div class="dash-headline" id="hl-customers"></div>
+        <section class="panel dash-wide"><h3>Services per customer</h3><div id="tbl-customer-services"></div></section>
         <div class="dash-grid">
           <section class="panel"><h3>Jobs per customer</h3><div id="tbl-customers"></div></section>
           <section class="panel"><h3>Customers by POC and port</h3><div id="heat-customers"></div></section>
@@ -496,9 +495,19 @@
       <div data-dash-view="overview" hidden>
         <div class="dash-headline" id="hl-overview"></div>
         <section class="panel dash-wide"><h3>Services per month</h3><div id="chart-months"></div><div id="tbl-months"></div></section>
-        {% if "money.view" in me.permissions %}<section class="panel dash-wide"><h3>Money per month (LE)</h3><div id="tbl-money"></div></section>{% endif %}
         <section class="panel dash-wide"><h3>Service status</h3><div id="tbl-status"></div></section>
       </div>
+      {% if "money.view" in me.permissions %}
+      <div data-dash-view="money" hidden>
+        <div class="dash-headline" id="hl-money"></div>
+        <div class="dash-grid">
+          <section class="panel"><h3>Revenue (LE) by service</h3><div id="chart-money-services"></div></section>
+          <section class="panel"><h3>By service</h3><div id="tbl-money-services"></div></section>
+        </div>
+        <section class="panel dash-wide"><h3>By customer</h3><div id="tbl-money-customers"></div></section>
+        <section class="panel dash-wide"><h3>Per month (LE)</h3><div id="tbl-money"></div></section>
+      </div>
+      {% endif %}
     </main>
 
     <!-- ===== Master data ===== -->

@@ -31,6 +31,19 @@ class Filters:
     opr: str | None
     agent: str | None  # None: every agent; "": jobs nobody was assigned to
     service: str | None
+    customer: int | str | None = None  # None: every customer; NO_AGENT: jobs of no customer; else a Customer id
+
+
+def customer_param(params):
+    """The customer filter: a Customer id, NO_AGENT ("__none__") for jobs of no customer, None when absent."""
+    value = (params.get("customer") or "").strip()
+    if not value:
+        return None
+    if value == NO_AGENT:
+        return NO_AGENT
+    if not value.isdigit() or not Customer.objects.filter(pk=int(value)).exists():
+        raise BadRequest("Unknown customer.")
+    return int(value)
 
 
 def parse(params):
@@ -41,6 +54,7 @@ def parse(params):
         opr=params.get("opr") or None,
         agent=None,
         service=params.get("service") or None,
+        customer=customer_param(params),
     )
     if f.date_from and f.date_to and f.date_from > f.date_to:
         raise BadRequest("From must be on or before To.")
@@ -71,6 +85,9 @@ def _jobs(row, f):
     jobs += [(s["type"], s["agent"], s) for s in row["services"] if f.service in (None, s["type"])]
     if f.agent is not None:
         jobs = [job for job in jobs if job[1] == f.agent]
+    if f.customer is not None:
+        wanted = None if f.customer == NO_AGENT else f.customer
+        jobs = [job for job in jobs if _job_customer(row, job[2]) == wanted]
     return jobs
 
 
@@ -141,8 +158,13 @@ def _customers(vessels):
     counted = {}
     for row, jobs in vessels:
         for _label, _agent, service in jobs:
-            entry = counted.setdefault(_job_customer(row, service), {"jobs": 0, "places": {}})
+            entry = counted.setdefault(_job_customer(row, service),
+                                       {"jobs": 0, "places": {}, "arrivals": 0, "sailings": 0, "by_type": {}})
             entry["jobs"] += 1
+            if service is None:
+                entry["arrivals" if _label == "Arrival" else "sailings"] += 1
+            else:
+                entry["by_type"][_label] = entry["by_type"].get(_label, 0) + 1
             place = (row["poc"] or "", row["port"])
             entry["places"][place] = entry["places"].get(place, 0) + 1
     names = dict(Customer.objects.filter(id__in=[k for k in counted if k is not None]).values_list("id", "name"))
@@ -152,11 +174,19 @@ def _customers(vessels):
 
     out = [
         {"id": key, "name": names.get(key, "No customer") if key is not None else "No customer", "jobs": e["jobs"],
+         "arrivals": e["arrivals"], "sailings": e["sailings"], "by_type": e["by_type"],
          "places": [{"poc": poc, "port": port, "jobs": n}
                     for (poc, port), n in sorted(e["places"].items(), key=place_order)]}
         for key, e in counted.items()
     ]
     return sorted(out, key=lambda c: (c["id"] is None, -c["jobs"], c["name"].casefold()))
+
+
+def _customer_choices(rows):
+    """[[id, name]] of the customers with any job in these vessels (the Customer filter's choices), by name."""
+    ids = {_job_customer(row, service) for row in rows for service in (None, *row["services"])}
+    found = Customer.objects.filter(id__in=[i for i in ids if i is not None]).values_list("id", "name")
+    return [[pk, name] for pk, name in sorted(found, key=lambda c: (c[1].casefold(), c[0]))]
 
 
 def response(profile, params):
@@ -166,7 +196,8 @@ def response(profile, params):
         "oprs": sorted({r["opr"] for r in in_range if r["opr"]}, key=str.casefold),
         "agents": sorted({a for r in in_range for a in _agents_of(r) if a}, key=str.casefold),
     }
-    narrowed = f.agent is not None or f.service is not None
+    narrowed = f.agent is not None or f.service is not None or f.customer is not None
+    filters["customers"] = _customer_choices(r for r in in_range if f.opr is None or r["opr"] == f.opr)
     vessels = []  # (row, its jobs) of the vessels that count
     for row in in_range:
         if f.opr is not None and row["opr"] != f.opr:
@@ -204,8 +235,6 @@ def response(profile, params):
             "opr": opr,
             "vessels": len(groups),
             "services": sum(len(services) for services in groups),
-            "cost_egp": round(sum(s["calc"]["cost_egp"] for services in groups for s in services), 2),
-            "profit_egp": round(sum(s["calc"]["profit_egp"] for services in groups for s in services), 2),
             "service_counts": _service_counts([s for services in groups for s in services]),
         }
         for opr, groups in sorted(by_opr.items())
