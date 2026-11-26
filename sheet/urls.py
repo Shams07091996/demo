@@ -35,6 +35,7 @@ urlpatterns = [
     path("api/vessels/alerts/", views.vessel_alerts, name="api_vessel_alerts"),
     path("api/dashboard/", views.dashboard, name="api_dashboard"),
     path("api/dashboard/jobs/", views.dashboard_jobs, name="api_dashboard_jobs"),
+    path("api/dashboard/money/", views.dashboard_money, name="api_dashboard_money"),
     path("api/dashboard/export/", views.dashboard_export, name="api_dashboard_export"),
     path("api/export/all/", views.data_export_all, name="api_data_export_all"),
     path("api/export/<str:page>/", views.data_export, name="api_data_export"),

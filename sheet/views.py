@@ -28,6 +28,7 @@ from . import (
     conflicts,
     crewbookings,
     customers,
+    dashmoney,
     dataexport,
     disposal,
     history,
@@ -193,6 +194,15 @@ def dashboard(request):
     require_page(request.profile, "dashboard")
     return JsonResponse(moneyaccess.dashboard_out(dashboard_figures.response(request.profile, request.GET),
                                                   request.profile))
+
+
+@json_api
+@require_http_methods(["GET"])
+def dashboard_money(request):
+    """The Dashboard's Money view: the Calculations lines' money by service, customer and month (money.view)."""
+    require_page(request.profile, "dashboard")
+    require(request.profile, "money.view")
+    return JsonResponse(dashmoney.response(request.profile, request.GET))
 
 
 @json_api

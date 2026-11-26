@@ -116,10 +116,10 @@ def _usd(item):
 def _state(obj, kind, status=None, reason=""):
     """What a row says about its thing: operations status and billing (services only), accounting state and what
     closes it."""
-    billing = {"billing": None, "billing_party": None}
+    billing = {"billing": None, "billing_party": None, "agent": None}
     if kind == "service":
         party = obj.billing_party
-        billing = {"billing": obj.billing,
+        billing = {"billing": obj.billing, "agent": obj.agent,
                    "billing_party": {"id": party.id, "name": party.name} if party is not None else None}
     if obj is None:  # garbage & sludge with nothing entered yet: nothing to close
         return {"status": None, "cancel_reason": "", "closed": False, "ref": None, **billing}
@@ -131,7 +131,8 @@ def _row(vessel, kind, item, state):
     usd = _usd(item)
     return {
         "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "opr": vessel.opr,
-                   "port": vessel.port, "port_label": ports.label(vessel.port)},
+                   "port": vessel.port, "port_label": ports.label(vessel.port),
+                   "ship_customer_id": vessel.ship.customer_id if vessel.ship_id else None},
         "kind": kind,
         "label": item["label"],
         "note": item["note"],
@@ -176,7 +177,8 @@ def _vessel_rows(vessel, rate, price):
 def rows_for(vessels):
     """Every money line of these vessels (a Vessel queryset), newest vessel first, lines in order. Also feeds the
     management workbook, so its money always equals this page's."""
-    vessels = vessels.prefetch_related("services__billing_party", "hotel_stays", "transfers").select_related("disposal")
+    vessels = vessels.prefetch_related("services__billing_party", "hotel_stays", "transfers").select_related(
+        "disposal", "ship")
     rates, prices = month_rates(), disposal.prices_map()
     rows = []
     for vessel in vessels.order_by("-date", "-id"):
