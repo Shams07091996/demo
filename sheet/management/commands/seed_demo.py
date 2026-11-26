@@ -49,8 +49,8 @@ DEMO_TERMINALS = [
 ]
 DEMO_LINES = ("ARKAS", "MAERSK", "SOC", "ICR", "CUL", "MCL")
 # The vessels working now and due soon (below) for the vessel list, with their LOA.
-DEMO_MORE_VESSELS = (("NORDIC STAR", 210), ("CAPE ORION", 180), ("SEA FALCON", 190), ("BLUE MARLIN", 140),
-                     ("RED CORAL", 230), ("PORT STAR", 160))
+DEMO_MORE_VESSELS = (("NORDIC STAR", "ARKAS", 210), ("CAPE ORION", "MAERSK", 180), ("SEA FALCON", "CUL", 190),
+                     ("BLUE MARLIN", "MCL", 140), ("RED CORAL", "ICR", 230), ("PORT STAR", "SOC", 160))
 # The workbook's seven visits: name, line, terminal, LOA, hours from day 0 of ETA / ATA / ATB / ATD, cranes,
 # discharge, loading, planned / actual berth. Day 0 is 14 days ago, so all of them have sailed.
 DEMO_VISITS = [
@@ -137,9 +137,9 @@ class Command(BaseCommand):
                 "position": position})
         for value in DEMO_LINES:
             Option.objects.get_or_create(kind="line", value=value, port="")
-        fleet = [(row[0], row[3]) for row in DEMO_VISITS] + list(DEMO_MORE_VESSELS)
-        for name, loa in fleet:  # the vessel list: each demo vessel's fixed LOA
-            ListedVessel.objects.get_or_create(name=name, defaults={"loa": loa})
+        fleet = [(row[0], row[1], row[3]) for row in DEMO_VISITS] + list(DEMO_MORE_VESSELS)
+        for name, line, loa in fleet:  # the vessel list: each demo vessel's operator and fixed LOA
+            ListedVessel.objects.get_or_create(name=name, defaults={"loa": loa, "line": line})
         if Visit.objects.exists():
             return
         day0 = timezone.make_aware(datetime.combine(date.today() - timedelta(days=14), time()))

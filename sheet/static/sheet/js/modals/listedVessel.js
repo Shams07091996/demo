@@ -1,13 +1,19 @@
-// One entry of the vessel list: name and LOA. Read-only without "Edit terminals and vessel list"; Delete for Admins.
+// One entry of the vessel list: name, operator and LOA. Read-only without "Edit terminals and vessel list"; Delete for Admins.
 import { api, mutate } from '../api.js';
 import { deleteBtn, headEl } from '../components.js';
 import { ME, can } from '../config.js';
-import { h } from '../dom.js';
+import { h, optionEls } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
-import { state } from '../state.js';
+import { optionValues, state } from '../state.js';
 import { $ } from '../util.js';
 
 const field = (label, input) => h('div', { class: 'field' }, h('label', null, label), input);
+
+/** Every port's Shipping line values (the list is shared by all ports), keeping the saved one. */
+function operatorChoices(saved) {
+  const values = [...new Set([...optionValues('line'), ...(saved ? [saved] : [])])].sort((a, b) => a.localeCompare(b));
+  return [['', saved === '' ? '—' : 'Choose…'], ...values.map((v) => [v, v])];
+}
 
 export function openListedDialog(vessel, onDone) {
   const editable = can('operation.master');
@@ -16,8 +22,10 @@ export function openListedDialog(vessel, onDone) {
   openModal(
     headEl(vessel ? vessel.name : 'Add vessel'),
     h('div', { class: 'm-body', id: 'listed-form' },
-      h('div', { class: 'row two' },
+      h('div', { class: 'row three' },
         field('Vessel name', h('input', { attrs: { name: 'name', maxlength: 100, autocomplete: 'off' }, value: vessel?.name ?? '', disabled: !editable })),
+        field('Operator', h('select', { class: 'select', attrs: { name: 'line' }, disabled: !editable },
+          optionEls(operatorChoices(vessel?.line ?? ''), vessel?.line ?? ''))),
         field('LOA (m)', h('input', { attrs: { name: 'loa', type: 'number', min: 0, max: 500, step: '0.1' }, value: vessel?.loa ?? '', disabled: !editable })))),
     h('div', { class: 'm-foot' },
       vessel && ME.isAdmin ? deleteBtn('vl-del') : h('span'),
@@ -31,7 +39,8 @@ let saving = false;
 export async function saveListedDialog() {
   if (saving || state.ctx.view !== 'listed') return;
   const form = $('#listed-form');
-  const payload = { name: form.querySelector('[name="name"]').value, loa: form.querySelector('[name="loa"]').value };
+  const payload = { name: form.querySelector('[name="name"]').value, loa: form.querySelector('[name="loa"]').value,
+    line: form.querySelector('[name="line"]').value };
   const { listedId, onDone } = state.ctx;
   saving = true;
   try {

@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sheet import access
 from sheet.errors import BadRequest
+from sheet.models import Option
 from sheet.validators import _as_dict, _local_datetime, _parse_number, _short, listed
 
 from .models import ListedVessel, Terminal
@@ -125,7 +126,8 @@ def _loa(value):
 
 
 def clean_listed_vessel(data, existing=None):
-    """An entry of the vessel list: name (upper-case, unique ignoring case) and LOA, both required."""
+    """An entry of the vessel list: name (upper-case, unique ignoring case), LOA and operator (a Shipping line value
+    of any port; the saved one stays allowed; an entry saved before operators existed may stay without one)."""
     data = _as_dict(data)
     name = _short(data.get("name"), 100, "Vessel name").upper()
     if not name:
@@ -138,7 +140,14 @@ def clean_listed_vessel(data, existing=None):
     loa = _loa(data.get("loa"))
     if loa is None:
         raise BadRequest("Enter the LOA.")
-    return {"name": name, "loa": loa}
+    saved = existing.line if existing is not None else None
+    line = _short(data.get("line"), 100, "Operator")
+    if not line:
+        if saved != "":
+            raise BadRequest("Choose the operator.")
+    elif line != saved and not Option.objects.filter(kind="line", value=line).exists():
+        raise BadRequest("Operator: choose a value from the Master data Shipping line list.")
+    return {"name": name, "loa": loa, "line": line}
 
 
 def _times(data):

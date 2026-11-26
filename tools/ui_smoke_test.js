@@ -390,8 +390,10 @@ async function login() {
     click($('[data-act="opv-new"]'));
     ok(await waitFor(() => $('#visit-form [name=terminal]')), 'operation: + Add visit opens the dialog');
     const vf = (name) => $(`#visit-form [name="${name}"]`);
+    type(vf('shipping_line'), 'MAERSK');
     type(vf('vessel_name'), 'nordic star');
-    ok(await waitFor(() => vf('loa').value === '210'), 'operation: a name from the vessel list fills its LOA');
+    ok(await waitFor(() => vf('loa').value === '210' && vf('shipping_line').value === 'ARKAS'),
+      'operation: a name from the vessel list fills its LOA and its operator');
     type(vf('loa'), '');
     type(vf('vessel_name'), 'smoke visit');
     type(vf('shipping_line'), 'ARKAS');
@@ -439,13 +441,16 @@ async function login() {
     ok(await waitFor(() => tmRow(tname)?.children[6].textContent === 'ARKAS'), 'terminals: a terminal keeps its shipping lines');
     await go('op_list');
     const vlRow = (name) => $$('#vl-tbody tr').find((r) => r.children[0].textContent === name);
-    ok(await waitFor(() => vlRow('NORDIC STAR')?.children[1].textContent === '210'), 'vessel list: the demo vessels and their LOA');
+    ok(await waitFor(() => vlRow('NORDIC STAR')?.children[1].textContent === 'ARKAS' && vlRow('NORDIC STAR').children[2].textContent === '210'),
+      'vessel list: the demo vessels, their operator and LOA');
     click($('[data-act="vl-new"]'));
     await waitFor(() => $('#listed-form'));
     type($('#listed-form [name=name]'), 'smoke listed');
     type($('#listed-form [name=loa]'), '123.4');
+    type($('#listed-form [name=line]'), 'SOC');
     click($('[data-act="vl-save"]'));
-    ok(await waitFor(() => vlRow('SMOKE LISTED')?.children[1].textContent === '123.4'), 'vessel list: + Add vessel adds one');
+    ok(await waitFor(() => vlRow('SMOKE LISTED')?.children[2].textContent === '123.4' && vlRow('SMOKE LISTED').children[1].textContent === 'SOC'),
+      'vessel list: + Add vessel adds one with its operator');
     click(vlRow('SMOKE LISTED'));
     await waitFor(() => $('#modal [data-act="vl-del"]'));
     click($('#modal [data-act="vl-del"]'));

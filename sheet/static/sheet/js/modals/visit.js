@@ -82,7 +82,11 @@ export function onVisitFormChange(event) {
   if (state.ctx.view !== 'visit') return;
   if (event.target.name === 'vessel_name') { // a name from the vessel list brings its LOA
     const match = listed.find((v) => v.name === event.target.value.trim().toUpperCase());
-    if (match) $('#visit-form [name="loa"]').value = match.loa;
+    if (match) {
+      $('#visit-form [name="loa"]').value = match.loa;
+      const line = $('#visit-form [name="shipping_line"]');
+      if (match.line && [...line.options].some((o) => o.value === match.line)) line.value = match.line;
+    }
     return;
   }
   if (event.target.name !== 'terminal') return;

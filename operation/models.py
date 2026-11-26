@@ -31,6 +31,7 @@ class ListedVessel(models.Model):
 
     name = models.CharField(max_length=100)  # upper-case, unique ignoring case (validators.clean_listed_vessel)
     loa = models.DecimalField(max_digits=5, decimal_places=1)  # metres
+    line = models.CharField(max_length=100, blank=True)  # the operator, from any port's Shipping line list
 
     class Meta:
         ordering = ["name", "id"]

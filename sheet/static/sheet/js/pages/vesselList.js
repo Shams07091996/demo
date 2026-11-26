@@ -13,9 +13,9 @@ let wired = false;
 function render() {
   const q = $('#vl-q').value.trim().toUpperCase();
   const shown = q ? list.filter((v) => v.name.includes(q)) : list;
-  setChildren($('#vl-head'), h('tr', null, h('th', null, 'Vessel'), h('th', null, 'LOA (m)')));
+  setChildren($('#vl-head'), h('tr', null, h('th', null, 'Vessel'), h('th', null, 'Operator'), h('th', null, 'LOA (m)')));
   setChildren($('#vl-tbody'), shown.map((v) => h('tr', { class: 'clickable', dataset: { act: 'vl-open', id: v.id } },
-    h('td', null, v.name), h('td', null, String(v.loa)))));
+    h('td', null, v.name), h('td', null, v.line || '—'), h('td', null, String(v.loa)))));
   $('#vl-empty').hidden = shown.length > 0;
 }
 
