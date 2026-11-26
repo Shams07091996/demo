@@ -41,10 +41,14 @@ code{background:color-mix(in srgb,var(--text) 8%,transparent);padding:1px 6px;bo
 .nav-item{display:flex;align-items:center;gap:12px;width:100%;padding:8px 12px;border:none;background:none;border-radius:6px;color:var(--side-muted);text-decoration:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left}
 .nav-item:hover{background:var(--side-hover);color:var(--side-text)}
 .nav-item.active{background:var(--side-active);color:var(--side-text)}
-.nav-group{display:flex;flex-direction:column;gap:2px}.nav-group+.nav-group{margin-top:8px}
-.nav-group-head{display:flex;align-items:center;justify-content:space-between;width:100%;padding:6px 12px;border:none;background:none;color:var(--side-muted);font-size:12px;font-weight:700;cursor:pointer;border-radius:6px}
-.nav-group-head:hover{color:var(--side-text)}.nav-group-head .ic{width:14px;height:14px;transition:transform .15s}
-.nav-group.closed .nav-group-head .ic{transform:rotate(-90deg)}
+.nav-group{display:flex;flex-direction:column;gap:2px}.nav-group+.nav-group{margin-top:14px}
+.nav-group-head{display:flex;align-items:center;justify-content:space-between;width:100%;padding:9px 12px;border:none;border-left:3px solid var(--side-muted);background:var(--side-active);color:var(--side-text);font-size:14px;font-weight:700;cursor:pointer;border-radius:6px}
+.nav-group-head:hover{background:var(--side-hover)}
+.nav-group-label{display:flex;align-items:center;gap:10px}.nav-group-label .ic{width:17px;height:17px}
+.nav-group-items{margin:4px 0 2px 18px;padding-left:6px;border-left:1px solid var(--side-active)}
+.nav-group-items .nav-item{padding:7px 10px}
+.nav-group-head .chev{width:14px;height:14px;transition:transform .15s}
+.nav-group.closed .nav-group-head .chev{transform:rotate(-90deg)}
 .nav-group-items{display:flex;flex-direction:column;gap:2px}.nav-group-items[hidden]{display:none}
 .nav-item .ico{width:22px;text-align:center;font-size:16px}
 .sidebar-foot{padding:10px;border-top:1px solid var(--side-active)}
@@ -163,6 +167,7 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .st-arrived{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
 .st-berthed{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
 .st-operating{background:color-mix(in srgb,var(--warning) 18%,transparent);color:var(--warning)}
+.st-overdue{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
 .st-ops_finished{background:color-mix(in srgb,var(--success) 18%,transparent);color:var(--success)}
 .st-sailed{background:color-mix(in srgb,var(--oth) 12%,transparent);color:var(--oth)}
 .svc-status{display:inline-block;border-radius:6px;padding:1px 9px;font-size:11px;font-weight:700;white-space:nowrap;vertical-align:middle}

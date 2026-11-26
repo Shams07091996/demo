@@ -18,7 +18,7 @@
     </div>
     <nav class="nav" id="nav" aria-label="Pages">
       <div class="nav-group" data-group="marine">
-        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Marine</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg>Marine</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           <a class="nav-item" data-page="vessels" href="#vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessels</span></a>
           {% if "services" in me.pages %}<a class="nav-item" data-page="services" href="#services"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-check"></use></svg></span><span>Services</span></a>{% endif %}
@@ -28,7 +28,7 @@
       </div>
       {% if "op_vessels" in me.pages or "op_live" in me.pages or "op_analysis" in me.pages or "op_charts" in me.pages %}
       <div class="nav-group" data-group="operation">
-        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Operation</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg>Operation</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_vessels" href="#op_vessels"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-ship"></use></svg></span><span>Vessel Data</span></a>{% endif %}
           {% if "op_live" in me.pages %}<a class="nav-item" data-page="op_live" href="#op_live"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Live data</span></a>{% endif %}
@@ -41,7 +41,7 @@
       {% endif %}
       {% if "dashboard" in me.pages or "disposal" in me.pages or "hotels" in me.pages or "transport" in me.pages or "calculations" in me.pages %}
       <div class="nav-group" data-group="reports">
-        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Reports</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg>Reports</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           {% if "dashboard" in me.pages %}<a class="nav-item" data-page="dashboard" href="#dashboard"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Dashboard</span></a>{% endif %}
           {% if "disposal" in me.pages %}<a class="nav-item" data-page="disposal" href="#disposal"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-trash"></use></svg></span><span>Garbage &amp; Sludge</span></a>{% endif %}
@@ -53,7 +53,7 @@
       {% endif %}
       {% if "master" in me.pages or "customers" in me.pages or "rates" in me.pages or me.isAdmin or me.isSuperuser or "history" in me.pages %}
       <div class="nav-group" data-group="master">
-        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label">Master data</span><svg class="ic" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+        <button class="nav-group-head" type="button" data-act="toggle-nav-group" aria-expanded="true"><span class="nav-group-label"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg>Master data</span><svg class="ic chev" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
         <div class="nav-group-items">
           {% if "master" in me.pages %}<a class="nav-item" data-page="master" href="#master"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-database"></use></svg></span><span>Master data</span></a>{% endif %}
           {% if "customers" in me.pages %}<a class="nav-item" data-page="customers" href="#customers"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg></span><span>Customers</span></a>{% endif %}
