@@ -60,7 +60,7 @@ class CompletedAtTests(ApiTestCase):
         self.assertEqual(next(s for s in vessel["services"] if s["id"] == service["id"])["completed_at"],
                          "2026-11-25T01:30")
         status, data = self.call(alex, "get", "/api/services/?status=completed")
-        self.assertEqual(next(r for r in data["services"] if r["id"] == service["id"])["completed_at"],
+        self.assertEqual(next(r for r in rows(data) if r["id"] == service["id"])["completed_at"],
                          "2026-11-25T01:30")
 
     def test_cancelled_has_none(self):
@@ -149,6 +149,11 @@ class MissingTests(ApiTestCase):
         self.assertFalse(services.sailed(v, today, now))
 
 
+def rows(body):
+    """Every service row of a grouped list response, in order."""
+    return [r for group in body["vessels"] for r in group["services"]]
+
+
 class ServiceListTests(ApiTestCase):
     """GET /api/services/: the work list, its filters, scoping and paging."""
 
@@ -172,7 +177,7 @@ class ServiceListTests(ApiTestCase):
     def ids(self, user="admin", **params):
         status, body = self.get(user, **params)
         self.assertEqual(status, 200, body)
-        return [r["id"] for r in body["services"]]
+        return [r["id"] for r in rows(body)]
 
     def test_defaults_to_in_progress_oldest_first(self):
         a = self.mk(self.alex_vessel)
@@ -180,7 +185,7 @@ class ServiceListTests(ApiTestCase):
         self.mk(self.old, status="completed")
         self.assertEqual(self.ids(), [b.id, a.id])
         _, body = self.get()
-        row = body["services"][0]
+        row = rows(body)[0]
         self.assertEqual((row["vessel"]["name"], row["type"], row["status"], row["missing"]),
                          ("OLD ONE", "Medical Treatment", "in_progress", []))
         self.assertTrue(row["sailed"])
@@ -219,7 +224,7 @@ class ServiceListTests(ApiTestCase):
         found = self.ids(status="completed", **{"from": "2026-11-10", "to": "2026-11-21"})
         self.assertEqual(found, [inside.id, guess.id])  # newest first
         _, body = self.get(status="completed", **{"from": "2026-11-10", "to": "2026-11-21"})
-        self.assertEqual([r["completed_guess"] for r in body["services"]], [False, True])
+        self.assertEqual([r["completed_guess"] for r in rows(body)], [False, True])
         # Mixed statuses: the vessel date again (OLD ONE is dated 1.11).
         self.assertNotIn(inside.id, self.ids(status="completed,in_progress", **{"from": "2026-11-10"}))
 
@@ -237,10 +242,46 @@ class ServiceListTests(ApiTestCase):
     def test_paging_and_agents(self):
         for i in range(3):
             self.mk(self.alex_vessel, agent=f"AG{i % 2}")
-        _, body = self.get(page_size="2", page="2")
-        self.assertEqual((body["count"], body["pages"], body["page"], len(body["services"])), (3, 2, 2, 1))
         _, body = self.get(agent="AG1")
         self.assertEqual(body["agents"], ["AG0", "AG1"])
+
+    def test_grouped_by_vessel_matching_only(self):
+        a = self.mk(self.alex_vessel)
+        self.mk(self.alex_vessel, status="completed")
+        b = self.mk(self.old)
+        _, body = self.get()
+        self.assertEqual([g["vessel"]["name"] for g in body["vessels"]], ["OLD ONE", "ALEX SHIP"])
+        self.assertEqual([[r["id"] for r in g["services"]] for g in body["vessels"]], [[b.id], [a.id]])
+        self.assertEqual((body["count"], body["services_count"]), (2, 2))
+
+    def test_pages_count_vessels(self):
+        from datetime import date
+
+        from .models import Vessel
+        third = Vessel.objects.create(name="THIRD", date=date(2026, 11, 20), port="alexandria")
+        for vessel in (self.old, self.alex_vessel, third):
+            self.mk(vessel)
+            self.mk(vessel)
+        _, body = self.get(page_size="2")
+        self.assertEqual((body["count"], body["services_count"], body["pages"]), (3, 6, 2))
+        self.assertEqual((len(body["vessels"]), len(rows(body))), (2, 4))
+        _, body = self.get(page_size="2", page="2")
+        self.assertEqual([g["vessel"]["name"] for g in body["vessels"]], ["THIRD"])
+
+    def test_only_completed_newest_vessel_first(self):
+        from datetime import datetime
+        self.mk(self.old, status="completed", completed_at=datetime(2026, 11, 25, 9, tzinfo=UTC))
+        self.mk(self.alex_vessel, status="completed", completed_at=datetime(2026, 11, 14, 9, tzinfo=UTC))
+        _, body = self.get(status="completed")
+        self.assertEqual([g["vessel"]["name"] for g in body["vessels"]], ["OLD ONE", "ALEX SHIP"])
+
+    def test_vessel_carries_opr_terminal_berth(self):
+        from .models import Vessel
+        Vessel.objects.filter(pk=self.alex_vessel.pk).update(opr="MSK", terminal="AICT", berth="B7")
+        self.mk(self.alex_vessel)
+        _, body = self.get()
+        v = body["vessels"][0]["vessel"]
+        self.assertEqual((v["opr"], v["terminal"], v["berth"]), ("MSK", "AICT", "B7"))
 
     def test_list_query_count_is_fixed(self):
         from django.db import connection
