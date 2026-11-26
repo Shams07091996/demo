@@ -63,8 +63,8 @@ def _local(moment):
 
 
 def nearest(windows, eta):
-    """The occurrence of `windows` (repeated weekly) holding `eta`, else the one whose start is nearest to it
-    (a tie goes to the later one); None without windows."""
+    """The occurrence of `windows` (repeated weekly) holding `eta`, else the next one to start after it (never one
+    that started before it); None without windows."""
     local = timezone.localtime(eta).replace(tzinfo=None)
     monday = datetime.combine(local.date() - timedelta(days=local.weekday()), datetime.min.time())
     best = None
@@ -74,7 +74,9 @@ def nearest(windows, eta):
             start = timezone.make_aware(monday + timedelta(weeks=week, minutes=start_min))
             end = timezone.make_aware(monday + timedelta(weeks=week, minutes=end_min))
             inside = start <= eta < end
-            key = (not inside, abs((start - eta).total_seconds()), -start.timestamp())
+            if not inside and start < eta:
+                continue
+            key = (not inside, abs((start - eta).total_seconds()))
             if best is None or key < best[0]:
                 best = (key, window, start, end, inside)
     if best is None:
@@ -82,7 +84,7 @@ def nearest(windows, eta):
     _key, window, start, end, inside = best
     return {
         "window": window_to_dict(window), "start": _local(start), "end": _local(end),
-        "position": "inside" if inside else ("before" if eta < start else "after"),
+        "position": "inside" if inside else "before",
         "hours": round(abs((start - eta).total_seconds()) / 3600, 1),
     }
 

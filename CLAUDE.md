@@ -459,7 +459,7 @@ before the start is in the next week; a line may have none or several; same line
 overlap, `validators.clean_window` / `week_span`; `GET/POST /api/operation/windows/`, `PUT/DELETE …/<id>/`: read with
 `op_vessels`, write with `operation.master` in own ports; page `js/pages/windows.js` + dialog `js/modals/window.js`,
 nav item beside Terminals for the same people; `GET …/windows/nearest/?terminal=&line=&eta=` → the occurrence holding
-the ETA, else the one whose start is nearest it, a tie to the later, worked out on read: the visit dialog's
+the ETA, else the next one to start after it (never one that started before; the user's rule), worked out on read: the visit dialog's
 `#visit-window` hint, nothing when the line has no window), **Analysis reports** and **Report
 charts** (one response, `analysis.py`: headline averages, Calls per week / month / year when From and To are both set,
 a row per terminal in scope and per shipping line; filters port / terminal / berth / line / from–to). History tracks
