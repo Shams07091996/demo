@@ -28,7 +28,8 @@ function card(t) {
     h('td', null, figure(v.loading)), h('td', null, figure(v.live_rate))));
   const upcoming = t.upcoming.map((v) => h('tr', null,
     h('td', null, v.vessel_name, v.arrived
-      ? [' ', h('span', { class: 'status-chip st-operating', attrs: { title: `ATA ${stamp(v.ata)}` } }, 'Arrived')] : null),
+      ? [' ', h('span', { class: 'status-chip st-operating', attrs: { title: `ATA ${stamp(v.ata)}` } }, 'Arrived')] : null,
+      v.overdue ? [' ', h('span', { class: 'status-chip st-overdue', attrs: { title: `ETA ${stamp(v.eta)}` } }, 'Overdue')] : null),
     h('td', null, v.shipping_line), h('td', null, stamp(v.eta)),
     h('td', null, figure(v.loa)), h('td', null, v.planned_berth || '—'), h('td', null, stamp(v.etb)),
     h('td', null, stamp(v.etc))));

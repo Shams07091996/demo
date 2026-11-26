@@ -51,9 +51,26 @@ class LiveTests(ApiTestCase):
         self.assertEqual(aict["working"][1]["live_rate"], 50.0)
         self.assertIsNone(aict["working"][0]["live_rate"])
         self.assertEqual([v["vessel_name"] for v in aict["upcoming"]],
-                         ["ANCHORED", "THIS MORNING", "SOON", "NEXT", "LAST DAY"])
-        self.assertEqual([v["arrived"] for v in aict["upcoming"]], [True, False, False, False, False])
-        self.assertEqual(aict["upcoming"][2]["eta"], "2026-11-25T18:00")
+                         ["ANCHORED", "YESTERDAY", "THIS MORNING", "SOON", "NEXT", "LAST DAY"])
+        self.assertEqual([v["arrived"] for v in aict["upcoming"]], [True, False, False, False, False, False])
+        self.assertEqual(aict["upcoming"][3]["eta"], "2026-11-25T18:00")
+
+    def test_overdue_without_ata_stays_marked(self, _now):
+        upcoming = {v["vessel_name"]: v for v in self.get("alex")[1]["upcoming"]}
+        self.assertEqual((upcoming["YESTERDAY"]["overdue"], upcoming["YESTERDAY"]["arrived"]), (True, False))
+        self.assertTrue(upcoming["THIS MORNING"]["overdue"])  # its ETA (08:00) has passed by noon
+        self.assertFalse(upcoming["ANCHORED"]["overdue"])  # arrived: Arrived, not Overdue
+        self.assertFalse(upcoming["SOON"]["overdue"])
+
+    def test_old_overdue_still_shows(self, _now):
+        visit(self.aict, "FORGOTTEN", eta="2026-10-26T08:00")
+        names = [v["vessel_name"] for v in self.get("alex")[1]["upcoming"]]
+        self.assertEqual(names[0], "FORGOTTEN")
+
+    def test_completed_never_upcoming(self, _now):
+        names = [v["vessel_name"] for v in self.get("alex")[1]["upcoming"]]
+        self.assertNotIn("DONE", names)
+        self.assertNotIn("EARLY", names)
 
     def test_calls_in_last_7_days(self, _now):
         # ETA from 19 Nov 00:00 to the end of 25 Nov: the three created with the default ETA (21 Nov),
