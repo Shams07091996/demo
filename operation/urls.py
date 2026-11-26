@@ -11,6 +11,9 @@ urlpatterns = [
     path("api/operation/visits/", views.visits_list, name="api_op_visits"),
     path("api/operation/visits/export/", views.visits_export, name="api_op_visits_export"),
     path("api/operation/visits/<int:pk>/", views.visit_detail, name="api_op_visit"),
+    path("api/operation/windows/", views.windows_list, name="api_op_windows"),
+    path("api/operation/windows/nearest/", views.windows_nearest, name="api_op_windows_nearest"),
+    path("api/operation/windows/<int:pk>/", views.window_detail, name="api_op_window"),
     path("api/operation/live/", views.live_view, name="api_op_live"),
     path("api/operation/analysis/", views.analysis_view, name="api_op_analysis"),
 ]

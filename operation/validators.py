@@ -7,7 +7,7 @@ from sheet.errors import BadRequest
 from sheet.models import Option
 from sheet.validators import _as_dict, _local_datetime, _parse_number, _short, listed
 
-from .models import ListedVessel, Terminal
+from .models import BerthingWindow, ListedVessel, Terminal
 
 MAX_BERTHS = 30
 MAX_LINES = 50
@@ -148,6 +148,66 @@ def clean_listed_vessel(data, existing=None):
     elif line != saved and not Option.objects.filter(kind="line", value=line).exists():
         raise BadRequest("Operator: choose a value from the Master data Shipping line list.")
     return {"name": name, "loa": loa, "line": line}
+
+
+WEEK_MINUTES = 7 * 24 * 60
+
+
+def week_span(start_day, start_time, end_day, end_time):
+    """(start, end) in minutes from Monday 00:00; an end at or before the start is in the next week."""
+    start = start_day * 1440 + start_time.hour * 60 + start_time.minute
+    end = end_day * 1440 + end_time.hour * 60 + end_time.minute
+    return start, end + WEEK_MINUTES if end <= start else end
+
+
+def _overlaps(a, b):
+    return any(a[0] + shift < b[1] and b[0] < a[1] + shift for shift in (-WEEK_MINUTES, 0, WEEK_MINUTES))
+
+
+def _day(value, label):
+    if isinstance(value, bool) or not isinstance(value, (int, str)) or not str(value).isdigit() or int(value) > 6:
+        raise BadRequest(f"{label}: choose a day.")
+    return int(value)
+
+
+def _clock(value, label):
+    from datetime import time
+    text = _short(value, 5, label)
+    parts = text.split(":")
+    if len(parts) != 2 or not all(p.isdigit() and len(p) == 2 for p in parts):
+        raise BadRequest(f"{label}: enter a time (HH:MM).")
+    hour, minute = int(parts[0]), int(parts[1])
+    if hour > 23 or minute > 59:
+        raise BadRequest(f"{label}: enter a time (HH:MM).")
+    return time(hour, minute)
+
+
+def clean_window(data, profile, existing=None):
+    """A berthing window: terminal (the person's port, turned on for a new one), one of its lines, start and end day
+    + time. Refused: end at the start time, or overlapping another window of the same line at that terminal."""
+    data = _as_dict(data)
+    terminal = _visit_terminal(data, profile, existing)
+    saved_line = getattr(existing, "line", "")
+    line = listed("line", data.get("line"), terminal.port, saved_line)
+    if not line:
+        raise BadRequest("Choose a shipping line.")
+    if terminal.lines and line not in terminal.lines and line != saved_line:
+        raise BadRequest("Shipping line: choose one of this terminal's lines.")
+    values = {
+        "terminal": terminal, "line": line,
+        "start_day": _day(data.get("start_day"), "Start"), "start_time": _clock(data.get("start_time"), "Start time"),
+        "end_day": _day(data.get("end_day"), "End"), "end_time": _clock(data.get("end_time"), "End time"),
+    }
+    if (values["start_day"], values["start_time"]) == (values["end_day"], values["end_time"]):
+        raise BadRequest("The window must end at another time than it starts.")
+    span = week_span(values["start_day"], values["start_time"], values["end_day"], values["end_time"])
+    others = BerthingWindow.objects.filter(terminal=terminal, line=line)
+    if existing is not None:
+        others = others.exclude(pk=existing.pk)
+    for other in others:
+        if _overlaps(span, week_span(other.start_day, other.start_time, other.end_day, other.end_time)):
+            raise BadRequest(f"This window overlaps another window of {line} here.")
+    return values
 
 
 def _times(data):
