@@ -534,7 +534,7 @@ class IndexTests(Limited):
         nav = html[html.index('id="nav"'):html.index("</nav>")]
         groups = re.findall(r'data-group="(\w+)"', nav)
         self.assertEqual(groups, ["marine", "operation", "reports", "master"])
-        heads = re.findall(r'<span class="nav-group-label">([^<]+)</span>', nav)
+        heads = re.findall(r'<span class="nav-group-label">(?:<svg.*?</svg>)?([^<]+)</span>', nav)
         self.assertEqual(heads, ["Marine", "Operation", "Reports", "Master data"])
         pages = re.findall(r'class="nav-item" data-page="(\w+)"', nav)
         self.assertEqual(pages, ["vessels", "services", "closures", "ships",
