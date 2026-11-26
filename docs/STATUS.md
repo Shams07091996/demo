@@ -5,6 +5,11 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **PostgreSQL check (2026-11-26):** all 1072 backend tests pass on PostgreSQL 17 (the three history-trigger tests
+  included, which SQLite skips). Two tests had only worked on SQLite and were fixed (the app was right): one edited
+  the history to fake an old date (the trigger refuses that: it now saves the change at a mocked time), one took the
+  record count for the last id (PostgreSQL ids do not restart between tests). Branch `fix/postgres-tests`.
+
 - **Ready for the server (2026-11-26):** branch `chore/waitress-letterhead`, **merged into `main` 2026-11-26**. waitress 3.0.2 (the
   program that runs the app on Windows) is in `requirements.in` / the hash lock, so step 3 of `DEPLOYMENT.md` no
   longer edits them; checked before adding: no dependencies, no known open advisories (OSV: every one fixed in
@@ -284,7 +289,7 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
   superuser, and a stronger `postgres` password.
   App settings for it: `DJANGO_DB_NAME=marine_sheet DJANGO_DB_USER=postgres DJANGO_DB_HOST=localhost
   DJANGO_DB_PORT=5432 DJANGO_DB_SSLMODE=disable` (the local server has SSL off and accepts local connections only).
-- **Tests (on `main`):** `cd tools && npm run check` → all passed (452 backend tests; all 452 also passed on PostgreSQL 17 on 2026-11-19, the PostgreSQL-only history trigger tests included); `tools` parser tests pass; the jsdom smoke test
+- **Tests (on `main`):** `cd tools && npm run check` → all passed (452 backend tests; all 1072 also passed on PostgreSQL 17 on 2026-11-26, the PostgreSQL-only history trigger tests included); `tools` parser tests pass; the jsdom smoke test
   passes for `admin`, `alex`, `viewer` and the short `suez` run (see `CLAUDE.md` for the throwaway-database setup).
 
 ## Built and tested
