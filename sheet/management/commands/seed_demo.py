@@ -47,6 +47,9 @@ DEMO_TERMINALS = [
     ("TMT - ALX", "TMT", "alexandria", 1200, 4, ["27", "28"]),
     ("PSD EAST", "PSDE", "portsaid", 600, 3, ["1", "2"]),
 ]
+# MAERSK has two weekly windows at ACCHCO - ALX and one at PSD EAST; the other lines have none.
+DEMO_WINDOWS = (("ACCHCO - ALX", "MAERSK", 1, (6, 0), 2, (18, 0)), ("ACCHCO - ALX", "MAERSK", 4, (22, 0), 5, (20, 0)),
+                ("PSD EAST", "MAERSK", 2, (8, 0), 3, (8, 0)))
 DEMO_LINES = ("ARKAS", "MAERSK", "SOC", "ICR", "CUL", "MCL")
 # The vessels working now and due soon (below) for the vessel list, with their LOA.
 DEMO_MORE_VESSELS = (("NORDIC STAR", "ARKAS", 210), ("CAPE ORION", "MAERSK", 180), ("SEA FALCON", "CUL", 190),
@@ -128,7 +131,7 @@ class Command(BaseCommand):
     def _create_operation():
         """Berthing demo: the workbook's terminals, shipping lines and visits, plus vessels working now and due
         in the next days (so Live data always has rows)."""
-        from operation.models import ListedVessel, Terminal, Visit
+        from operation.models import BerthingWindow, ListedVessel, Terminal, Visit
 
         terminals = {}
         for position, (name, code, port, quay, cranes, berths) in enumerate(DEMO_TERMINALS):
@@ -140,6 +143,10 @@ class Command(BaseCommand):
         fleet = [(row[0], row[1], row[3]) for row in DEMO_VISITS] + list(DEMO_MORE_VESSELS)
         for name, line, loa in fleet:  # the vessel list: each demo vessel's operator and fixed LOA
             ListedVessel.objects.get_or_create(name=name, defaults={"loa": loa, "line": line})
+        for term, line, start_day, start, end_day, end in DEMO_WINDOWS:  # weekly berthing windows (Mon = 0)
+            BerthingWindow.objects.get_or_create(terminal=terminals[term], line=line, start_day=start_day,
+                                                 start_time=time(*start), defaults={"end_day": end_day,
+                                                                                    "end_time": time(*end)})
         if Visit.objects.exists():
             return
         day0 = timezone.make_aware(datetime.combine(date.today() - timedelta(days=14), time()))

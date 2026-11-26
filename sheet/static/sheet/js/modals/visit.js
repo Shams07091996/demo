@@ -6,7 +6,9 @@ import { deleteBtn, headEl } from '../components.js';
 import { can } from '../config.js';
 import { h, setChildren } from '../dom.js';
 import { closeModal, openModal } from '../modal.js';
-import { figure, loadListed, loadTerminals, statusEl, terminalById, terminalLines, terminalOptionEls } from '../operation/shared.js';
+import {
+  DAYS, figure, loadListed, loadTerminals, statusEl, terminalById, terminalLines, terminalOptionEls,
+} from '../operation/shared.js';
 import { opVesselsPage, visitById } from '../pages/opVessels.js';
 import { optionValues, state } from '../state.js';
 import { $ } from '../util.js';
@@ -62,6 +64,7 @@ export async function openVisitDialog(id = null) {
         field('Shipping line', h('select', { attrs: { name: 'shipping_line' }, disabled: !editable },
           lineOptions(terminal, visit?.shipping_line || ''))),
         field('LOA (m)', input('loa', { type: 'number', min: 0, max: 500, step: '0.1' }))),
+      h('div', { class: 'visit-window', id: 'visit-window', hidden: true }),
       h('div', { class: 'row two' },
         field('Planned berth', h('select', { attrs: { name: 'planned_berth' }, disabled: !editable },
           berthOptions(terminal, visit?.planned_berth))),
@@ -75,6 +78,34 @@ export async function openVisitDialog(id = null) {
       h('div', { class: 'right' }, btn('ghost', 'close', editable ? 'Cancel' : 'Close'),
         editable ? [' ', btn('primary', 'opv-save', 'Save')] : null)),
   );
+  showWindow();
+}
+
+let windowTicket = 0;
+
+/** "Fri 27.11 22:00" from the server's local "2026-11-27T22:00" and the window's day. */
+const when = (day, local) => `${DAYS[day]} ${local.slice(8, 10)}.${local.slice(5, 7)} ${local.slice(11, 16)}`;
+
+/** The line's berthing window nearest the ETA at this terminal (the server works it out); nothing without one. */
+async function showWindow() {
+  const box = $('#visit-window');
+  if (!box) return;
+  const value = (name) => $(`#visit-form [name="${name}"]`).value;
+  const [terminal, line, eta] = [value('terminal'), value('shipping_line'), value('eta')];
+  const mine = ++windowTicket;
+  let found = null;
+  if (terminal && line && eta) {
+    const query = new URLSearchParams({ terminal, line, eta });
+    found = await api(`/api/operation/windows/nearest/?${query}`).then((r) => r.nearest, () => null);
+  }
+  if (mine !== windowTicket || state.ctx.view !== 'visit') return;
+  box.hidden = !found;
+  if (!found) return setChildren(box);
+  const w = found.window;
+  const where = found.position === 'inside' ? 'ETA inside the window'
+    : `ETA ${found.hours} h ${found.position === 'before' ? 'before' : 'after the start'}`;
+  setChildren(box, h('strong', null, 'Window: '), `${when(w.start_day, found.start)} → ${when(w.end_day, found.end)}`,
+    h('span', { class: 'none' }, ` · ${where}`));
 }
 
 /** The terminal was changed: offer its berths and its port's shipping lines (keeping what is chosen). */
@@ -86,9 +117,11 @@ export function onVisitFormChange(event) {
       $('#visit-form [name="loa"]').value = match.loa;
       const line = $('#visit-form [name="shipping_line"]');
       if (match.line && [...line.options].some((o) => o.value === match.line)) line.value = match.line;
+      showWindow();
     }
     return;
   }
+  if (['shipping_line', 'eta'].includes(event.target.name)) return void showWindow();
   if (event.target.name !== 'terminal') return;
   const terminal = terminalById(event.target.value);
   for (const name of ['planned_berth', 'actual_berth']) {
@@ -97,6 +130,7 @@ export function onVisitFormChange(event) {
   }
   const line = $('#visit-form [name="shipping_line"]');
   setChildren(line, lineOptions(terminal, line.value));
+  showWindow();
 }
 
 function payload() {

@@ -36,6 +36,7 @@
           {% if "op_charts" in me.pages %}<a class="nav-item" data-page="op_charts" href="#op_charts"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg></span><span>Report charts</span></a>{% endif %}
           {% if "op_vessels" in me.pages %}<a class="nav-item" data-page="op_list" href="#op_list"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg></span><span>Vessel list</span></a>{% endif %}
           {% if me.isAdmin or "operation.master" in me.permissions %}<a class="nav-item" data-page="terminals" href="#terminals"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-anchor"></use></svg></span><span>Terminals</span></a>{% endif %}
+          {% if me.isAdmin or "operation.master" in me.permissions %}<a class="nav-item" data-page="op_windows" href="#op_windows"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg></span><span>Berthing windows</span></a>{% endif %}
         </div>
       </div>
       {% endif %}
@@ -329,6 +330,18 @@
       <div class="table-wrap">
         <table><thead id="tm-head"></thead><tbody id="tm-tbody"></tbody></table>
         <div class="empty" id="tm-empty" hidden>No terminals.</div>
+      </div>
+    </main>
+
+    <!-- ===== Berthing windows: the same people as Terminals (drawn by js/pages/windows.js) ===== -->
+    <main class="page" id="page-op_windows" hidden>
+      <div class="toolbar">
+        <div class="filters"><select class="select" id="wn-terminal" aria-label="Terminal"></select></div>
+        <div class="tools"><button class="btn primary" data-act="window-new">+ Add window</button></div>
+      </div>
+      <div class="table-wrap">
+        <table><thead id="wn-head"></thead><tbody id="wn-tbody"></tbody></table>
+        <div class="empty" id="wn-empty" hidden>No berthing windows.</div>
       </div>
     </main>
     {% endif %}

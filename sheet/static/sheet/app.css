@@ -162,6 +162,7 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .pager-size{display:flex;gap:6px;align-items:center}
 .pager-size .select{width:auto;padding:4px 8px}
 .col-port{display:none}.show-port .col-port{display:table-cell}
+.visit-window{margin:-4px 0 12px;border-left:3px solid var(--accent);border-radius:6px;padding:7px 10px;background:var(--surface2);font-size:13px}
 .status-chip{display:inline-block;margin-left:8px;border-radius:6px;padding:1px 9px;font-size:10px;font-weight:700;vertical-align:middle}
 .st-scheduled{background:color-mix(in srgb,var(--text) 7%,transparent);color:var(--muted)}
 .st-arrived{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
