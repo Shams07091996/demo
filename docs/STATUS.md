@@ -6,7 +6,7 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 ## Where things stand right now
 
 - **Calculations as vessel cards (2026-11-26):** on branch `feature/calculations-cards` (made from
-  `feature/dashboard-money`, so merging it brings all three pieces), **not merged**. No migration. Point 4.
+  `feature/dashboard-money`, so merging it brings all three pieces), **merged into `main` 2026-11-26**. No migration. Point 4.
   - The Calculations page shows one card per vessel (date, OPR, port, Revenue · Cost · Profit, number of lines);
     a click opens it to its line cards (item, status, cost, revenue, profit, billing, accounting switch) and a
     "Vessel summary" link. Sort by date / vessel / OPR / port / cost / revenue / profit, paged by vessel.
@@ -14,7 +14,7 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
   - 1072 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass.
 
 - **Dashboard: Customers, OPR, Money (2026-11-26):** on branch `feature/dashboard-money` (made from
-  `feature/operation-extras`, so merging it brings both), **not merged**. No migration. Points 5, 7, 8.
+  `feature/operation-extras`, so merging it brings both), **merged into `main` 2026-11-26**. No migration. Points 5, 7, 8.
   - A **Customer** filter on the Dashboard (every view: the jobs counted for that customer).
   - **Customers** view: a new "Services per customer" table (arrivals, sailings, each service type, total).
   - **OPR** view: figures only (the cost / profit charts and the cards' cost line are gone).
@@ -24,7 +24,7 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
     billing party). On Money the Service filter also offers Hotel stay / Transfer / Garbage & Sludge.
   - 1068 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass.
 
-- **Operation extras (2026-11-26):** on branch `feature/operation-extras`, **not merged** (waiting for the user's OK).
+- **Operation extras (2026-11-26):** on branch `feature/operation-extras`, **merged into `main` 2026-11-26**.
   No migration. Points 1, 2, 3, 6 of the user's eight (design `specs/2026-11-26-reports-money-cards-design.md`, plan
   `plans/2026-11-26-reports-money-cards.md`; the Dashboard money and Calculations cards pieces come next).
   - The Add visit dialog has **Save and add another**: saves, then opens a new Add visit with only the terminal kept.
