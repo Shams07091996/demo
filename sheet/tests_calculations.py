@@ -121,7 +121,7 @@ class CalculationsApiTests(ApiTestCase):
 
     def test_rows_and_totals(self):
         data = self.get("admin", **{"from": "2026-11-01", "to": "2026-11-30", "port": "alexandria"})
-        self.assertEqual(data["count"], 5)  # fresh water, 2 landing entries, certificates, the hotel stay after the range
+        self.assertEqual((data["count"], len(data["rows"])), (1, 5))  # one vessel card; fresh water, 2 landing entries, certificates, the hotel stay after the range
         self.assertEqual(data["totals"]["rate_missing_lines"], 1)
         self.assertEqual(data["totals"]["lines"], 5)
         self.assertAlmostEqual(data["totals"]["profit_egp"], sum(r["profit_egp"] for r in data["rows"]), places=2)
@@ -149,9 +149,40 @@ class CalculationsApiTests(ApiTestCase):
 
     def test_every_role_can_read_and_totals_cover_every_page(self):
         page = self.get("admin", page_size=1)
-        self.assertEqual((len(page["rows"]), page["totals"]["lines"]), (1, page["count"]))
-        self.assertEqual(page["count"], 6)  # ALEX SHIP's 5 + SUEZ SHIP's fresh water
-        self.assertEqual(self.get("viewer")["count"], 5)  # not Suez
+        self.assertEqual((page["count"], page["pages"], len(page["vessels"])), (2, 2, 1))  # paged by vessel
+        self.assertEqual(page["totals"]["lines"], 6)  # ALEX SHIP's 5 + SUEZ SHIP's fresh water, every page
+        self.assertEqual(self.get("viewer")["totals"]["lines"], 5)  # not Suez
+
+    def test_grouped_by_vessel(self):
+        data = self.get("admin")
+        cards = {v["vessel"]["name"]: v for v in data["vessels"]}
+        alex = cards["ALEX SHIP"]
+        self.assertEqual((alex["lines"], alex["profit_egp"], alex["rate_missing"]), (5, 3000 + 5 + 10 + 7 + 100, True))
+        self.assertEqual(cards["SUEZ SHIP"]["cost_egp"], 10.0)
+        # rows are the page's lines in card order, each vessel's lines kept together in their own order
+        names = [r["vessel"]["name"] for r in data["rows"]]
+        self.assertEqual(names, sorted(names, key=[v["vessel"]["name"] for v in data["vessels"]].index))
+        alex_kinds = [r["kind"] for r in data["rows"] if r["vessel"]["name"] == "ALEX SHIP"]
+        self.assertEqual(alex_kinds, ["Fresh Water", "Landing", "Landing", "Certificates", "Hotel stay"])
+
+    def test_paged_by_vessel(self):
+        first = self.get("admin", page_size=1, page=1)
+        second = self.get("admin", page_size=1, page=2)
+        self.assertEqual([v["vessel"]["name"] for v in first["vessels"] + second["vessels"]], ["SUEZ SHIP", "ALEX SHIP"])
+        self.assertEqual(len(second["rows"]), 5)
+
+    def test_sort_by_profit_ties_newest_first(self):
+        data = self.get("admin", sort="profit", dir="desc")
+        self.assertEqual([v["vessel"]["name"] for v in data["vessels"]], ["ALEX SHIP", "SUEZ SHIP"])
+        ascending = self.get("admin", sort="profit", dir="asc")
+        self.assertEqual([v["vessel"]["name"] for v in ascending["vessels"]], ["SUEZ SHIP", "ALEX SHIP"])
+        twin = Vessel.objects.create(name="TWIN SHIP", date=date(2026, 11, 13), port="suez")
+        Service.objects.create(vessel=twin, service_type="Fresh Water", data={"cost": 10, "costCurrency": "EGP"})
+        tied = self.get("admin", sort="profit", dir="asc")
+        self.assertEqual([v["vessel"]["name"] for v in tied["vessels"]][:2], ["TWIN SHIP", "SUEZ SHIP"])  # newest first
+
+    def test_kind_sort_refused(self):
+        self.assertEqual(self.status("admin", sort="kind"), 400)
 
     def test_sorting_and_bad_parameters(self):
         rows = self.get("admin", sort="profit", dir="desc")["rows"]
