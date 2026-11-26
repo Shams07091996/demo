@@ -5,8 +5,8 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Next berthing window, not the nearest (2026-11-26):** on branch `fix/next-window`, **not merged** (waiting for the
-  user's OK). No migration. The visit dialog's window is now the one the ETA falls inside, else the **next one to
+- **Next berthing window, not the nearest (2026-11-26):** merged into main by the user (2026-11-26), from
+  branch `fix/next-window` (deleted). No migration. The visit dialog's window is now the one the ETA falls inside, else the **next one to
   start after the ETA**; before, it was the one whose start was nearest, so a Monday arrival got Sunday's window
   instead of Friday's (the user's report). The hint is always "inside" or "N h before" now.
 
