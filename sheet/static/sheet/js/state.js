@@ -31,7 +31,8 @@ export function savePageSize(size) {
 /** The Dashboard before (or after a failed) load: the shape of GET /api/dashboard/. */
 export function emptyDashboard() {
   return {
-    count: 0, oprs: [], filters: { oprs: [], agents: [] }, service_types: [], agents: [], months: [], customers: [],
+    count: 0, oprs: [], filters: { oprs: [], agents: [], customers: [] }, service_types: [], agents: [], months: [],
+    customers: [],
     totals: { jobs: 0, services: 0, cost_egp: 0, revenue_egp: 0, profit_egp: 0 },
   };
 }
@@ -46,7 +47,8 @@ export const state = {
   cache: new Map(),   // every vessel seen so far, by id (dialogs read from here)
   alerts: { today: [], tomorrow: [], missing: [] },
   dashboard: emptyDashboard(),
-  dashboardFilter: { opr: '', agent: '', service: '' }, // the Dashboard's own filters (not the vessel list's)
+  dashboardFilter: { opr: '', agent: '', service: '', customer: '' }, // the Dashboard's own (not the vessel list's)
+  dashboardMoney: null, // the Money view's figures (GET /api/dashboard/money/), loaded while it is shown
   options: [],        // OPR / POC / Agent master data
   optionWrites: 0,    // saved Master data changes: a list loaded before one of them is out of date
   rates: [],          // monthly USD -> EGP rates

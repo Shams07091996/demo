@@ -5,6 +5,17 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Dashboard: Customers, OPR, Money (2026-11-26):** on branch `feature/dashboard-money` (made from
+  `feature/operation-extras`, so merging it brings both), **not merged**. No migration. Points 5, 7, 8.
+  - A **Customer** filter on the Dashboard (every view: the jobs counted for that customer).
+  - **Customers** view: a new "Services per customer" table (arrivals, sailings, each service type, total).
+  - **OPR** view: figures only (the cost / profit charts and the cards' cost line are gone).
+  - New **Money** view (with See money): a one-line Revenue · Cost · Profit headline, revenue bars and a table by
+    service, a table by customer, and per month (moved here from Overview). Money is the Calculations page's lines,
+    so it includes hotels, transport and garbage & sludge (they count for the ship's customer; services for their
+    billing party). On Money the Service filter also offers Hotel stay / Transfer / Garbage & Sludge.
+  - 1068 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass.
+
 - **Operation extras (2026-11-26):** on branch `feature/operation-extras`, **not merged** (waiting for the user's OK).
   No migration. Points 1, 2, 3, 6 of the user's eight (design `specs/2026-11-26-reports-money-cards-design.md`, plan
   `plans/2026-11-26-reports-money-cards.md`; the Dashboard money and Calculations cards pieces come next).

@@ -1678,13 +1678,23 @@ async function login() {
     ok(await waitFor(() => $$('#opr-cards .opr-card').length > 0) && $('#chart-vessels svg .donut-slice'), 'dashboard: the OPR donut and OPR cards render');
     const dashTab = (view) => $(`[data-act="dash-view"][data-view="${view}"]`);
     const dashShown = () => $$('[data-dash-view]').filter((el) => !el.hidden).map((el) => el.dataset.dashView).join();
-    ok(['agents', 'opr', 'customers', 'overview'].every((v) => dashTab(v)), 'dashboard: four views (Agent jobs, OPR, Customers, Overview)');
+    ok(['agents', 'opr', 'customers', 'overview', 'money'].every((v) => dashTab(v)), 'dashboard: five views (Agent jobs, OPR, Customers, Overview, Money)');
     click(dashTab('customers'));
     ok(dashShown() === 'customers' && dashTab('customers').getAttribute('aria-pressed') === 'true' && $('#d-agent').hidden, 'dashboard: Customers shows only its view, without the agent filter');
     ok(await waitFor(() => $('#tbl-customers').textContent.includes('Blue Owners')) && $('#heat-customers td.heat'), 'dashboard: jobs per customer and the POC / port table');
+    ok(await waitFor(() => $('#tbl-customer-services').textContent.includes('Blue Owners'))
+      && $$('#tbl-customer-services thead th').map((t) => t.textContent).includes('Crew Change'), 'dashboard: services per customer, a column per service');
+    const blue = [...$('#d-customer').options].find((o) => o.textContent === 'Blue Owners');
+    ok(!!blue && [...$('#d-customer').options].some((o) => o.textContent === '(no customer)'), 'dashboard: a Customer filter with the customers');
+    type($('#d-customer'), blue.value);
+    ok(await waitFor(() => $$('#tbl-customers tbody tr:not(.total)').length === 1 && $('#tbl-customers').textContent.includes('Blue Owners')),
+      'dashboard: the Customer filter narrows the jobs to that customer');
+    type($('#d-customer'), '');
+    ok(await waitFor(() => $$('#tbl-customers tbody tr:not(.total)').length > 1), 'dashboard: clearing the Customer filter shows every customer');
     ok(w.localStorage.getItem('sheet.dashboard.view') === 'customers', 'dashboard: the view is remembered');
     click(dashTab('opr'));
     ok(dashShown() === 'opr' && $('#d-opr').hidden && !$('#d-agent').hidden, 'dashboard: OPR shows its view, without the OPR filter');
+    ok(!$('#chart-cost') && !$('#chart-profit') && !$('#opr-cards').textContent.includes('LE cost'), 'dashboard: OPR has figures only, no cost or profit');
     click(dashTab('agents'));
     ok(dashShown() === 'agents' && $('#hl-agents').textContent.includes('jobs'), 'dashboard: Agent jobs has its headline');
     click($('#opr-cards .opr-card'));
@@ -1695,7 +1705,7 @@ async function login() {
     type($('#d-from'), '2001-01-01'); type($('#d-to'), '2001-01-31');
     ok(await waitFor(() => $('#dash-count').textContent === '0' && $('#opr-cards').textContent.includes('No data')), 'dashboard: changing the range reloads its figures');
     ok($('#f-from').value === '2001-01-01', 'dashboard and vessels share one range');
-    ok(['#chart-agents', '#chart-months', '#tbl-agents', '#tbl-months', '#tbl-money'].every((s) => $(s).textContent.includes('No data.')), 'dashboard: an empty range shows "No data." in every new panel');
+    ok(['#chart-agents', '#chart-months', '#tbl-agents', '#tbl-months'].every((s) => $(s).textContent.includes('No data.')), 'dashboard: an empty range shows "No data." in every new panel');
     click($('#d-clear'));
     ok(await waitFor(() => $('#d-from').value === '' && $('#dash-count').textContent !== '0'), '"All dates" clears the range');
     type($('#d-from'), keepFrom); type($('#d-to'), keepTo);
@@ -1709,7 +1719,21 @@ async function login() {
     ok(agentHeads().includes('Arrivals') && agentHeads().includes('Sailings') && agentHeads().at(-1) === 'Total', 'dashboard: agents table has Arrivals, Sailings and Total');
     ok($$('#chart-agents .hbar').length === agentRows().length && $$('#chart-months .stack-col').length > 0, 'dashboard: agent bars and month columns are drawn');
     ok($$('#tbl-months tbody tr').at(-1).classList.contains('total') && /[A-Z][a-z]{2} \d{4}/.test($('#tbl-months thead').textContent), 'dashboard: services per month has month columns and a Total row');
-    ok($$('#tbl-money tbody tr').map((r) => r.firstElementChild.textContent).join() === 'Cost,Revenue,Profit', 'dashboard: money per month has Cost, Revenue and Profit rows');
+    ok(!$('[data-dash-view="overview"] #tbl-money'), 'dashboard: money per month is no longer on Overview');
+    click(dashTab('money'));
+    ok(await waitFor(() => $$('#tbl-money tbody tr').map((r) => r.firstElementChild.textContent).join() === 'Revenue,Cost,Profit'),
+      'dashboard: Money has revenue, cost and profit per month');
+    ok($('#hl-money').textContent.startsWith('Revenue ') && $('#tbl-money-services').textContent.includes('Fresh Water')
+      && $('#tbl-money-customers').textContent.includes('Blue Owners') && $$('#chart-money-services .bar').length > 0,
+    'dashboard: Money by service (bars and table) and by customer');
+    ok([...$('#d-service').options].some((o) => o.value === 'Hotel stay'), 'dashboard: on Money the service filter also offers hotels, transport, garbage');
+    type($('#d-service'), 'Fresh Water');
+    ok(await waitFor(() => $$('#tbl-money-services tbody tr:not(.total)').length === 1), 'dashboard: the service filter narrows the money');
+    type($('#d-service'), 'Hotel stay');
+    await waitFor(() => !$('#tbl-money-services').textContent.includes('Fresh Water'));
+    click(dashTab('agents'));
+    ok(await waitFor(() => $('#d-service').value === '' && ![...$('#d-service').options].some((o) => o.value === 'Hotel stay')),
+      'dashboard: leaving Money drops a hotels / transport / garbage choice');
     ok($$('#tbl-status tbody tr').map((r) => r.firstElementChild.textContent).join() === 'In progress,Completed,Cancelled,Open lines,Closed lines', 'dashboard: service status table per month');
     ok(shown($('#d-port')) === (ROLE !== 'alex'), 'dashboard: own port selector only for users who see every port');
     type($('#d-service'), 'Fresh Water');

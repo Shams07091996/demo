@@ -160,14 +160,25 @@ the alerts (today / tomorrow in Cairo time, and past vessels missing details) an
 **Dashboard** (`dashboard.py`, `GET /api/dashboard/` and `/api/dashboard/jobs/`): vessels in date range + port (+ exact
 OPR) → jobs (arrival = 1 for the arrival agent, sailing = 1 for the sailing agent, each service = 1 for its agent; a
 Crew Change is 1 job), services and money (`calc` of each service, services only, no bookings) per vessel-date month
-with zero-filled gaps, and the OPR charts / cards. `agent=__none__` (`constants.NO_AGENT`) means an empty agent; a
+with zero-filled gaps, and the OPR charts / cards (counts only since 2026-11-26: `oprs` carry no money). `agent=__none__` (`constants.NO_AGENT`) means an empty agent; a
 service filter drops arrivals / sailings; agent or service filters narrow the OPR figures to the counted services.
-Its OPR / agent / service filters are `state.dashboardFilter` (not the vessel list's); From–To and port are shared.
+`customer=` (`dashboard.customer_param`: a Customer id, `__none__`, unknown → 400 "Unknown customer.") keeps the
+jobs counted for that customer (`_job_customer`) in every view; `filters.customers` = `[[id, name]]` with any job in
+range + port + OPR (not narrowed by the job filters).
+Its OPR / agent / service / customer filters are `state.dashboardFilter` (not the vessel list's); From–To and port are shared.
 `customers` (`_customers`, counts only): jobs per customer (a service's `billing_party`, else the ship's customer;
-arrivals / sailings the ship's; none → id None "No customer", last) with `places` per POC + port. The page shows
-one view at a time (`data-dash-view` agents / opr / customers / overview, tabs `data-act="dash-view"`,
+arrivals / sailings the ship's; none → id None "No customer", last) with `arrivals`, `sailings`, `by_type` (the
+Customers view's "Services per customer" table) and `places` per POC + port. The page shows
+one view at a time (`data-dash-view` agents / opr / customers / overview / money, tabs `data-act="dash-view"`,
 `showDashboardView`, remembered in `localStorage` `sheet.dashboard.view`); every view is drawn from the same
-response; a filter the view doesn't use is hidden while empty. The OPR donut is `js/render/svgChart.js` (SVG by
+response, except **Money** (`money.view` only; `dashmoney.py`, `GET /api/dashboard/money/`, same filters, loaded
+by `data.loadDashboardMoney` while that view is shown): `calculations.rows_for` of the vessels (so it equals the
+Calculations page: services, Hotel stay, Transfer, Garbage & Sludge), `totals`, `by_service` (service types in order,
+then `EXTRA_KINDS`), `by_customer` (a service line's billing party, else the vessel's ship's customer; revenue first,
+"No customer" last), zero-filled `months`; `service=` also takes the extra kinds (offered in the dropdown only on Money,
+`MONEY_KINDS`; leaving the view drops that choice), `agent=` keeps service lines of that agent. Calculations rows carry
+`agent` and `vessel.ship_customer_id` for it. "Money per month" moved from Overview to Money.
+A filter the view doesn't use is hidden while empty. The OPR donut is `js/render/svgChart.js` (SVG by
 `createElementNS`, colours through CSSOM).
 
 **Hotels and Transport** (`logistics.py`): `HotelStay` (one room; cost and revenue per room per night) and

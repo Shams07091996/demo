@@ -1,6 +1,6 @@
 // Every button in the app has a data-act="name"; this file maps each name to what it does.
 import { api, download, mutate } from './api.js';
-import { afterVesselSaved, refreshAfterChange, setFilter, widenRangeTo } from './data.js';
+import { afterVesselSaved, loadDashboardMoney, refreshAfterChange, setDashboardFilter, setFilter, widenRangeTo } from './data.js';
 import { conflictAction, showConflict } from './conflict.js';
 import { setStatus } from './feedback.js';
 import { closeModal } from './modal.js';
@@ -43,7 +43,7 @@ import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { copyLastMonth, readPriceForm, renderRatesPage } from './pages/rates.js';
 import { servicesPage } from './pages/services.js';
 import { shipsPage } from './pages/ships.js';
-import { showDashboardView } from './render/dashboard.js';
+import { MONEY_KINDS, currentDashboardView, showDashboardView } from './render/dashboard.js';
 import { fillQuickSelects } from './render/list.js';
 import { closePanel, openPanel, toggleAlerts } from './render/notifications.js';
 import { hideRangeNotice } from './render/rangeNotice.js';
@@ -182,7 +182,14 @@ export const actions = {
   summary: (b) => { closePanel(); openSummary(Number(b.dataset.id)); },
   'opr-summary': (b) => openOprSummary(b.dataset.opr),
   'agent-jobs': (b) => openAgentJobs(b.dataset.agent),
-  'dash-view': (b) => showDashboardView(b.dataset.view),
+  'dash-view': (b) => {
+    const leaving = currentDashboardView() === 'money';
+    showDashboardView(b.dataset.view);
+    if (b.dataset.view === 'money') return loadDashboardMoney();
+    // Hotels / Transport / Garbage & Sludge exist only on the Money view: leaving it drops that choice.
+    if (leaving && MONEY_KINDS.includes(state.dashboardFilter.service)) return setDashboardFilter({ service: '' });
+    return null;
+  },
   'toggle-theme': toggleTheme,
   'toggle-nav-group': toggleNavGroup,
   'toggle-alerts': toggleAlerts,

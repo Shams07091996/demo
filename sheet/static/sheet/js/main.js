@@ -178,7 +178,7 @@ if (ME.multiPort) {
 }
 
 /* ---- the Dashboard's own filters ---- */
-for (const [selector, key] of [['#d-opr', 'opr'], ['#d-agent', 'agent'], ['#d-service', 'service']]) {
+for (const [selector, key] of [['#d-opr', 'opr'], ['#d-agent', 'agent'], ['#d-service', 'service'], ['#d-customer', 'customer']]) {
   $(selector).addEventListener('change', (event) => setDashboardFilter({ [key]: event.target.value }));
 }
 

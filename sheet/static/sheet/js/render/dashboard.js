@@ -32,6 +32,9 @@ function renderBars(selector, labels, values, format) {
   setChildren(container, h('div', { class: 'bars' }, bars));
 }
 
+/** The Money view's extra kinds (Calculations lines that are not services); the Service filter offers them there. */
+export const MONEY_KINDS = Object.freeze(['Hotel stay', 'Transfer', 'Garbage & Sludge']);
+
 function renderOprCards(oprs) {
   setChildren($('#opr-cards'), oprs.length
     ? oprs.map((t, i) => {
@@ -39,8 +42,7 @@ function renderOprCards(oprs) {
       return h('div', { class: 'opr-card', dataset: { act: 'opr-summary', opr: t.opr }, style: { borderColor: `color-mix(in srgb, ${color} 35%, transparent)` } },
         h('div', { class: 'n', style: { color } }, t.opr),
         h('div', { class: 'big' }, t.vessels, ' ', h('small', null, 'vessels')),
-        h('div', { class: 'none' }, `${t.services} services`),
-        seeMoney() ? h('div', { class: 'num', style: { marginTop: '4px' } }, `${fmtShort(t.cost_egp)} LE cost`) : null);
+        h('div', { class: 'none' }, `${t.services} services`));
     })
     : h('div', { class: 'none' }, 'No data for the selected filters.'));
 }
@@ -56,7 +58,12 @@ function renderFilters() {
   const f = state.dashboardFilter;
   fillSelect('#d-opr', 'All OPRs', filters.oprs, f.opr);
   fillSelect('#d-agent', 'All agents', filters.agents, f.agent, [[NO_AGENT, '(no agent)']]);
-  fillSelect('#d-service', 'All services', TYPES, f.service);
+  fillSelect('#d-service', 'All services', view === 'money' ? [...TYPES, ...MONEY_KINDS] : TYPES, f.service);
+  const customers = filters.customers || [];
+  const keep = f.customer && f.customer !== NO_AGENT && !customers.some(([id]) => String(id) === f.customer)
+    ? [[f.customer, 'Customer']] : [];
+  setChildren($('#d-customer'), optionEls([['', 'All customers'], ...customers.map(([id, name]) => [String(id), name]),
+    ...keep, [NO_AGENT, '(no customer)']], f.customer));
   $('#d-port').value = state.filter.port;
 }
 
@@ -96,7 +103,7 @@ function renderAgents({ agents, service_types: types, totals }) {
 
 function renderMonths({ months, service_types: types, totals }) {
   if (!months.length) {
-    for (const selector of ['#chart-months', '#tbl-months', ...(seeMoney() ? ['#tbl-money'] : [])]) setChildren($(selector), noData());
+    for (const selector of ['#chart-months', '#tbl-months']) setChildren($(selector), noData());
     return;
   }
   const max = Math.max(...months.map((m) => m.total), 1);
@@ -114,14 +121,37 @@ function renderMonths({ months, service_types: types, totals }) {
   const typeRows = types.map((t) => [[t, ...months.map((m) => m.by_type[t] || 0), months.reduce((n, m) => n + (m.by_type[t] || 0), 0)]]);
   typeRows.push([['Total', ...months.map((m) => m.total), totals.services], { class: 'total' }]);
   setChildren($('#tbl-months'), figTable(heads, typeRows));
-  if (!seeMoney()) return;
+}
 
-  const moneyCell = (value, negative) => h('td', { class: negative && value < 0 ? 'num neg' : 'num' }, fmt(value));
-  const moneyRows = [['Cost', 'cost_egp'], ['Revenue', 'revenue_egp'], ['Profit', 'profit_egp']].map(([label, key]) => [
-    [label, ...months.map((m) => moneyCell(m[key], key === 'profit_egp')), moneyCell(totals[key], key === 'profit_egp')],
-    key === 'profit_egp' ? { class: 'total' } : null,
-  ]);
-  setChildren($('#tbl-money'), figTable(heads, moneyRows));
+const moneyCell = (value, profit = false) => h('td', { class: profit && value < 0 ? 'num neg' : 'num' }, fmt(value));
+const MONEY_COLUMNS = ['Revenue', 'Cost', 'Profit', 'Lines'];
+const moneyCells = (e) => [moneyCell(e.revenue_egp), moneyCell(e.cost_egp), moneyCell(e.profit_egp, true), e.lines];
+
+/** The Money view (state.dashboardMoney): headline, by service (bars + table), by customer, per month. */
+export function renderDashboardMoney() {
+  if (!seeMoney() || !$('#tbl-money')) return;
+  const data = state.dashboardMoney;
+  if (!data || !data.totals.lines) {
+    headline('#hl-money', [data ? 'No money lines' : '']);
+    for (const selector of ['#chart-money-services', '#tbl-money-services', '#tbl-money-customers', '#tbl-money']) {
+      setChildren($(selector), noData());
+    }
+    return;
+  }
+  const { totals } = data;
+  headline('#hl-money', [`Revenue ${fmt(totals.revenue_egp)} LE`, `Cost ${fmt(totals.cost_egp)} LE`,
+    `Profit ${fmt(totals.profit_egp)} LE`,
+    totals.rate_missing_lines ? plural(totals.rate_missing_lines, 'line without a rate', 'lines without a rate') : '']);
+  renderBars('#chart-money-services', data.by_service.map((s) => s.kind), data.by_service.map((s) => s.revenue_egp), fmtShort);
+  const total = [['Total', ...moneyCells(totals)], { class: 'total' }];
+  setChildren($('#tbl-money-services'), figTable(['Service', ...MONEY_COLUMNS],
+    [...data.by_service.map((s) => [[s.kind, ...moneyCells(s)]]), total]));
+  setChildren($('#tbl-money-customers'), figTable(['Customer', ...MONEY_COLUMNS],
+    [...data.by_customer.map((c) => [[c.name, ...moneyCells(c)], c.id === null ? { class: 'no-agent' } : null]), total]));
+  const heads = ['', ...data.months.map((m) => monthLabel(m.month)), 'Total'];
+  setChildren($('#tbl-money'), figTable(heads, [['Revenue', 'revenue_egp'], ['Cost', 'cost_egp'], ['Profit', 'profit_egp']]
+    .map(([label, key]) => [[label, ...data.months.map((m) => moneyCell(m[key], key === 'profit_egp')),
+      moneyCell(totals[key], key === 'profit_egp')], key === 'profit_egp' ? { class: 'total' } : null])));
 }
 
 /** Services per operations status and Calculations lines per accounting state, per month (dashboard.status). */
@@ -138,7 +168,7 @@ function renderStatus({ months, totals }) {
   setChildren($('#tbl-status'), figTable(heads, rows));
 }
 
-const VIEWS = ['agents', 'opr', 'customers', 'overview'];
+const VIEWS = ['agents', 'opr', 'customers', 'overview', ...(seeMoney() ? ['money'] : [])];
 const VIEW_KEY = 'sheet.dashboard.view';
 // The filters a view does not use: hidden there while empty (one that is set stays visible, since it still applies).
 const UNUSED = { opr: ['#d-opr'], customers: ['#d-agent'] };
@@ -172,8 +202,12 @@ export function showDashboardView(next) {
   } catch {
     // no storage (private window): the view is kept until the page reloads
   }
+  if (state.dashboard) renderFilters();
   applyView();
 }
+
+/** The view on screen (the Money view loads its own figures). */
+export const currentDashboardView = () => view;
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -208,7 +242,25 @@ function renderOpr(oprs) {
 const HEAT_STEPS = 5;
 const heatClass = (n, max) => (n ? `heat heat-${Math.max(1, Math.ceil((n / max) * HEAT_STEPS))}` : 'heat');
 
+/** Services per customer: arrivals / sailings (without a service filter), each service type present, total. */
+function renderCustomerServices(customers) {
+  if (!customers.length) {
+    setChildren($('#tbl-customer-services'), noData());
+    return;
+  }
+  const calls = !state.dashboardFilter.service; // arrivals and sailings are not services
+  const types = TYPES.filter((t) => customers.some((c) => c.by_type[t]));
+  const sum = (pick) => customers.reduce((n, c) => n + pick(c), 0);
+  const cells = (c) => [...(calls ? [c.arrivals, c.sailings] : []), ...types.map((t) => c.by_type[t] || 0), c.jobs];
+  setChildren($('#tbl-customer-services'), figTable(['Customer', ...(calls ? ['Arrivals', 'Sailings'] : []), ...types, 'Total'], [
+    ...customers.map((c) => [[c.name, ...cells(c)], c.id === null ? { class: 'no-agent' } : null]),
+    [['Total', ...(calls ? [sum((c) => c.arrivals), sum((c) => c.sailings)] : []),
+      ...types.map((t) => sum((c) => c.by_type[t] || 0)), sum((c) => c.jobs)], { class: 'total' }],
+  ]));
+}
+
 function renderCustomers(customers) {
+  renderCustomerServices(customers);
   if (!customers.length) {
     setChildren($('#tbl-customers'), noData());
     setChildren($('#heat-customers'), noData());
@@ -252,10 +304,6 @@ export function renderDashboard() {
   const labels = oprs.map((o) => o.opr);
   const column = (key) => oprs.map((o) => o[key]);
   renderBars('#chart-services', labels, column('services'), (n) => n);
-  if (seeMoney()) {
-    renderBars('#chart-cost', labels, column('cost_egp'), fmtShort);
-    renderBars('#chart-profit', labels, column('profit_egp'), fmtShort);
-  }
   renderOprCards(oprs);
   applyView();
 }
