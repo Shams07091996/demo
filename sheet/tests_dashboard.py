@@ -128,6 +128,55 @@ class DashboardFigureTests(ApiTestCase):
 
 
 @FAST_HASHER
+class DashboardCustomerTests(ApiTestCase):
+    """Jobs per customer, by POC and port: a service's job goes to its billing party, else its ship's customer."""
+
+    setUp_figures = DashboardFigureTests.setUp
+    dash = DashboardFigureTests.dash
+
+    def setUp(self):
+        self.setUp_figures()
+        from .models import Customer, Ship
+        self.a = Customer.objects.create(name="A OWNERS")
+        self.b = Customer.objects.create(name="B MANAGERS")
+        ship = Ship.objects.create(name="V1", opr="MSK", customer=self.a)
+        Vessel.objects.filter(pk=self.v1.pk).update(ship=ship, poc="P1")
+        Service.objects.filter(pk=self.water.pk).update(billing_party=self.b)
+
+    def customers(self, query=NOV, user="admin"):
+        return self.dash(query, user)["customers"]
+
+    def test_jobs_go_to_billing_party_else_ship_customer(self):
+        found = {c["name"]: (c["id"], c["jobs"]) for c in self.customers()}
+        self.assertEqual(found["A OWNERS"], (self.a.id, 3))  # arrival + sailing + Crew Change
+        self.assertEqual(found["B MANAGERS"], (self.b.id, 1))  # its Fresh Water, billed to B
+
+    def test_places_by_poc_and_port(self):
+        a = next(c for c in self.customers() if c["id"] == self.a.id)
+        self.assertEqual(a["places"], [{"poc": "P1", "port": "alexandria", "jobs": 3}])
+
+    def test_vessel_without_ship_is_no_customer_last(self):
+        last = self.customers()[-1]
+        self.assertEqual((last["id"], last["jobs"], last["places"]),
+                         (None, 2, [{"poc": "", "port": "alexandria", "jobs": 2}]))
+
+    def test_busiest_first(self):
+        self.assertEqual([c["name"] for c in self.customers()], ["A OWNERS", "B MANAGERS", "No customer"])
+
+    def test_service_filter_narrows_customers(self):
+        found = self.customers(NOV + "&service=Fresh Water")
+        self.assertEqual([(c["name"], c["jobs"]) for c in found], [("B MANAGERS", 1)])
+
+    def test_port_user_sees_own_port_only(self):
+        from .models import Customer, Ship
+        far = Customer.objects.create(name="FAR CUSTOMER")
+        ship = Ship.objects.create(name="SUEZ", customer=far)
+        Vessel.objects.create(name="SUEZ", date=date(2026, 11, 11), port="suez", ship=ship, arrival_agent="X")
+        self.assertIn("FAR CUSTOMER", [c["name"] for c in self.customers()])
+        self.assertNotIn("FAR CUSTOMER", [c["name"] for c in self.customers(user="alex")])
+
+
+@FAST_HASHER
 class DashboardJobsTests(ApiTestCase):
     def setUp(self):
         Vessel.objects.all().delete()

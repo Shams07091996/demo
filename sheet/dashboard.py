@@ -14,6 +14,7 @@ from .access import scoped_vessels
 from .constants import NO_AGENT, SERVICE_STATUSES, SERVICE_TYPES
 from .errors import BadRequest
 from .listing import date_param
+from .models import Customer
 from .serializers import month_rates, vessel_to_dict
 
 MAX_JOBS = 500
@@ -128,6 +129,36 @@ def status_counts(profile, vessels, narrowed):
     return {"months": month_list, "totals": {key: sum(m[key] for m in month_list) for key in STATUS_KEYS}}
 
 
+def _job_customer(row, service):
+    """Whose job it is: a service's billing party, else (and for arrivals / sailings) the ship's customer."""
+    if service is not None and service.get("billing_party"):
+        return service["billing_party"]["id"]
+    return (row.get("ship") or {}).get("customer_id")
+
+
+def _customers(vessels):
+    """Jobs per customer and, within each, per POC and port (counts only). Busiest first, "No customer" last."""
+    counted = {}
+    for row, jobs in vessels:
+        for _label, _agent, service in jobs:
+            entry = counted.setdefault(_job_customer(row, service), {"jobs": 0, "places": {}})
+            entry["jobs"] += 1
+            place = (row["poc"] or "", row["port"])
+            entry["places"][place] = entry["places"].get(place, 0) + 1
+    names = dict(Customer.objects.filter(id__in=[k for k in counted if k is not None]).values_list("id", "name"))
+    def place_order(item):
+        (poc, port), jobs = item
+        return -jobs, poc.casefold(), port
+
+    out = [
+        {"id": key, "name": names.get(key, "No customer") if key is not None else "No customer", "jobs": e["jobs"],
+         "places": [{"poc": poc, "port": port, "jobs": n}
+                    for (poc, port), n in sorted(e["places"].items(), key=place_order)]}
+        for key, e in counted.items()
+    ]
+    return sorted(out, key=lambda c: (c["id"] is None, -c["jobs"], c["name"].casefold()))
+
+
 def response(profile, params):
     f = parse(params)
     in_range = _rows(profile, f)
@@ -197,6 +228,7 @@ def response(profile, params):
         "months": month_list,
         "totals": {**totals, **{key: round(totals[key], 2) for key in MONEY}},
         "status": status_counts(profile, vessels, narrowed),
+        "customers": _customers(vessels),
     }
 
 

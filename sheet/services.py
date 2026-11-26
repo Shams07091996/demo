@@ -114,7 +114,8 @@ def _row(service, gaps, today, now):
     vessel = service.vessel
     return {
         "id": service.id,
-        "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "port": vessel.port},
+        "vessel": {"id": vessel.id, "name": vessel.name, "date": vessel.date.isoformat(), "port": vessel.port,
+                   "opr": vessel.opr, "terminal": vessel.terminal, "berth": vessel.berth},
         "type": service.service_type,
         "agent": service.agent,
         "status": service.status,
@@ -182,10 +183,20 @@ def filtered(profile, params, today=None, now=None):
     return [_row(s, gaps, today, now) for s, gaps in picked], agents
 
 
+def grouped(rows):
+    """The rows under their vessels: vessels in the order of their first row, each with its rows in order."""
+    groups = {}
+    for row in rows:
+        groups.setdefault(row["vessel"]["id"], {"vessel": row["vessel"], "services": []})["services"].append(row)
+    return list(groups.values())
+
+
 def list_response(profile, params):
+    """The page: matching services under their vessels, paged by vessel (the Excel export stays one row a service)."""
     page = int_param(params, "page", 1, 1, 10**9, "Page must be a whole number from 1.")
     page_size = int_param(params, "page_size", DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE, "Rows per page must be 1–200.")
     rows, agents = filtered(profile, params)
+    vessels = grouped(rows)
     start = (page - 1) * page_size
-    return {"services": rows[start:start + page_size], "count": len(rows), "page": page, "page_size": page_size,
-            "pages": max(1, -(-len(rows) // page_size)), "agents": agents}
+    return {"vessels": vessels[start:start + page_size], "count": len(vessels), "services_count": len(rows),
+            "page": page, "page_size": page_size, "pages": max(1, -(-len(vessels) // page_size)), "agents": agents}

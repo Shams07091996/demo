@@ -3,8 +3,8 @@
 // Everything is worked out by the server (/api/services/). The filters are remembered in this browser only.
 import { api } from '../api.js';
 import { portOptionEls, serviceStatusEl, tickFilterEl } from '../components.js';
-import { ME, NO_AGENT, SERVICE_STATUS, TYPES, can } from '../config.js';
-import { h, optionEls, setChildren } from '../dom.js';
+import { ME, NO_AGENT, PORT_LABEL, SERVICE_STATUS, TYPES, can } from '../config.js';
+import { h, icon, optionEls, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { openServiceForm } from '../modals/service.js';
 import { openVessel } from '../modals/vessel.js';
@@ -36,7 +36,8 @@ function restore() {
 }
 
 const filter = restore();
-let data = { services: [], count: 0, pages: 1, page: 1, agents: [] };
+let data = { vessels: [], count: 0, pages: 1, page: 1, agents: [] };
+const opened = new Set(); // vessel ids whose cards are open, while on the page
 const byId = new Map();
 let ticket = 0;
 let wired = false;
@@ -50,7 +51,8 @@ function remember() {
   }
 }
 
-const onlyCompleted = () => filter.status.length === 1 && filter.status[0] === 'completed';
+// The Excel export's headings (one row a service; sheet/tests_page_excel.py keeps them equal to dataexport's).
+export const heads = ['Vessel', 'Date', 'Service', 'Agent', 'Status', 'Completed', 'Missing'];
 
 function query({ paged }) {
   const q = new URLSearchParams({ status: filter.status.join(',') });
@@ -68,27 +70,44 @@ function completedCell(row) {
   return row.completed_guess ? `≈ ${dmy(row.vessel.date)}` : '—';
 }
 
-function rowEl(row) {
-  return h('tr', { class: 'clickable', dataset: { act: 'service-row', id: row.id } },
-    h('td', null, row.vessel.name),
-    h('td', null, dmy(row.vessel.date)),
-    h('td', null, row.type),
-    h('td', null, row.agent || '—'),
-    h('td', null, serviceStatusEl(row.status), row.sailed ? h('span', { class: 'svc-status st-progress sailed' }, 'Sailed') : null),
-    onlyCompleted() || filter.status.includes('completed') ? h('td', null, completedCell(row)) : null,
-    h('td', null, row.missing.length
-      ? row.missing.map((label) => h('span', { class: 'missing-tag' }, label))
-      : h('span', { class: 'none' }, '—')));
+/** One service inside its vessel's card: opens the service (edit roles) or the vessel (read-only). */
+function serviceCardEl(row) {
+  return h('button', { class: 'sv-svc', dataset: { act: 'service-row', id: row.id }, attrs: { type: 'button' } },
+    h('div', { class: 'sv-svc-top' },
+      h('strong', null, row.type),
+      h('span', null, serviceStatusEl(row.status),
+        row.sailed ? h('span', { class: 'svc-status st-progress sailed' }, 'Sailed') : null)),
+    h('div', { class: 'sv-svc-meta' },
+      h('span', null, 'Agent: ', row.agent || '—'),
+      filter.status.includes('completed') ? h('span', null, 'Completed: ', completedCell(row)) : null),
+    row.missing.length
+      ? h('div', null, row.missing.map((label) => h('span', { class: 'missing-tag' }, label)))
+      : null);
+}
+
+function vesselCardEl({ vessel, services }) {
+  const open = opened.has(vessel.id);
+  const place = [ME.multiPort ? PORT_LABEL[vessel.port] || vessel.port : '', vessel.terminal, vessel.berth]
+    .filter(Boolean).join(' · ');
+  return h('article', { class: open ? 'sv-vessel open' : 'sv-vessel' },
+    h('button', { class: 'sv-vessel-head', dataset: { act: 'sv-toggle', id: vessel.id },
+      attrs: { type: 'button', 'aria-expanded': String(open) } },
+    h('span', { class: 'sv-vessel-name' }, vessel.name),
+    h('span', { class: 'sv-vessel-meta' }, [dmy(vessel.date), vessel.opr, place].filter(Boolean).join(' · ')),
+    h('span', { class: 'sv-vessel-right' },
+      services.some((s) => s.missing.length) ? h('span', { class: 'missing-tag' }, 'Missing') : null,
+      h('span', { class: 'sv-count' }, services.length === 1 ? '1 service' : `${services.length} services`),
+      icon('chevron-down'))),
+    h('div', { class: 'sv-vessel-body', hidden: !open }, services.map(serviceCardEl)));
 }
 
 function render() {
   byId.clear();
-  data.services.forEach((row) => byId.set(row.id, row));
-  const withCompleted = filter.status.includes('completed');
-  const heads = ['Vessel', 'Date', 'Service', 'Agent', 'Status', ...(withCompleted ? ['Completed'] : []), 'Missing'];
-  setChildren($('#sv-head'), h('tr', null, heads.map((t) => h('th', null, t))));
-  setChildren($('#sv-tbody'), data.services.map(rowEl));
-  $('#sv-empty').hidden = data.services.length > 0;
+  data.vessels.forEach((group) => group.services.forEach((row) => byId.set(row.id, row)));
+  const listed = new Set(data.vessels.map((group) => group.vessel.id));
+  for (const id of [...opened]) if (!listed.has(id)) opened.delete(id);
+  setChildren($('#sv-cards'), data.vessels.map(vesselCardEl));
+  $('#sv-empty').hidden = data.vessels.length > 0;
   const fresh = tickFilterEl({ id: 'sv-status-filter', group: 'svstatus', title: 'Status', labels: SERVICE_STATUS,
     ticked: filter.status });
   const old = $('#sv-status-filter');
@@ -100,7 +119,7 @@ function render() {
   if (filter.agent && filter.agent !== NO_AGENT && !data.agents.includes(filter.agent)) agents.push([filter.agent, filter.agent]);
   setChildren($('#sv-agent'), optionEls([['', 'All agents'], [NO_AGENT, 'No agent'], ...agents], filter.agent));
   setChildren($('#sv-pager'), pagerEl({
-    count: data.count, pages: data.pages, page: data.page, size: filter.pageSize, noun: 'services',
+    count: data.count, pages: data.pages, page: data.page, size: filter.pageSize, noun: 'vessels',
     sizeId: 'sv-page-size', prev: { act: 'services-page', step: -1 }, next: { act: 'services-page', step: 1 },
   }));
   for (const key of ['from', 'to']) if (document.activeElement !== $(`#sv-${key}`)) $(`#sv-${key}`).value = filter[key];
@@ -172,6 +191,12 @@ export const servicesPage = {
     }
   },
   exportQuery: () => query({ paged: false }).toString(),
+  /** Opens or closes one vessel's card. */
+  toggle(id) {
+    if (opened.has(id)) opened.delete(id);
+    else opened.add(id);
+    render();
+  },
   step(n) {
     return setFilter({ page: Math.min(Math.max(1, filter.page + n), data.pages) });
   },

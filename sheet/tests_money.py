@@ -426,14 +426,14 @@ class OverviewMoneyTests(MoneyUsers):
         Service.objects.create(vessel=self.vessel, service_type="Certificates",
                                data=clean_service_data("Certificates", {"certName": "X"}))
         url = f"/api/services/?{self.range()}&type=Certificates"
-        rows = self.call(self.login("edit_only"), "get", url)[1]["services"]
+        rows = self.call(self.login("edit_only"), "get", url)[1]["vessels"][0]["services"]
         self.assertEqual(rows[0]["missing"], ["Agent"])
-        rows = self.call(self.login("admin"), "get", url)[1]["services"]
+        rows = self.call(self.login("admin"), "get", url)[1]["vessels"][0]["services"]
         self.assertEqual(rows[0]["missing"], ["Agent", "Cost", "Revenue"])
         Service.objects.filter(service_type="Certificates").update(agent="A")
         allow("agent", "A")
-        self.assertEqual(self.call(self.login("edit_only"), "get", f"{url}&missing=1")[1]["services"], [])
-        self.assertEqual(len(self.call(self.login("admin"), "get", f"{url}&missing=1")[1]["services"]), 1)
+        self.assertEqual(self.call(self.login("edit_only"), "get", f"{url}&missing=1")[1]["vessels"], [])
+        self.assertEqual(len(self.call(self.login("admin"), "get", f"{url}&missing=1")[1]["vessels"][0]["services"]), 1)
 
     def test_excel_without_view(self):
         response = self.login("edit_only").get(f"/api/dashboard/export/?{self.range()}")
