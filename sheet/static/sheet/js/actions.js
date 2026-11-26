@@ -273,6 +273,7 @@ export const actions = {
   'calc-page': (b) => calculationsPage.step(Number(b.dataset.step)),
   'services-page': (b) => servicesPage.step(Number(b.dataset.step)),
   'service-row': (b) => servicesPage.open(Number(b.dataset.id)),
+  'sv-toggle': (b) => servicesPage.toggle(Number(b.dataset.id)),
   'acct-toggle': (b) => calculationsPage.toggleClosed(b),
   'disposal-hide': (b) => disposalPage.hide(b.dataset.id),
   'disposal-show': (b) => disposalPage.show(b.dataset.id),

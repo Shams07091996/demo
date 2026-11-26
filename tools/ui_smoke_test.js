@@ -466,8 +466,12 @@ async function login() {
   /* ---- services page: the work list (seed_demo: MSC AURORA's Crew Change has draft bookings, SEA BREEZE's
      Landing has no agent) ---- */
   await go('services');
-  const svRow = (vessel, type) => $$('#sv-tbody tr').find((r) => r.children[0].textContent === vessel && r.children[2].textContent === type);
-  ok(await waitFor(() => svRow('MSC AURORA', 'Crew Change')), 'services: the page lists services');
+  const svCard = (vessel) => $$('#sv-cards .sv-vessel').find((c) => c.querySelector('.sv-vessel-name').textContent === vessel);
+  const svRow = (vessel, type) => [...(svCard(vessel)?.querySelectorAll('.sv-svc') || [])].find((s) => s.querySelector('strong').textContent === type);
+  ok(await waitFor(() => svRow('MSC AURORA', 'Crew Change')), 'services: the page lists services under their vessels');
+  ok(svCard('MSC AURORA').querySelector('.sv-vessel-body').hidden, 'services: a vessel card starts closed');
+  click(svCard('MSC AURORA').querySelector('[data-act="sv-toggle"]'));
+  ok(await waitFor(() => !svCard('MSC AURORA').querySelector('.sv-vessel-body').hidden && svCard('MSC AURORA').querySelector('.sv-count').textContent.endsWith('services')), 'services: a vessel card opens to its services');
   ok($('#sv-status-filter summary').textContent === 'Status: In progress', 'services: opens with In progress ticked');
   ok(svRow('MSC AURORA', 'Crew Change').textContent.includes('Bookings'), 'services: a Crew Change with draft bookings is missing Bookings');
   ok(svRow('SEA BREEZE', 'Landing')?.textContent.includes('Agent') && svRow('SEA BREEZE', 'Landing').textContent.includes('Sailed'), 'services: a sailed vessel\'s open service is marked Sailed, its missing agent shown');
@@ -477,9 +481,9 @@ async function login() {
   await waitFor(() => svRow('MSC AURORA', 'Fresh Water'));
   const svTick = (value, on) => { const box = $(`#sv-ticks [data-tick=svstatus][value=${value}]`); box.checked = on; box.dispatchEvent(new w.Event('change', { bubbles: true })); };
   svTick('completed', true);
-  ok(await waitFor(() => $$('#sv-head th').some((th) => th.textContent === 'Completed')), 'services: ticking Completed adds the Completed column');
+  ok(await waitFor(() => svRow('MSC AURORA', 'Fresh Water')?.textContent.includes('Completed:')), 'services: ticking Completed shows the completed date on the service cards');
   svTick('completed', false);
-  await waitFor(() => !$$('#sv-head th').some((th) => th.textContent === 'Completed'));
+  await waitFor(() => svRow('MSC AURORA', 'Fresh Water') && !svRow('MSC AURORA', 'Fresh Water').textContent.includes('Completed:'));
   {
     const exports = [];
     const plainFetch = w.fetch;

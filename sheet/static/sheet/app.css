@@ -408,6 +408,23 @@ th[data-csort],th[data-bsort]{cursor:pointer}
 /* ---- Services page ---- */
 .missing-tag{display:inline-block;margin:0 4px 2px 0;padding:1px 6px;border-radius:6px;background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning);font-size:12px}
 .svc-status.sailed{margin-left:6px}
+.sv-cards{display:flex;flex-direction:column;gap:10px}
+.sv-vessel{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--card-shadow)}
+.sv-vessel-head{display:flex;align-items:center;gap:14px;width:100%;padding:12px 16px;border:none;background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer;border-radius:10px}
+.sv-vessel-head:hover{background:var(--surface2)}
+.sv-vessel-name{font-weight:700;min-width:140px}
+.sv-vessel-meta{color:var(--muted);flex:1;font-size:13px}
+.sv-vessel-right{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.sv-vessel-right .missing-tag{margin:0}
+.sv-count{font-size:12px;font-weight:600;color:var(--accent)}
+.sv-vessel-head .ic{width:16px;height:16px;transition:transform .15s}
+.sv-vessel.open .sv-vessel-head .ic{transform:rotate(180deg)}
+.sv-vessel-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;padding:0 16px 14px}
+.sv-vessel-body[hidden]{display:none}
+.sv-svc{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.sv-svc:hover{border-color:var(--accent)}
+.sv-svc-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sv-svc-meta{display:flex;flex-direction:column;color:var(--muted);font-size:12px}
 
 /* Operation pages (js/pages/op*.js, terminals.js) */
 .op-cards{display:grid;gap:12px}

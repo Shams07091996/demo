@@ -247,10 +247,8 @@
         <select id="sv-port" class="select" hidden aria-label="Port"></select>
         {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="services"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
       </div>
-      <div class="table-wrap">
-        <table><thead id="sv-head"></thead><tbody id="sv-tbody"></tbody></table>
-        <div class="empty" id="sv-empty" hidden>No services.</div>
-      </div>
+      <div class="sv-cards" id="sv-cards"></div>
+      <div class="empty" id="sv-empty" hidden>No services.</div>
       <div class="pager" id="sv-pager"></div>
     </main>
 
