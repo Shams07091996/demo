@@ -86,7 +86,7 @@ let windowTicket = 0;
 /** "Fri 27.11 22:00" from the server's local "2026-11-27T22:00" and the window's day. */
 const when = (day, local) => `${DAYS[day]} ${local.slice(8, 10)}.${local.slice(5, 7)} ${local.slice(11, 16)}`;
 
-/** The line's berthing window nearest the ETA at this terminal (the server works it out); nothing without one. */
+/** The line's berthing window holding the ETA, else the next one, at this terminal (the server works it out); nothing without one. */
 async function showWindow() {
   const box = $('#visit-window');
   if (!box) return;
@@ -103,7 +103,7 @@ async function showWindow() {
   if (!found) return setChildren(box);
   const w = found.window;
   const where = found.position === 'inside' ? 'ETA inside the window'
-    : `ETA ${found.hours} h ${found.position === 'before' ? 'before' : 'after the start'}`;
+    : `ETA ${found.hours} h before`;
   setChildren(box, h('strong', null, 'Window: '), `${when(w.start_day, found.start)} → ${when(w.end_day, found.end)}`,
     h('span', { class: 'none' }, ` · ${where}`));
 }

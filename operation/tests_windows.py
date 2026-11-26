@@ -105,7 +105,7 @@ class WindowApiTests(ApiTestCase):
         alex = self.login("nomaster")
         status, body = self.call(alex, "get", f"{URL}nearest/?terminal={self.aict.id}&line=MAERSK&eta=2026-11-26T08:00")
         self.assertEqual(status, 200, body)
-        self.assertEqual((body["nearest"]["start"], body["nearest"]["position"]), ("2026-11-24T06:00", "after"))
+        self.assertEqual((body["nearest"]["start"], body["nearest"]["position"]), ("2026-12-01T06:00", "before"))
         _, body = self.call(alex, "get", f"{URL}nearest/?terminal={self.aict.id}&line=ARKAS&eta=2026-11-26T08:00")
         self.assertIsNone(body["nearest"])
         theirs = f"{URL}nearest/?terminal={self.psd.id}&line=MAERSK&eta=2026-11-26T08:00"
@@ -135,8 +135,7 @@ class NearestTests(TestCase):
 
     def test_end_is_outside(self):
         found = self.near("2026-11-25T18:00")
-        self.assertNotEqual(found["position"], "inside")
-        self.assertEqual(found["window"]["id"], self.tue.id)  # its start (36 h before) is nearer than Friday's (52 h)
+        self.assertEqual((found["window"]["id"], found["position"]), (self.fri.id, "before"))  # the next one
 
     def test_window_over_week_end(self):
         weekend = window(self.aict, line="X", start=(5, "20:00"), end=(0, "06:00"))
@@ -145,11 +144,12 @@ class NearestTests(TestCase):
         found = self.near("2026-11-23T03:00", [weekend])  # Monday early: last week's occurrence
         self.assertEqual((found["position"], found["start"]), ("inside", "2026-11-21T20:00"))
 
-    def test_tie_goes_to_later(self):
-        a = window(self.aict, line="Y", start=(0, "00:00"), end=(0, "01:00"))
-        b = window(self.aict, line="Y", start=(2, "00:00"), end=(2, "01:00"))
-        found = self.near("2026-11-24T00:00", [a, b])  # Tuesday 00:00: 24 h after Monday's, 24 h before Wednesday's
-        self.assertEqual((found["window"]["id"], found["position"]), (b.id, "before"))
+    def test_next_after_eta_not_the_nearest_before(self):
+        fri = window(self.aict, line="Y", start=(4, "08:00"), end=(4, "20:00"))
+        sun = window(self.aict, line="Y", start=(6, "08:00"), end=(6, "20:00"))
+        found = self.near("2026-11-30T08:00", [fri, sun])  # Monday: Sunday's started 24 h ago, Friday's is in 4 days
+        self.assertEqual((found["window"]["id"], found["start"], found["position"], found["hours"]),
+                         (fri.id, "2026-12-04T08:00", "before", 96.0))
 
     def test_no_windows(self):
         self.assertIsNone(nearest([], cairo("2026-11-26T08:00")))

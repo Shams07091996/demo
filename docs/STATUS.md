@@ -5,6 +5,11 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Next berthing window, not the nearest (2026-11-26):** on branch `fix/next-window`, **not merged** (waiting for the
+  user's OK). No migration. The visit dialog's window is now the one the ETA falls inside, else the **next one to
+  start after the ETA**; before, it was the one whose start was nearest, so a Monday arrival got Sunday's window
+  instead of Friday's (the user's report). The hint is always "inside" or "N h before" now.
+
 - **Overdue vessels, vessel-list operator, sidebar folders, berthing windows (2026-11-26):** merged into main by the user
   (2026-11-26), from branch `feature/operation-windows` (deleted). Needs migrations **`operation 0004_listed_vessel_line`**
   and **`0005_berthing_window`**. Design `specs/2026-11-26-operation-windows-design.md`, plan
@@ -17,10 +22,10 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
     database), items indented under them; no underline, no capitals.
   - New page **Berthing windows** (Operation folder; Admins and the "Edit terminals and vessel list" tick): weekly
     windows per terminal + line (a line may have none or several; the same line's windows at a terminal may not
-    overlap; a window may run over the week end). The visit dialog shows the line's window nearest the ETA
+    overlap; a window may run over the week end). The visit dialog shows the line's window nearest the ETA (now: the next one, see above)
     ("Window: Fri 27.11 22:00 → Sat 28.11 20:00 · ETA 38 h before"), nothing for a line without windows.
   - Rulings (mine): Overdue = no ATA and ETA already passed (not "before today"); a tie between two windows goes to
-    the later one; the page has one Terminal filter (terminal names show the port); window changes are in the History
+    the later one (gone: the next window after the ETA is shown); the page has one Terminal filter (terminal names show the port); window changes are in the History
     for Users with Vessel Data in that port; separate Marine / Operation notifications were put aside by the user.
   - 1034 tests, `npm run check` green, smoke alex / admin / viewer / suez / marine pass; looked at in the browser
     (light, dark).
@@ -287,7 +292,8 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 - **Operation windows round (2026-11-26):** vessels that passed their ETA without berthing stay in Live data's Next 7
   days ("yes change the rule"); the vessel list's field is called **Operator**, not OPR; sidebar folders must stand
   apart, **without an underline** under the active one; berthing windows are **weekly**, tied to **terminal + line**,
-  and the nearest window is measured from the visit's **ETA**. Separate Marine / Operation notifications: "ignore
+  and the window is measured from the visit's **ETA**: the one it falls inside, else the **next one after it, never
+  one before** (2026-11-26: "the window has to appear for the one after the ETA not the one before it"). Separate Marine / Operation notifications: "ignore
   for now".
 - **Services and Dashboard (2026-11-26):** Services shows vessels as cards that open to their services (like the
   manager's HTML); the Dashboard shows one topic at a time (Agent jobs, OPR, Customers, the rest in Overview), not
