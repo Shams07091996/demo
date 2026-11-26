@@ -231,6 +231,26 @@ tbody tr{cursor:pointer;transition:background .12s}tbody tr:hover{background:col
 .bar .fill{width:100%;border-radius:6px 6px 0 0;min-height:4px;transition:opacity .2s}
 .bar:hover .fill{opacity:.75}
 .dash-wide{margin-bottom:12px}
+.view-tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+.view-tab{padding:8px 14px;border:none;border-bottom:2px solid transparent;background:none;color:var(--muted);font:inherit;font-weight:600;cursor:pointer;margin-bottom:-1px}
+.view-tab:hover{color:var(--text)}
+.view-tab[aria-pressed="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.dash-headline{margin:0 0 10px;color:var(--muted);font-size:13px;font-weight:600}
+.donut{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.donut-ring{width:170px;height:170px;flex-shrink:0}
+.donut-track{fill:none;stroke:var(--surface2);stroke-width:22}
+.donut-slice{fill:none;stroke-width:22;cursor:pointer}
+.donut-slice:hover{stroke-width:26}
+.donut-total{fill:var(--text);font-size:22px;font-weight:700}
+.donut-legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;min-width:160px;font-size:13px}
+.donut-legend li{display:flex;align-items:center;gap:8px}
+.donut-legend .l{flex:1}.donut-legend .v{color:var(--muted);font-variant-numeric:tabular-nums}
+.fig-table td.heat{text-align:center;font-variant-numeric:tabular-nums}
+.fig-table td.heat-1{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.fig-table td.heat-2{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+.fig-table td.heat-3{background:color-mix(in srgb,var(--accent) 36%,transparent)}
+.fig-table td.heat-4{background:color-mix(in srgb,var(--accent) 52%,transparent)}
+.fig-table td.heat-5{background:color-mix(in srgb,var(--accent) 70%,transparent);color:var(--accent-text);font-weight:700}
 .hbars{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .hbar{display:grid;grid-template-columns:minmax(90px,180px) 1fr 44px;align-items:center;gap:10px;cursor:pointer;font-size:12px}
 .hbar .l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hbar .v{text-align:right;font-weight:600}
@@ -425,6 +445,7 @@ th[data-csort],th[data-bsort]{cursor:pointer}
 .sv-svc:hover{border-color:var(--accent)}
 .sv-svc-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .sv-svc-meta{display:flex;flex-direction:column;color:var(--muted);font-size:12px}
+@media(max-width:600px){.sv-vessel-head{flex-wrap:wrap;gap:4px 10px}.sv-vessel-name{min-width:0;flex:1}.sv-vessel-meta{flex-basis:100%;order:3}}
 
 /* Operation pages (js/pages/op*.js, terminals.js) */
 .op-cards{display:grid;gap:12px}

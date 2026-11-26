@@ -31,7 +31,7 @@ export function savePageSize(size) {
 /** The Dashboard before (or after a failed) load: the shape of GET /api/dashboard/. */
 export function emptyDashboard() {
   return {
-    count: 0, oprs: [], filters: { oprs: [], agents: [] }, service_types: [], agents: [], months: [],
+    count: 0, oprs: [], filters: { oprs: [], agents: [] }, service_types: [], agents: [], months: [], customers: [],
     totals: { jobs: 0, services: 0, cost_egp: 0, revenue_egp: 0, profit_egp: 0 },
   };
 }

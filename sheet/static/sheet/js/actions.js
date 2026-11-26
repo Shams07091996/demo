@@ -41,6 +41,7 @@ import { newValuePort, renderMasterPage, usageUnit } from './pages/master.js';
 import { copyLastMonth, readPriceForm, renderRatesPage } from './pages/rates.js';
 import { servicesPage } from './pages/services.js';
 import { shipsPage } from './pages/ships.js';
+import { showDashboardView } from './render/dashboard.js';
 import { fillQuickSelects } from './render/list.js';
 import { closePanel, openPanel, toggleAlerts } from './render/notifications.js';
 import { hideRangeNotice } from './render/rangeNotice.js';
@@ -179,6 +180,7 @@ export const actions = {
   summary: (b) => { closePanel(); openSummary(Number(b.dataset.id)); },
   'opr-summary': (b) => openOprSummary(b.dataset.opr),
   'agent-jobs': (b) => openAgentJobs(b.dataset.agent),
+  'dash-view': (b) => showDashboardView(b.dataset.view),
   'toggle-theme': toggleTheme,
   'toggle-nav-group': toggleNavGroup,
   'toggle-alerts': toggleAlerts,

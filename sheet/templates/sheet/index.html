@@ -449,22 +449,43 @@
         </div>
         <div class="count flush"><strong id="dash-count">0</strong> vessels in selection</div>
       </div>
-      <div class="dash-grid">
-        <section class="panel"><h3>Jobs per agent</h3><div id="chart-agents"></div><div id="tbl-agents"></div></section>
-        <section class="panel"><h3>Services per month</h3><div id="chart-months"></div><div id="tbl-months"></div></section>
+      <div class="view-tabs" role="group" aria-label="View">
+        <button class="view-tab" type="button" data-act="dash-view" data-view="agents" aria-pressed="true">Agent jobs</button>
+        <button class="view-tab" type="button" data-act="dash-view" data-view="opr" aria-pressed="false">OPR</button>
+        <button class="view-tab" type="button" data-act="dash-view" data-view="customers" aria-pressed="false">Customers</button>
+        <button class="view-tab" type="button" data-act="dash-view" data-view="overview" aria-pressed="false">Overview</button>
       </div>
-      {% if "money.view" in me.permissions %}<section class="panel dash-wide"><h3>Money per month (LE)</h3><div id="tbl-money"></div></section>{% endif %}
-      <section class="panel dash-wide"><h3>Service status</h3><div id="tbl-status"></div></section>
-      <div class="dash-grid">
-        <section class="panel"><h3>Vessels per OPR</h3><div id="chart-vessels"></div></section>
-        <section class="panel"><h3>Services per OPR</h3><div id="chart-services"></div></section>
-        {% if "money.view" in me.permissions %}
-        <section class="panel"><h3>Total cost (LE) per OPR</h3><div id="chart-cost"></div></section>
-        <section class="panel"><h3>Profit (LE) per OPR</h3><div id="chart-profit"></div></section>
-        {% endif %}
+      <div data-dash-view="agents">
+        <div class="dash-headline" id="hl-agents"></div>
+        <section class="panel dash-wide"><h3>Jobs per agent</h3><div id="chart-agents"></div><div id="tbl-agents"></div></section>
       </div>
-      <h3 class="dash-title">OPR summary</h3>
-      <div class="opr-cards" id="opr-cards"></div>
+      <div data-dash-view="opr" hidden>
+        <div class="dash-headline" id="hl-opr"></div>
+        <div class="dash-grid">
+          <section class="panel"><h3>Vessels per OPR</h3><div id="chart-vessels"></div></section>
+          <section class="panel"><h3>OPR figures</h3><div id="tbl-opr"></div></section>
+          <section class="panel"><h3>Services per OPR</h3><div id="chart-services"></div></section>
+          {% if "money.view" in me.permissions %}
+          <section class="panel"><h3>Total cost (LE) per OPR</h3><div id="chart-cost"></div></section>
+          <section class="panel"><h3>Profit (LE) per OPR</h3><div id="chart-profit"></div></section>
+          {% endif %}
+        </div>
+        <h3 class="dash-title">OPR summary</h3>
+        <div class="opr-cards" id="opr-cards"></div>
+      </div>
+      <div data-dash-view="customers" hidden>
+        <div class="dash-headline" id="hl-customers"></div>
+        <div class="dash-grid">
+          <section class="panel"><h3>Jobs per customer</h3><div id="tbl-customers"></div></section>
+          <section class="panel"><h3>Customers by POC and port</h3><div id="heat-customers"></div></section>
+        </div>
+      </div>
+      <div data-dash-view="overview" hidden>
+        <div class="dash-headline" id="hl-overview"></div>
+        <section class="panel dash-wide"><h3>Services per month</h3><div id="chart-months"></div><div id="tbl-months"></div></section>
+        {% if "money.view" in me.permissions %}<section class="panel dash-wide"><h3>Money per month (LE)</h3><div id="tbl-money"></div></section>{% endif %}
+        <section class="panel dash-wide"><h3>Service status</h3><div id="tbl-status"></div></section>
+      </div>
     </main>
 
     <!-- ===== Master data ===== -->
