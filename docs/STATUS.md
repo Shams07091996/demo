@@ -284,6 +284,11 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Decisions the user made (respect these)
 
+- **Operation windows round (2026-11-26):** vessels that passed their ETA without berthing stay in Live data's Next 7
+  days ("yes change the rule"); the vessel list's field is called **Operator**, not OPR; sidebar folders must stand
+  apart, **without an underline** under the active one; berthing windows are **weekly**, tied to **terminal + line**,
+  and the nearest window is measured from the visit's **ETA**. Separate Marine / Operation notifications: "ignore
+  for now".
 - **Services and Dashboard (2026-11-26):** Services shows vessels as cards that open to their services (like the
   manager's HTML); the Dashboard shows one topic at a time (Agent jobs, OPR, Customers, the rest in Overview), not
   everything as bars.
@@ -394,6 +399,9 @@ Their security push has three pieces, in this order:
    2026-11-25. **The agreed list is done**; what comes next is the user's choice.
 
 Also: the user may want to move the old shared agent / hotel to a port (Master data page).
+
+Put aside by the user (2026-11-26): **separate notifications for Marine and Operation** (today the alerts are
+Marine's only). Ask before starting it.
 
 Ideas raised along the way:
 
