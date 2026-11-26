@@ -213,8 +213,7 @@ def dashboard_out(response, profile):
     def plain(item):
         return {k: v for k, v in item.items() if k not in DASHBOARD_MONEY}
 
-    return {**response, "totals": plain(response["totals"]), "months": [plain(m) for m in response["months"]],
-            "oprs": [plain(o) for o in response["oprs"]]}
+    return {**response, "totals": plain(response["totals"]), "months": [plain(m) for m in response["months"]]}
 
 
 MONEY_TAGS = ("Cost", "Revenue", "Rate")
