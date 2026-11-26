@@ -107,16 +107,17 @@ venv\Scripts\activate
 
 **Linux:** `git clone … /srv/marine_sheet`, `python3 -m venv venv`, `source venv/bin/activate`.
 
-Add the program that runs Django — **once**, then commit it so every server installs exactly the same files:
+Install exactly the files recorded in the lock (waitress, the program that runs the app on Windows, is already
+in it):
 
 ```powershell
-Add-Content requirements.in "waitress>=3,<4"           # Linux: gunicorn>=23,<24
-pip install pip-tools
-pip-compile --generate-hashes --strip-extras requirements.in -o requirements.txt
 pip install --require-hashes -r requirements.txt
 ```
 
 `--require-hashes` means pip refuses any file that isn't exactly the one recorded in `requirements.txt`.
+**Linux:** gunicorn is not in the lock yet: add `gunicorn>=23,<24` to `requirements.in`, then
+`pip install pip-tools` and `pip-compile --generate-hashes --strip-extras requirements.in -o requirements.txt`, commit
+both files, and install as above.
 
 ---
 

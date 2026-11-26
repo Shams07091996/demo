@@ -5,6 +5,12 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
+- **Ready for the server (2026-11-26):** branch `chore/waitress-letterhead`, **not merged**. waitress 3.0.2 (the
+  program that runs the app on Windows) is in `requirements.in` / the hash lock, so step 3 of `DEPLOYMENT.md` no
+  longer edits them; checked before adding: no dependencies, no known open advisories (OSV: every one fixed in
+  3.0.1 or earlier), `pip-audit` clean, it served the sign-in page. `.env.example` now lists
+  `DJANGO_LETTERHEAD_DIR`. No migration.
+
 - **Calculations as vessel cards (2026-11-26):** on branch `feature/calculations-cards` (made from
   `feature/dashboard-money`, so merging it brings all three pieces), **merged into `main` 2026-11-26**. No migration. Point 4.
   - The Calculations page shows one card per vessel (date, OPR, port, Revenue · Cost · Profit, number of lines);
