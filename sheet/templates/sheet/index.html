@@ -262,13 +262,13 @@
         <select id="c-party" class="select" aria-label="Billing party"></select>
         <select id="c-port" class="select" hidden aria-label="Port"></select>
         <span id="c-ticks"></span>
+        <select id="c-sort" class="select" aria-label="Sort by"></select>
+        <button class="btn ghost small" type="button" id="c-dir"></button>
         {% if "exports" in me.permissions %}<button class="btn ghost small" data-act="page-export" data-page="calculations"><svg class="ic" aria-hidden="true"><use href="#i-file"></use></svg> Excel</button>{% endif %}
       </div>
       <div class="calc-totals" id="c-totals" role="status"></div>
-      <div class="table-wrap">
-        <table><thead id="c-head"></thead><tbody id="c-tbody"></tbody></table>
-        <div class="empty" id="c-empty" hidden>No money lines in this range.</div>
-      </div>
+      <div class="sv-cards" id="c-cards"></div>
+      <div class="empty" id="c-empty" hidden>No money lines in this range.</div>
       <div class="pager" id="c-pager"></div>
     </main>
 

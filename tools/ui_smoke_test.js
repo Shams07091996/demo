@@ -95,6 +95,11 @@ async function login() {
 
   const $ = (s) => w.document.querySelector(s);
   const $$ = (s) => [...w.document.querySelectorAll(s)];
+  // Calculations: one card per vessel holding its line cards. A line's text here includes its vessel card's head.
+  const calcLines = () => $$('#c-cards .calc-line');
+  const lineText = (line) => `${line.closest('.sv-vessel').querySelector('.sv-vessel-head').textContent} ${line.textContent}`;
+  const calcLine = (...words) => calcLines().find((l) => words.every((word) => lineText(l).includes(word)));
+  const calcSummary = (line) => line.closest('.sv-vessel').querySelector('[data-act="summary"]');
   const click = (el) => el.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   const type = (el, value) => { el.value = value; el.dispatchEvent(new w.Event('input', { bubbles: true })); el.dispatchEvent(new w.Event('change', { bubbles: true })); };
   const waitFor = async (cond, ms = 4000) => { const end = Date.now() + ms; while (Date.now() < end) { if (cond()) return true; await sleep(40); } return false; };
@@ -212,12 +217,9 @@ async function login() {
     closeModal();
 
     await go('calculations');
-    const calcRows = () => $$('#c-tbody tr').filter((t) => t.textContent.includes(HOSTILE));
+    const calcRows = () => calcLines().filter((l) => lineText(l).includes(HOSTILE));
     ok(await waitFor(() => calcRows().length > 0), 'calculations: lines of the markup-like vessel are listed');
-    const portCol = $$('#c-head th').findIndex((th) => th.textContent.trim().startsWith('Port'));
-    ok($$('#c-head th').length === calcRows()[0].children.length
-      && (portCol < 0 || calcRows()[0].children[portCol].textContent.length > 0), 'calculations: the Port column lines up with its rows');
-    ok(calcRows()[0].textContent.includes('<i>O</i>') && noMarkup($('#c-tbody')), 'calculations: vessel name and OPR show literally');
+    ok(lineText(calcRows()[0]).includes('<i>O</i>') && noMarkup($('#c-cards')), 'calculations: vessel name and OPR show literally');
     ok([...$('#c-opr').options].some((o) => o.textContent === '<i>O</i>'), 'calculations: OPR filter lists the markup-like OPR as text');
 
     await go('master');
@@ -340,7 +342,7 @@ async function login() {
     closeModal();
     // Calculations: with Close / reopen lines (seed_demo gives full Users everything) the switch is there.
     await go('calculations');
-    ok(await waitFor(() => $$('#c-tbody tr').length > 0) && !!$('#c-tbody [data-act="acct-toggle"]'),
+    ok(await waitFor(() => calcLines().length > 0) && !!$('#c-cards [data-act="acct-toggle"]'),
       'three-port user: Calculations has the Open / Closed switch');
     ok((await w.fetch(`/api/vessels/${made.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': meta() } })).ok, 'three-port user: the Damietta vessel is deleted');
     await checkHistory();
@@ -554,18 +556,32 @@ async function login() {
   /* ---- calculations page (every role sees it, money included) ---- */
   await go('calculations');
   ok(await waitFor(() => /Revenue LE .+ · Cost LE .+ · Profit LE .+ · \d+ lines?/.test($('#c-totals').textContent)), 'calculations: one totals line');
-  const waterRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('MSC AURORA') && t.textContent.includes('Fresh Water'));
+  const waterRow = () => calcLine('MSC AURORA', 'Fresh Water');
+  ok(await waitFor(() => $$('#c-cards .sv-vessel').length > 0) && $$('#c-cards .sv-vessel-body').every((b) => b.hidden),
+    'calculations: one closed card per vessel');
+  const auroraCard = () => $$('#c-cards .sv-vessel').find((c) => c.querySelector('.sv-vessel-head').textContent.includes('MSC AURORA'));
+  ok(/Revenue .+ · Cost .+ · Profit .+/.test(auroraCard().querySelector('.calc-sums').textContent)
+    && /\d+ lines?/.test(auroraCard().querySelector('.sv-count').textContent), 'calculations: a vessel card shows its revenue, cost, profit and lines');
+  click(auroraCard().querySelector('[data-act="calc-toggle"]'));
+  ok(await waitFor(() => !auroraCard().querySelector('.sv-vessel-body').hidden && auroraCard().querySelectorAll('.calc-line').length > 0),
+    'calculations: a click opens the card to its line cards');
   ok(await waitFor(() => waterRow()) && waterRow().textContent.includes('USD 900.00 × 50.00 = 45,000.00'), 'calculations: a USD line shows its working');
   ok(waterRow().textContent.includes('EGP 30,000.00') && waterRow().textContent.includes('15,000.00'), 'calculations: cost and profit in EGP');
-  ok([...$('#c-pager #c-page-size').options].map((o) => o.value).join() === '10,25,50,100', 'calculations: rows per page 10/25/50/100');
+  ok([...$('#c-pager #c-page-size').options].map((o) => o.value).join() === '10,25,50,100', 'calculations: vessels per page 10/25/50/100');
+  type($('#c-sort'), 'profit');
+  ok(await waitFor(() => { const sums = $$('#c-cards .calc-sums').map((s) => Number(s.textContent.split('Profit ')[1].replaceAll(',', '')));
+    return sums.length > 1 && sums.every((n, i) => i === 0 || sums[i - 1] >= n); }), 'calculations: sorting by profit orders the vessel cards');
+  type($('#c-sort'), 'date');
+  await waitFor(() => waterRow());
+  ok(!auroraCard().querySelector('.sv-vessel-body').hidden, 'calculations: an open card stays open when the page reloads');
   ok([...$('#c-opr').options].map((o) => o.textContent).includes('MSK'), 'calculations: the OPR choices come from the range');
   type($('#c-opr'), 'MSK');
-  ok(await waitFor(() => $$('#c-tbody tr').length > 0 && $$('#c-tbody tr').every((t) => t.textContent.includes('MSK'))), 'calculations: the OPR filter narrows the lines');
+  ok(await waitFor(() => calcLines().length > 0 && calcLines().every((l) => lineText(l).includes('MSK'))), 'calculations: the OPR filter narrows the lines');
   type($('#c-opr'), '');
   await waitFor(() => $('#c-totals').textContent.includes('lines'));
   if (ROLE !== 'viewer') {
     // An edit made from the page (vessel name → summary → details → add a service) shows up on the page at once.
-    click(waterRow().querySelector('[data-act="summary"]'));
+    click(calcSummary(waterRow()));
     await waitFor(() => $('#modal [data-act="open-vessel"]'));
     click($('#modal [data-act="open-vessel"]'));
     await waitFor(() => $('[data-act="add-service"]'));
@@ -575,9 +591,9 @@ async function login() {
     click($('[data-act="save-service"]'));
     await waitFor(() => modalText().includes('calc smoke'));
     closeModal();
-    const othersRow = () => $$('#c-tbody tr').find((t) => t.textContent.includes('MSC AURORA') && t.textContent.includes('Others / Remarks'));
+    const othersRow = () => calcLine('MSC AURORA', 'Others / Remarks');
     ok(await waitFor(() => othersRow() && othersRow().textContent.includes('EGP 7.00')), 'calculations: an edit made from the page shows up without reloading');
-    click(othersRow().querySelector('[data-act="summary"]')); // remove the test service again
+    click(calcSummary(othersRow())); // remove the test service again
     await waitFor(() => $('#modal [data-act="open-vessel"]'));
     click($('#modal [data-act="open-vessel"]'));
     await waitFor(() => $$('.svc-card').some((c) => c.textContent.includes('Others / Remarks')));
@@ -588,9 +604,8 @@ async function login() {
   }
 
   /* ---- service status and accounting: Calculations columns, tick-box filters, the Open / Closed switch ---- */
-  const calcHeads = () => $$('#c-head th').map((th) => th.textContent.trim());
-  ok(calcHeads().includes('Status') && calcHeads().includes('Accounting'), 'calculations: Status and Accounting columns');
-  ok(calcHeads().includes('Billing party') && calcHeads().includes('Billing'), 'calculations: Billing party and Billing columns');
+  ok(await waitFor(() => waterRow()?.querySelector('.svc-status') && waterRow().querySelector('.acct-switch, .acct-label')),
+    'calculations: a line card shows its status and its accounting state');
   ok(await waitFor(() => waterRow()?.textContent.includes('On account')), 'calculations: a service line shows On account');
   ok([...$('#c-party').options].map((o) => o.textContent).slice(0, 2).join() === 'All billing parties,No billing party', 'calculations: billing party filter');
   ok(await waitFor(() => waterRow()?.querySelector('.svc-status')?.textContent === 'In progress'), 'calculations: a service line shows its status label');
@@ -629,7 +644,7 @@ async function login() {
     setTick('accounting', 'closed', true);
     ok(await waitFor(() => waterRow()), 'accounting: ticking Closed again shows it');
     if (ROLE === 'admin') {
-      click(waterRow().querySelector('[data-act="summary"]'));
+      click(calcSummary(waterRow()));
       await waitFor(() => $('#modal [data-act="open-vessel"]'));
       click($('#modal [data-act="open-vessel"]'));
       const waterCard = () => $$('.svc-card').find((c) => c.textContent.includes('Fresh Water'));
@@ -648,7 +663,7 @@ async function login() {
       await setMonthRate('50');
       ok(await waitFor(() => waterRow()?.textContent.includes('× 48.2525 = 43,427.25')), 'accounting: the rate kept on closing stays after reopening and a new month rate');
       // A person clears the kept rate: the line follows the month rate again (and the next role sees the seeded figures).
-      click(waterRow().querySelector('[data-act="summary"]'));
+      click(calcSummary(waterRow()));
       await waitFor(() => $('#modal [data-act="open-vessel"]'));
       click($('#modal [data-act="open-vessel"]'));
       const waterCard = () => $$('.svc-card').find((c) => c.textContent.includes('Fresh Water'));
@@ -1163,7 +1178,7 @@ async function login() {
     ok(await waitFor(() => gRow()?.textContent.includes('USD 370.00') && gRow().textContent.includes('No exchange rate')), 'garbage & sludge: the price applies, in USD and EGP');
     await go('calculations');
     type($('#c-from'), '2020-01-01'); type($('#c-to'), '2020-01-31');
-    const gLine = () => $$('#c-tbody tr').find((t) => t.textContent.includes('Garbage · 5 m³'));
+    const gLine = () => calcLine('Garbage · 5 m³');
     ok(await waitFor(() => gLine()?.textContent.includes('USD 370.00 × 1 (no rate) = 370.00')), 'calculations: the garbage line shows its working');
     await go('disposal');
   }

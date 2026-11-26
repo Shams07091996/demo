@@ -278,8 +278,14 @@ USD (a figure needing a missing rate is None, the row flagged). The money is on 
 **Calculations** (`calculations.py`, `GET /api/calculations/`): vessels in a vessel-date range / exact OPR / port →
 `service_lines` for each service plus `booking_line` for each hotel stay and transfer → rows, totals over all
 filtered rows, and the OPRs present in the range for the page's dropdown. Computed on each request, never stored.
-Every role may read it. Rows' `vessel` has `port_label` (sort `port`; the page's Port column shows for
-`ME.multiPort`). Each row carries `status` / `cancel_reason` (service rows; None for bookings and garbage),
+Every role may read it. **The page is vessel cards** (since 2026-11-26, like Services): `response` groups the
+filtered rows per vessel (`_groups`), sorts the cards by `VESSEL_SORTS` (date / vessel / opr / port / cost / revenue /
+profit, the money ones by the vessel's sums, ties newest first; `kind` and other line sorts → 400) and pages them:
+`vessels` = `[{vessel, lines, cost_egp, revenue_egp, profit_egp, rate_missing, price_missing}]`, `count` / `pages` count
+vessels, `rows` = the lines of this page's cards in card order. `filtered` (the Excel) still sorts lines by
+`SORT_KEYS`. Front end `js/pages/calculations.js`: `#c-sort` / `#c-dir`, `#c-cards` (`sv-vessel` cards, `calc-toggle`
+opens one, kept open across reloads), line cards `calc-line`, a "Vessel summary" link; `COLUMNS` = the Excel's headings.
+Rows' `vessel` has `port_label` (sort `port`; shown for `ME.multiPort`). Each row carries `status` / `cancel_reason` (service rows; None for bookings and garbage),
 `closed` and `ref {kind, id}` (what `/api/accounting/` closes; None for garbage with no `VesselDisposal` yet).
 `status=` / `accounting=` comma lists filter the rows (unknown → 400, empty items ignored; any `status` filter drops
 rows without a status); totals follow the filters and add `open` / `closed`.

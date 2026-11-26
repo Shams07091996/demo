@@ -1,10 +1,11 @@
-// The Calculations page: every money line (services, hotel stays, transfers) of the vessels in a vessel-date range,
-// OPR and port, with its working and one totals line. Everything is worked out by the server (/api/calculations/).
+// The Calculations page: every money line (services, hotel stays, transfers, garbage & sludge) of the vessels in a
+// vessel-date range, OPR and port, as one card per vessel that opens to its line cards (like the Services page), with
+// one totals line. Everything is worked out by the server (/api/calculations/, paged and sorted by vessel).
 // Each line shows its service's operations status and its accounting state; accounting (read-only accounts) and
 // admins switch a line Open / Closed. Two tick-box filters narrow by status and by accounting state.
 import { api, mutate } from '../api.js';
 import { portOptionEls, serviceStatusEl, sortIcon, tickFilterEl } from '../components.js';
-import { BILLING, ME, NO_AGENT, SERVICE_STATUS, can } from '../config.js';
+import { BILLING, ME, NO_AGENT, PORT_LABEL, SERVICE_STATUS, can } from '../config.js';
 import { h, icon, optionEls, setChildren } from '../dom.js';
 import { setStatus } from '../feedback.js';
 import { pagerEl } from '../render/pager.js';
@@ -15,7 +16,8 @@ const SIZE_KEY = 'sheet.calculations.pageSize';
 const DATE_DELAY_MS = 400;
 const typingYear = (iso) => iso && Number(iso.slice(0, 4)) < 1900;
 
-const COLUMNS = [
+// The Excel's headings (one row per line; sheet/tests_page_excel.py keeps them equal to dataexport's).
+export const COLUMNS = [
   { title: 'Date', sort: 'date' },
   { title: 'Vessel', sort: 'vessel' },
   { title: 'OPR', sort: 'opr' },
@@ -30,6 +32,9 @@ const COLUMNS = [
   { title: 'Accounting' },
 ];
 const ACCOUNTING = { open: 'Open', closed: 'Closed' };
+// The cards' sorts (the server sorts vessels; money by the vessel's sums).
+const SORTS = [['date', 'Date'], ['vessel', 'Vessel'], ['opr', 'OPR'], ['port', 'Port', true], ['cost', 'Cost'],
+  ['revenue', 'Revenue'], ['profit', 'Profit']];
 
 function savedSize() {
   try {
@@ -45,7 +50,8 @@ const filter = {
   status: Object.keys(SERVICE_STATUS), accounting: Object.keys(ACCOUNTING), // ticked values; all ticked = no filter
   billing: Object.keys(BILLING), party: '',
 };
-let data = { rows: [], count: 0, pages: 1, page: 1, totals: null, oprs: [], parties: [] };
+let data = { rows: [], vessels: [], count: 0, pages: 1, page: 1, totals: null, oprs: [], parties: [] };
+const opened = new Set(); // vessel ids whose cards are open, while on the page
 let ticket = 0;
 let wired = false;
 
@@ -89,21 +95,41 @@ function accountingCell(row) {
   }, row.closed ? icon('lock') : icon('check'), ` ${label}`);
 }
 
-function rowEl(row) {
-  return h('tr', null,
-    h('td', null, dmy(row.vessel.date)),
-    h('td', null, h('a', { href: '#calculations', dataset: { act: 'summary', id: row.vessel.id } }, row.vessel.name)),
-    h('td', null, row.vessel.opr || '—'),
-    ME.multiPort ? h('td', null, row.vessel.port_label) : null,
-    h('td', null, itemCell(row)),
-    h('td', { class: 'num' }, sideCell(row.cost)),
-    h('td', { class: 'num' }, sideCell(row.revenue)),
-    h('td', { class: `num ${row.profit_egp < 0 ? 'neg' : ''}`.trim() }, fmt(row.profit_egp),
-      row.profit_usd != null ? h('div', { class: 'none calc-note' }, `USD ${fmt(row.profit_usd)}`) : null),
-    h('td', null, statusCell(row)),
-    h('td', null, row.billing_party ? row.billing_party.name : '—'),
-    h('td', null, row.billing ? BILLING[row.billing] : '—'),
-    h('td', null, accountingCell(row)));
+const money = (label, value) => h('div', { class: 'calc-money' }, h('span', { class: 'none' }, label), value);
+
+/** One money line inside its vessel's card. */
+function lineEl(row) {
+  return h('div', { class: 'calc-line' },
+    h('div', { class: 'sv-svc-top' }, h('strong', null, itemCell(row)), statusCell(row)),
+    money('Cost ', sideCell(row.cost)),
+    money('Revenue ', sideCell(row.revenue)),
+    money('Profit LE ', h('span', { class: row.profit_egp < 0 ? 'neg' : null }, fmt(row.profit_egp),
+      row.profit_usd != null ? ` · USD ${fmt(row.profit_usd)}` : '')),
+    h('div', { class: 'sv-svc-top' },
+      h('span', { class: 'none calc-note' }, [row.billing_party ? row.billing_party.name : 'No billing party',
+        row.billing ? BILLING[row.billing] : ''].filter(Boolean).join(' · ')),
+      accountingCell(row)));
+}
+
+function vesselCardEl(card, rows) {
+  const { vessel } = card;
+  const open = opened.has(vessel.id);
+  const place = ME.multiPort ? PORT_LABEL[vessel.port] || vessel.port_label : '';
+  return h('article', { class: open ? 'sv-vessel open' : 'sv-vessel' },
+    h('button', { class: 'sv-vessel-head', dataset: { act: 'calc-toggle', id: vessel.id },
+      attrs: { type: 'button', 'aria-expanded': String(open) } },
+    h('span', { class: 'sv-vessel-name' }, vessel.name),
+    h('span', { class: 'sv-vessel-meta' }, [dmy(vessel.date), vessel.opr, place].filter(Boolean).join(' · ')),
+    h('span', { class: 'sv-vessel-right' },
+      card.rate_missing || card.price_missing
+        ? h('span', { class: 'warn-text', attrs: { title: 'A line has no exchange rate or price' } }, icon('alert')) : null,
+      h('span', { class: 'calc-sums' }, `Revenue ${fmt(card.revenue_egp)} · Cost ${fmt(card.cost_egp)} · `,
+        h('span', { class: card.profit_egp < 0 ? 'neg' : null }, `Profit ${fmt(card.profit_egp)}`)),
+      h('span', { class: 'sv-count' }, card.lines === 1 ? '1 line' : `${card.lines} lines`),
+      icon('chevron-down'))),
+    h('div', { class: 'sv-vessel-body', hidden: !open },
+      h('a', { class: 'calc-summary', href: '#calculations', dataset: { act: 'summary', id: vessel.id } }, 'Vessel summary'),
+      rows.map(lineEl)));
 }
 
 
@@ -139,12 +165,15 @@ function totalsEls(t) {
 }
 
 function render() {
-  setChildren($('#c-head'), h('tr', null, COLUMNS.filter((c) => !c.multiPort || ME.multiPort).map((c) => (c.sort
-    ? h('th', { dataset: { csort: c.sort } }, c.title, ' ', h('span', { class: 'arrow' }, sortIcon(filter.sort === c.sort, filter.dir)))
-    : h('th', null, c.title)))));
+  setChildren($('#c-sort'), optionEls(SORTS.filter(([, , multi]) => !multi || ME.multiPort)
+    .map(([key, label]) => [key, label]), filter.sort));
+  setChildren($('#c-dir'), sortIcon(true, filter.dir));
+  $('#c-dir').setAttribute('aria-label', filter.dir === 'desc' ? 'Highest / newest first' : 'Lowest / oldest first');
   renderTicks();
-  setChildren($('#c-tbody'), data.rows.map(rowEl));
-  $('#c-empty').hidden = data.rows.length > 0;
+  const listed = new Set(data.vessels.map((v) => v.vessel.id));
+  for (const id of [...opened]) if (!listed.has(id)) opened.delete(id);
+  setChildren($('#c-cards'), data.vessels.map((card) => vesselCardEl(card, data.rows.filter((r) => r.vessel.id === card.vessel.id))));
+  $('#c-empty').hidden = data.vessels.length > 0;
   setChildren($('#c-totals'), totalsEls(data.totals));
   const oprs = filter.opr && !data.oprs.includes(filter.opr) ? [...data.oprs, filter.opr] : data.oprs;
   setChildren($('#c-opr'), optionEls([['', 'All OPRs'], ...oprs.map((o) => [o, o])], filter.opr));
@@ -152,7 +181,7 @@ function render() {
   if (filter.party && filter.party !== NO_AGENT && !parties.some(([id]) => id === filter.party)) parties.push([filter.party, 'Chosen party']);
   setChildren($('#c-party'), optionEls([['', 'All billing parties'], [NO_AGENT, 'No billing party'], ...parties], filter.party));
   setChildren($('#c-pager'), pagerEl({
-    count: data.count, pages: data.pages, page: data.page, size: filter.pageSize, noun: 'lines', sizeId: 'c-page-size',
+    count: data.count, pages: data.pages, page: data.page, size: filter.pageSize, noun: 'vessels', sizeId: 'c-page-size',
     prev: { act: 'calc-page', step: -1 }, next: { act: 'calc-page', step: 1 },
   }));
   const from = $('#c-from');
@@ -187,7 +216,7 @@ async function load() {
     return;
   }
   if (mine !== ticket) return; // a newer request is on its way
-  if (!answer.rows.length && filter.page > answer.pages) {
+  if (!answer.vessels.length && filter.page > answer.pages) {
     filter.page = answer.pages;
     load();
     return;
@@ -238,12 +267,8 @@ function wire() {
   $('#c-from').addEventListener('change', onDate);
   $('#c-to').addEventListener('change', onDate);
   $('#c-clear').addEventListener('click', () => setFilter({ from: '', to: '' }));
-  $('#c-head').addEventListener('click', (event) => {
-    const th = event.target.closest('[data-csort]');
-    if (!th) return;
-    const sort = th.dataset.csort;
-    setFilter({ sort, dir: filter.sort === sort && filter.dir === 'desc' ? 'asc' : 'desc' });
-  });
+  $('#c-sort').addEventListener('change', (event) => setFilter({ sort: event.target.value, dir: 'desc' }));
+  $('#c-dir').addEventListener('click', () => setFilter({ dir: filter.dir === 'desc' ? 'asc' : 'desc' }));
   $('#c-ticks').addEventListener('change', (event) => {
     const box = event.target.closest('[data-tick]');
     if (!box) return;
@@ -282,9 +307,17 @@ function exportQuery() {
   return query;
 }
 
+/** Open or close one vessel's card (no reload). */
+function toggle(id) {
+  if (opened.has(id)) opened.delete(id);
+  else opened.add(id);
+  render();
+}
+
 export const calculationsPage = {
   load,
   exportQuery,
   toggleClosed,
+  toggle,
   step: (n) => setFilter({ page: Math.min(Math.max(1, filter.page + n), data.pages) }),
 };
