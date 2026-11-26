@@ -5,8 +5,8 @@ Last updated: 2026-11-26. Read this with `CLAUDE.md` before starting work. Each 
 
 ## Where things stand right now
 
-- **Overdue vessels, vessel-list operator, sidebar folders, berthing windows (2026-11-26):** on branch
-  `feature/operation-windows`, **not merged** (waiting for the user). Needs migrations **`operation 0004_listed_vessel_line`**
+- **Overdue vessels, vessel-list operator, sidebar folders, berthing windows (2026-11-26):** merged into main by the user
+  (2026-11-26), from branch `feature/operation-windows` (deleted). Needs migrations **`operation 0004_listed_vessel_line`**
   and **`0005_berthing_window`**. Design `specs/2026-11-26-operation-windows-design.md`, plan
   `plans/2026-11-26-operation-windows.md`.
   - Live data's **Next 7 days** keeps a vessel whose ETA has passed without berthing: **Overdue** (red chip) without
