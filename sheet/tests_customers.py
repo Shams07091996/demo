@@ -120,14 +120,14 @@ class CustomerSaveReviewTests(ApiTestCase):
 
     def test_unchanged_save_touches_no_contact_or_rate(self):
         from .models import ChangeRecord
-        before = ChangeRecord.objects.count()
+        before = ChangeRecord.objects.order_by("-id").values_list("id", flat=True).first() or 0  # ids don't restart
         ids = sorted(CustomerContact.objects.values_list("id", flat=True)), sorted(CustomerRate.objects.values_list("id", flat=True))
         status, _ = self.call(self.admin, "put", self.url, {**BLUE, "notes": "Pays weekly"})
         self.assertEqual(status, 200)
         self.assertEqual((sorted(CustomerContact.objects.values_list("id", flat=True)),
                           sorted(CustomerRate.objects.values_list("id", flat=True))), ids)
-        self.assertEqual(list(ChangeRecord.objects.filter(id__gt=before).values_list("object_type", flat=True)
-                              if before else []), ["customer"])
+        self.assertEqual(list(ChangeRecord.objects.filter(id__gt=before).values_list("object_type", flat=True)),
+                         ["customer"])
 
     def test_one_changed_rate_is_one_update(self):
         from .models import ChangeRecord

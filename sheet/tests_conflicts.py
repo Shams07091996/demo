@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import RequestFactory
@@ -111,9 +112,9 @@ class DescribeTests(ApiTestCase):
 
     def test_describe_older_save_shows_the_date(self):
         vessel = self.alex_vessel
-        change(vessel, "alex", poc="A")
-        ChangeRecord.objects.filter(object_type="vessel", object_id=vessel.pk).update(
-            at=timezone.now() - timedelta(days=2))
+        two_days_ago = timezone.now() - timedelta(days=2)
+        with mock.patch("django.utils.timezone.now", return_value=two_days_ago):  # the history can't be edited
+            change(vessel, "alex", poc="A")
         self.assertRegex(conflicts.describe(vessel, 1, User.objects.get(username="admin"))["at"],
                          r"^\d\d/\d\d \d\d:\d\d$")
 
